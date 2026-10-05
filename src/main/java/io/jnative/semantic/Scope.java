@@ -1,0 +1,41 @@
+package io.jnative.semantic;
+
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Optional;
+
+public final class Scope {
+    private final Scope parent;
+    private final Map<String, Symbol> symbols = new HashMap<>();
+
+    public Scope(Scope parent) {
+        this.parent = parent;
+    }
+
+    public boolean declare(Symbol symbol) {
+        if (symbols.containsKey(symbol.name())) {
+            return false;
+        }
+        symbols.put(symbol.name(), symbol);
+        return true;
+    }
+
+    public Optional<Symbol> resolve(String name) {
+        Symbol local = symbols.get(name);
+        if (local != null) {
+            return Optional.of(local);
+        }
+        if (parent != null) {
+            return parent.resolve(name);
+        }
+        return Optional.empty();
+    }
+
+    public Optional<Symbol> resolveLocal(String name) {
+        return Optional.ofNullable(symbols.get(name));
+    }
+
+    public Scope parent() {
+        return parent;
+    }
+}
