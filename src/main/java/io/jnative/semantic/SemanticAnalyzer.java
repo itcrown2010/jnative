@@ -3,6 +3,8 @@ package io.jnative.semantic;
 import io.jnative.ast.*;
 import io.jnative.diagnostics.DiagnosticReporter;
 import io.jnative.diagnostics.SourceLocation;
+import io.jnative.generic.TypeInferenceEngine;
+import io.jnative.generic.TypeSubstitution;
 import io.jnative.layout.ObjectLayoutBuilder;
 import io.jnative.mangle.NameMangler;
 import io.jnative.ffi.AbiType;
@@ -12,9 +14,14 @@ import io.jnative.ffi.NativeSignature;
 import io.jnative.ffi.NativeStructLayoutBuilder;
 import io.jnative.ffi.PointerProvenance;
 import io.jnative.ffi.TargetAbi;
+import io.jnative.iface.FunctionalInterfaceAnalyzer;
+import io.jnative.iface.InterfaceSlotBuilder;
+import io.jnative.vtable.ITableBuilder;
 import io.jnative.vtable.VTableBuilder;
 
+import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.Deque;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
@@ -30,7 +37,9 @@ import java.util.Set;
 public final class SemanticAnalyzer {
     private final DiagnosticReporter reporter;
     private final Map<String, ClassSymbol> classes = new LinkedHashMap<>();
+    private final Map<String, InterfaceSymbol> interfaces = new LinkedHashMap<>();
     private final Map<String, NativeStructSymbol> nativeStructs = new LinkedHashMap<>();
+    private final Map<InterfaceSymbol, ClassSymbol> interfaceAdapters = new LinkedHashMap<>();
     private final Map<Expression, JType> expressionTypes = new HashMap<>();
     private final Map<Expression, Object> resolvedSymbols = new HashMap<>();
     private final Map<Expression, CallableBinding> callableBindings = new HashMap<>();
@@ -60,6 +69,8 @@ public final class SemanticAnalyzer {
     private int callbackCounter;
     private ClassSymbol runnableClass;
     private ClassSymbol nativeCallbackHandleClass;
+    private final Deque<Map<String, TypeParameterSymbol>> typeParamScopes = new ArrayDeque<>();
+    private boolean instanceofContext;
 
     public SemanticAnalyzer(DiagnosticReporter reporter) {
         this.reporter = reporter;
@@ -67,6 +78,8 @@ public final class SemanticAnalyzer {
 
     public TypedCompilationUnit analyze(CompilationUnit unit) {
         classes.clear();
+        interfaces.clear();
+        interfaceAdapters.clear();
         expressionTypes.clear();
         resolvedSymbols.clear();
         callableBindings.clear();
@@ -80,6 +93,8 @@ public final class SemanticAnalyzer {
         currentMethod = null;
         currentConstructor = null;
         allowingStackNativeNew = false;
+        typeParamScopes.clear();
+        instanceofContext = false;
 
         envClassCounter = 0;
         lambdaCounter = 0;
@@ -93,15 +108,20 @@ public final class SemanticAnalyzer {
         provenances.clear();
 
         for (ClassDeclaration cls : unit.classes()) {
-            if (cls.nativeStruct()) {
+            if (cls.isInterface()) {
+                declareInterface(cls);
+            } else if (cls.nativeStruct()) {
                 declareNativeStruct(cls);
             } else {
                 declareClass(cls);
             }
         }
         for (ClassDeclaration cls : unit.classes()) {
-            if (!cls.nativeStruct()) {
+            if (cls.isInterface()) {
+                linkSuperInterfaces(cls);
+            } else if (!cls.nativeStruct()) {
                 linkSuperClass(cls);
+                linkImplements(cls);
             }
         }
         detectInheritanceCycles(unit);
@@ -119,7 +139,7 @@ public final class SemanticAnalyzer {
         buildNativeStructLayouts();
 
         for (ClassDeclaration cls : unit.classes()) {
-            if (cls.nativeStruct()) {
+            if (cls.nativeStruct() || cls.isInterface()) {
                 continue;
             }
             ClassSymbol symbol = classes.get(cls.name());
@@ -131,11 +151,25 @@ public final class SemanticAnalyzer {
             if (cls.nativeStruct()) {
                 continue;
             }
-            ClassSymbol symbol = classes.get(cls.name());
-            if (symbol != null) {
-                registerMethods(symbol, cls);
-                registerConstructors(symbol, cls);
+            if (cls.isInterface()) {
+                InterfaceSymbol symbol = interfaces.get(cls.name());
+                if (symbol != null) {
+                    registerInterfaceMethods(symbol, cls);
+                }
+            } else {
+                ClassSymbol symbol = classes.get(cls.name());
+                if (symbol != null) {
+                    registerMethods(symbol, cls);
+                    registerConstructors(symbol, cls);
+                }
             }
+        }
+
+        int nextInterfaceId = 0;
+        for (InterfaceSymbol iface : topologicalInterfaces()) {
+            InterfaceSlotBuilder.buildSlots(iface);
+            FunctionalInterfaceAnalyzer.analyze(iface);
+            iface.setInterfaceId(nextInterfaceId++);
         }
 
         for (ClassSymbol symbol : topologicalClasses()) {
@@ -145,11 +179,27 @@ public final class SemanticAnalyzer {
             }
         }
 
+        verifyAbstractAndInterfaceCompleteness(unit);
+        if (!reporter.hasErrors()) {
+            for (ClassSymbol symbol : classes.values()) {
+                if (symbol.isBuiltin() || symbol.isAbstract()) {
+                    continue;
+                }
+                if (symbol.transitiveInterfaces().isEmpty()) {
+                    continue;
+                }
+                symbol.setItables(ITableBuilder.buildAll(symbol));
+                for (InterfaceSymbol iface : symbol.transitiveInterfaces()) {
+                    iface.addImplementor(symbol);
+                }
+            }
+        }
+
         resolveConstructorDelegations(unit);
         detectConstructorCycles();
 
         for (ClassDeclaration cls : unit.classes()) {
-            if (cls.nativeStruct()) {
+            if (cls.nativeStruct() || cls.isInterface()) {
                 continue;
             }
             ClassSymbol symbol = classes.get(cls.name());
@@ -171,6 +221,7 @@ public final class SemanticAnalyzer {
         return new TypedCompilationUnit(
                 unit,
                 Map.copyOf(classes),
+                Map.copyOf(interfaces),
                 Map.copyOf(nativeStructs),
                 Map.copyOf(expressionTypes),
                 Map.copyOf(resolvedSymbols),
@@ -183,20 +234,41 @@ public final class SemanticAnalyzer {
     }
 
     private void installBuiltins() {
+        installObjectBuiltin();
         installStringBuiltin();
-        installObjectHierarchy();
+        installExceptionHierarchy();
         installCallableBuiltins();
         installFfiBuiltins();
     }
 
-    private void installObjectHierarchy() {
+    /** Object with stable identity hashCode + reference-equality equals (0.16). */
+    private void installObjectBuiltin() {
         objectClass = new ClassSymbol("Object", SourceLocation.UNKNOWN, true);
         classes.put("Object", objectClass);
         objectClass.addConstructor(new ConstructorSymbol(
                 objectClass, List.of(), true, SourceLocation.UNKNOWN));
-        objectClass.setLayout(ObjectLayoutBuilder.build(objectClass));
-        objectClass.setVtable(new io.jnative.vtable.VTable(objectClass, List.of()));
 
+        ParameterSymbol equalsOther = new ParameterSymbol(
+                "other", objectClass.asType(), SourceLocation.UNKNOWN);
+        MethodSymbol equals = new MethodSymbol(
+                objectClass, "equals", PrimitiveType.BOOLEAN, List.of(equalsOther),
+                false, false,
+                NameMangler.mangleMethod("Object", "equals", List.of(objectClass.asType()), false),
+                SourceLocation.UNKNOWN);
+        objectClass.addMethod(equals);
+
+        MethodSymbol hashCode = new MethodSymbol(
+                objectClass, "hashCode", PrimitiveType.INT, List.of(),
+                false, false,
+                NameMangler.mangleMethod("Object", "hashCode", List.of(), false),
+                SourceLocation.UNKNOWN);
+        objectClass.addMethod(hashCode);
+
+        objectClass.setLayout(ObjectLayoutBuilder.build(objectClass));
+        objectClass.setVtable(VTableBuilder.build(objectClass));
+    }
+
+    private void installExceptionHierarchy() {
         // Create hierarchy first (no layouts yet), then add Throwable.message, then build layouts
         // top-down so subclasses inherit the message field size.
         throwableClass = new ClassSymbol("Throwable", SourceLocation.UNKNOWN, true);
@@ -275,7 +347,8 @@ public final class SemanticAnalyzer {
         for (String leaf : List.of(
                 "NullPointerException", "ArrayIndexOutOfBoundsException", "NegativeArraySizeException",
                 "ClassCastException", "ArithmeticException", "IllegalArgumentException",
-                "IllegalStateException", "IllegalMonitorStateException")) {
+                "IllegalStateException", "IllegalMonitorStateException",
+                "IndexOutOfBoundsException", "NoSuchElementException", "ConcurrentModificationException")) {
             ClassSymbol leafClass = newExceptionClass(leaf, runtimeExceptionClass);
             leafClass.constructors().getFirst().setDelegatesTo(runtimeExceptionClass.constructors().getFirst());
             leafClass.constructors().getFirst().setDelegatesToSuper(true);
@@ -316,23 +389,37 @@ public final class SemanticAnalyzer {
     private void installStringBuiltin() {
         stringClass = new ClassSymbol("String", SourceLocation.UNKNOWN, true);
         classes.put("String", stringClass);
+        stringClass.setSuperClass(objectClass);
 
         MethodSymbol length = new MethodSymbol(
                 stringClass, "length", PrimitiveType.INT, List.of(),
-                false, false, "_JN_String_length", SourceLocation.UNKNOWN);
+                false, false, true, "_JN_String_length", SourceLocation.UNKNOWN);
+        length.setFfiIntrinsic(true);
         stringClass.addMethod(length);
 
         ParameterSymbol charAtParam = new ParameterSymbol("index", PrimitiveType.INT, SourceLocation.UNKNOWN);
         MethodSymbol charAt = new MethodSymbol(
                 stringClass, "charAt", PrimitiveType.CHAR, List.of(charAtParam),
-                false, false, "_JN_String_charAt_i32", SourceLocation.UNKNOWN);
+                false, false, true, "_JN_String_charAt_i32", SourceLocation.UNKNOWN);
+        charAt.setFfiIntrinsic(true);
         stringClass.addMethod(charAt);
 
-        ParameterSymbol eqParam = new ParameterSymbol("other", stringClass.asType(), SourceLocation.UNKNOWN);
+        ParameterSymbol eqParam = new ParameterSymbol("other", objectClass.asType(), SourceLocation.UNKNOWN);
         MethodSymbol equals = new MethodSymbol(
                 stringClass, "equals", PrimitiveType.BOOLEAN, List.of(eqParam),
-                false, false, "_JN_String_equals_CString", SourceLocation.UNKNOWN);
+                false, false,
+                NameMangler.mangleMethod("String", "equals", List.of(objectClass.asType()), false),
+                SourceLocation.UNKNOWN);
+        objectClass.findMethod("equals").ifPresent(equals::setOverrides);
         stringClass.addMethod(equals);
+
+        MethodSymbol hashCode = new MethodSymbol(
+                stringClass, "hashCode", PrimitiveType.INT, List.of(),
+                false, false,
+                NameMangler.mangleMethod("String", "hashCode", List.of(), false),
+                SourceLocation.UNKNOWN);
+        objectClass.findMethod("hashCode").ifPresent(hashCode::setOverrides);
+        stringClass.addMethod(hashCode);
 
         // General-purpose String helpers (0.8.3) — not HTTP-specific.
         JType stringType = stringClass.asType();
@@ -372,7 +459,7 @@ public final class SemanticAnalyzer {
         stringClass.addMethod(valueOf);
 
         stringClass.setLayout(ObjectLayoutBuilder.build(stringClass));
-        stringClass.setVtable(new io.jnative.vtable.VTable(stringClass, List.of()));
+        stringClass.setVtable(VTableBuilder.build(stringClass));
     }
 
     private void addStringIntrinsic(String name, JType ret, List<ParameterSymbol> params) {
@@ -438,9 +525,7 @@ public final class SemanticAnalyzer {
                 List.of(PrimitiveType.INT, PrimitiveType.INT), PrimitiveType.INT, FunctionType.Domain.MANAGED);
         installSam("IntBinaryFunction", "apply", intBinary, "jnative_invoke_i32_i32_i32");
 
-        FunctionType consumer = new FunctionType(
-                List.of(objectClass.asType()), VoidType.INSTANCE, FunctionType.Domain.MANAGED);
-        installSam("Consumer", "accept", consumer, "jnative_invoke_void_ptr");
+        // Consumer / Comparator / Function live in collections stdlib as generic interfaces (0.16).
 
         FunctionType intCompare = new FunctionType(
                 List.of(NativePtrType.VOID, NativePtrType.VOID),
@@ -718,19 +803,96 @@ public final class SemanticAnalyzer {
     }
 
     private void declareClass(ClassDeclaration cls) {
-        if (classes.containsKey(cls.name()) || nativeStructs.containsKey(cls.name())) {
+        if (classes.containsKey(cls.name()) || interfaces.containsKey(cls.name())
+                || nativeStructs.containsKey(cls.name())) {
             reporter.error(cls.location(), "duplicate class '" + cls.name() + "'");
             return;
         }
-        classes.put(cls.name(), new ClassSymbol(cls.name(), cls.location(), false));
+        ClassSymbol symbol = new ClassSymbol(cls.name(), cls.location(), false);
+        symbol.setAbstract(cls.isAbstract());
+        symbol.setTypeParameters(createTypeParameters(cls.typeParameters(), symbol, null));
+        classes.put(cls.name(), symbol);
+    }
+
+    private void declareInterface(ClassDeclaration cls) {
+        if (classes.containsKey(cls.name()) || interfaces.containsKey(cls.name())
+                || nativeStructs.containsKey(cls.name())) {
+            reporter.error(cls.location(), "duplicate interface '" + cls.name() + "'");
+            return;
+        }
+        InterfaceSymbol symbol = new InterfaceSymbol(cls.name(), cls.location(), false);
+        symbol.setTypeParameters(createTypeParameters(cls.typeParameters(), symbol, null));
+        interfaces.put(cls.name(), symbol);
     }
 
     private void declareNativeStruct(ClassDeclaration cls) {
-        if (classes.containsKey(cls.name()) || nativeStructs.containsKey(cls.name())) {
+        if (classes.containsKey(cls.name()) || interfaces.containsKey(cls.name())
+                || nativeStructs.containsKey(cls.name())) {
             reporter.error(cls.location(), "duplicate type '" + cls.name() + "'");
             return;
         }
         nativeStructs.put(cls.name(), new NativeStructSymbol(cls.name(), cls.location()));
+    }
+
+    private void linkSuperInterfaces(ClassDeclaration cls) {
+        InterfaceSymbol symbol = interfaces.get(cls.name());
+        if (symbol == null) {
+            return;
+        }
+        pushTypeParamScope(symbol.typeParameters());
+        try {
+            List<ParameterizedType> parameterizedSupers = new ArrayList<>();
+            for (TypeName ifaceType : cls.implementedInterfaces()) {
+                JType resolved = resolveTypeName(ifaceType, false, cls.location());
+                InterfaceSymbol parent = resolveInterfaceRaw(resolved, cls.location());
+                if (parent == null) {
+                    continue;
+                }
+                if (parent == symbol) {
+                    reporter.error(cls.location(), "interface '" + cls.name() + "' cannot extend itself");
+                    continue;
+                }
+                symbol.addSuperInterface(parent);
+                if (resolved instanceof ParameterizedType pt) {
+                    parameterizedSupers.add(pt);
+                }
+            }
+            symbol.setParameterizedSuperInterfaces(parameterizedSupers);
+        } finally {
+            popTypeParamScope();
+        }
+    }
+
+    private void linkImplements(ClassDeclaration cls) {
+        ClassSymbol symbol = classes.get(cls.name());
+        if (symbol == null) {
+            return;
+        }
+        pushTypeParamScope(symbol.typeParameters());
+        try {
+            List<ParameterizedType> parameterizedIfaces = new ArrayList<>();
+            for (TypeName ifaceType : cls.implementedInterfaces()) {
+                JType resolved = resolveTypeName(ifaceType, false, cls.location());
+                InterfaceSymbol iface = resolveInterfaceRaw(resolved, cls.location());
+                if (iface == null) {
+                    String name = ifaceType.name();
+                    if (classes.containsKey(name)) {
+                        reporter.error(cls.location(),
+                                "class '" + cls.name() + "' cannot implement class '" + name + "'");
+                    } else {
+                        reporter.error(ifaceType.location(), "undefined interface '" + name + "'");
+                    }
+                    continue;
+                }
+                symbol.addImplementedInterface(iface);
+                if (resolved instanceof ParameterizedType pt) {
+                    parameterizedIfaces.add(pt);
+                }
+            }
+            symbol.setImplementedParameterizedInterfaces(parameterizedIfaces);
+        } finally {
+            popTypeParamScope();
+        }
     }
 
     private void registerNativeStructFields(NativeStructSymbol symbol, ClassDeclaration cls) {
@@ -836,16 +998,25 @@ public final class SemanticAnalyzer {
 
     private void linkSuperClass(ClassDeclaration cls) {
         ClassSymbol symbol = classes.get(cls.name());
-        if (symbol == null || cls.superClassName() == null) {
+        if (symbol == null) {
+            return;
+        }
+        if (cls.superClassName() == null) {
+            if (objectClass != null && symbol != objectClass) {
+                symbol.setSuperClass(objectClass);
+            }
             return;
         }
         if (cls.superClassName().equals(cls.name())) {
             reporter.error(cls.location(), "class '" + cls.name() + "' cannot extend itself");
             return;
         }
-        ClassSymbol superSymbol = classes.get(cls.superClassName());
+        TypeName superRef = cls.superClassTypeArgs().isEmpty()
+                ? TypeName.ofClass(cls.superClassName(), cls.location())
+                : TypeName.ofClass(cls.superClassName(), cls.superClassTypeArgs(), cls.location());
+        JType superType = resolveTypeName(superRef, false, cls.location());
+        ClassSymbol superSymbol = resolveClassRaw(superType, cls.location());
         if (superSymbol == null) {
-            reporter.error(cls.location(), "undefined class '" + cls.superClassName() + "'");
             return;
         }
         if (superSymbol == stringClass) {
@@ -853,13 +1024,16 @@ public final class SemanticAnalyzer {
             return;
         }
         symbol.setSuperClass(superSymbol);
+        if (superType instanceof ParameterizedType pt) {
+            symbol.setParameterizedSuper(pt);
+        }
     }
 
     private void detectInheritanceCycles(CompilationUnit unit) {
-        Map<ClassSymbol, Integer> color = new HashMap<>();
+        Map<ClassSymbol, Integer> classColor = new HashMap<>();
         for (ClassSymbol cls : classes.values()) {
             if (!cls.isBuiltin()) {
-                color.put(cls, 0);
+                classColor.put(cls, 0);
             }
         }
         for (ClassDeclaration decl : unit.classes()) {
@@ -867,13 +1041,32 @@ public final class SemanticAnalyzer {
             if (cls == null || cls.isBuiltin()) {
                 continue;
             }
-            if (color.getOrDefault(cls, 2) == 0) {
-                dfsCycle(cls, color);
+            if (classColor.getOrDefault(cls, 2) == 0) {
+                dfsClassCycle(cls, classColor);
+            }
+        }
+
+        Map<InterfaceSymbol, Integer> ifaceColor = new HashMap<>();
+        for (InterfaceSymbol iface : interfaces.values()) {
+            if (!iface.isBuiltin()) {
+                ifaceColor.put(iface, 0);
+            }
+        }
+        for (ClassDeclaration decl : unit.classes()) {
+            if (!decl.isInterface()) {
+                continue;
+            }
+            InterfaceSymbol iface = interfaces.get(decl.name());
+            if (iface == null || iface.isBuiltin()) {
+                continue;
+            }
+            if (ifaceColor.getOrDefault(iface, 2) == 0) {
+                dfsInterfaceCycle(iface, ifaceColor);
             }
         }
     }
 
-    private void dfsCycle(ClassSymbol cls, Map<ClassSymbol, Integer> color) {
+    private void dfsClassCycle(ClassSymbol cls, Map<ClassSymbol, Integer> color) {
         color.put(cls, 1);
         cls.superClass().ifPresent(superClass -> {
             int c = color.getOrDefault(superClass, 2);
@@ -881,10 +1074,56 @@ public final class SemanticAnalyzer {
                 reporter.error(cls.location(), "cyclic inheritance involving '" + cls.name() + "'");
                 cls.setSuperClass(null);
             } else if (c == 0) {
-                dfsCycle(superClass, color);
+                dfsClassCycle(superClass, color);
             }
         });
         color.put(cls, 2);
+    }
+
+    private void dfsInterfaceCycle(InterfaceSymbol iface, Map<InterfaceSymbol, Integer> color) {
+        color.put(iface, 1);
+        for (InterfaceSymbol parent : iface.superInterfaces()) {
+            int c = color.getOrDefault(parent, 2);
+            if (c == 1) {
+                reporter.error(iface.location(),
+                        "cyclic interface inheritance involving '" + iface.name() + "'");
+            } else if (c == 0) {
+                dfsInterfaceCycle(parent, color);
+            }
+        }
+        color.put(iface, 2);
+    }
+
+    private List<InterfaceSymbol> topologicalInterfaces() {
+        List<InterfaceSymbol> result = new ArrayList<>();
+        Set<InterfaceSymbol> visiting = new HashSet<>();
+        Set<InterfaceSymbol> visited = new HashSet<>();
+        for (InterfaceSymbol iface : interfaces.values()) {
+            if (!iface.isBuiltin()) {
+                topoInterfaceVisit(iface, visiting, visited, result);
+            }
+        }
+        return result;
+    }
+
+    private void topoInterfaceVisit(
+            InterfaceSymbol iface,
+            Set<InterfaceSymbol> visiting,
+            Set<InterfaceSymbol> visited,
+            List<InterfaceSymbol> result
+    ) {
+        if (visited.contains(iface) || iface.isBuiltin()) {
+            return;
+        }
+        if (!visiting.add(iface)) {
+            return;
+        }
+        for (InterfaceSymbol parent : iface.superInterfaces()) {
+            topoInterfaceVisit(parent, visiting, visited, result);
+        }
+        visiting.remove(iface);
+        visited.add(iface);
+        result.add(iface);
     }
 
     private List<ClassSymbol> topologicalClasses() {
@@ -918,7 +1157,9 @@ public final class SemanticAnalyzer {
     }
 
     private void registerFields(ClassSymbol symbol, ClassDeclaration cls) {
+        pushTypeParamScope(symbol.typeParameters());
         int index = 0;
+        try {
         for (FieldDeclaration field : cls.fields()) {
             JType type = resolveTypeName(field.type(), field.isArray(), field.location());
             if (type instanceof VoidType) {
@@ -949,6 +1190,9 @@ public final class SemanticAnalyzer {
                 index++;
             }
         }
+        } finally {
+            popTypeParamScope();
+        }
     }
 
     private void analyzeStaticFieldInitializers(ClassSymbol symbol) {
@@ -968,10 +1212,15 @@ public final class SemanticAnalyzer {
     }
 
     private void registerMethods(ClassSymbol symbol, ClassDeclaration cls) {
+        pushTypeParamScope(symbol.typeParameters());
+        try {
         for (MethodDeclaration method : cls.methods()) {
             if (method.isConstructor()) {
                 continue;
             }
+            List<TypeParameterSymbol> methodTypeParams =
+                    createTypeParameters(method.typeParameters(), symbol, null);
+            pushTypeParamScope(methodTypeParams);
             List<ParameterSymbol> params = new ArrayList<>();
             for (Parameter p : method.parameters()) {
                 JType pt = resolveTypeName(p.type(), p.isArray(), p.location());
@@ -994,7 +1243,8 @@ public final class SemanticAnalyzer {
 
             MethodSymbol ms = new MethodSymbol(
                     symbol, method.name(), returnType, params,
-                    method.isStatic(), isMain, method.isNative(), mangled, method.location());
+                    method.isStatic(), isMain, method.isNative(), method.isAbstract(), mangled, method.location());
+            ms.setTypeParameters(methodTypeParams);
             applyEffectContract(ms, method.effectContract());
 
             if (method.isNative()) {
@@ -1031,10 +1281,222 @@ public final class SemanticAnalyzer {
                         "method overloading is not supported yet (duplicate '"
                                 + method.name() + "')");
             }
+            popTypeParamScope();
+        }
+        } finally {
+            popTypeParamScope();
         }
     }
 
+    private void registerInterfaceMethods(InterfaceSymbol symbol, ClassDeclaration cls) {
+        pushTypeParamScope(symbol.typeParameters());
+        try {
+        for (MethodDeclaration method : cls.methods()) {
+            if (method.isConstructor()) {
+                continue;
+            }
+            List<TypeParameterSymbol> methodTypeParams =
+                    createTypeParameters(method.typeParameters(), symbol, null);
+            pushTypeParamScope(methodTypeParams);
+            List<ParameterSymbol> params = new ArrayList<>();
+            for (Parameter p : method.parameters()) {
+                JType pt = resolveTypeName(p.type(), p.isArray(), p.location());
+                params.add(new ParameterSymbol(p.name(), pt, p.location()));
+            }
+            JType returnType = resolveTypeName(method.returnType(), method.returnsArray(), method.location());
+            String mangled = NameMangler.mangleMethod(
+                    symbol.name(), method.name(),
+                    params.stream().map(ParameterSymbol::type).toList(),
+                    false);
+            MethodSymbol ms = new MethodSymbol(
+                    symbol, method.name(), returnType, params,
+                    method.isStatic(), false, method.isNative(), true, mangled, method.location());
+            ms.setTypeParameters(methodTypeParams);
+            applyEffectContract(ms, method.effectContract());
+            if (!symbol.addMethod(ms)) {
+                reporter.error(method.location(),
+                        "method overloading is not supported yet (duplicate '"
+                                + method.name() + "')");
+            }
+            popTypeParamScope();
+        }
+        } finally {
+            popTypeParamScope();
+        }
+    }
+
+    private void verifyAbstractAndInterfaceCompleteness(CompilationUnit unit) {
+        for (ClassDeclaration cls : unit.classes()) {
+            if (cls.nativeStruct() || cls.isInterface()) {
+                continue;
+            }
+            ClassSymbol symbol = classes.get(cls.name());
+            if (symbol == null || symbol.isAbstract()) {
+                continue;
+            }
+            for (MethodSymbol declared : symbol.declaredMethods()) {
+                if (declared.isAbstract()) {
+                    reporter.error(cls.location(),
+                            "concrete class '" + cls.name()
+                                    + "' must not declare abstract method '" + declared.name() + "'");
+                }
+            }
+            ClassSymbol cursor = symbol.superClass().orElse(null);
+            while (cursor != null) {
+                for (MethodSymbol m : cursor.declaredMethods()) {
+                    if (!m.isAbstract()) {
+                        continue;
+                    }
+                    Optional<MethodSymbol> impl = symbol.findMethod(m.name());
+                    if (impl.isEmpty() || impl.get().isAbstract()) {
+                        reporter.error(cls.location(),
+                                "class '" + cls.name() + "' must implement abstract method '"
+                                        + m.name() + "' from " + cursor.name());
+                    }
+                }
+                cursor = cursor.superClass().orElse(null);
+            }
+            for (InterfaceSymbol iface : symbol.transitiveInterfaces()) {
+                for (InterfaceMethodSlot slot : iface.slots()) {
+                    Optional<MethodSymbol> impl = ITableBuilder.resolveImplementation(symbol, slot.method());
+                    if (impl.isEmpty()) {
+                        reporter.error(cls.location(),
+                                "class '" + cls.name() + "' must implement "
+                                        + iface.name() + "." + slot.name());
+                    }
+                }
+            }
+        }
+    }
+
+    private ClassSymbol getOrCreateInterfaceAdapter(InterfaceSymbol iface) {
+        return interfaceAdapters.computeIfAbsent(iface, this::createInterfaceAdapter);
+    }
+
+    private ClassSymbol createInterfaceAdapter(InterfaceSymbol iface) {
+        FunctionType ft = iface.functionType();
+        if (ft == null) {
+            throw new IllegalStateException("non-functional interface: " + iface.name());
+        }
+        List<MethodSymbol> abstractMethods = FunctionalInterfaceAnalyzer.abstractMethods(iface);
+        if (abstractMethods.size() != 1) {
+            throw new IllegalStateException("functional interface must have one abstract method: " + iface.name());
+        }
+        MethodSymbol samDecl = abstractMethods.getFirst();
+        String adapterName = "__jn.IFaceAdapter." + iface.name();
+        ClassSymbol adapter = new ClassSymbol(adapterName, iface.location(), true);
+        adapter.setSuperClass(objectClass);
+        adapter.addImplementedInterface(iface);
+        adapter.setFunctionType(ft);
+        adapter.addField(new FieldSymbol(adapter, "code", PrimitiveType.LONG, 0, SourceLocation.UNKNOWN));
+        adapter.addField(new FieldSymbol(adapter, "env", objectClass.asType(), 1, SourceLocation.UNKNOWN));
+        List<ParameterSymbol> params = new ArrayList<>();
+        for (int i = 0; i < ft.parameterTypes().size(); i++) {
+            params.add(new ParameterSymbol("p" + i, ft.parameterTypes().get(i), SourceLocation.UNKNOWN));
+        }
+        String mangled = NameMangler.mangleMethod(
+                adapterName, samDecl.name(), ft.parameterTypes(), false);
+        MethodSymbol ms = new MethodSymbol(
+                adapter, samDecl.name(), ft.returnType(), params,
+                false, false, true, false, mangled, iface.location());
+        ms.setFfiIntrinsic(true);
+        ms.setSamInvokeRuntime(invokeRuntimeForFunctionType(ft));
+        adapter.addMethod(ms);
+        adapter.setLayout(ObjectLayoutBuilder.build(adapter));
+        adapter.setVtable(VTableBuilder.build(adapter));
+        adapter.setItables(ITableBuilder.buildAll(adapter));
+        classes.put(adapterName, adapter);
+        iface.addImplementor(adapter);
+        return adapter;
+    }
+
+    private static String invokeRuntimeForFunctionType(FunctionType ft) {
+        List<JType> params = ft.parameterTypes();
+        JType ret = ft.returnType();
+        if (params.isEmpty() && ret instanceof VoidType) {
+            return "jnative_invoke_void";
+        }
+        if (params.size() == 1 && params.getFirst() instanceof PrimitiveType p && p == PrimitiveType.INT
+                && ret instanceof PrimitiveType r && r == PrimitiveType.INT) {
+            return "jnative_invoke_i32_i32";
+        }
+        if (params.size() == 2
+                && params.get(0) instanceof PrimitiveType p0 && p0 == PrimitiveType.INT
+                && params.get(1) instanceof PrimitiveType p1 && p1 == PrimitiveType.INT
+                && ret instanceof PrimitiveType r && r == PrimitiveType.INT) {
+            return "jnative_invoke_i32_i32_i32";
+        }
+        if (params.size() == 1 && params.getFirst().isReference() && ret instanceof VoidType) {
+            return "jnative_invoke_void_ptr";
+        }
+        if (params.size() == 1 && params.getFirst().isReference() && ret.isReference()) {
+            return "jnative_invoke_ptr_ptr";
+        }
+        return "jnative_invoke_void";
+    }
+
+    private FunctionType expectedSamFunctionType() {
+        if (expectedSamType instanceof ClassType ct && ct.classSymbol().functionType() != null) {
+            return ct.classSymbol().functionType();
+        }
+        if (expectedSamType instanceof InterfaceType it && it.interfaceSymbol().functionType() != null) {
+            return it.interfaceSymbol().functionType();
+        }
+        if (expectedSamType instanceof ParameterizedType pt
+                && pt.raw() instanceof InterfaceSymbol iface
+                && iface.functionType() != null) {
+            return substituteFunctionType(
+                    iface.functionType(),
+                    TypeSubstitution.zip(iface.typeParameters(), pt.typeArguments()));
+        }
+        return null;
+    }
+
+    private FunctionType substituteFunctionType(FunctionType ft, TypeSubstitution sub) {
+        List<JType> params = new ArrayList<>();
+        for (JType p : ft.parameterTypes()) {
+            params.add(sub.apply(p));
+        }
+        JType ret = sub.apply(ft.returnType());
+        if (ret instanceof VoidType) {
+            ret = VoidType.INSTANCE;
+        }
+        return new FunctionType(params, ret, ft.domain());
+    }
+
+    private ClassSymbol resolveSamAdapterClass(JType samType) {
+        if (samType instanceof ClassType ct && ct.classSymbol().functionType() != null) {
+            return ct.classSymbol();
+        }
+        if (samType instanceof InterfaceType it && it.interfaceSymbol().functionType() != null) {
+            return getOrCreateInterfaceAdapter(it.interfaceSymbol());
+        }
+        if (samType instanceof ParameterizedType pt
+                && pt.raw() instanceof InterfaceSymbol iface
+                && iface.functionType() != null) {
+            return getOrCreateInterfaceAdapter(iface);
+        }
+        return null;
+    }
+
+    private String samMethodNameFor(JType samType) {
+        if (samType instanceof ClassType ct) {
+            return samMethodName(ct.classSymbol());
+        }
+        if (samType instanceof InterfaceType it) {
+            List<MethodSymbol> methods = FunctionalInterfaceAnalyzer.abstractMethods(it.interfaceSymbol());
+            return methods.isEmpty() ? "apply" : methods.getFirst().name();
+        }
+        if (samType instanceof ParameterizedType pt && pt.raw() instanceof InterfaceSymbol iface) {
+            List<MethodSymbol> methods = FunctionalInterfaceAnalyzer.abstractMethods(iface);
+            return methods.isEmpty() ? "apply" : methods.getFirst().name();
+        }
+        return "apply";
+    }
+
     private void registerConstructors(ClassSymbol symbol, ClassDeclaration cls) {
+        pushTypeParamScope(symbol.typeParameters());
+        try {
         for (MethodDeclaration method : cls.methods()) {
             if (!method.isConstructor()) {
                 continue;
@@ -1061,6 +1523,9 @@ public final class SemanticAnalyzer {
             ConstructorSymbol implicit = new ConstructorSymbol(
                     symbol, List.of(), true, cls.location());
             symbol.addConstructor(implicit);
+        }
+        } finally {
+            popTypeParamScope();
         }
     }
 
@@ -1183,29 +1648,36 @@ public final class SemanticAnalyzer {
     }
 
     private void analyzeConstructor(ClassSymbol owner, MethodDeclaration method) {
-        ConstructorSymbol ctor = findCtor(owner, method);
-        if (ctor == null) {
-            return;
-        }
-        currentConstructor = ctor;
-        currentMethod = null;
-        current = new Scope(null);
-        current.declare(new Symbol.VariableBinding(
-                new VariableSymbol("this", owner.asType(),
-                        VariableSymbol.Kind.PARAMETER, method.location())));
-        for (ParameterSymbol p : ctor.parameters()) {
-            VariableSymbol vs = new VariableSymbol(
-                    p.name(), p.type(), VariableSymbol.Kind.PARAMETER, p.location());
-            if (!current.declare(new Symbol.VariableBinding(vs))) {
-                reporter.error(p.location(), "duplicate parameter '" + p.name() + "'");
+        pushTypeParamScope(owner.typeParameters());
+        try {
+            ConstructorSymbol ctor = findCtor(owner, method);
+            if (ctor == null) {
+                return;
             }
+            currentConstructor = ctor;
+            currentMethod = null;
+            current = new Scope(null);
+            current.declare(new Symbol.VariableBinding(
+                    new VariableSymbol("this", owner.asType(),
+                            VariableSymbol.Kind.PARAMETER, method.location())));
+            for (ParameterSymbol p : ctor.parameters()) {
+                VariableSymbol vs = new VariableSymbol(
+                        p.name(), p.type(), VariableSymbol.Kind.PARAMETER, p.location());
+                if (!current.declare(new Symbol.VariableBinding(vs))) {
+                    reporter.error(p.location(), "duplicate parameter '" + p.name() + "'");
+                }
+            }
+            analyzeStatement(method.body());
+            current = null;
+            currentConstructor = null;
+        } finally {
+            popTypeParamScope();
         }
-        analyzeStatement(method.body());
-        current = null;
-        currentConstructor = null;
     }
 
     private ConstructorSymbol findCtor(ClassSymbol owner, MethodDeclaration method) {
+        // Caller must have pushed owner's type-parameter scope when parameters may
+        // mention class type variables (e.g. Box(T value)).
         List<JType> pts = new ArrayList<>();
         for (Parameter p : method.parameters()) {
             pts.add(resolveTypeName(p.type(), p.isArray(), p.location()));
@@ -1226,34 +1698,38 @@ public final class SemanticAnalyzer {
         currentMethod = opt.get();
         currentConstructor = null;
         current = new Scope(null);
-
-        if (!currentMethod.isStatic()) {
-            current.declare(new Symbol.VariableBinding(
-                    new VariableSymbol("this", owner.asType(),
-                            VariableSymbol.Kind.PARAMETER, method.location())));
-        }
-        for (ParameterSymbol p : currentMethod.parameters()) {
-            VariableSymbol vs = new VariableSymbol(
-                    p.name(), p.type(), VariableSymbol.Kind.PARAMETER, p.location());
-            if (!current.declare(new Symbol.VariableBinding(vs))) {
-                reporter.error(p.location(), "duplicate parameter '" + p.name() + "'");
+        pushTypeParamScope(owner.typeParameters());
+        pushTypeParamScope(currentMethod.typeParameters());
+        try {
+            if (!currentMethod.isStatic()) {
+                current.declare(new Symbol.VariableBinding(
+                        new VariableSymbol("this", owner.asType(),
+                                VariableSymbol.Kind.PARAMETER, method.location())));
             }
-        }
-        if (method.isNative()) {
+            for (ParameterSymbol p : currentMethod.parameters()) {
+                VariableSymbol vs = new VariableSymbol(
+                        p.name(), p.type(), VariableSymbol.Kind.PARAMETER, p.location());
+                if (!current.declare(new Symbol.VariableBinding(vs))) {
+                    reporter.error(p.location(), "duplicate parameter '" + p.name() + "'");
+                }
+            }
+            if (method.isNative() || method.isAbstract() || method.body() == null) {
+                return;
+            }
+            analyzeStatement(method.body());
+            if (!(currentMethod.returnType() instanceof VoidType)
+                    && !(currentMethod.returnType() instanceof ErrorType)) {
+                if (!hasReturn(method.body())) {
+                    reporter.error(method.location(),
+                            "missing return statement in method '" + method.name() + "'");
+                }
+            }
+        } finally {
+            popTypeParamScope(); // method type params
+            popTypeParamScope(); // class type params
             current = null;
             currentMethod = null;
-            return;
         }
-        analyzeStatement(method.body());
-        if (!(currentMethod.returnType() instanceof VoidType)
-                && !(currentMethod.returnType() instanceof ErrorType)) {
-            if (!hasReturn(method.body())) {
-                reporter.error(method.location(),
-                        "missing return statement in method '" + method.name() + "'");
-            }
-        }
-        current = null;
-        currentMethod = null;
     }
 
     private void bindNativeMethod(
@@ -1374,9 +1850,12 @@ public final class SemanticAnalyzer {
     private boolean hasReturn(Statement stmt) {
         return switch (stmt) {
             case ReturnStatement ignored -> true;
+            case ThrowStatement ignored -> true;
             case BlockStatement b -> b.statements().stream().anyMatch(this::hasReturn);
             case IfStatement i -> hasReturn(i.thenBranch())
                     && i.elseBranch() != null && hasReturn(i.elseBranch());
+            case WhileStatement w -> hasReturn(w.body());
+            case ForStatement f -> hasReturn(f.body());
             case TryStatement t -> hasReturn(t.tryBlock())
                     || t.catches().stream().anyMatch(c -> hasReturn(c.body()))
                     || (t.finallyBlock() != null && hasReturn(t.finallyBlock()));
@@ -1521,7 +2000,12 @@ public final class SemanticAnalyzer {
                         analyzeExpression(init);
                     }
                 } else {
-                    JType initType = analyzeExpression(init, samExpectedType(type));
+                    JType initExpected = samExpectedType(type);
+                    if (initExpected == null) {
+                        // diamond / generic constructor / method return inference target
+                        initExpected = type;
+                    }
+                    JType initType = analyzeExpression(init, initExpected);
                     if (!type.isAssignableFrom(initType)) {
                         reporter.error(v.location(),
                                 "incompatible types: " + initType
@@ -1557,9 +2041,9 @@ public final class SemanticAnalyzer {
             return;
         }
         JType expected;
-        if (inLambdaBody && expectedSamType instanceof ClassType samCt
-                && samCt.classSymbol().functionType() != null) {
-            expected = samCt.classSymbol().functionType().returnType();
+        FunctionType samFt = expectedSamFunctionType();
+        if (inLambdaBody && samFt != null) {
+            expected = samFt.returnType();
         } else if (currentMethod == null) {
             reporter.error(r.location(), "return outside method");
             return;
@@ -1589,6 +2073,14 @@ public final class SemanticAnalyzer {
         if (type instanceof ClassType ct && ct.classSymbol().functionType() != null) {
             return ct;
         }
+        if (type instanceof InterfaceType it && it.interfaceSymbol().functionType() != null) {
+            return it;
+        }
+        if (type instanceof ParameterizedType pt
+                && pt.raw() instanceof InterfaceSymbol iface
+                && iface.functionType() != null) {
+            return type;
+        }
         return null;
     }
 
@@ -1610,10 +2102,10 @@ public final class SemanticAnalyzer {
                 case AssignmentExpression a -> typeOfAssignment(a);
                 case BinaryExpression b -> typeOfBinary(b);
                 case UnaryExpression u -> typeOfUnary(u);
-                case MethodCallExpression m -> typeOfCall(m);
+                case MethodCallExpression m -> typeOfCall(m, expected);
                 case PrintlnExpression p -> typeOfPrintln(p);
                 case GroupingExpression g -> analyzeExpression(g.expression());
-                case NewObjectExpression n -> typeOfNew(n);
+                case NewObjectExpression n -> typeOfNew(n, expected);
                 case FieldAccessExpression f -> typeOfFieldAccess(f);
                 case NewArrayExpression n -> typeOfNewArray(n);
                 case ArrayAccessExpression a -> typeOfArrayAccess(a);
@@ -1693,6 +2185,10 @@ public final class SemanticAnalyzer {
             resolvedSymbols.put(v, classes.get(v.name()));
             return classes.get(v.name()).asType();
         }
+        if (interfaces.containsKey(v.name())) {
+            resolvedSymbols.put(v, interfaces.get(v.name()));
+            return interfaces.get(v.name()).asType();
+        }
         reporter.error(v.location(), "undefined variable '" + v.name() + "'");
         return ErrorType.INSTANCE;
     }
@@ -1749,6 +2245,12 @@ public final class SemanticAnalyzer {
         return switch (b.operator()) {
             case ADD -> {
                 if (isString(left) && isString(right)) {
+                    yield stringClass.asType();
+                }
+                if (isString(left) && right.isNumeric()) {
+                    yield stringClass.asType();
+                }
+                if (left.isNumeric() && isString(right)) {
                     yield stringClass.asType();
                 }
                 if (!left.isNumeric() || !right.isNumeric()) {
@@ -1842,6 +2344,10 @@ public final class SemanticAnalyzer {
     }
 
     private JType typeOfCall(MethodCallExpression m) {
+        return typeOfCall(m, null);
+    }
+
+    private JType typeOfCall(MethodCallExpression m, JType expectedReturn) {
         if (m.receiver() instanceof VariableExpression nv && "Native".equals(nv.name())) {
             return typeOfNativeBuiltin(m);
         }
@@ -1859,27 +2365,75 @@ public final class SemanticAnalyzer {
                         "instance method '" + m.name() + "' cannot be called on a type name");
                 return ErrorType.INSTANCE;
             }
-            checkArguments(m, ms);
-            checkNetworkPortLiteral(m, ms);
-            resolvedSymbols.put(m, ms);
             if (ms.isFfiIntrinsic() && "allocate".equals(ms.name())) {
+                checkArguments(m, ms);
+                checkNetworkPortLiteral(m, ms);
+                resolvedSymbols.put(m, ms);
                 provenances.put(m, PointerProvenance.NATIVE_HEAP);
+                return ms.returnType();
             }
-            return ms.returnType();
+            checkNetworkPortLiteral(m, ms);
+            return resolveGenericCall(m, ms, expectedReturn);
         }
         if (m.receiver() != null) {
             JType recvType = analyzeExpression(m.receiver());
-            if (!(recvType instanceof ClassType ct)) {
+            InterfaceSymbol recvIface = null;
+            TypeSubstitution ifaceSub = null;
+            if (recvType instanceof InterfaceType it) {
+                recvIface = it.interfaceSymbol();
+            } else if (recvType instanceof ParameterizedType pt
+                    && pt.raw() instanceof InterfaceSymbol is) {
+                recvIface = is;
+                ifaceSub = TypeSubstitution.zip(is.typeParameters(), pt.typeArguments());
+            }
+            if (recvIface != null) {
+                Optional<MethodSymbol> method = recvIface.findMethod(m.name());
+                if (method.isEmpty()) {
+                    reporter.error(m.location(),
+                            "undefined method '" + m.name() + "' in interface '"
+                                    + recvIface.name() + "'");
+                    return ErrorType.INSTANCE;
+                }
+                MethodSymbol ms = method.get();
+                MethodSymbol callTarget = ifaceSub != null ? substituteMethod(ms, ifaceSub) : ms;
+                checkArguments(m, callTarget);
+                Integer slot = ms.interfaceSlot();
+                if (slot == null) {
+                    reporter.error(m.location(),
+                            "interface method '" + m.name() + "' has no itable slot");
+                    return ErrorType.INSTANCE;
+                }
+                resolvedSymbols.put(m, new InterfaceCallTarget(
+                        recvIface, slot, ms, callTarget.returnType(), callTarget.parameterTypes()));
+                return callTarget.returnType();
+            }
+            ClassSymbol recvClass = null;
+            TypeSubstitution recvSub = null;
+            if (recvType instanceof ClassType ct) {
+                recvClass = ct.classSymbol();
+            } else if (recvType instanceof ParameterizedType pt && pt.raw() instanceof ClassSymbol cs) {
+                recvClass = cs;
+                recvSub = TypeSubstitution.zip(cs.typeParameters(), pt.typeArguments());
+            } else if (recvType instanceof TypeVariable tv) {
+                // Unbounded type variables erase to Object for method lookup (equals/hashCode).
+                JType erasure = tv.symbol().erasure(objectClass);
+                if (erasure instanceof ClassType ect) {
+                    recvClass = ect.classSymbol();
+                } else {
+                    recvClass = objectClass;
+                }
+            }
+            if (recvClass == null) {
                 if (!(recvType instanceof ErrorType)) {
                     reporter.error(m.location(),
                             "cannot invoke method on non-reference type " + recvType);
                 }
                 return ErrorType.INSTANCE;
             }
-            Optional<MethodSymbol> method = ct.classSymbol().findMethod(m.name());
+            Optional<MethodSymbol> method = recvClass.findMethod(m.name());
             if (method.isEmpty()) {
                 reporter.error(m.location(),
-                        "undefined method '" + m.name() + "' in class '" + ct.name() + "'");
+                        "undefined method '" + m.name() + "' in class '" + recvClass.name() + "'");
                 return ErrorType.INSTANCE;
             }
             MethodSymbol ms = method.get();
@@ -1887,9 +2441,13 @@ public final class SemanticAnalyzer {
                 reporter.error(m.location(),
                         "static method '" + m.name() + "' should be called without an instance");
             }
-            checkArguments(m, ms);
+            MethodSymbol callTarget = ms;
+            if (recvSub != null) {
+                callTarget = substituteMethod(ms, recvSub);
+            }
+            checkArguments(m, callTarget);
             resolvedSymbols.put(m, ms);
-            return ms.returnType();
+            return callTarget.returnType();
         }
 
         if (currentClass != null) {
@@ -1903,9 +2461,7 @@ public final class SemanticAnalyzer {
                             "cannot call instance method '" + m.name() + "' from a static context");
                     return ErrorType.INSTANCE;
                 }
-                checkArguments(m, ms);
-                resolvedSymbols.put(m, ms);
-                return ms.returnType();
+                return resolveGenericCall(m, ms, expectedReturn);
             }
         }
 
@@ -1921,12 +2477,53 @@ public final class SemanticAnalyzer {
             }
         }
         if (found != null) {
-            checkArguments(m, found);
-            resolvedSymbols.put(m, found);
-            return found.returnType();
+            return resolveGenericCall(m, found, expectedReturn);
         }
         reporter.error(m.location(), "undefined method '" + m.name() + "'");
         return ErrorType.INSTANCE;
+    }
+
+    /** Resolve call, applying method type-parameter inference when needed. */
+    private JType resolveGenericCall(MethodCallExpression m, MethodSymbol ms, JType targetReturn) {
+        MethodSymbol callTarget = ms;
+        if (ms.isGeneric()) {
+            List<JType> explicit = resolveExplicitTypeArguments(m.typeArguments(), m.location());
+            TypeSubstitution sub;
+            if (!explicit.isEmpty()) {
+                if (explicit.size() != ms.typeParameters().size()) {
+                    reporter.error(m.location(),
+                            "wrong number of type arguments for method '" + m.name() + "'");
+                    return ErrorType.INSTANCE;
+                }
+                checkTypeArgumentBounds(ms.typeParameters(), explicit, m.location());
+                sub = TypeSubstitution.zip(ms.typeParameters(), explicit);
+            } else {
+                List<JType> actualArgs = new ArrayList<>();
+                for (Expression arg : m.arguments()) {
+                    actualArgs.add(analyzeExpression(arg));
+                }
+                TypeInferenceEngine.InferenceResult inferred = TypeInferenceEngine.inferMethod(
+                        ms.typeParameters(),
+                        ms.parameterTypes(),
+                        actualArgs,
+                        ms.returnType(),
+                        targetReturn);
+                if (!inferred.success()) {
+                    reporter.error(m.location(),
+                            inferred.message() != null
+                                    ? inferred.message()
+                                    : "cannot infer type parameters for '" + m.name() + "'");
+                    return ErrorType.INSTANCE;
+                }
+                sub = inferred.substitution();
+            }
+            callTarget = substituteMethod(ms, sub);
+            checkArguments(m, callTarget);
+        } else {
+            checkArguments(m, ms);
+        }
+        resolvedSymbols.put(m, ms);
+        return callTarget.returnType();
     }
 
     private void checkArguments(MethodCallExpression m, MethodSymbol ms) {
@@ -2071,12 +2668,12 @@ public final class SemanticAnalyzer {
     }
 
     private JType typeOfLambda(LambdaExpression lambda) {
-        if (!(expectedSamType instanceof ClassType samCt) || samCt.classSymbol().functionType() == null) {
+        FunctionType expected = expectedSamFunctionType();
+        ClassSymbol samClass = resolveSamAdapterClass(expectedSamType);
+        if (expected == null || samClass == null) {
             reporter.error(lambda.location(), "cannot infer lambda type; expected SAM type");
             return ErrorType.INSTANCE;
         }
-        ClassSymbol samClass = samCt.classSymbol();
-        FunctionType expected = samClass.functionType();
         if (lambda.parameters().size() != expected.parameterTypes().size()) {
             reporter.error(lambda.location(),
                     "lambda parameter count mismatch: expected "
@@ -2153,7 +2750,7 @@ public final class SemanticAnalyzer {
         }
 
         String codeSymbol = "_JN_lambda_" + (lambdaCounter++);
-        String invokeRuntime = samClass.findMethod(samMethodName(samClass)).orElseThrow().samInvokeRuntime();
+        String invokeRuntime = samClass.findMethod(samMethodNameFor(expectedSamType)).orElseThrow().samInvokeRuntime();
         CallableBinding binding = new CallableBinding(
                 samClass,
                 codeSymbol,
@@ -2170,13 +2767,18 @@ public final class SemanticAnalyzer {
                 null,
                 null);
         callableBindings.put(lambda, binding);
+        if (expectedSamType instanceof InterfaceType it) {
+            return it;
+        }
+        if (expectedSamType instanceof ParameterizedType pt) {
+            return pt;
+        }
         return samClass.asType();
     }
 
     private static String samMethodName(ClassSymbol sam) {
         return switch (sam.name()) {
             case "Runnable" -> "run";
-            case "Consumer" -> "accept";
             case "IntCompare" -> "compare";
             case "HttpHandler" -> "handle";
             default -> "apply";
@@ -2184,13 +2786,13 @@ public final class SemanticAnalyzer {
     }
 
     private JType typeOfMethodReference(MethodReferenceExpression ref) {
-        if (!(expectedSamType instanceof ClassType samCt) || samCt.classSymbol().functionType() == null) {
+        FunctionType expected = expectedSamFunctionType();
+        ClassSymbol samClass = resolveSamAdapterClass(expectedSamType);
+        if (expected == null || samClass == null) {
             reporter.error(ref.location(), "cannot infer method reference type; expected SAM type");
             return ErrorType.INSTANCE;
         }
-        ClassSymbol samClass = samCt.classSymbol();
-        FunctionType expected = samClass.functionType();
-        String samMethod = samMethodName(samClass);
+        String samMethod = samMethodNameFor(expectedSamType);
 
         if (ref.typeName() != null) {
             ClassSymbol cls = classes.get(ref.typeName().name());
@@ -2216,7 +2818,7 @@ public final class SemanticAnalyzer {
                     null, null, List.of(),
                     method.get(), null);
             callableBindings.put(ref, binding);
-            return samClass.asType();
+            return resultSamType();
         }
 
         JType recvType = analyzeExpression(ref.receiver());
@@ -2247,7 +2849,14 @@ public final class SemanticAnalyzer {
                 null, null, List.of(),
                 method.get(), ref.receiver());
         callableBindings.put(ref, binding);
-        return samClass.asType();
+        return resultSamType();
+    }
+
+    private JType resultSamType() {
+        if (expectedSamType instanceof InterfaceType it) {
+            return it;
+        }
+        return resolveSamAdapterClass(expectedSamType).asType();
     }
 
     private boolean hasSubclassOverride(ClassSymbol staticReceiver, MethodSymbol method) {
@@ -2376,7 +2985,7 @@ public final class SemanticAnalyzer {
         return VoidType.INSTANCE;
     }
 
-    private JType typeOfNew(NewObjectExpression n) {
+    private JType typeOfNew(NewObjectExpression n, JType expected) {
         NativeStructSymbol nativeStruct = nativeStructs.get(n.className());
         if (nativeStruct != null) {
             for (Expression arg : n.arguments()) {
@@ -2393,9 +3002,48 @@ public final class SemanticAnalyzer {
             resolvedSymbols.put(n, nativeStruct);
             return nativeStruct.asType();
         }
+        if (interfaces.containsKey(n.className())) {
+            reporter.error(n.location(), "cannot instantiate interface '" + n.className() + "'");
+            return ErrorType.INSTANCE;
+        }
         ClassSymbol symbol = classes.get(n.className());
         if (symbol == null) {
             reporter.error(n.location(), "undefined class '" + n.className() + "'");
+            return ErrorType.INSTANCE;
+        }
+        List<JType> typeArgs = resolveExplicitTypeArguments(n.typeArguments(), n.location());
+        if (n.diamond()) {
+            if (expected instanceof ParameterizedType pt
+                    && pt.raw().name().equals(n.className())) {
+                typeArgs = pt.typeArguments();
+            } else if (expected instanceof ClassType ct && ct.name().equals(n.className())
+                    && !symbol.isGeneric()) {
+                typeArgs = List.of();
+            } else {
+                reporter.error(n.location(),
+                        "cannot infer type arguments for '" + n.className() + "'; specify explicit type args");
+                typeArgs = List.of();
+            }
+        }
+        if (symbol.isGeneric() && typeArgs.isEmpty()) {
+            reporter.error(n.location(),
+                    "raw types are not supported; use " + n.className() + "<?> or " + n.className() + "<T>");
+            return ErrorType.INSTANCE;
+        }
+        ParameterizedType instantiated = null;
+        if (!typeArgs.isEmpty()) {
+            if (typeArgs.size() != symbol.typeParameters().size()) {
+                reporter.error(n.location(),
+                        "wrong number of type arguments for " + symbol.name()
+                                + ": expected " + symbol.typeParameters().size()
+                                + ", got " + typeArgs.size());
+            } else {
+                checkTypeArgumentBounds(symbol.typeParameters(), typeArgs, n.location());
+                instantiated = new ParameterizedType(symbol, typeArgs);
+            }
+        }
+        if (symbol.isAbstract()) {
+            reporter.error(n.location(), "cannot instantiate abstract class '" + n.className() + "'");
             return ErrorType.INSTANCE;
         }
         if (symbol.isBuiltin() && !isConstructibleBuiltin(symbol)) {
@@ -2429,6 +3077,9 @@ public final class SemanticAnalyzer {
             return ErrorType.INSTANCE;
         }
         resolvedSymbols.put(n, ctor);
+        if (instantiated != null) {
+            return instantiated;
+        }
         return symbol.asType();
     }
 
@@ -2499,7 +3150,15 @@ public final class SemanticAnalyzer {
             }
             return fieldType;
         }
-        if (!(recvType instanceof ClassType ct)) {
+        ClassSymbol recvClass = null;
+        TypeSubstitution recvSub = null;
+        if (recvType instanceof ClassType ct) {
+            recvClass = ct.classSymbol();
+        } else if (recvType instanceof ParameterizedType pt && pt.raw() instanceof ClassSymbol cs) {
+            recvClass = cs;
+            recvSub = TypeSubstitution.zip(cs.typeParameters(), pt.typeArguments());
+        }
+        if (recvClass == null) {
             if (!(recvType instanceof ErrorType) && !(recvType instanceof NullType)) {
                 reporter.error(f.location(),
                         "cannot access field on non-reference type " + recvType);
@@ -2508,10 +3167,10 @@ public final class SemanticAnalyzer {
             }
             return ErrorType.INSTANCE;
         }
-        Optional<FieldSymbol> field = ct.classSymbol().findField(f.fieldName());
+        Optional<FieldSymbol> field = recvClass.findField(f.fieldName());
         if (field.isEmpty()) {
             reporter.error(f.location(),
-                    "unknown field '" + f.fieldName() + "' in class '" + ct.name() + "'");
+                    "unknown field '" + f.fieldName() + "' in class '" + recvClass.name() + "'");
             return ErrorType.INSTANCE;
         }
         FieldSymbol fs = field.get();
@@ -2530,18 +3189,37 @@ public final class SemanticAnalyzer {
         if (fs.type() instanceof NativePtrType) {
             provenances.put(f, PointerProvenance.UNKNOWN);
         }
-        return fs.type();
+        JType fieldType = fs.type();
+        if (recvSub != null) {
+            fieldType = recvSub.apply(fieldType);
+        }
+        return fieldType;
     }
 
     private JType typeOfInstanceOf(InstanceOfExpression i) {
         analyzeExpression(i.expression());
-        JType target = resolveTypeName(i.type(), false, i.location());
-        if (!(target instanceof ClassType ct)) {
-            reporter.error(i.location(), "instanceof requires a class type");
-            return ErrorType.INSTANCE;
+        boolean prev = instanceofContext;
+        instanceofContext = true;
+        JType target;
+        try {
+            target = resolveTypeName(i.type(), false, i.location());
+        } finally {
+            instanceofContext = prev;
         }
-        resolvedSymbols.put(i, ct.classSymbol().metadata());
-        return PrimitiveType.BOOLEAN;
+        if (target instanceof InterfaceType it) {
+            resolvedSymbols.put(i, it.interfaceSymbol().metadata());
+            return PrimitiveType.BOOLEAN;
+        }
+        if (target instanceof ClassType ct) {
+            resolvedSymbols.put(i, ct.classSymbol().metadata());
+            return PrimitiveType.BOOLEAN;
+        }
+        if (target instanceof ParameterizedType pt && pt.raw() instanceof ClassSymbol cs) {
+            resolvedSymbols.put(i, cs.metadata());
+            return PrimitiveType.BOOLEAN;
+        }
+        reporter.error(i.location(), "instanceof requires a class or interface type");
+        return ErrorType.INSTANCE;
     }
 
     private JType typeOfCast(CastExpression c) {
@@ -2554,11 +3232,29 @@ public final class SemanticAnalyzer {
         if (target instanceof NativePtrType && source instanceof ErrorType) {
             return target;
         }
+        if (target instanceof InterfaceType targetIt) {
+            if (source instanceof NullType || source instanceof ErrorType) {
+                resolvedSymbols.put(c, targetIt.interfaceSymbol().metadata());
+                return target;
+            }
+            if (source instanceof ClassType || source instanceof InterfaceType) {
+                // Runtime check — closed-world may prove some casts impossible later.
+                resolvedSymbols.put(c, targetIt.interfaceSymbol().metadata());
+                return target;
+            }
+            reporter.error(c.location(), "cannot cast " + source + " to " + target);
+            return ErrorType.INSTANCE;
+        }
         if (!(target instanceof ClassType targetCt)) {
-            reporter.error(c.location(), "cast target must be a class type");
+            reporter.error(c.location(), "cast target must be a class or interface type");
             return ErrorType.INSTANCE;
         }
         if (source instanceof NullType || source instanceof ErrorType) {
+            resolvedSymbols.put(c, targetCt.classSymbol().metadata());
+            return target;
+        }
+        if (source instanceof InterfaceType) {
+            // Interface → class requires runtime check.
             resolvedSymbols.put(c, targetCt.classSymbol().metadata());
             return target;
         }
@@ -2601,21 +3297,9 @@ public final class SemanticAnalyzer {
             case BOOLEAN -> PrimitiveType.BOOLEAN;
             case CHAR -> PrimitiveType.CHAR;
             case NATIVE_PTR -> resolveNativePtrType(typeName, loc);
-            case CLASS -> {
-                if ("NativePtr".equals(typeName.name())) {
-                    yield NativePtrType.VOID;
-                }
-                NativeStructSymbol nativeStruct = nativeStructs.get(typeName.name());
-                if (nativeStruct != null) {
-                    yield nativeStruct.asType();
-                }
-                ClassSymbol symbol = classes.get(typeName.name());
-                if (symbol == null) {
-                    reporter.error(loc, "undefined class '" + typeName.name() + "'");
-                    yield ErrorType.INSTANCE;
-                }
-                yield symbol.asType();
-            }
+            case WILDCARD -> resolveWildcardType(typeName, loc);
+            case TYPE_VAR -> resolveTypeVariable(typeName.name(), loc);
+            case CLASS -> resolveClassTypeName(typeName, loc);
         };
         if (isArray) {
             if (base instanceof VoidType || base instanceof ErrorType
@@ -2627,6 +3311,206 @@ public final class SemanticAnalyzer {
             return new ArrayType(base);
         }
         return base;
+    }
+
+    private JType resolveClassTypeName(TypeName typeName, SourceLocation loc) {
+        if ("NativePtr".equals(typeName.name())) {
+            return NativePtrType.VOID;
+        }
+        TypeParameterSymbol typeParam = lookupTypeParameter(typeName.name());
+        if (typeParam != null && !typeName.hasTypeArguments()) {
+            return typeParam.asType();
+        }
+        NativeStructSymbol nativeStruct = nativeStructs.get(typeName.name());
+        if (nativeStruct != null) {
+            if (typeName.hasTypeArguments()) {
+                reporter.error(loc, "native struct cannot be parameterized");
+            }
+            return nativeStruct.asType();
+        }
+        List<JType> args = resolveExplicitTypeArguments(typeName.typeArguments(), loc);
+        InterfaceSymbol iface = interfaces.get(typeName.name());
+        if (iface != null) {
+            if (iface.isGeneric() && args.isEmpty() && !instanceofContext) {
+                reporter.error(loc,
+                        "raw types are not supported; use " + typeName.name() + "<?> or "
+                                + typeName.name() + "<T>");
+                return ErrorType.INSTANCE;
+            }
+            if (!args.isEmpty()) {
+                if (args.size() != iface.typeParameters().size()) {
+                    reporter.error(loc,
+                            "wrong number of type arguments for " + iface.name());
+                    return ErrorType.INSTANCE;
+                }
+                checkTypeArgumentBounds(iface.typeParameters(), args, loc);
+                return new ParameterizedType(iface, args);
+            }
+            return iface.asType();
+        }
+        ClassSymbol symbol = classes.get(typeName.name());
+        if (symbol == null) {
+            reporter.error(loc, "undefined class '" + typeName.name() + "'");
+            return ErrorType.INSTANCE;
+        }
+        if (symbol.isGeneric() && args.isEmpty() && !instanceofContext) {
+            reporter.error(loc,
+                    "raw types are not supported; use " + typeName.name() + "<?> or "
+                            + typeName.name() + "<T>");
+            return ErrorType.INSTANCE;
+        }
+        if (!args.isEmpty()) {
+            if (args.size() != symbol.typeParameters().size()) {
+                reporter.error(loc,
+                        "wrong number of type arguments for " + symbol.name());
+                return ErrorType.INSTANCE;
+            }
+            checkTypeArgumentBounds(symbol.typeParameters(), args, loc);
+            return new ParameterizedType(symbol, args);
+        }
+        return symbol.asType();
+    }
+
+    private JType resolveWildcardType(TypeName typeName, SourceLocation loc) {
+        return switch (typeName.wildcardKind()) {
+            case UNBOUNDED, NONE -> WildcardType.unbounded();
+            case EXTENDS -> {
+                JType bound = resolveTypeName(typeName.wildcardBound(), false, loc);
+                yield WildcardType.extendsBound(bound);
+            }
+            case SUPER -> {
+                JType bound = resolveTypeName(typeName.wildcardBound(), false, loc);
+                yield WildcardType.superBound(bound);
+            }
+        };
+    }
+
+    private JType resolveTypeVariable(String name, SourceLocation loc) {
+        TypeParameterSymbol sym = lookupTypeParameter(name);
+        if (sym == null) {
+            reporter.error(loc, "undefined type variable '" + name + "'");
+            return ErrorType.INSTANCE;
+        }
+        return sym.asType();
+    }
+
+    private List<JType> resolveExplicitTypeArguments(List<TypeName> typeArgs, SourceLocation loc) {
+        if (typeArgs == null || typeArgs.isEmpty()) {
+            return List.of();
+        }
+        List<JType> out = new ArrayList<>();
+        for (TypeName arg : typeArgs) {
+            out.add(resolveTypeName(arg, false, loc));
+        }
+        return out;
+    }
+
+    private void checkTypeArgumentBounds(
+            List<TypeParameterSymbol> params,
+            List<JType> args,
+            SourceLocation loc
+    ) {
+        int n = Math.min(params.size(), args.size());
+        for (int i = 0; i < n; i++) {
+            JType arg = args.get(i);
+            if (arg instanceof WildcardType) {
+                continue;
+            }
+            for (JType bound : params.get(i).bounds()) {
+                if (!bound.isAssignableFrom(arg) && !(arg instanceof ErrorType)) {
+                    reporter.error(loc,
+                            "type argument " + arg + " does not satisfy bound " + bound);
+                }
+            }
+        }
+    }
+
+    private List<TypeParameterSymbol> createTypeParameters(
+            List<TypeParameterDeclaration> decls,
+            ReferenceTypeSymbol owner,
+            MethodSymbol ownerMethod
+    ) {
+        if (decls == null || decls.isEmpty()) {
+            return List.of();
+        }
+        List<TypeParameterSymbol> params = new ArrayList<>();
+        for (int i = 0; i < decls.size(); i++) {
+            TypeParameterDeclaration d = decls.get(i);
+            params.add(new TypeParameterSymbol(d.name(), owner, ownerMethod, i, d.location()));
+        }
+        pushTypeParamScope(params);
+        for (int i = 0; i < decls.size(); i++) {
+            for (TypeName bound : decls.get(i).bounds()) {
+                params.get(i).addBound(resolveTypeName(bound, false, decls.get(i).location()));
+            }
+        }
+        popTypeParamScope();
+        return params;
+    }
+
+    private void pushTypeParamScope(List<TypeParameterSymbol> params) {
+        // Always push so popTypeParamScope stays balanced (empty method type-params
+        // must not pop the enclosing class/interface scope).
+        Map<String, TypeParameterSymbol> map = new LinkedHashMap<>();
+        if (params != null) {
+            for (TypeParameterSymbol p : params) {
+                map.put(p.name(), p);
+            }
+        }
+        typeParamScopes.push(map);
+    }
+
+    private void popTypeParamScope() {
+        if (!typeParamScopes.isEmpty()) {
+            typeParamScopes.pop();
+        }
+    }
+
+    private TypeParameterSymbol lookupTypeParameter(String name) {
+        for (Map<String, TypeParameterSymbol> scope : typeParamScopes) {
+            TypeParameterSymbol sym = scope.get(name);
+            if (sym != null) {
+                return sym;
+            }
+        }
+        return null;
+    }
+
+    private ClassSymbol resolveClassRaw(JType type, SourceLocation loc) {
+        if (type instanceof ClassType ct) {
+            return ct.classSymbol();
+        }
+        if (type instanceof ParameterizedType pt && pt.raw() instanceof ClassSymbol cs) {
+            return cs;
+        }
+        if (!(type instanceof ErrorType)) {
+            reporter.error(loc, "expected a class type");
+        }
+        return null;
+    }
+
+    private InterfaceSymbol resolveInterfaceRaw(JType type, SourceLocation loc) {
+        if (type instanceof InterfaceType it) {
+            return it.interfaceSymbol();
+        }
+        if (type instanceof ParameterizedType pt && pt.raw() instanceof InterfaceSymbol is) {
+            return is;
+        }
+        if (!(type instanceof ErrorType)) {
+            reporter.error(loc, "expected an interface type");
+        }
+        return null;
+    }
+
+    private MethodSymbol substituteMethod(MethodSymbol ms, TypeSubstitution sub) {
+        List<ParameterSymbol> params = ms.parameters().stream()
+                .map(p -> new ParameterSymbol(p.name(), sub.apply(p.type()), p.location()))
+                .toList();
+        JType ret = sub.apply(ms.returnType());
+        return new MethodSymbol(
+                ms.owner(), ms.name(), ret, params,
+                ms.isStatic(), ms.isMain(), ms.isNative(), ms.isAbstract(),
+                ms.mangledName(), ms.location());
     }
 
     private JType resolveNativePtrType(TypeName typeName, SourceLocation loc) {

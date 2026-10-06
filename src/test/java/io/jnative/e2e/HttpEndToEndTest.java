@@ -263,7 +263,9 @@ class HttpEndToEndTest {
                             System.out.println(1);
                         }
                     }
-                    """.formatted(port), "1\n", Map.of("JNATIVE_GC_STRESS", "1"));
+                    """.formatted(port), "1\n", Map.of(
+                            "JNATIVE_GC", "marksweep",
+                            "JNATIVE_GC_STRESS", "1"));
         } finally {
             server.destroyForcibly();
         }

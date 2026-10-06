@@ -4,7 +4,11 @@ import io.jnative.semantic.ArrayType;
 import io.jnative.semantic.ClassType;
 import io.jnative.semantic.ErrorType;
 import io.jnative.semantic.FunctionType;
+import io.jnative.semantic.InterfaceType;
 import io.jnative.semantic.JType;
+import io.jnative.semantic.ParameterizedType;
+import io.jnative.semantic.TypeVariable;
+import io.jnative.semantic.WildcardType;
 import io.jnative.semantic.MethodSymbol;
 import io.jnative.semantic.NativeFunctionPtrType;
 import io.jnative.semantic.NativePtrType;
@@ -75,6 +79,11 @@ public final class NameMangler {
             case VoidType ignored -> "void";
             case NullType ignored -> "null";
             case ClassType c -> "C" + sanitize(c.name());
+            case InterfaceType i -> "I" + sanitize(i.name());
+            case ParameterizedType p -> "P" + typeCode(p.rawType()) + p.typeArguments().stream()
+                    .map(NameMangler::typeCode).reduce("", (a, b) -> a + "_" + b);
+            case TypeVariable t -> "T" + sanitize(t.name());
+            case WildcardType ignored -> "W";
             case ArrayType a -> "A" + typeCode(a.elementType());
             case NativePtrType np -> "nptr_" + typeCode(np.pointee());
             case NativeFunctionPtrType nfp -> "nfn_" + typeCode(nfp.functionType().returnType());

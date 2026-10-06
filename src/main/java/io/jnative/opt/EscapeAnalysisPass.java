@@ -46,9 +46,8 @@ public final class EscapeAnalysisPass implements OptimizationPass {
 
         // Propagate allocation identity and callable→env links through local aliases.
         Map<IrValue.Local, IrValue> localCallableEnv = new HashMap<>();
-        boolean aliasChanged = true;
-        while (aliasChanged) {
-            aliasChanged = false;
+        for (int iter = 0; iter < 64; iter++) {
+            boolean aliasChanged = false;
             for (IrBasicBlock block : function.blocks()) {
                 for (IrInstruction inst : block.instructions()) {
                     if (inst instanceof IrInstruction.Store s
@@ -80,15 +79,20 @@ public final class EscapeAnalysisPass implements OptimizationPass {
                     }
                 }
             }
+            if (!aliasChanged) {
+                break;
+            }
         }
 
-        boolean changed = true;
-        while (changed) {
-            changed = false;
+        for (int iter = 0; iter < 64; iter++) {
+            boolean changed = false;
             for (IrBasicBlock block : function.blocks()) {
                 for (IrInstruction inst : block.instructions()) {
                     changed |= process(states, callableEnvs, tempRoot, inst);
                 }
+            }
+            if (!changed) {
+                break;
             }
         }
 

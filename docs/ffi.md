@@ -79,8 +79,9 @@ Uses `malloc`/`free`. **Not** GC-managed. Unsafe: bad offsets may crash.
 
 - Entering a native call requires no pending JNative exception
 - Native returns do not set JNative exceptions (0.7)
-- Native call is **not** a GC safepoint
-- Callbacks (C → JNative) are **not** implemented
+- Native call transitions thread to NATIVE; GC may still update registered root **slots**
+- Do **not** pass movable managed object addresses to C across safepoints — use CString / NativeMemory copies
+- Callbacks hold managed callables via updateable GC root handles (0.10 / 0.13 moving GC)
 
 ## Linking
 

@@ -3,11 +3,12 @@ package io.jnative.semantic;
 import io.jnative.diagnostics.SourceLocation;
 import io.jnative.ffi.NativeFunction;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
 public final class MethodSymbol {
-    private final ClassSymbol owner;
+    private final ReferenceTypeSymbol owner;
     private final String name;
     private final JType returnType;
     private final List<ParameterSymbol> parameters;
@@ -15,10 +16,13 @@ public final class MethodSymbol {
     private final boolean isMain;
     private final boolean isVirtual;
     private final boolean isNative;
+    private final boolean isAbstract;
     private final String mangledName;
     private final SourceLocation location;
     private Integer vtableSlot;
+    private Integer interfaceSlot;
     private MethodSymbol overrides;
+    private final List<TypeParameterSymbol> typeParameters = new ArrayList<>();
     private NativeFunction nativeFunction;
     private boolean ffiIntrinsic;
     private String samInvokeRuntime;
@@ -35,7 +39,7 @@ public final class MethodSymbol {
     private String nativeEffectsContract;
 
     public MethodSymbol(
-            ClassSymbol owner,
+            ReferenceTypeSymbol owner,
             String name,
             JType returnType,
             List<ParameterSymbol> parameters,
@@ -44,17 +48,32 @@ public final class MethodSymbol {
             String mangledName,
             SourceLocation location
     ) {
-        this(owner, name, returnType, parameters, isStatic, isMain, false, mangledName, location);
+        this(owner, name, returnType, parameters, isStatic, isMain, false, false, mangledName, location);
     }
 
     public MethodSymbol(
-            ClassSymbol owner,
+            ReferenceTypeSymbol owner,
             String name,
             JType returnType,
             List<ParameterSymbol> parameters,
             boolean isStatic,
             boolean isMain,
             boolean isNative,
+            String mangledName,
+            SourceLocation location
+    ) {
+        this(owner, name, returnType, parameters, isStatic, isMain, isNative, false, mangledName, location);
+    }
+
+    public MethodSymbol(
+            ReferenceTypeSymbol owner,
+            String name,
+            JType returnType,
+            List<ParameterSymbol> parameters,
+            boolean isStatic,
+            boolean isMain,
+            boolean isNative,
+            boolean isAbstract,
             String mangledName,
             SourceLocation location
     ) {
@@ -65,13 +84,22 @@ public final class MethodSymbol {
         this.isStatic = isStatic;
         this.isMain = isMain;
         this.isNative = isNative;
+        this.isAbstract = isAbstract;
         this.isVirtual = !isStatic && !isMain && !isNative;
         this.mangledName = mangledName;
         this.location = location;
     }
 
-    public ClassSymbol owner() {
+    public ReferenceTypeSymbol owner() {
         return owner;
+    }
+
+    public ClassSymbol classOwner() {
+        return owner instanceof ClassSymbol c ? c : null;
+    }
+
+    public InterfaceSymbol interfaceOwner() {
+        return owner instanceof InterfaceSymbol i ? i : null;
     }
 
     public String name() {
@@ -106,6 +134,10 @@ public final class MethodSymbol {
         return isNative;
     }
 
+    public boolean isAbstract() {
+        return isAbstract;
+    }
+
     public String mangledName() {
         return mangledName;
     }
@@ -122,12 +154,35 @@ public final class MethodSymbol {
         this.vtableSlot = vtableSlot;
     }
 
+    public Integer interfaceSlot() {
+        return interfaceSlot;
+    }
+
+    public void setInterfaceSlot(Integer interfaceSlot) {
+        this.interfaceSlot = interfaceSlot;
+    }
+
     public MethodSymbol overrides() {
         return overrides;
     }
 
     public void setOverrides(MethodSymbol overrides) {
         this.overrides = overrides;
+    }
+
+    public List<TypeParameterSymbol> typeParameters() {
+        return List.copyOf(typeParameters);
+    }
+
+    public void setTypeParameters(List<TypeParameterSymbol> params) {
+        typeParameters.clear();
+        if (params != null) {
+            typeParameters.addAll(params);
+        }
+    }
+
+    public boolean isGeneric() {
+        return !typeParameters.isEmpty();
     }
 
     public NativeFunction nativeFunction() {

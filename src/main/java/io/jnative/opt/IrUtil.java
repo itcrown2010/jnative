@@ -60,6 +60,7 @@ public final class IrUtil {
             case IrInstruction.NewObject n -> n.dest();
             case IrInstruction.LoadField l -> l.dest();
             case IrInstruction.VirtualCall v -> v.dest();
+            case IrInstruction.InterfaceCall ic -> ic.dest();
             case IrInstruction.NewArray n -> n.dest();
             case IrInstruction.LoadElement l -> l.dest();
             case IrInstruction.ArrayLength a -> a.dest();
@@ -115,6 +116,10 @@ public final class IrUtil {
             case IrInstruction.VirtualCall v -> {
                 out.add(new ValueUse(v.receiver(), "receiver"));
                 v.args().forEach(a -> out.add(new ValueUse(a, "arg")));
+            }
+            case IrInstruction.InterfaceCall ic -> {
+                out.add(new ValueUse(ic.receiver(), "receiver"));
+                ic.args().forEach(a -> out.add(new ValueUse(a, "arg")));
             }
             case IrInstruction.NewArray n -> out.add(new ValueUse(n.length(), "length"));
             case IrInstruction.LoadElement l -> {
@@ -213,6 +218,10 @@ public final class IrUtil {
                     vc.dest() == null ? null : mapTemp(vc.dest(), map),
                     map.apply(vc.receiver()), vc.slot(), vc.returnType(),
                     vc.args().stream().map(map).toList(), vc.debugName());
+            case IrInstruction.InterfaceCall ic -> new IrInstruction.InterfaceCall(
+                    ic.dest() == null ? null : mapTemp(ic.dest(), map),
+                    map.apply(ic.receiver()), ic.interfaceId(), ic.slot(), ic.returnType(),
+                    ic.args().stream().map(map).toList(), ic.debugName());
             case IrInstruction.NewArray na -> new IrInstruction.NewArray(
                     mapTemp(na.dest(), map), na.elementIrType(), map.apply(na.length()), na.elementSize(),
                     na.metadataGlobal(), na.referenceElements());
@@ -284,7 +293,9 @@ public final class IrUtil {
                 || inst instanceof IrInstruction.ConstructorCall
                 || inst instanceof IrInstruction.NewObject
                 || inst instanceof IrInstruction.NewArray
-                || inst instanceof IrInstruction.InvokeCallable) {
+                || inst instanceof IrInstruction.InvokeCallable
+                || inst instanceof IrInstruction.InterfaceCall
+                || inst instanceof IrInstruction.VirtualCall) {
             return true;
         }
         if (inst instanceof IrInstruction.Call c) {
@@ -372,6 +383,21 @@ public final class IrUtil {
                     Set<IrValue.Temp> aliases = aliasTempsOfNewObject(function, n.dest());
                     if (aliases.contains(temp)) {
                         return n.className();
+                    }
+                }
+            }
+        }
+        return null;
+    }
+
+    /** Exact class from MakeCallable (functional-interface adapter). */
+    public static String traceToMakeCallableClass(IrFunction function, IrValue.Temp temp) {
+        for (IrBasicBlock block : function.blocks()) {
+            for (IrInstruction inst : block.instructions()) {
+                if (inst instanceof IrInstruction.MakeCallable m) {
+                    Set<IrValue.Temp> aliases = aliasTempsOfNewObject(function, m.dest());
+                    if (aliases.contains(temp)) {
+                        return m.samClass();
                     }
                 }
             }

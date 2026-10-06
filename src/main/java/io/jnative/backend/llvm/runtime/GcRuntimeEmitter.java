@@ -4,7 +4,7 @@ package io.jnative.backend.llvm.runtime;
  * Precise stop-the-world mark-sweep GC (0.5 / 0.9 multi-thread).
  *
  * <pre>
- * Allocation: [ GcHeader 24B | Object payload... ]
+ * Allocation: [ GcHeader 32B | Object payload... ]
  * Java refs point at payload (ClassMetadata*), not GcHeader.
  *
  * Non-moving, precise roots via per-thread shadow stacks (TLS).
@@ -14,7 +14,7 @@ package io.jnative.backend.llvm.runtime;
 public final class GcRuntimeEmitter {
     private final StringBuilder sb;
 
-    public static final int GC_HEADER_SIZE = 24;
+    public static final int GC_HEADER_SIZE = 32;
 
     public GcRuntimeEmitter(StringBuilder sb) {
         this.sb = sb;
@@ -22,8 +22,8 @@ public final class GcRuntimeEmitter {
 
     public void emit() {
         sb.append("""
-                ; === JNative GC 0.5 ===
-                %jn.GcHeader = type { ptr, i64, i32, i32 }
+                ; === JNative GC 0.5 / GC2 0.13 ===
+                %jn.GcHeader = type { ptr, i64, i32, i32, i32, i32 }
 
                 declare ptr @jn_tls_frame()
                 declare void @jn_tls_set_frame(ptr)
@@ -40,6 +40,13 @@ public final class GcRuntimeEmitter {
                 declare void @jn_thread_attach_main()
                 declare void @jn_enter_native()
                 declare void @jn_leave_native()
+                declare void @jn_gc2_init()
+                declare i32 @jn_gc2_enabled()
+                declare ptr @jn_gc2_alloc(i64)
+                declare void @jn_gc2_collect()
+                declare void @jn_gc2_write_barrier(ptr, ptr)
+                declare void @jn_gc2_set_static_root_visitor(ptr)
+                declare i32 @jn_gc2_identity_hash(ptr)
 
                 @jn.gc.heap_head = global ptr null, align 8
                 @jn.gc.allocated_bytes = global i64 0, align 8
@@ -65,14 +72,37 @@ public final class GcRuntimeEmitter {
 
                 define ptr @jnative_gc_object_to_header(ptr %obj) {
                 entry:
-                  %h = getelementptr i8, ptr %obj, i64 -24
+                  %h = getelementptr i8, ptr %obj, i64 -32
                   ret ptr %h
                 }
 
                 define ptr @jnative_gc_header_to_object(ptr %hdr) {
                 entry:
-                  %o = getelementptr i8, ptr %hdr, i64 24
+                  %o = getelementptr i8, ptr %hdr, i64 32
                   ret ptr %o
+                }
+
+                define i32 @jnative_identity_hashcode(ptr %obj) {
+                entry:
+                  %n = icmp eq ptr %obj, null
+                  br i1 %n, label %z, label %go
+                z:
+                  ret i32 0
+                go:
+                  %gc2 = call i32 @jn_gc2_enabled()
+                  %use = icmp ne i32 %gc2, 0
+                  br i1 %use, label %gc2p, label %legacy
+                gc2p:
+                  %h2 = call i32 @jn_gc2_identity_hash(ptr %obj)
+                  ret i32 %h2
+                legacy:
+                  ; Non-moving mark-sweep: address-based hash is stable.
+                  %bits = ptrtoint ptr %obj to i64
+                  %x = xor i64 %bits, 2654435769
+                  %s = lshr i64 %x, 32
+                  %m = xor i64 %x, %s
+                  %r = trunc i64 %m to i32
+                  ret i32 %r
                 }
 
                 ; True iff header is on the intrusive heap list (rejects stack-managed objects).
@@ -320,13 +350,20 @@ public final class GcRuntimeEmitter {
                 define void @jnative_gc_collect() {
                 entry:
                   call void @jnative_gc_ensure_init()
+                  %gc2 = call i32 @jn_gc2_enabled()
+                  %use2 = icmp ne i32 %gc2, 0
+                  br i1 %use2, label %gc2path, label %legacy
+                gc2path:
+                  call void @jn_gc2_collect()
+                  ret void
+                legacy:
                   call void @jn_gc_collect_lock()
                   call void @jn_gc_stw_begin()
                   call void @jn_heap_lock()
                   %h0 = load ptr, ptr @jn.gc.heap_head, align 8
                   br label %clear
                 clear:
-                  %c = phi ptr [ %h0, %entry ], [ %cn, %cnext ]
+                  %c = phi ptr [ %h0, %legacy ], [ %cn, %cnext ]
                   %cnl = icmp eq ptr %c, null
                   br i1 %cnl, label %mark, label %cbody
                 cbody:
@@ -380,6 +417,7 @@ public final class GcRuntimeEmitter {
 
                 define void @jnative_gc_ensure_init() {
                 entry:
+                  call void @jn_gc2_init()
                   %in = load i32, ptr @jn.gc.inited, align 4
                   %done = icmp ne i32 %in, 0
                   br i1 %done, label %ret, label %init
@@ -413,6 +451,10 @@ public final class GcRuntimeEmitter {
                   store i32 1, ptr @jn.gc.stats, align 4
                   br label %ate
                 ate:
+                  %gc2e = call i32 @jn_gc2_enabled()
+                  %skipLegacyStats = icmp ne i32 %gc2e, 0
+                  br i1 %skipLegacyStats, label %ret2, label %legacyAte
+                legacyAte:
                   %st = load i32, ptr @jn.gc.stats, align 4
                   %on = icmp ne i32 %st, 0
                   br i1 %on, label %reg, label %ret2
@@ -435,6 +477,13 @@ public final class GcRuntimeEmitter {
                 define ptr @jnative_gc_alloc(i64 %payload) {
                 entry:
                   call void @jnative_gc_ensure_init()
+                  %gc2 = call i32 @jn_gc2_enabled()
+                  %use2 = icmp ne i32 %gc2, 0
+                  br i1 %use2, label %gc2path, label %legacy
+                gc2path:
+                  %p2 = call ptr @jn_gc2_alloc(i64 %payload)
+                  ret ptr %p2
+                legacy:
                   %nogc = call i32 @jn_nogc_depth()
                   %violate = icmp sgt i32 %nogc, 0
                   br i1 %violate, label %abort_nogc, label %poll
@@ -460,7 +509,7 @@ public final class GcRuntimeEmitter {
                   call void @jn_heap_lock()
                   br label %alloc
                 alloc:
-                  %total = add i64 %payload, 24
+                  %total = add i64 %payload, 32
                   %raw = call ptr @malloc(i64 %total)
                   call ptr @memset(ptr %raw, i32 0, i64 %total)
                   %head = load ptr, ptr @jn.gc.heap_head, align 8
@@ -483,7 +532,7 @@ public final class GcRuntimeEmitter {
                   %ao2 = add i64 %ao, 1
                   store i64 %ao2, ptr @jn.gc.allocated_objects, align 8
                   call void @jn_heap_unlock()
-                  %obj = getelementptr i8, ptr %raw, i64 24
+                  %obj = getelementptr i8, ptr %raw, i64 32
                   ret ptr %obj
                 }
 

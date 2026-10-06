@@ -33,13 +33,27 @@ public final class Parser {
         var loc = peek().location();
         try {
             while (!isAtEnd()) {
-                classes.add(parseClass());
+                if (match(TokenType.PACKAGE) || match(TokenType.IMPORT)) {
+                    // 0.17: accept package/import for source compatibility; flatten into one CU.
+                    skipUntilSemicolon();
+                    continue;
+                }
+                classes.add(parseTypeDeclaration());
             }
         } catch (ParseException e) {
             reporter.error(e.location(), e.getMessage());
             synchronize();
         }
         return new CompilationUnit(fileName, classes, loc);
+    }
+
+    private void skipUntilSemicolon() {
+        while (!isAtEnd() && !check(TokenType.SEMICOLON) && !check(TokenType.EOF)) {
+            advance();
+        }
+        if (check(TokenType.SEMICOLON)) {
+            advance();
+        }
     }
 
     private void collectClassNames() {
@@ -63,6 +77,9 @@ public final class Parser {
         knownClassNames.add("IllegalArgumentException");
         knownClassNames.add("IllegalStateException");
         knownClassNames.add("IllegalMonitorStateException");
+        knownClassNames.add("IndexOutOfBoundsException");
+        knownClassNames.add("NoSuchElementException");
+        knownClassNames.add("ConcurrentModificationException");
         knownClassNames.add("NativePtr");
         knownClassNames.add("NativeMemory");
         knownClassNames.add("Native");
@@ -77,7 +94,6 @@ public final class Parser {
         knownClassNames.add("AtomicLong");
         knownClassNames.add("AtomicBool");
         knownClassNames.add("Runnable");
-        knownClassNames.add("Consumer");
         knownClassNames.add("IntUnaryFunction");
         knownClassNames.add("IntBinaryFunction");
         knownClassNames.add("IntFunction");
@@ -94,8 +110,10 @@ public final class Parser {
             if (match(TokenType.PUBLIC)) {
                 // continue
             }
-            if (match(TokenType.CLASS) && check(TokenType.IDENTIFIER)) {
+            match(TokenType.ABSTRACT);
+            if ((match(TokenType.CLASS) || match(TokenType.INTERFACE)) && check(TokenType.IDENTIFIER)) {
                 knownClassNames.add(advance().lexeme());
+                skipTypeParameterTokens();
             } else if (!isAtEnd()) {
                 advance();
             }
@@ -124,29 +142,66 @@ public final class Parser {
         }
     }
 
-    private ClassDeclaration parseClass() {
+    private ClassDeclaration parseTypeDeclaration() {
         boolean nativeStruct = false;
-        if (check(TokenType.AT)) {
+        EffectContract typeEffects = EffectContract.empty(peek().location());
+        while (check(TokenType.AT)) {
             ParsedAnnotation ann = parseAnnotation();
             if ("NativeStruct".equals(ann.name())) {
                 nativeStruct = true;
             } else if ("Native".equals(ann.name())) {
                 reporter.error(ann.location(), "class-level @Native is not supported");
+            } else if (ann.effectContract() != null) {
+                typeEffects = typeEffects.merge(ann.effectContract());
             } else {
                 reporter.error(ann.location(),
-                        "@" + ann.name() + " is not allowed on classes");
+                        "@" + ann.name() + " is not allowed on type declarations");
             }
         }
         match(TokenType.PUBLIC);
-        consume(TokenType.CLASS, "expected 'class'");
-        Token name = consume(TokenType.IDENTIFIER, "expected class name");
-        String superClassName = null;
-        if (match(TokenType.EXTENDS)) {
-            Token superName = consume(TokenType.IDENTIFIER, "expected superclass name");
-            superClassName = superName.lexeme();
+        boolean isAbstract = match(TokenType.ABSTRACT);
+        boolean isInterface = false;
+        if (match(TokenType.INTERFACE)) {
+            isInterface = true;
             if (nativeStruct) {
-                reporter.error(superName.location(),
-                        "@NativeStruct types cannot extend a class");
+                reporter.error(previous().location(), "@NativeStruct cannot be an interface");
+            }
+        } else {
+            consume(TokenType.CLASS, "expected 'class' or 'interface'");
+        }
+        Token name = consume(TokenType.IDENTIFIER, "expected type name");
+        List<TypeParameterDeclaration> typeParams = parseTypeParameterList();
+        // Locals/params may use class type parameters as types (e.g. T value = ...).
+        for (TypeParameterDeclaration tp : typeParams) {
+            knownClassNames.add(tp.name());
+        }
+        String superClassName = null;
+        List<TypeName> superClassTypeArgs = List.of();
+        List<TypeName> implementedInterfaces = new ArrayList<>();
+        if (isInterface) {
+            if (match(TokenType.EXTENDS)) {
+                implementedInterfaces.addAll(parseTypeNameList("expected interface name"));
+            }
+            if (match(TokenType.IMPLEMENTS)) {
+                reporter.error(previous().location(), "interfaces use 'extends', not 'implements'");
+            }
+        } else {
+            if (match(TokenType.EXTENDS)) {
+                TypeName superType = parseClassTypeRef("expected superclass name");
+                superClassName = superType.name();
+                superClassTypeArgs = superType.hasTypeArguments()
+                        ? superType.typeArguments() : List.of();
+                if (nativeStruct) {
+                    reporter.error(superType.location(),
+                            "@NativeStruct types cannot extend a class");
+                }
+            }
+            if (match(TokenType.IMPLEMENTS)) {
+                if (nativeStruct) {
+                    reporter.error(previous().location(),
+                            "@NativeStruct types cannot implement interfaces");
+                }
+                implementedInterfaces.addAll(parseTypeNameList("expected interface name"));
             }
         }
         consume(TokenType.LBRACE, "expected '{'");
@@ -154,19 +209,63 @@ public final class Parser {
         List<FieldDeclaration> fields = new ArrayList<>();
         List<MethodDeclaration> methods = new ArrayList<>();
         while (!check(TokenType.RBRACE) && !isAtEnd()) {
-            parseClassMember(name.lexeme(), fields, methods, nativeStruct);
+            parseClassMember(name.lexeme(), fields, methods, nativeStruct, isInterface, isAbstract, typeEffects);
         }
         consume(TokenType.RBRACE, "expected '}'");
         return new ClassDeclaration(
-                name.lexeme(), superClassName, fields, methods, nativeStruct, name.location());
+                name.lexeme(), typeParams, superClassName, superClassTypeArgs,
+                implementedInterfaces, fields, methods,
+                nativeStruct, isInterface, isAbstract, name.location());
+    }
+
+    private List<TypeParameterDeclaration> parseTypeParameterList() {
+        if (!match(TokenType.LT)) {
+            return List.of();
+        }
+        List<TypeParameterDeclaration> params = new ArrayList<>();
+        do {
+            Token paramName = consume(TokenType.IDENTIFIER, "expected type parameter name");
+            List<TypeName> bounds = new ArrayList<>();
+            if (match(TokenType.EXTENDS)) {
+                bounds.add(parseClassTypeRef("expected type bound"));
+            }
+            params.add(new TypeParameterDeclaration(
+                    paramName.lexeme(), bounds, paramName.location()));
+        } while (match(TokenType.COMMA));
+        consume(TokenType.GT, "expected '>' after type parameters");
+        return params;
+    }
+
+    private List<TypeName> parseTypeNameList(String message) {
+        List<TypeName> types = new ArrayList<>();
+        do {
+            types.add(parseClassTypeRef(message));
+        } while (match(TokenType.COMMA));
+        return types;
+    }
+
+    /** Class or interface reference with optional type arguments. */
+    private TypeName parseClassTypeRef(String message) {
+        Token id = consume(TokenType.IDENTIFIER, message);
+        List<TypeName> args = List.of();
+        if (match(TokenType.LT)) {
+            if (!check(TokenType.GT)) {
+                args = parseTypeArgumentList();
+            }
+            consume(TokenType.GT, "expected '>' after type arguments");
+        }
+        return TypeName.ofClass(id.lexeme(), args, id.location());
     }
 
     private void parseClassMember(String className,
                                   List<FieldDeclaration> fields,
                                   List<MethodDeclaration> methods,
-                                  boolean nativeStruct) {
+                                  boolean nativeStruct,
+                                  boolean isInterface,
+                                  boolean classIsAbstract,
+                                  EffectContract typeEffects) {
         NativeAnnotation nativeAnnotation = null;
-        EffectContract effectContract = EffectContract.empty(peek().location());
+        EffectContract effectContract = typeEffects.merge(EffectContract.empty(peek().location()));
         while (check(TokenType.AT)) {
             ParsedAnnotation ann = parseAnnotation();
             if ("Native".equals(ann.name())) {
@@ -187,19 +286,37 @@ public final class Parser {
         boolean isStatic = false;
         boolean isNative = false;
         boolean isVolatile = false;
-        for (int i = 0; i < 6; i++) {
+        boolean isAbstract = false;
+        boolean isDefault = false;
+        for (int i = 0; i < 8; i++) {
             if (!isStatic && match(TokenType.STATIC)) {
                 isStatic = true;
             } else if (!isNative && match(TokenType.NATIVE)) {
                 isNative = true;
             } else if (!isVolatile && match(TokenType.VOLATILE)) {
                 isVolatile = true;
+            } else if (!isAbstract && match(TokenType.ABSTRACT)) {
+                isAbstract = true;
+            } else if (!isDefault && match(TokenType.DEFAULT)) {
+                isDefault = true;
             } else {
                 break;
             }
         }
+        if (isDefault) {
+            reporter.error(previous().location(),
+                    "default interface methods are not supported in JNative 0.14");
+        }
+
+        List<TypeParameterDeclaration> methodTypeParams = parseTypeParameterList();
+        for (TypeParameterDeclaration tp : methodTypeParams) {
+            knownClassNames.add(tp.name());
+        }
 
         if (isConstructorStart(className)) {
+            if (isInterface) {
+                reporter.error(peek().location(), "interfaces cannot declare constructors");
+            }
             if (nativeStruct) {
                 reporter.error(peek().location(),
                         "@NativeStruct cannot declare constructors");
@@ -207,11 +324,17 @@ public final class Parser {
             if (isNative || nativeAnnotation != null) {
                 reporter.error(peek().location(), "constructors cannot be native");
             }
+            if (isAbstract) {
+                reporter.error(peek().location(), "constructors cannot be abstract");
+            }
+            if (!methodTypeParams.isEmpty()) {
+                reporter.error(peek().location(), "constructors cannot declare type parameters");
+            }
             Token name = advance();
             List<Parameter> params = parseParameterList();
             BlockStatement body = parseBlock();
             methods.add(new MethodDeclaration(
-                    true, false, false, true, TypeName.ofVoid(name.location()), false,
+                    true, false, false, true, false, List.of(), TypeName.ofVoid(name.location()), false,
                     className, params, body, null, effectContract, name.location()));
             return;
         }
@@ -235,12 +358,27 @@ public final class Parser {
             }
             List<Parameter> params = parseParameterList();
             BlockStatement body = null;
+            boolean methodAbstract = isAbstract || isInterface;
+            if (isInterface && isStatic) {
+                reporter.error(name.location(), "static interface methods are not supported yet");
+            }
             if (isNative) {
                 if (check(TokenType.LBRACE)) {
                     body = parseBlock();
                     reporter.error(name.location(), "native method cannot have a body");
                 } else {
                     consume(TokenType.SEMICOLON, "expected ';' after native method declaration");
+                }
+            } else if (methodAbstract) {
+                if (check(TokenType.LBRACE)) {
+                    body = parseBlock();
+                    reporter.error(name.location(), "abstract method cannot have a body");
+                } else {
+                    consume(TokenType.SEMICOLON, "expected ';' after abstract method declaration");
+                }
+                if (!isInterface && !classIsAbstract) {
+                    reporter.error(name.location(),
+                            "abstract method in non-abstract class '" + className + "'");
                 }
             } else {
                 if (nativeAnnotation != null) {
@@ -249,14 +387,22 @@ public final class Parser {
                 body = parseBlock();
             }
             methods.add(new MethodDeclaration(
-                    true, isStatic, isNative, false, type, isArray, name.lexeme(), params, body,
-                    nativeAnnotation, effectContract, name.location()));
+                    true, isStatic, isNative, false, methodAbstract && !isNative,
+                    methodTypeParams, type, isArray,
+                    name.lexeme(), params, body, nativeAnnotation, effectContract, name.location()));
             return;
         }
 
         // field
+        if (isInterface) {
+            reporter.error(name.location(),
+                    "interface instance fields are not supported (constants deferred)");
+        }
         if (isNative || nativeAnnotation != null) {
             reporter.error(name.location(), "fields cannot be native");
+        }
+        if (isAbstract) {
+            reporter.error(name.location(), "fields cannot be abstract");
         }
         Expression initializer = null;
         if (match(TokenType.ASSIGN)) {
@@ -430,9 +576,95 @@ public final class Parser {
                 }
                 return TypeName.ofNativePtr(arg, id.location());
             }
-            return TypeName.ofClass(id.lexeme(), id.location());
+            List<TypeName> args = List.of();
+            if (match(TokenType.LT)) {
+                if (!check(TokenType.GT)) {
+                    args = parseTypeArgumentList();
+                }
+                consume(TokenType.GT, "expected '>' after type arguments");
+            }
+            return TypeName.ofClass(id.lexeme(), args, id.location());
+        }
+        if (match(TokenType.QUESTION)) {
+            return parseWildcardType(previous());
         }
         throw error(t, "expected type");
+    }
+
+    private TypeName parseWildcardType(Token question) {
+        if (match(TokenType.EXTENDS)) {
+            TypeName bound = parseTypeArgument();
+            return TypeName.ofWildcard(TypeName.WildcardKind.EXTENDS, bound, question.location());
+        }
+        if (match(TokenType.IDENTIFIER) && "super".equals(previous().lexeme())) {
+            TypeName bound = parseTypeArgument();
+            return TypeName.ofWildcard(TypeName.WildcardKind.SUPER, bound, question.location());
+        }
+        return TypeName.ofWildcard(TypeName.WildcardKind.UNBOUNDED, null, question.location());
+    }
+
+    private List<TypeName> parseTypeArgumentList() {
+        List<TypeName> args = new ArrayList<>();
+        do {
+            args.add(parseTypeArgument());
+        } while (match(TokenType.COMMA));
+        return args;
+    }
+
+    /** Type argument: primitive, class, wildcard, or type variable name. */
+    private TypeName parseTypeArgument() {
+        if (match(TokenType.QUESTION)) {
+            return parseWildcardType(previous());
+        }
+        return parseType();
+    }
+
+    /** Skip {@code <T, U extends X>} during class-name pre-scan. */
+    private void skipTypeParameterTokens() {
+        if (!check(TokenType.LT)) {
+            return;
+        }
+        int depth = 0;
+        while (!isAtEnd()) {
+            if (check(TokenType.LT)) {
+                depth++;
+            } else if (check(TokenType.GT)) {
+                depth--;
+                advance();
+                if (depth == 0) {
+                    return;
+                }
+                continue;
+            }
+            advance();
+        }
+    }
+
+    /** Return index after closing {@code >}, or -1 if malformed. */
+    private int indexAfterTypeArguments(int start) {
+        if (peekAt(start) == null || peekAt(start).type() != TokenType.LT) {
+            return -1;
+        }
+        int depth = 0;
+        int i = start;
+        while (true) {
+            Token t = peekAt(i);
+            if (t == null) {
+                return -1;
+            }
+            if (t.type() == TokenType.LT) {
+                depth++;
+            } else if (t.type() == TokenType.GT) {
+                depth--;
+                if (depth == 0) {
+                    return i + 1;
+                }
+            }
+            i++;
+            if (i > current + 128) {
+                return -1;
+            }
+        }
     }
 
     /**
@@ -591,14 +823,18 @@ public final class Parser {
             return isNativePtrVariableDeclAhead();
         }
         if (check(TokenType.IDENTIFIER) && knownClassNames.contains(peek().lexeme())) {
-            // Person p = ...
-            if (checkNext(TokenType.IDENTIFIER)) {
+            int afterType = 1;
+            int afterArgs = indexAfterTypeArguments(afterType);
+            if (afterArgs >= 0) {
+                afterType = afterArgs;
+            }
+            Token next = peekAt(afterType);
+            if (next != null && next.type() == TokenType.IDENTIFIER) {
                 return true;
             }
-            // Person[] p = ...
-            if (checkNext(TokenType.LBRACKET)) {
-                Token close = peekAt(2);
-                Token name = peekAt(3);
+            if (next != null && next.type() == TokenType.LBRACKET) {
+                Token close = peekAt(afterType + 1);
+                Token name = peekAt(afterType + 2);
                 return close != null && close.type() == TokenType.RBRACKET
                         && name != null && name.type() == TokenType.IDENTIFIER;
             }
@@ -1010,7 +1246,26 @@ public final class Parser {
     }
 
     private Expression parseNew(Token newTok) {
-        TypeName type = parseType();
+        boolean diamond = false;
+        TypeName type;
+        if (isPrimitiveTypeToken(peek())) {
+            type = parseType();
+        } else if (check(TokenType.IDENTIFIER)) {
+            Token id = advance();
+            List<TypeName> typeArgs = List.of();
+            if (match(TokenType.LT)) {
+                if (check(TokenType.GT)) {
+                    consume(TokenType.GT, "expected '>' after '<'");
+                    diamond = true;
+                } else {
+                    typeArgs = parseTypeArgumentList();
+                    consume(TokenType.GT, "expected '>' after type arguments");
+                }
+            }
+            type = TypeName.ofClass(id.lexeme(), typeArgs, id.location());
+        } else {
+            type = parseType();
+        }
         if (match(TokenType.LBRACKET)) {
             Expression length = parseExpression();
             consume(TokenType.RBRACKET, "expected ']' after array length");
@@ -1025,7 +1280,8 @@ public final class Parser {
         consume(TokenType.LPAREN, "expected '(' after class name");
         List<Expression> args = parseArgumentList();
         consume(TokenType.RPAREN, "expected ')' after arguments");
-        return new NewObjectExpression(type.name(), args, newTok.location());
+        List<TypeName> typeArgs = type.hasTypeArguments() ? type.typeArguments() : List.of();
+        return new NewObjectExpression(type.name(), typeArgs, diamond, args, newTok.location());
     }
 
     /**

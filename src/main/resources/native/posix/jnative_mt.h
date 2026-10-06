@@ -68,6 +68,27 @@ typedef void (*jn_root_obj_fn)(void *obj, void *ctx);
 void jn_foreach_ex_root(jn_root_obj_fn fn, void *ctx);
 void jn_foreach_thread_obj_root(jn_root_obj_fn fn, void *ctx);
 
+/* Moving-GC: updateable slots for exception / Thread object roots. */
+void jn_foreach_ex_root_slot(jn_root_slot_fn fn, void *ctx);
+void jn_foreach_thread_obj_root_slot(jn_root_slot_fn fn, void *ctx);
+
+/* TLAB (0.13 GC2) — bump-pointer region owned by a managed thread. */
+typedef struct {
+    uint8_t *top;
+    uint8_t *end;
+    uint8_t *start;
+} JNTlab;
+
+JNTlab jn_tlab_get(void);
+void jn_tlab_set(uint8_t *top, uint8_t *end, uint8_t *start);
+void jn_tlab_clear(void);
+/** Retire every registered thread's TLAB (call under STW). */
+void jn_tlab_retire_all(void);
+/** Highest TLAB top among all threads (for eden high-water). */
+uint8_t *jn_tlab_max_top(void);
+typedef void (*jn_tlab_visit_fn)(uint8_t *top, uint8_t *end, void *ctx);
+void jn_foreach_tlab(jn_tlab_visit_fn fn, void *ctx);
+
 /*
  * Start a managed thread. entry is called with thread_obj after TLS attach.
  * Returns runtime thread id, or -1 on failure.

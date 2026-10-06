@@ -247,6 +247,30 @@ public final class IrBuilder {
         return t;
     }
 
+    public IrValue interfaceCall(
+            IrValue receiver,
+            int interfaceId,
+            int slot,
+            IrType returnType,
+            java.util.List<IrValue> args,
+            String debugName
+    ) {
+        if (returnType == IrType.VOID) {
+            emit(new IrInstruction.InterfaceCall(
+                    null, receiver, interfaceId, slot, returnType, args, debugName));
+            maybeCheckPending();
+            return null;
+        }
+        IrValue.Temp t = temp(returnType);
+        emit(new IrInstruction.InterfaceCall(
+                t, receiver, interfaceId, slot, returnType, args, debugName));
+        maybeCheckPending();
+        if (returnType.isManagedPointer()) {
+            return protectRef(t);
+        }
+        return t;
+    }
+
     public IrValue newArray(
             IrType elementIrType,
             IrValue length,
@@ -287,9 +311,22 @@ public final class IrBuilder {
         return t;
     }
 
+    public IrValue instanceOfInterface(IrValue object, int interfaceId) {
+        IrValue.Temp t = temp(IrType.I1);
+        emit(new IrInstruction.InstanceOfInterface(t, object, interfaceId));
+        return t;
+    }
+
     public IrValue checkedCast(IrValue object, String targetMetaGlobal) {
         IrValue.Temp t = temp(IrType.PTR);
         emit(new IrInstruction.CheckedCast(t, object, targetMetaGlobal));
+        maybeCheckPending();
+        return protectRef(t);
+    }
+
+    public IrValue checkedCastInterface(IrValue object, int interfaceId) {
+        IrValue.Temp t = temp(IrType.PTR);
+        emit(new IrInstruction.CheckedCastInterface(t, object, interfaceId));
         maybeCheckPending();
         return protectRef(t);
     }

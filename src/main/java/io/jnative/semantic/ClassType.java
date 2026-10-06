@@ -49,6 +49,15 @@ public record ClassType(ClassSymbol classSymbol) implements JType {
             }
             return ct.classSymbol().isSubtypeOf(this.classSymbol);
         }
+        // ListView<String> → Component / Control (0.18 UI generics).
+        if (other instanceof ParameterizedType pt && pt.raw() instanceof ClassSymbol cs) {
+            return cs.isSubtypeOf(this.classSymbol);
+        }
+        // Type variables erase to Object (or a bound); treat as assignable to reference types.
+        if (other instanceof TypeVariable) {
+            return true;
+        }
+        // Interface → class only via null/Error (already handled); not generally assignable.
         return false;
     }
 

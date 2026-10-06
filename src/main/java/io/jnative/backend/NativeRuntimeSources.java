@@ -9,30 +9,90 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Extracts bundled native C runtime sources (socket + multithreading) for linking.
+ * Extracts bundled native C/ObjC runtime sources for linking.
  */
 public final class NativeRuntimeSources {
     private NativeRuntimeSources() {
     }
 
-    /**
-     * Materialize platform C sources into {@code dir}. Returns paths to compile/link.
-     */
     public static List<Path> materializeSocketSources(Path dir, Platform platform) throws IOException {
-        return materializeAll(dir, platform);
+        return materializeAll(dir, platform, false, false, "auto");
     }
 
     public static List<Path> materializeAll(Path dir, Platform platform) throws IOException {
+        return materializeAll(dir, platform, false, false, "auto");
+    }
+
+    /**
+     * @param includeUi whether to link UI runtime
+     * @param headless force headless UI (no Cocoa/Win32/GTK objs)
+     * @param uiBackend auto|headless|cocoa|win32|gtk|none
+     */
+    public static List<Path> materializeAll(
+            Path dir,
+            Platform platform,
+            boolean includeUi,
+            boolean headless,
+            String uiBackend
+    ) throws IOException {
+        return materializeAll(dir, platform, includeUi, false, headless, uiBackend);
+    }
+
+    /**
+     * @param includeGraphics whether to link software/graphics runtime (PNG/zlib raster)
+     */
+    public static List<Path> materializeAll(
+            Path dir,
+            Platform platform,
+            boolean includeUi,
+            boolean includeGraphics,
+            boolean headless,
+            String uiBackend
+    ) throws IOException {
         Files.createDirectories(dir);
         List<Path> sources = new ArrayList<>();
         copyResource("native/posix/jnative_socket.h", dir.resolve("jnative_socket.h"));
         if (platform == Platform.WINDOWS_X86_64) {
             sources.add(copyResource("native/windows/jnative_socket.c", dir.resolve("jnative_socket.c")));
-            // Windows threading backend not yet shipped; POSIX path used on macOS/Linux.
         } else {
             sources.add(copyResource("native/posix/jnative_socket.c", dir.resolve("jnative_socket.c")));
             copyResource("native/posix/jnative_mt.h", dir.resolve("jnative_mt.h"));
             sources.add(copyResource("native/posix/jnative_mt.c", dir.resolve("jnative_mt.c")));
+            copyResource("native/posix/jnative_gc2.h", dir.resolve("jnative_gc2.h"));
+            sources.add(copyResource("native/posix/jnative_gc2.c", dir.resolve("jnative_gc2.c")));
+            copyResource("native/posix/jnative_fs.h", dir.resolve("jnative_fs.h"));
+            sources.add(copyResource("native/posix/jnative_fs.c", dir.resolve("jnative_fs.c")));
+            copyResource("native/posix/jnative_proc.h", dir.resolve("jnative_proc.h"));
+            sources.add(copyResource("native/posix/jnative_proc.c", dir.resolve("jnative_proc.c")));
+        }
+
+        if (includeGraphics || includeUi) {
+            copyResource("native/posix/jnative_graphics.h", dir.resolve("jnative_graphics.h"));
+            sources.add(copyResource(
+                    "native/posix/jnative_graphics.c", dir.resolve("jnative_graphics.c")));
+        }
+
+        String backend = uiBackend == null ? "auto" : uiBackend.toLowerCase();
+        boolean wantUi = includeUi && !"none".equals(backend);
+        if (wantUi) {
+            copyResource("native/posix/jnative_ui.h", dir.resolve("jnative_ui.h"));
+            if (platform == Platform.WINDOWS_X86_64) {
+                sources.add(copyResource(
+                        "native/windows/jnative_ui_win32.c", dir.resolve("jnative_ui_win32.c")));
+                // Win32 file is self-contained API; no separate jnative_ui.c.
+            } else {
+                sources.add(copyResource("native/posix/jnative_ui.c", dir.resolve("jnative_ui.c")));
+                boolean useCocoa = !headless
+                        && !"headless".equals(backend)
+                        && !"gtk".equals(backend)
+                        && ("cocoa".equals(backend)
+                        || ("auto".equals(backend)
+                        && (platform == Platform.MACOS_ARM64 || platform == Platform.MACOS_X86_64)));
+                if (useCocoa) {
+                    sources.add(copyResource(
+                            "native/posix/jnative_ui_cocoa.m", dir.resolve("jnative_ui_cocoa.m")));
+                }
+            }
         }
         return sources;
     }

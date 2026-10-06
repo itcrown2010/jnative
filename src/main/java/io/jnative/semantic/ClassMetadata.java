@@ -1,6 +1,7 @@
 package io.jnative.semantic;
 
 import io.jnative.layout.ClassLayout;
+import io.jnative.vtable.ITable;
 import io.jnative.vtable.VTable;
 
 import java.util.ArrayList;
@@ -16,6 +17,8 @@ import java.util.List;
  *   4: ptr name
  *   5: i32 refFieldCount
  *   6: ptr refFieldOffsets (i64* byte offsets from object start)
+ *   7: i32 interfaceCount
+ *   8: ptr interfaceEntries ({i32 id, ptr itable}*)
  *
  * Object references point at ClassMetadata* (not the GC allocation header).
  */
@@ -27,6 +30,7 @@ public final class ClassMetadata {
     private ClassMetadata superMetadata;
     private ClassLayout layout;
     private VTable vtable;
+    private final List<ITable> itables = new ArrayList<>();
     private final List<Integer> referenceFieldGepIndices = new ArrayList<>();
     private final List<Long> referenceFieldByteOffsets = new ArrayList<>();
     private boolean arrayType;
@@ -101,6 +105,17 @@ public final class ClassMetadata {
 
     public void setVtable(VTable vtable) {
         this.vtable = vtable;
+    }
+
+    public List<ITable> itables() {
+        return List.copyOf(itables);
+    }
+
+    public void setItables(List<ITable> tables) {
+        itables.clear();
+        if (tables != null) {
+            itables.addAll(tables);
+        }
     }
 
     public boolean isArrayType() {

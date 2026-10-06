@@ -4,6 +4,8 @@ import io.jnative.ffi.NativeFunction;
 import io.jnative.ffi.NativeStructLayout;
 import io.jnative.layout.ClassLayout;
 import io.jnative.semantic.ClassMetadata;
+import io.jnative.semantic.InterfaceMetadata;
+import io.jnative.vtable.ITable;
 import io.jnative.vtable.VTable;
 
 import java.util.ArrayList;
@@ -20,7 +22,9 @@ public final class IrModule {
     private final Map<String, ClassLayout> classLayouts = new LinkedHashMap<>();
     private final Map<String, NativeStructLayout> nativeStructLayouts = new LinkedHashMap<>();
     private final Map<String, VTable> vtables = new LinkedHashMap<>();
+    private final Map<String, ITable> itables = new LinkedHashMap<>();
     private final Map<String, ClassMetadata> classMetadatas = new LinkedHashMap<>();
+    private final Map<String, InterfaceMetadata> interfaceMetadatas = new LinkedHashMap<>();
     private final Map<String, ClassMetadata> arrayMetadatas = new LinkedHashMap<>();
     private final Map<String, NativeFunction> nativeDeclarations = new LinkedHashMap<>();
     private final Set<String> nativeLibraries = new LinkedHashSet<>();
@@ -62,8 +66,16 @@ public final class IrModule {
         return vtables;
     }
 
+    public Map<String, ITable> itables() {
+        return itables;
+    }
+
     public Map<String, ClassMetadata> classMetadatas() {
         return classMetadatas;
+    }
+
+    public Map<String, InterfaceMetadata> interfaceMetadatas() {
+        return interfaceMetadatas;
     }
 
     public Map<String, ClassMetadata> arrayMetadatas() {
@@ -88,6 +100,14 @@ public final class IrModule {
 
     public void addVTable(VTable vtable) {
         vtables.put(vtable.owner().name(), vtable);
+    }
+
+    public void addITable(ITable itable) {
+        itables.put(itable.globalName(), itable);
+    }
+
+    public void addInterfaceMetadata(InterfaceMetadata metadata) {
+        interfaceMetadatas.put(metadata.globalName(), metadata);
     }
 
     public void addClassMetadata(ClassMetadata metadata) {

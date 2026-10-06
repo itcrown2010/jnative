@@ -213,6 +213,26 @@ public final class OptimizationContext {
         return found;
     }
 
+    /** Closed-world: unique ITable implementation for interface id + slot, or null. */
+    public String singleInterfaceImplementation(int interfaceId, int slot) {
+        String found = null;
+        for (var itable : module.itables().values()) {
+            if (itable.interfaceSymbol().interfaceId() != interfaceId) {
+                continue;
+            }
+            if (slot < 0 || slot >= itable.size()) {
+                continue;
+            }
+            String impl = itable.entries().get(slot).mangledImplementation();
+            if (found == null) {
+                found = impl;
+            } else if (!found.equals(impl)) {
+                return null;
+            }
+        }
+        return found;
+    }
+
     public Set<String> protectedFunctionNames() {
         Set<String> keep = new HashSet<>();
         keep.add("jn_main");

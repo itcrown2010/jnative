@@ -79,6 +79,7 @@ public final class Lexer {
             case '*' -> addToken(TokenType.STAR);
             case '%' -> addToken(TokenType.PERCENT);
             case '!' -> addToken(match('=') ? TokenType.NE : TokenType.NOT);
+            case '?' -> addToken(TokenType.QUESTION);
             case '=' -> addToken(match('=') ? TokenType.EQ : TokenType.ASSIGN);
             case '<' -> addToken(match('=') ? TokenType.LE : TokenType.LT);
             case '>' -> addToken(match('=') ? TokenType.GE : TokenType.GT);

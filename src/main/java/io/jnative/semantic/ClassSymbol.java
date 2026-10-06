@@ -2,30 +2,43 @@ package io.jnative.semantic;
 
 import io.jnative.diagnostics.SourceLocation;
 import io.jnative.layout.ClassLayout;
+import io.jnative.vtable.ITable;
 import io.jnative.vtable.VTable;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 
 /**
- * Symbol for a class declaration, including inheritance, layout, and vtable.
+ * Symbol for a class declaration, including inheritance, layout, vtable, and itables.
  */
-public final class ClassSymbol {
+public final class ClassSymbol implements ReferenceTypeSymbol {
     private final String name;
     private final SourceLocation location;
     private final Map<String, FieldSymbol> declaredFields = new LinkedHashMap<>();
     private final Map<String, MethodSymbol> methodsByName = new LinkedHashMap<>();
     private final List<MethodSymbol> declaredMethods = new ArrayList<>();
     private final List<ConstructorSymbol> constructors = new ArrayList<>();
+    private final List<InterfaceSymbol> implementedInterfaces = new ArrayList<>();
+    private final List<ParameterizedType> implementedParameterizedInterfaces = new ArrayList<>();
+    private final List<TypeParameterSymbol> typeParameters = new ArrayList<>();
+    private final List<ITable> itables = new ArrayList<>();
     private ClassLayout layout;
     private ClassSymbol superClass;
+    private ParameterizedType parameterizedSuper;
     private VTable vtable;
     private ClassMetadata metadata;
     private FunctionType functionType;
     private final boolean builtin;
+    private boolean isAbstract;
+    /** True if this is a compiler-generated specialization (e.g. Box$P_i32). */
+    private boolean specialized;
+    private ClassSymbol genericOrigin;
+    private List<JType> specializationArgs = List.of();
 
     public ClassSymbol(String name, SourceLocation location, boolean builtin) {
         this.name = name;
@@ -34,16 +47,36 @@ public final class ClassSymbol {
         this.metadata = new ClassMetadata(this);
     }
 
+    @Override
     public String name() {
         return name;
     }
 
+    @Override
     public SourceLocation location() {
         return location;
     }
 
+    @Override
+    public boolean isInterface() {
+        return false;
+    }
+
+    @Override
+    public JType asJType() {
+        return asType();
+    }
+
     public boolean isBuiltin() {
         return builtin;
+    }
+
+    public boolean isAbstract() {
+        return isAbstract;
+    }
+
+    public void setAbstract(boolean isAbstract) {
+        this.isAbstract = isAbstract;
     }
 
     public ClassType asType() {
@@ -57,6 +90,109 @@ public final class ClassSymbol {
     public void setSuperClass(ClassSymbol superClass) {
         this.superClass = superClass;
         metadata.setSuperMetadata(superClass != null ? superClass.metadata() : null);
+    }
+
+    public ParameterizedType parameterizedSuper() {
+        return parameterizedSuper;
+    }
+
+    public void setParameterizedSuper(ParameterizedType parameterizedSuper) {
+        this.parameterizedSuper = parameterizedSuper;
+    }
+
+    public List<TypeParameterSymbol> typeParameters() {
+        return List.copyOf(typeParameters);
+    }
+
+    public void setTypeParameters(List<TypeParameterSymbol> params) {
+        typeParameters.clear();
+        if (params != null) {
+            typeParameters.addAll(params);
+        }
+    }
+
+    public boolean isGeneric() {
+        return !typeParameters.isEmpty();
+    }
+
+    public boolean isSpecialized() {
+        return specialized;
+    }
+
+    public void setSpecialized(boolean specialized) {
+        this.specialized = specialized;
+    }
+
+    public ClassSymbol genericOrigin() {
+        return genericOrigin;
+    }
+
+    public void setGenericOrigin(ClassSymbol genericOrigin) {
+        this.genericOrigin = genericOrigin;
+    }
+
+    public List<JType> specializationArgs() {
+        return specializationArgs;
+    }
+
+    public void setSpecializationArgs(List<JType> args) {
+        this.specializationArgs = args == null ? List.of() : List.copyOf(args);
+    }
+
+    public List<InterfaceSymbol> implementedInterfaces() {
+        return List.copyOf(implementedInterfaces);
+    }
+
+    public List<ParameterizedType> implementedParameterizedInterfaces() {
+        return List.copyOf(implementedParameterizedInterfaces);
+    }
+
+    public void setImplementedParameterizedInterfaces(List<ParameterizedType> ifaces) {
+        implementedParameterizedInterfaces.clear();
+        if (ifaces != null) {
+            implementedParameterizedInterfaces.addAll(ifaces);
+        }
+    }
+
+    public void setImplementedInterfaces(List<InterfaceSymbol> ifaces) {
+        implementedInterfaces.clear();
+        LinkedHashSet<InterfaceSymbol> seen = new LinkedHashSet<>();
+        for (InterfaceSymbol iface : ifaces) {
+            if (iface != null && seen.add(iface)) {
+                implementedInterfaces.add(iface);
+            }
+        }
+    }
+
+    public void addImplementedInterface(InterfaceSymbol iface) {
+        if (iface != null && !implementedInterfaces.contains(iface)) {
+            implementedInterfaces.add(iface);
+        }
+    }
+
+    /** Direct + transitive interfaces. */
+    public List<InterfaceSymbol> transitiveInterfaces() {
+        LinkedHashSet<InterfaceSymbol> out = new LinkedHashSet<>();
+        ClassSymbol cursor = this;
+        while (cursor != null) {
+            for (InterfaceSymbol iface : cursor.implementedInterfaces) {
+                out.addAll(iface.transitiveClosure());
+            }
+            cursor = cursor.superClass;
+        }
+        return List.copyOf(out);
+    }
+
+    public boolean implementsInterface(InterfaceSymbol iface) {
+        if (iface == null) {
+            return false;
+        }
+        for (InterfaceSymbol t : transitiveInterfaces()) {
+            if (t == iface || t.name().equals(iface.name())) {
+                return true;
+            }
+        }
+        return false;
     }
 
     public boolean isSubtypeOf(ClassSymbol other) {
@@ -80,8 +216,6 @@ public final class ClassSymbol {
         if (declaredFields.containsKey(field.name())) {
             return false;
         }
-        // Hide inherited field with same name? Java allows shadowing in some cases;
-        // 0.3: reject duplicate with inherited name for clarity.
         if (superClass != null && superClass.findField(field.name()).isPresent()) {
             return false;
         }
@@ -100,7 +234,6 @@ public final class ClassSymbol {
         return Optional.empty();
     }
 
-    /** Fields declared directly on this class. */
     public List<FieldSymbol> fields() {
         return List.copyOf(declaredFields.values());
     }
@@ -165,6 +298,16 @@ public final class ClassSymbol {
     public void setVtable(VTable vtable) {
         this.vtable = vtable;
         metadata.setVtable(vtable);
+    }
+
+    public List<ITable> itables() {
+        return List.copyOf(itables);
+    }
+
+    public void setItables(List<ITable> itables) {
+        this.itables.clear();
+        this.itables.addAll(itables);
+        metadata.setItables(this.itables);
     }
 
     public ClassMetadata metadata() {

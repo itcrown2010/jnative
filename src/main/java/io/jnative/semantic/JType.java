@@ -5,8 +5,9 @@ package io.jnative.semantic;
  * Primitive/reference/null/void are first-class; never encode types as bare Strings.
  */
 public sealed interface JType
-        permits PrimitiveType, ClassType, ArrayType, NullType, VoidType, ErrorType,
-        NativePtrType, NativeStructType, FunctionType, NativeFunctionPtrType {
+        permits PrimitiveType, ClassType, InterfaceType, ArrayType, NullType, VoidType, ErrorType,
+        NativePtrType, NativeStructType, FunctionType, NativeFunctionPtrType,
+        TypeVariable, ParameterizedType, WildcardType {
 
     String displayName();
 

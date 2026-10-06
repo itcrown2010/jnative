@@ -17,6 +17,7 @@ import io.jnative.lexer.Lexer;
 import io.jnative.lexer.Token;
 import io.jnative.lexer.TokenType;
 import io.jnative.parser.Parser;
+import io.jnative.generic.GenericLowering;
 import io.jnative.semantic.EffectAnalyzer;
 import io.jnative.semantic.SemanticAnalyzer;
 import io.jnative.semantic.TypedCompilationUnit;
@@ -32,6 +33,92 @@ import java.util.Optional;
  * Top-level compilation pipeline orchestration.
  */
 public final class JNativeCompiler {
+
+    /**
+     * Frontend-only analysis for IDE (lex → parse → semantic). No IR/LLVM/link.
+     * Version is caller-owned; stale results should be discarded when sources advance.
+     */
+    public Compilation analyze(SourceUnit unit, long version) {
+        DiagnosticReporter reporter = new DiagnosticReporter();
+        if (unit == null) {
+            return new Compilation(version, null, null, null, reporter.diagnostics(), false, 0, 0);
+        }
+        String sourceText;
+        try {
+            sourceText = io.jnative.stdlib.StdlibIncluder.prependStdlibs(unit.sourceText());
+        } catch (IOException e) {
+            reporter.error(SourceLocation.UNKNOWN, "failed to load stdlib: " + e.getMessage());
+            return new Compilation(version, null, null, null, reporter.diagnostics(), false, 0, 0);
+        }
+        String fileName = unit.path() == null ? "Memory.java" : unit.path();
+        int slash = Math.max(fileName.lastIndexOf('/'), fileName.lastIndexOf('\\'));
+        if (slash >= 0 && slash + 1 < fileName.length()) {
+            fileName = fileName.substring(slash + 1);
+        }
+        long t0 = System.nanoTime();
+        Lexer lexer = new Lexer(sourceText, fileName);
+        List<Token> tokens = lexer.tokenize();
+        for (Token token : tokens) {
+            if (token.type() == TokenType.ERROR) {
+                reporter.error(token.location(), token.lexeme());
+            }
+        }
+        Parser parser = new Parser(tokens, reporter);
+        CompilationUnit ast = parser.parse(fileName);
+        long parseMs = (System.nanoTime() - t0) / 1_000_000L;
+        SyntaxTree tree = new SyntaxTree(fileName, unit.sourceText(), ast, reporter.diagnostics(), version);
+        if (reporter.hasErrors()) {
+            return new Compilation(version, tree, null, null, reporter.diagnostics(), false, parseMs, 0);
+        }
+        long t1 = System.nanoTime();
+        SemanticAnalyzer analyzer = new SemanticAnalyzer(reporter);
+        TypedCompilationUnit typed = analyzer.analyze(ast);
+        long semMs = (System.nanoTime() - t1) / 1_000_000L;
+        SemanticModel model = typed == null ? null : new SemanticModel(typed, version);
+        boolean ok = !reporter.hasErrors();
+        return new Compilation(version, tree, typed, model, reporter.diagnostics(), ok, parseMs, semMs);
+    }
+
+    /** Analyze a path on disk (frontend only). */
+    public Compilation analyze(Path source, long version) {
+        DiagnosticReporter reporter = new DiagnosticReporter();
+        try {
+            String text = Files.readString(source, StandardCharsets.UTF_8);
+            return analyze(new SourceUnit(source.getFileName().toString(), text), version);
+        } catch (IOException e) {
+            reporter.error(SourceLocation.UNKNOWN, "failed to read: " + e.getMessage());
+            return new Compilation(version, null, null, null, reporter.diagnostics(), false, 0, 0);
+        }
+    }
+
+    /**
+     * Compile an in-memory {@link SourceUnit} (IDE unsaved buffers).
+     * Writes a temporary file when a real path is needed for diagnostics/output naming.
+     */
+    public CompileResult compile(SourceUnit unit, CompilerOptions options) {
+        DiagnosticReporter reporter = new DiagnosticReporter();
+        if (unit == null) {
+            reporter.error(SourceLocation.UNKNOWN, "no source unit");
+            return fail(reporter);
+        }
+        try {
+            Path tmp = Files.createTempFile("jnative-src-", ".java");
+            Files.writeString(tmp, unit.sourceText(), StandardCharsets.UTF_8);
+            Path previous = options.sourceFile();
+            options.setSourceFile(tmp);
+            CompileResult result = compile(options);
+            options.setSourceFile(previous);
+            try {
+                Files.deleteIfExists(tmp);
+            } catch (IOException ignored) {
+                // best-effort
+            }
+            return result;
+        } catch (IOException e) {
+            reporter.error(SourceLocation.UNKNOWN, "failed to materialize source unit: " + e.getMessage());
+            return fail(reporter);
+        }
+    }
 
     public CompileResult compile(CompilerOptions options) {
         DiagnosticReporter reporter = new DiagnosticReporter();
@@ -51,9 +138,7 @@ public final class JNativeCompiler {
         String sourceText;
         try {
             sourceText = Files.readString(source, StandardCharsets.UTF_8);
-            if (io.jnative.stdlib.StdlibIncluder.needsHttp(sourceText)) {
-                sourceText = io.jnative.stdlib.StdlibIncluder.prependHttpStdlib(sourceText);
-            }
+            sourceText = io.jnative.stdlib.StdlibIncluder.prependStdlibs(sourceText);
         } catch (IOException e) {
             reporter.error(new SourceLocation(source.toString(), 0, 0),
                     "failed to read source: " + e.getMessage());
@@ -100,6 +185,19 @@ public final class JNativeCompiler {
 
         if (options.emitEffects()) {
             System.out.print(effectAnalyzer.emitEffectsReport(typed));
+            if (options.emitOnly()) {
+                return new CompileResult(true, ast, null, null, null, reporter.diagnostics());
+            }
+        }
+
+        GenericLowering genericLowering = new GenericLowering();
+        typed = genericLowering.lower(typed, reporter);
+        if (reporter.hasErrors()) {
+            return new CompileResult(false, ast, null, null, null, reporter.diagnostics());
+        }
+
+        if (options.emitGenerics() || options.explainGenerics()) {
+            System.out.print(genericLowering.emitReport());
             if (options.emitOnly()) {
                 return new CompileResult(true, ast, null, null, null, reporter.diagnostics());
             }
@@ -167,16 +265,49 @@ public final class JNativeCompiler {
             Files.writeString(llFile, llvmIr, StandardCharsets.UTF_8);
 
             nativeDir = Files.createTempDirectory("jnative-native-");
-            java.util.List<Path> socketSources = io.jnative.backend.NativeRuntimeSources
-                    .materializeSocketSources(nativeDir, toolchain.get().platform());
-            java.util.List<Path> extraSources = new java.util.ArrayList<>(socketSources);
+            String irText = IrPrinter.print(ir);
+            boolean includeUi = irText.contains("jnative_ui_");
+            boolean includeGraphics = irText.contains("jnative_gfx_");
+            boolean headless = options.headless()
+                    || "headless".equalsIgnoreCase(options.uiBackend())
+                    || "1".equals(System.getenv("JNATIVE_HEADLESS"));
+            java.util.List<Path> runtimeSources = io.jnative.backend.NativeRuntimeSources
+                    .materializeAll(
+                            nativeDir,
+                            toolchain.get().platform(),
+                            includeUi,
+                            includeGraphics,
+                            headless,
+                            options.uiBackend());
+            java.util.List<Path> extraSources = new java.util.ArrayList<>(runtimeSources);
             extraSources.addAll(options.extraNativeSources());
 
             NativeLinker linker = new NativeLinker(toolchain.get());
             java.util.LinkedHashSet<String> libs = new java.util.LinkedHashSet<>(ir.nativeLibraries());
             libs.addAll(options.linkLibraries());
+            java.util.List<String> linkFlags = new java.util.ArrayList<>(options.extraLinkFlags());
+            if (includeGraphics || includeUi) {
+                libs.add("z");
+                linkFlags.add("-lm");
+            }
+            boolean linkCocoa = includeUi && !headless
+                    && (toolchain.get().platform() == Platform.MACOS_ARM64
+                    || toolchain.get().platform() == Platform.MACOS_X86_64)
+                    && !"gtk".equalsIgnoreCase(options.uiBackend())
+                    && !"headless".equalsIgnoreCase(options.uiBackend());
+            if (linkCocoa) {
+                linkFlags.add("-framework");
+                linkFlags.add("Cocoa");
+                linkFlags.add("-framework");
+                linkFlags.add("AppKit");
+            }
+            if ("gui".equalsIgnoreCase(options.appType())
+                    && toolchain.get().platform() == Platform.WINDOWS_X86_64) {
+                linkFlags.add("-Wl,--subsystem,windows");
+            }
             NativeLinker.LinkResult linkResult = linker.link(
-                    llFile, output, libs, options.libraryPaths(), extraSources, options.optLevel());
+                    llFile, output, libs, options.libraryPaths(), extraSources,
+                    options.optLevel(), linkFlags);
             if (!linkResult.success()) {
                 reporter.error(SourceLocation.UNKNOWN,
                         "clang failed with exit code " + linkResult.exitCode()

@@ -2,11 +2,21 @@ package io.jnative.ast;
 
 import io.jnative.diagnostics.SourceLocation;
 
+import java.util.List;
+import java.util.stream.Collectors;
+
 /**
- * Source-level type name as written in the program.
- * {@code typeArgument} is used for compiler-recognized {@code NativePtr<T>}.
+ * Source-level type name. Supports {@code Box<String>}, wildcards, and {@code NativePtr<T>}.
  */
-public record TypeName(Kind kind, String name, TypeName typeArgument, SourceLocation location) {
+public record TypeName(
+        Kind kind,
+        String name,
+        TypeName typeArgument,
+        List<TypeName> typeArguments,
+        WildcardKind wildcardKind,
+        TypeName wildcardBound,
+        SourceLocation location
+) {
 
     public enum Kind {
         VOID,
@@ -19,11 +29,26 @@ public record TypeName(Kind kind, String name, TypeName typeArgument, SourceLoca
         BOOLEAN,
         CHAR,
         CLASS,
-        NATIVE_PTR
+        NATIVE_PTR,
+        WILDCARD,
+        TYPE_VAR
+    }
+
+    public enum WildcardKind {
+        NONE,
+        UNBOUNDED,
+        EXTENDS,
+        SUPER
     }
 
     public TypeName(Kind kind, String name, SourceLocation location) {
-        this(kind, name, null, location);
+        this(kind, name, null, List.of(), WildcardKind.NONE, null, location);
+    }
+
+    public TypeName(Kind kind, String name, TypeName typeArgument, SourceLocation location) {
+        this(kind, name, typeArgument,
+                typeArgument != null ? List.of(typeArgument) : List.of(),
+                WildcardKind.NONE, null, location);
     }
 
     public static TypeName ofVoid(SourceLocation loc) {
@@ -66,14 +91,41 @@ public record TypeName(Kind kind, String name, TypeName typeArgument, SourceLoca
         return new TypeName(Kind.CLASS, name, loc);
     }
 
+    public static TypeName ofClass(String name, List<TypeName> args, SourceLocation loc) {
+        List<TypeName> copy = args == null ? List.of() : List.copyOf(args);
+        TypeName first = copy.isEmpty() ? null : copy.getFirst();
+        return new TypeName(Kind.CLASS, name, first, copy, WildcardKind.NONE, null, loc);
+    }
+
     public static TypeName ofNativePtr(TypeName arg, SourceLocation loc) {
-        return new TypeName(Kind.NATIVE_PTR, "NativePtr", arg, loc);
+        return new TypeName(Kind.NATIVE_PTR, "NativePtr", arg,
+                arg != null ? List.of(arg) : List.of(), WildcardKind.NONE, null, loc);
+    }
+
+    public static TypeName ofWildcard(WildcardKind kind, TypeName bound, SourceLocation loc) {
+        return new TypeName(Kind.WILDCARD, "?", null, List.of(), kind, bound, loc);
+    }
+
+    public boolean hasTypeArguments() {
+        return typeArguments != null && !typeArguments.isEmpty();
     }
 
     @Override
     public String toString() {
+        if (kind == Kind.WILDCARD) {
+            return switch (wildcardKind) {
+                case UNBOUNDED, NONE -> "?";
+                case EXTENDS -> "? extends " + wildcardBound;
+                case SUPER -> "? super " + wildcardBound;
+            };
+        }
         if (kind == Kind.NATIVE_PTR) {
             return "NativePtr<" + (typeArgument != null ? typeArgument : "Void") + ">";
+        }
+        if (hasTypeArguments()) {
+            return name + "<" + typeArguments.stream()
+                    .map(TypeName::toString)
+                    .collect(Collectors.joining(", ")) + ">";
         }
         return name;
     }

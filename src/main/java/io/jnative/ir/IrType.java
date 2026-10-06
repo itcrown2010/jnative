@@ -2,6 +2,7 @@ package io.jnative.ir;
 
 import io.jnative.semantic.ArrayType;
 import io.jnative.semantic.ClassType;
+import io.jnative.semantic.InterfaceType;
 import io.jnative.semantic.ErrorType;
 import io.jnative.semantic.JType;
 import io.jnative.semantic.NativePtrType;
@@ -37,6 +38,10 @@ public enum IrType {
                 case DOUBLE -> DOUBLE;
             };
             case ClassType ignored -> PTR;
+            case InterfaceType ignored -> PTR;
+            case io.jnative.semantic.ParameterizedType ignored -> PTR;
+            case io.jnative.semantic.TypeVariable ignored -> PTR;
+            case io.jnative.semantic.WildcardType ignored -> PTR;
             case ArrayType ignored -> PTR;
             case NativePtrType ignored -> NATIVE_PTR;
             case NativeStructType ignored -> NATIVE_PTR; // stack locals held as address

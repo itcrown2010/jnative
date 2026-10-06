@@ -9,9 +9,11 @@ public sealed interface IrInstruction
         IrInstruction.Branch, IrInstruction.CondBranch, IrInstruction.Return,
         IrInstruction.JumpLabel, IrInstruction.NewObject, IrInstruction.LoadField,
         IrInstruction.StoreField, IrInstruction.NullCheck, IrInstruction.VirtualCall,
+        IrInstruction.InterfaceCall,
         IrInstruction.ConstructorCall, IrInstruction.NewArray, IrInstruction.LoadElement,
         IrInstruction.StoreElement, IrInstruction.ArrayLength, IrInstruction.InstanceOf,
-        IrInstruction.CheckedCast, IrInstruction.StringLiteral,
+        IrInstruction.InstanceOfInterface, IrInstruction.CheckedCast,
+        IrInstruction.CheckedCastInterface, IrInstruction.StringLiteral,
         IrInstruction.GcCollect, IrInstruction.Throw, IrInstruction.ClearException,
         IrInstruction.NativeCall, IrInstruction.StackAlloc, IrInstruction.AddressOf,
         IrInstruction.NativeFieldAddress,         IrInstruction.NativeLoad, IrInstruction.NativeStore,
@@ -197,6 +199,18 @@ public sealed interface IrInstruction
     ) implements IrInstruction {
     }
 
+    /** Interface dispatch via ClassMetadata itable lookup. */
+    record InterfaceCall(
+            IrValue.Temp dest,
+            IrValue receiver,
+            int interfaceId,
+            int slot,
+            IrType returnType,
+            List<IrValue> args,
+            String debugName
+    ) implements IrInstruction {
+    }
+
     record NewArray(
             IrValue.Temp dest,
             IrType elementIrType,
@@ -228,7 +242,13 @@ public sealed interface IrInstruction
     record InstanceOf(IrValue.Temp dest, IrValue object, String targetMetaGlobal) implements IrInstruction {
     }
 
+    record InstanceOfInterface(IrValue.Temp dest, IrValue object, int interfaceId) implements IrInstruction {
+    }
+
     record CheckedCast(IrValue.Temp dest, IrValue object, String targetMetaGlobal) implements IrInstruction {
+    }
+
+    record CheckedCastInterface(IrValue.Temp dest, IrValue object, int interfaceId) implements IrInstruction {
     }
 
     /** Materialize a String object from a UTF-8 C string constant. */

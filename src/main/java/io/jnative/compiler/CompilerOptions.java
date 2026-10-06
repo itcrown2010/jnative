@@ -12,6 +12,8 @@ public final class CompilerOptions {
     private boolean emitLlvm;
     private boolean emitLayout;
     private boolean emitEffects;
+    private boolean emitGenerics;
+    private boolean explainGenerics;
     private int optLevel = 2;
     private boolean emitIrBeforeOpt;
     private boolean emitIrAfterOpt;
@@ -22,9 +24,13 @@ public final class CompilerOptions {
     private boolean keepTemps;
     private boolean help;
     private boolean version;
+    private boolean headless;
+    private String uiBackend = "auto";
+    private String appType = "console";
     private final List<Path> libraryPaths = new ArrayList<>();
     private final List<String> linkLibraries = new ArrayList<>();
     private final List<Path> extraNativeSources = new ArrayList<>();
+    private final List<String> extraLinkFlags = new ArrayList<>();
 
     public Path sourceFile() {
         return sourceFile;
@@ -82,6 +88,22 @@ public final class CompilerOptions {
         this.emitEffects = emitEffects;
     }
 
+    public boolean emitGenerics() {
+        return emitGenerics;
+    }
+
+    public void setEmitGenerics(boolean emitGenerics) {
+        this.emitGenerics = emitGenerics;
+    }
+
+    public boolean explainGenerics() {
+        return explainGenerics;
+    }
+
+    public void setExplainGenerics(boolean explainGenerics) {
+        this.explainGenerics = explainGenerics;
+    }
+
     public boolean keepTemps() {
         return keepTemps;
     }
@@ -128,6 +150,40 @@ public final class CompilerOptions {
 
     public void addExtraNativeSource(Path path) {
         extraNativeSources.add(path);
+    }
+
+    public List<String> extraLinkFlags() {
+        return extraLinkFlags;
+    }
+
+    public void addExtraLinkFlag(String flag) {
+        if (flag != null && !flag.isBlank()) {
+            extraLinkFlags.add(flag);
+        }
+    }
+
+    public boolean headless() {
+        return headless;
+    }
+
+    public void setHeadless(boolean headless) {
+        this.headless = headless;
+    }
+
+    public String uiBackend() {
+        return uiBackend;
+    }
+
+    public void setUiBackend(String uiBackend) {
+        this.uiBackend = uiBackend == null ? "auto" : uiBackend;
+    }
+
+    public String appType() {
+        return appType;
+    }
+
+    public void setAppType(String appType) {
+        this.appType = appType == null ? "console" : appType;
     }
 
     public int optLevel() {
@@ -187,7 +243,8 @@ public final class CompilerOptions {
     }
 
     public boolean emitOnly() {
-        return emitAst || emitIr || emitLlvm || emitLayout || emitEffects
-                || emitIrBeforeOpt || emitIrAfterOpt || optReport || emitEscapeAnalysis;
+        return emitAst || emitIr || emitLlvm || emitLayout || emitEffects || emitGenerics
+                || explainGenerics || emitIrBeforeOpt || emitIrAfterOpt || optReport
+                || emitEscapeAnalysis;
     }
 }

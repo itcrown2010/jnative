@@ -30,7 +30,7 @@ public final class VTableBuilder {
         });
 
         for (MethodSymbol method : classSymbol.declaredMethods()) {
-            if (method.isStatic() || method.isMain() || !method.isVirtual()) {
+            if (method.isStatic() || method.isMain() || !method.isVirtual() || method.isFfiIntrinsic()) {
                 continue;
             }
             MethodSymbol overridden = method.overrides();

@@ -127,6 +127,52 @@ public final class StringRuntimeEmitter {
                   ret i1 false
                 }
 
+                ; Object.equals override: only equal when other is a String with same bytes.
+                define i1 @jnative_string_equals_object(ptr %this, ptr %other) {
+                entry:
+                  %same = icmp eq ptr %this, %other
+                  br i1 %same, label %yes, label %nullchk
+                yes:
+                  ret i1 true
+                nullchk:
+                  %on = icmp eq ptr %other, null
+                  br i1 %on, label %no, label %meta
+                no:
+                  ret i1 false
+                meta:
+                  %om = load ptr, ptr %other, align 8
+                  %is = icmp eq ptr %om, @meta.String
+                  br i1 %is, label %cmp, label %no
+                cmp:
+                  %r = call i1 @jnative_string_equals(ptr %this, ptr %other)
+                  ret i1 %r
+                }
+
+                ; Java-compatible String.hashCode (31 * h + byte), ASCII/Latin-1 payload.
+                define i32 @jnative_string_hashcode(ptr %s) {
+                entry:
+                  call void @jnative_null_check(ptr %s)
+                  %len = call i32 @jnative_string_length(ptr %s)
+                  %data = getelementptr i8, ptr %s, i64 16
+                  br label %loop
+                loop:
+                  %i = phi i32 [ 0, %entry ], [ %inext, %body ]
+                  %h = phi i32 [ 0, %entry ], [ %h2, %body ]
+                  %done = icmp eq i32 %i, %len
+                  br i1 %done, label %doneL, label %body
+                body:
+                  %i64 = sext i32 %i to i64
+                  %p = getelementptr i8, ptr %data, i64 %i64
+                  %b = load i8, ptr %p, align 1
+                  %z = zext i8 %b to i32
+                  %m = mul i32 %h, 31
+                  %h2 = add i32 %m, %z
+                  %inext = add i32 %i, 1
+                  br label %loop
+                doneL:
+                  ret i32 %h
+                }
+
                 define i32 @jnative_string_index_of(ptr %s, ptr %needle) {
                 entry:
                   %r = call i32 @jnative_string_index_of_from(ptr %s, ptr %needle, i32 0)

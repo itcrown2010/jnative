@@ -29,6 +29,10 @@ struct JNThreadState {
     int joined;
     int self_started;
     int foreign_attached;
+    /* GC2 TLAB */
+    uint8_t *tlab_top;
+    uint8_t *tlab_end;
+    uint8_t *tlab_start;
     struct JNThreadState *next;
 };
 
@@ -122,9 +126,68 @@ void jn_thread_detach_foreign(void) {
     if (st == NULL || !st->foreign_attached) {
         return;
     }
+    st->tlab_top = NULL;
+    st->tlab_end = NULL;
+    st->tlab_start = NULL;
     registry_remove(st);
     pthread_setspecific(tls_key, NULL);
     free(st);
+}
+
+JNTlab jn_tlab_get(void) {
+    JNTlab t = {0};
+    JNThreadState *st = jn_thread_current();
+    if (st) {
+        t.top = st->tlab_top;
+        t.end = st->tlab_end;
+        t.start = st->tlab_start;
+    }
+    return t;
+}
+
+void jn_tlab_set(uint8_t *top, uint8_t *end, uint8_t *start) {
+    JNThreadState *st = jn_thread_current();
+    if (st) {
+        st->tlab_top = top;
+        st->tlab_end = end;
+        st->tlab_start = start;
+    }
+}
+
+void jn_tlab_clear(void) {
+    jn_tlab_set(NULL, NULL, NULL);
+}
+
+void jn_tlab_retire_all(void) {
+    pthread_mutex_lock(&registry_mu);
+    for (JNThreadState *t = registry_head; t; t = t->next) {
+        t->tlab_top = NULL;
+        t->tlab_end = NULL;
+        t->tlab_start = NULL;
+    }
+    pthread_mutex_unlock(&registry_mu);
+}
+
+uint8_t *jn_tlab_max_top(void) {
+    uint8_t *max = NULL;
+    pthread_mutex_lock(&registry_mu);
+    for (JNThreadState *t = registry_head; t; t = t->next) {
+        if (t->tlab_top != NULL && (max == NULL || t->tlab_top > max)) {
+            max = t->tlab_top;
+        }
+    }
+    pthread_mutex_unlock(&registry_mu);
+    return max;
+}
+
+void jn_foreach_tlab(jn_tlab_visit_fn fn, void *ctx) {
+    pthread_mutex_lock(&registry_mu);
+    for (JNThreadState *t = registry_head; t; t = t->next) {
+        if (t->tlab_top != NULL && t->tlab_end != NULL) {
+            fn(t->tlab_top, t->tlab_end, ctx);
+        }
+    }
+    pthread_mutex_unlock(&registry_mu);
 }
 
 int64_t jn_thread_id(void) {
@@ -403,6 +466,22 @@ void jn_foreach_thread_obj_root(jn_root_obj_fn fn, void *ctx) {
         if (t->thread_obj) {
             fn(t->thread_obj, ctx);
         }
+    }
+    pthread_mutex_unlock(&registry_mu);
+}
+
+void jn_foreach_ex_root_slot(jn_root_slot_fn fn, void *ctx) {
+    pthread_mutex_lock(&registry_mu);
+    for (JNThreadState *t = registry_head; t; t = t->next) {
+        fn((void **)&t->ex_current, ctx);
+    }
+    pthread_mutex_unlock(&registry_mu);
+}
+
+void jn_foreach_thread_obj_root_slot(jn_root_slot_fn fn, void *ctx) {
+    pthread_mutex_lock(&registry_mu);
+    for (JNThreadState *t = registry_head; t; t = t->next) {
+        fn((void **)&t->thread_obj, ctx);
     }
     pthread_mutex_unlock(&registry_mu);
 }

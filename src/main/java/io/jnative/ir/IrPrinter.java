@@ -118,6 +118,17 @@ public final class IrPrinter {
                         .append(" receiver=").append(v.receiver().name());
                 yield sb.toString();
             }
+            case IrInstruction.InterfaceCall ic -> {
+                StringBuilder sb = new StringBuilder();
+                if (ic.dest() != null) {
+                    sb.append(ic.dest().name()).append(" = ");
+                }
+                sb.append("interfacecall iface=").append(ic.interfaceId())
+                        .append(" slot=").append(ic.slot())
+                        .append(" ").append(ic.debugName())
+                        .append(" receiver=").append(ic.receiver().name());
+                yield sb.toString();
+            }
             case IrInstruction.NewArray n ->
                     n.dest().name() + " = newarray " + n.elementIrType()
                             + " len=" + n.length().name()
@@ -132,9 +143,15 @@ public final class IrPrinter {
             case IrInstruction.InstanceOf i ->
                     i.dest().name() + " = instanceof " + i.object().name()
                             + ", @" + i.targetMetaGlobal();
+            case IrInstruction.InstanceOfInterface i ->
+                    i.dest().name() + " = instanceof_iface " + i.object().name()
+                            + ", id=" + i.interfaceId();
             case IrInstruction.CheckedCast c ->
                     c.dest().name() + " = checkedcast " + c.object().name()
                             + ", @" + c.targetMetaGlobal();
+            case IrInstruction.CheckedCastInterface c ->
+                    c.dest().name() + " = checkedcast_iface " + c.object().name()
+                            + ", id=" + c.interfaceId();
             case IrInstruction.StringLiteral s ->
                     s.dest().name() + " = stringlit " + s.cString().name()
                             + " len=" + s.byteLength();

@@ -9,11 +9,12 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Result of semantic analysis: AST plus resolved classes and expression types.
+ * Result of semantic analysis: AST plus resolved classes/interfaces and expression types.
  */
 public record TypedCompilationUnit(
         CompilationUnit unit,
         Map<String, ClassSymbol> classes,
+        Map<String, InterfaceSymbol> interfaces,
         Map<String, NativeStructSymbol> nativeStructs,
         Map<Expression, JType> expressionTypes,
         Map<Expression, Object> resolvedSymbols,
@@ -27,6 +28,14 @@ public record TypedCompilationUnit(
         ClassSymbol symbol = classes.get(name);
         if (symbol == null) {
             throw new IllegalStateException("unknown class: " + name);
+        }
+        return symbol;
+    }
+
+    public InterfaceSymbol requireInterface(String name) {
+        InterfaceSymbol symbol = interfaces.get(name);
+        if (symbol == null) {
+            throw new IllegalStateException("unknown interface: " + name);
         }
         return symbol;
     }

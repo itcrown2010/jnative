@@ -118,6 +118,10 @@ public final class ObjectLayoutBuilder {
                 case LONG, DOUBLE -> 8;
             };
             case ClassType ignored -> POINTER_SIZE;
+            case io.jnative.semantic.InterfaceType ignored -> POINTER_SIZE;
+            case io.jnative.semantic.ParameterizedType ignored -> POINTER_SIZE;
+            case io.jnative.semantic.TypeVariable ignored -> POINTER_SIZE;
+            case io.jnative.semantic.WildcardType ignored -> POINTER_SIZE;
             case ArrayType ignored -> POINTER_SIZE;
             case NativePtrType ignored -> POINTER_SIZE;
             case NativeFunctionPtrType ignored -> POINTER_SIZE;
@@ -138,6 +142,10 @@ public final class ObjectLayoutBuilder {
                 case LONG, DOUBLE -> 8;
             };
             case ClassType ignored -> POINTER_SIZE;
+            case io.jnative.semantic.InterfaceType ignored -> POINTER_SIZE;
+            case io.jnative.semantic.ParameterizedType ignored -> POINTER_SIZE;
+            case io.jnative.semantic.TypeVariable ignored -> POINTER_SIZE;
+            case io.jnative.semantic.WildcardType ignored -> POINTER_SIZE;
             case ArrayType ignored -> POINTER_SIZE;
             case NativePtrType ignored -> POINTER_SIZE;
             case NativeFunctionPtrType ignored -> POINTER_SIZE;
@@ -161,6 +169,10 @@ public final class ObjectLayoutBuilder {
                 case DOUBLE -> "double";
             };
             case ClassType ignored -> "ptr";
+            case io.jnative.semantic.InterfaceType ignored -> "ptr";
+            case io.jnative.semantic.ParameterizedType ignored -> "ptr";
+            case io.jnative.semantic.TypeVariable ignored -> "ptr";
+            case io.jnative.semantic.WildcardType ignored -> "ptr";
             case ArrayType ignored -> "ptr";
             case NativePtrType ignored -> "ptr";
             case NativeFunctionPtrType ignored -> "ptr";

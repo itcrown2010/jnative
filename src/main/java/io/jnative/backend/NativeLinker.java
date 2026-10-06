@@ -55,6 +55,18 @@ public final class NativeLinker {
             Collection<Path> extraSources,
             int optLevel
     ) {
+        return link(llFile, output, libraries, libraryPaths, extraSources, optLevel, List.of());
+    }
+
+    public LinkResult link(
+            Path llFile,
+            Path output,
+            Collection<String> libraries,
+            Collection<Path> libraryPaths,
+            Collection<Path> extraSources,
+            int optLevel,
+            Collection<String> extraFlags
+    ) {
         List<String> command = new ArrayList<>(toolchain.linkCommand(llFile, output, optLevel));
         // Insert extra C sources before -o so clang compiles and links them.
         int oIndex = command.indexOf("-o");
@@ -78,6 +90,13 @@ public final class NativeLinker {
                 continue;
             }
             command.add("-l" + lib);
+        }
+        if (extraFlags != null) {
+            for (String flag : extraFlags) {
+                if (flag != null && !flag.isBlank()) {
+                    command.add(flag);
+                }
+            }
         }
         try {
             ProcessBuilder pb = new ProcessBuilder(command);

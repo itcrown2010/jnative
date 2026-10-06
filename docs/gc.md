@@ -1,12 +1,16 @@
-# JNative GC (0.5 / 0.9 multi-thread STW)
+# JNative GC
 
-## Algorithm
+**0.13 default:** generational GC2 — see [gc2.md](gc2.md).
+
+Legacy mark-sweep (`JNATIVE_GC=marksweep`) remains available:
+
+## Algorithm (legacy marksweep)
 
 ```text
 Precise · Stop-the-world · Mark-Sweep · Non-moving · Multi-thread aware
 ```
 
-No write/read barriers. No concurrent or moving collection. See `docs/safepoints.md`.
+See `docs/safepoints.md`.
 
 ## Object layout
 

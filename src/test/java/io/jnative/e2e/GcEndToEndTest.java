@@ -305,6 +305,10 @@ class GcEndToEndTest {
 
         ProcessBuilder pb = new ProcessBuilder(out.toAbsolutePath().toString());
         pb.redirectErrorStream(true);
+        // Legacy GC e2e suite pins mark-sweep unless a test selects GC2 explicitly.
+        if (!env.containsKey("JNATIVE_GC")) {
+            pb.environment().put("JNATIVE_GC", "marksweep");
+        }
         pb.environment().putAll(env);
         Process process = pb.start();
         byte[] bytes = process.getInputStream().readAllBytes();
@@ -321,11 +325,27 @@ class GcEndToEndTest {
     }
 
     private static String stripStats(String stdout) {
-        int idx = stdout.indexOf("JNative GC:");
-        if (idx < 0) {
-            return stdout;
+        StringBuilder sb = new StringBuilder();
+        for (String line : stdout.split("\n", -1)) {
+            if (line.startsWith("JNative GC:")
+                    || line.startsWith("collections:")
+                    || line.startsWith("allocated:")
+                    || line.startsWith("freed:")
+                    || line.startsWith("live:")
+                    || line.startsWith("peak:")
+                    || line.startsWith("minor:")
+                    || line.startsWith("major:")
+                    || line.startsWith("tlab_")
+                    || line.startsWith("bytes_")) {
+                continue;
+            }
+            if (!sb.isEmpty()) {
+                sb.append('\n');
+            }
+            sb.append(line);
         }
-        return stdout.substring(0, idx);
+        String s = sb.toString().replaceAll("\n+$", "");
+        return s.isEmpty() ? "" : s + "\n";
     }
 
     private static long matchLong(String text, String regex) {

@@ -9,6 +9,10 @@ public enum TokenType {
     PRIVATE,
     PROTECTED,
     CLASS,
+    INTERFACE,
+    IMPLEMENTS,
+    ABSTRACT,
+    DEFAULT,
     STATIC,
     VOID,
     BYTE,
@@ -39,6 +43,8 @@ public enum TokenType {
     THROWS,
     NATIVE,
     VOLATILE,
+    IMPORT,
+    PACKAGE,
 
     // Identifiers & literals
     IDENTIFIER,
@@ -73,6 +79,7 @@ public enum TokenType {
     AND,
     OR,
     NOT,
+    QUESTION,
     PLUS_PLUS,
     MINUS_MINUS,
     ARROW,
@@ -89,6 +96,10 @@ public enum TokenType {
         KEYWORDS.put("private", PRIVATE);
         KEYWORDS.put("protected", PROTECTED);
         KEYWORDS.put("class", CLASS);
+        KEYWORDS.put("interface", INTERFACE);
+        KEYWORDS.put("implements", IMPLEMENTS);
+        KEYWORDS.put("abstract", ABSTRACT);
+        KEYWORDS.put("default", DEFAULT);
         KEYWORDS.put("static", STATIC);
         KEYWORDS.put("void", VOID);
         KEYWORDS.put("byte", BYTE);
@@ -119,6 +130,8 @@ public enum TokenType {
         KEYWORDS.put("throws", THROWS);
         KEYWORDS.put("native", NATIVE);
         KEYWORDS.put("volatile", VOLATILE);
+        KEYWORDS.put("import", IMPORT);
+        KEYWORDS.put("package", PACKAGE);
     }
 
     public static TokenType keywordOrIdentifier(String text) {

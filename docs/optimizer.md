@@ -31,6 +31,8 @@ jnative App.java -O2 --verify-ir
 | O1+ | escape analysis, constant propagation, scalar replacement, devirtualization (CHA/exact-type), null-check elimination, DCE |
 | O2+ | inline (single-block safe), re-escape, scalar, BCE, safepoint elim, **stack allocation** of `NO_ESCAPE` managed objects, whole-program DCE |
 
+Allocation decision after opt: scalar replace → stack allocate → heap (TLAB young / large). Write barriers on managed ref stores must not be incorrectly DCE'd or reordered past the store (0.13 GC2).
+
 Clang also receives `-O0`…`-O3` matching the JNative level.
 
 ## Package layout

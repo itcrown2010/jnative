@@ -54,9 +54,13 @@ Primitives, control flow, classes, inheritance, vtable, constructors, arrays, St
 - `Mutex`, `Condition`, `volatile`, `AtomicInt`/`AtomicLong`/`AtomicBool`
 - Static fields (+ field initializers / clinit)
 
+## Interfaces (0.14)
+
+Supported: `interface` / `implements` / interface `extends`, abstract classes/methods, functional-interface lambdas, `instanceof`/cast to interfaces. See [interfaces.md](interfaces.md).
+
 ## Not Supported (yet)
 
-- `interface`, full generics, lambdas, try-with-resources, multi-catch `A | B`
+- default interface methods, full generics, try-with-resources, multi-catch `A | B`
 - Full stack traces / suppressed exceptions
 - JNI, callbacks, function pointers, C++ ABI
 - Struct-by-value ABI, union, bitfields, packed structs

@@ -1,12 +1,15 @@
 package io.jnative.ir;
 
 import io.jnative.ast.*;
+import io.jnative.generic.GenericLowering;
 import io.jnative.ffi.AbiType;
 import io.jnative.layout.ClassLayout;
 import io.jnative.layout.ObjectLayoutBuilder;
 import io.jnative.semantic.ArrayLengthSymbol;
 import io.jnative.semantic.ArrayType;
 import io.jnative.semantic.CallableBinding;
+import io.jnative.generic.TypeSubstitution;
+import io.jnative.mangle.NameMangler;
 import io.jnative.semantic.ClassMetadata;
 import io.jnative.semantic.ClassSymbol;
 import io.jnative.semantic.ClassType;
@@ -14,6 +17,8 @@ import io.jnative.semantic.ClosureCapture;
 import io.jnative.semantic.ConstructorSymbol;
 import io.jnative.semantic.FieldSymbol;
 import io.jnative.semantic.FunctionType;
+import io.jnative.semantic.InterfaceCallTarget;
+import io.jnative.semantic.InterfaceMetadata;
 import io.jnative.semantic.JType;
 import io.jnative.semantic.MethodSymbol;
 import io.jnative.semantic.NativeCallbackSite;
@@ -22,8 +27,13 @@ import io.jnative.semantic.NativePtrType;
 import io.jnative.semantic.NativeStructFieldSymbol;
 import io.jnative.semantic.NativeStructSymbol;
 import io.jnative.semantic.NativeStructType;
+import io.jnative.semantic.ErrorType;
+import io.jnative.semantic.InterfaceType;
+import io.jnative.semantic.ParameterizedType;
 import io.jnative.semantic.ParameterSymbol;
 import io.jnative.semantic.PrimitiveType;
+import io.jnative.semantic.TypeVariable;
+import io.jnative.semantic.WildcardType;
 import io.jnative.semantic.TypedCompilationUnit;
 import io.jnative.semantic.VariableSymbol;
 import io.jnative.semantic.VoidType;
@@ -79,6 +89,12 @@ public final class IrGenerator {
             if (cls.metadata() != null) {
                 module.addClassMetadata(cls.metadata());
             }
+            for (var itable : cls.itables()) {
+                module.addITable(itable);
+            }
+        }
+        for (var iface : typed.interfaces().values()) {
+            module.addInterfaceMetadata(iface.metadata());
         }
         for (ClassMetadata meta : typed.arrayMetadatas().values()) {
             module.addArrayMetadata(meta);
@@ -110,47 +126,36 @@ public final class IrGenerator {
             if (classSymbol == null) {
                 continue;
             }
-            for (MethodDeclaration method : cls.methods()) {
-                if (method.isConstructor()) {
-                    ConstructorSymbol ctor = findCtor(classSymbol, method);
-                    if (ctor == null) {
-                        continue;
-                    }
-                    List<IrValue.Param> params = new ArrayList<>();
-                    params.add(new IrValue.Param("this", IrType.PTR));
-                    for (var p : ctor.parameters()) {
-                        params.add(new IrValue.Param(p.name(), IrType.from(p.type())));
-                    }
-                    IrFunction function = new IrFunction(
-                            ctor.mangledName(), IrType.VOID, params, false);
-                    module.addFunction(function);
-                    functionsByMangled.put(ctor.mangledName(), function);
-                    ctorAst.put(ctor, method);
-                } else {
-                    MethodSymbol ms = classSymbol.findMethod(method.name()).orElse(null);
-                    if (ms == null) {
-                        continue;
-                    }
-                    if (ms.isNative()) {
-                        if (ms.nativeFunction() != null) {
-                            module.addNativeDeclaration(ms.nativeFunction());
-                        }
-                        continue;
-                    }
-                    List<IrValue.Param> params = new ArrayList<>();
-                    if (!ms.isStatic()) {
-                        params.add(new IrValue.Param("this", IrType.PTR));
-                    }
-                    for (var p : ms.parameters()) {
-                        params.add(new IrValue.Param(p.name(), IrType.from(p.type())));
-                    }
-                    IrFunction function = new IrFunction(
-                            ms.mangledName(), IrType.from(ms.returnType()), params, ms.isMain());
-                    configureEffectFlags(function, ms);
-                    module.addFunction(function);
-                    functionsByMangled.put(ms.mangledName(), function);
-                    methodAst.put(ms, method);
+            registerClassFunctions(module, cls, classSymbol, methodAst, ctorAst);
+        }
+
+        for (ClassSymbol spec : typed.classes().values()) {
+            if (!spec.isSpecialized() || spec.genericOrigin() == null) {
+                continue;
+            }
+            ClassDeclaration originDecl = findClassDeclaration(unit, spec.genericOrigin().name());
+            if (originDecl == null) {
+                continue;
+            }
+            registerClassFunctions(module, originDecl, spec, methodAst, ctorAst);
+        }
+
+        // Emit ITable/vtable entry points for SAM adapter methods (InvokeCallable thunks).
+        for (ClassSymbol cls : typed.classes().values()) {
+            for (MethodSymbol ms : cls.declaredMethods()) {
+                if (ms.samInvokeRuntime() == null || functionsByMangled.containsKey(ms.mangledName())) {
+                    continue;
                 }
+                List<IrValue.Param> params = new ArrayList<>();
+                params.add(new IrValue.Param("this", IrType.PTR));
+                for (var p : ms.parameters()) {
+                    params.add(new IrValue.Param(p.name(), IrType.from(p.type())));
+                }
+                IrFunction function = new IrFunction(
+                        ms.mangledName(), IrType.from(ms.returnType()), params, false);
+                module.addFunction(function);
+                functionsByMangled.put(ms.mangledName(), function);
+                lowerSamInvokeThunk(function, ms);
             }
         }
 
@@ -177,7 +182,10 @@ public final class IrGenerator {
 
         for (var entry : methodAst.entrySet()) {
             MethodSymbol ms = entry.getKey();
-            currentClass = ms.owner();
+            currentClass = ms.classOwner();
+            if (currentClass == null) {
+                continue;
+            }
             currentMethod = ms;
             currentConstructor = null;
             lowerMethod(functionsByMangled.get(ms.mangledName()), entry.getValue(), ms);
@@ -191,6 +199,8 @@ public final class IrGenerator {
             lowerConstructor(functionsByMangled.get(ctor.mangledName()), entry.getValue(), ctor);
         }
 
+        lowerBuiltinObjectMethods(module, typed);
+        lowerBuiltinStringObjectMethods(module, typed);
         lowerBuiltinThrowableMethods(module, typed);
         lowerDelegatingBuiltinConstructors(module, typed);
         lowerCallableFunctions(module, typed);
@@ -345,6 +355,94 @@ public final class IrGenerator {
         }
     }
 
+    private void lowerBuiltinObjectMethods(IrModule module, TypedCompilationUnit typed) {
+        ClassSymbol object = typed.classes().get("Object");
+        if (object == null) {
+            return;
+        }
+        object.findMethod("equals").ifPresent(ms -> {
+            if (functionsByMangled.containsKey(ms.mangledName())) {
+                return;
+            }
+            List<IrValue.Param> params = List.of(
+                    new IrValue.Param("this", IrType.PTR),
+                    new IrValue.Param("other", IrType.PTR));
+            IrFunction function = new IrFunction(ms.mangledName(), IrType.I1, params, false);
+            module.addFunction(function);
+            functionsByMangled.put(ms.mangledName(), function);
+            builder.beginFunction(function);
+            IrValue.Local thisLocal = builder.alloca("this", IrType.PTR);
+            IrValue.Local otherLocal = builder.alloca("other", IrType.PTR);
+            builder.store(new IrValue.Param("this", IrType.PTR), thisLocal);
+            builder.store(new IrValue.Param("other", IrType.PTR), otherLocal);
+            IrValue eq = builder.compare(
+                    IrInstruction.CmpOp.EQ,
+                    builder.load(thisLocal),
+                    builder.load(otherLocal));
+            builder.ret(eq);
+        });
+        object.findMethod("hashCode").ifPresent(ms -> {
+            if (functionsByMangled.containsKey(ms.mangledName())) {
+                return;
+            }
+            IrFunction function = new IrFunction(
+                    ms.mangledName(), IrType.I32, List.of(new IrValue.Param("this", IrType.PTR)), false);
+            module.addFunction(function);
+            functionsByMangled.put(ms.mangledName(), function);
+            builder.beginFunction(function);
+            IrValue.Local thisLocal = builder.alloca("this", IrType.PTR);
+            builder.store(new IrValue.Param("this", IrType.PTR), thisLocal);
+            IrValue h = builder.call(
+                    "jnative_identity_hashcode", IrType.I32, List.of(builder.load(thisLocal)));
+            builder.ret(h);
+        });
+    }
+
+    private void lowerBuiltinStringObjectMethods(IrModule module, TypedCompilationUnit typed) {
+        ClassSymbol string = typed.classes().get("String");
+        if (string == null) {
+            return;
+        }
+        string.findMethod("equals").ifPresent(ms -> {
+            if (functionsByMangled.containsKey(ms.mangledName())) {
+                return;
+            }
+            List<IrValue.Param> params = List.of(
+                    new IrValue.Param("this", IrType.PTR),
+                    new IrValue.Param("other", IrType.PTR));
+            IrFunction function = new IrFunction(ms.mangledName(), IrType.I1, params, false);
+            module.addFunction(function);
+            functionsByMangled.put(ms.mangledName(), function);
+            builder.beginFunction(function);
+            IrValue.Local thisLocal = builder.alloca("this", IrType.PTR);
+            IrValue.Local otherLocal = builder.alloca("other", IrType.PTR);
+            builder.store(new IrValue.Param("this", IrType.PTR), thisLocal);
+            builder.store(new IrValue.Param("other", IrType.PTR), otherLocal);
+            IrValue result = builder.call(
+                    "jnative_string_equals_object",
+                    IrType.I1,
+                    List.of(builder.load(thisLocal), builder.load(otherLocal)));
+            builder.ret(result);
+        });
+        string.findMethod("hashCode").ifPresent(ms -> {
+            if (functionsByMangled.containsKey(ms.mangledName())) {
+                return;
+            }
+            IrFunction function = new IrFunction(
+                    ms.mangledName(), IrType.I32, List.of(new IrValue.Param("this", IrType.PTR)), false);
+            module.addFunction(function);
+            functionsByMangled.put(ms.mangledName(), function);
+            builder.beginFunction(function);
+            IrValue.Local thisLocal = builder.alloca("this", IrType.PTR);
+            builder.store(new IrValue.Param("this", IrType.PTR), thisLocal);
+            IrValue result = builder.call(
+                    "jnative_string_hashcode",
+                    IrType.I32,
+                    List.of(builder.load(thisLocal)));
+            builder.ret(result);
+        });
+    }
+
     private void lowerBuiltinThrowableMethods(IrModule module, TypedCompilationUnit typed) {
         ClassSymbol throwable = typed.classes().get("Throwable");
         if (throwable == null) {
@@ -460,13 +558,114 @@ public final class IrGenerator {
         }
     }
 
+    private void registerClassFunctions(
+            IrModule module,
+            ClassDeclaration cls,
+            ClassSymbol classSymbol,
+            Map<MethodSymbol, MethodDeclaration> methodAst,
+            Map<ConstructorSymbol, MethodDeclaration> ctorAst
+    ) {
+        for (MethodDeclaration method : cls.methods()) {
+            if (method.isConstructor()) {
+                ConstructorSymbol ctor = classSymbol.isSpecialized()
+                        ? findCtorByArity(classSymbol, method)
+                        : findCtor(classSymbol, method);
+                if (ctor == null) {
+                    continue;
+                }
+                List<IrValue.Param> params = new ArrayList<>();
+                params.add(new IrValue.Param("this", IrType.PTR));
+                for (var p : ctor.parameters()) {
+                    params.add(new IrValue.Param(p.name(), IrType.from(p.type())));
+                }
+                IrFunction function = new IrFunction(
+                        ctor.mangledName(), IrType.VOID, params, false);
+                module.addFunction(function);
+                functionsByMangled.put(ctor.mangledName(), function);
+                ctorAst.put(ctor, method);
+            } else {
+                MethodSymbol ms = classSymbol.findMethod(method.name()).orElse(null);
+                if (ms == null) {
+                    continue;
+                }
+                if (ms.isAbstract()) {
+                    continue;
+                }
+                if (ms.isNative()) {
+                    if (ms.nativeFunction() != null) {
+                        module.addNativeDeclaration(ms.nativeFunction());
+                    }
+                    continue;
+                }
+                List<IrValue.Param> params = new ArrayList<>();
+                if (!ms.isStatic()) {
+                    params.add(new IrValue.Param("this", IrType.PTR));
+                }
+                for (var p : ms.parameters()) {
+                    params.add(new IrValue.Param(p.name(), IrType.from(p.type())));
+                }
+                IrFunction function = new IrFunction(
+                        ms.mangledName(), IrType.from(ms.returnType()), params, ms.isMain());
+                configureEffectFlags(function, ms);
+                module.addFunction(function);
+                functionsByMangled.put(ms.mangledName(), function);
+                methodAst.put(ms, method);
+            }
+        }
+    }
+
+    private ClassDeclaration findClassDeclaration(CompilationUnit unit, String name) {
+        for (ClassDeclaration cls : unit.classes()) {
+            if (cls.name().equals(name)) {
+                return cls;
+            }
+        }
+        return null;
+    }
+
     private ConstructorSymbol findCtor(ClassSymbol owner, MethodDeclaration method) {
         List<JType> pts = new ArrayList<>();
         for (Parameter p : method.parameters()) {
-            pts.add(resolveTypeName(p.type(), p.isArray()));
+            pts.add(resolveTypeNameInOwner(p.type(), p.isArray(), owner));
         }
         for (ConstructorSymbol c : owner.constructors()) {
             if (c.parameterTypes().equals(pts)) {
+                return c;
+            }
+        }
+        // Generic classes: AST may spell type variables as CLASS names; match by arity.
+        if (owner.isGeneric() || owner.isSpecialized()) {
+            return findCtorByArity(owner, method);
+        }
+        return null;
+    }
+
+    private JType resolveTypeNameInOwner(TypeName typeName, boolean isArray, ClassSymbol owner) {
+        if (typeName.kind() == TypeName.Kind.CLASS
+                && typeName.typeArguments().isEmpty()
+                && owner != null) {
+            for (var tp : owner.typeParameters()) {
+                if (tp.name().equals(typeName.name())) {
+                    JType tv = tp.asType();
+                    return isArray ? new ArrayType(tv) : tv;
+                }
+            }
+            if (owner.genericOrigin() != null) {
+                for (var tp : owner.genericOrigin().typeParameters()) {
+                    if (tp.name().equals(typeName.name())) {
+                        JType tv = tp.asType();
+                        return isArray ? new ArrayType(tv) : tv;
+                    }
+                }
+            }
+        }
+        return resolveTypeName(typeName, isArray);
+    }
+
+    private ConstructorSymbol findCtorByArity(ClassSymbol owner, MethodDeclaration method) {
+        int arity = method.parameters().size();
+        for (ConstructorSymbol c : owner.constructors()) {
+            if (c.parameters().size() == arity) {
                 return c;
             }
         }
@@ -492,19 +691,54 @@ public final class IrGenerator {
                 JType pointee = resolveTypeName(arg, false);
                 yield NativePtrType.of(pointee);
             }
-            case CLASS -> {
-                if ("NativePtr".equals(typeName.name())) {
-                    yield NativePtrType.VOID;
-                }
-                NativeStructSymbol ns = typed.nativeStructs().get(typeName.name());
-                if (ns != null) {
-                    yield ns.asType();
-                }
-                ClassSymbol cs = typed.classes().get(typeName.name());
-                yield cs != null ? cs.asType() : PrimitiveType.INT;
-            }
+            case WILDCARD -> typed.classes().get("Object").asType();
+            case TYPE_VAR -> typed.classes().get("Object").asType();
+            case CLASS -> resolveClassTypeName(typeName);
         };
         return isArray ? new ArrayType(base) : base;
+    }
+
+    private JType resolveClassTypeName(TypeName typeName) {
+        if ("NativePtr".equals(typeName.name())) {
+            return NativePtrType.VOID;
+        }
+        NativeStructSymbol ns = typed.nativeStructs().get(typeName.name());
+        if (ns != null) {
+            return ns.asType();
+        }
+        List<JType> args = resolveTypeArguments(typeName.typeArguments());
+        ClassSymbol cs = typed.classes().get(typeName.name());
+        if (cs != null) {
+            if (!args.isEmpty() && cs.isGeneric()) {
+                ParameterizedType pt = new ParameterizedType(cs, args);
+                if (pt.needsPrimitiveSpecialization()) {
+                    ClassSymbol spec = typed.classes().get(GenericLowering.specializedName(cs, args));
+                    if (spec != null) {
+                        return spec.asType();
+                    }
+                }
+            }
+            return cs.asType();
+        }
+        var iface = typed.interfaces().get(typeName.name());
+        if (iface != null) {
+            if (!args.isEmpty() && iface.isGeneric()) {
+                return iface.asType();
+            }
+            return iface.asType();
+        }
+        return ErrorType.INSTANCE;
+    }
+
+    private List<JType> resolveTypeArguments(List<TypeName> typeArgs) {
+        if (typeArgs == null || typeArgs.isEmpty()) {
+            return List.of();
+        }
+        List<JType> out = new ArrayList<>();
+        for (TypeName arg : typeArgs) {
+            out.add(resolveTypeName(arg, false));
+        }
+        return out;
     }
 
     private void lowerImplicitConstructor(IrFunction function, ConstructorSymbol ctor) {
@@ -860,7 +1094,16 @@ public final class IrGenerator {
     }
 
     private JType resolveDeclType(VariableDeclaration v) {
-        return resolveTypeName(v.type(), v.isArray());
+        if (currentMethod != null) {
+            for (var tp : currentMethod.typeParameters()) {
+                if (tp.name().equals(v.type().name())) {
+                    JType tv = tp.asType();
+                    return remapType(v.isArray() ? new ArrayType(tv) : tv);
+                }
+            }
+        }
+        JType t = resolveTypeNameInOwner(v.type(), v.isArray(), currentClass);
+        return remapType(t);
     }
 
     private void lowerIf(IfStatement i) {
@@ -1138,9 +1381,77 @@ public final class IrGenerator {
         }
     }
 
+    /** Prefer specialized field layout when lowering a specialized class body. */
+    private FieldSymbol remapField(FieldSymbol field) {
+        if (field == null || currentClass == null || !currentClass.isSpecialized()) {
+            return field;
+        }
+        ClassSymbol origin = currentClass.genericOrigin();
+        if (origin != null && field.owner() == origin) {
+            return currentClass.findField(field.name()).orElse(field);
+        }
+        return field;
+    }
+
+    /**
+     * Remap type variables in specialized class bodies (e.g. {@code T[]} → {@code int[]}).
+     * For non-specialized generic bodies, type variables erase to Object.
+     */
+    private JType remapType(JType type) {
+        if (type == null) {
+            return null;
+        }
+        if (currentClass != null && currentClass.isSpecialized()
+                && currentClass.genericOrigin() != null
+                && !currentClass.specializationArgs().isEmpty()) {
+            TypeSubstitution sub = TypeSubstitution.zip(
+                    currentClass.genericOrigin().typeParameters(),
+                    currentClass.specializationArgs());
+            return sub.apply(type);
+        }
+        if (type instanceof TypeVariable tv) {
+            ClassSymbol object = typed.classes().get("Object");
+            return tv.symbol().erasure(object);
+        }
+        if (type instanceof ArrayType at) {
+            JType elem = remapType(at.elementType());
+            if (elem != at.elementType()) {
+                return new ArrayType(elem);
+            }
+        }
+        return type;
+    }
+
+    private ClassMetadata arrayMetadataForElement(JType elementType) {
+        String key = NameMangler.arrayMetaName(elementType);
+        for (ClassMetadata meta : typed.arrayMetadatas().values()) {
+            if (meta.globalName().equals("meta." + key) || meta.name().equals(key)) {
+                return meta;
+            }
+        }
+        // Synthesize metadata for specialized array types not seen during semantic analysis.
+        ClassMetadata meta = new ClassMetadata(key, elementType.isReference(), elementType);
+        builder.module().addArrayMetadata(meta);
+        return meta;
+    }
+
+    private IrValue primitiveHashCode(IrValue value, PrimitiveType type) {
+        return switch (type) {
+            case INT, BYTE, SHORT, CHAR, BOOLEAN -> castIfNeeded(value, IrType.I32);
+            case LONG -> {
+                IrValue asI64 = castIfNeeded(value, IrType.I64);
+                // fold high/low without bitwise ops: (int)(v % 2147483647) style mix via trunc
+                yield builder.cast(asI64, IrType.I32);
+            }
+            case FLOAT -> builder.cast(castIfNeeded(value, IrType.FLOAT), IrType.I32);
+            case DOUBLE -> builder.cast(castIfNeeded(value, IrType.DOUBLE), IrType.I32);
+        };
+    }
+
     private IrValue lowerVariable(VariableExpression v) {
         Object resolved = typed.resolvedSymbols().get(v);
         if (resolved instanceof FieldSymbol field) {
+            field = remapField(field);
             if (field.isStatic()) {
                 return builder.loadStatic(
                         field.staticGlobal(), IrType.from(field.type()), field.isVolatile());
@@ -1179,6 +1490,7 @@ public final class IrGenerator {
         if (target instanceof VariableExpression v) {
             Object resolved = typed.resolvedSymbols().get(v);
             if (resolved instanceof FieldSymbol field) {
+                field = remapField(field);
                 IrValue casted = castIfNeeded(value, IrType.from(field.type()));
                 if (field.isStatic()) {
                     builder.storeStatic(field.staticGlobal(), casted, field.isVolatile());
@@ -1209,7 +1521,7 @@ public final class IrGenerator {
                 builder.nativeStore(addr, casted);
                 return casted;
             }
-            FieldSymbol field = (FieldSymbol) resolved;
+            FieldSymbol field = remapField((FieldSymbol) resolved);
             IrValue casted = castIfNeeded(value, IrType.from(field.type()));
             if (field.isStatic()) {
                 builder.storeStatic(field.staticGlobal(), casted, field.isVolatile());
@@ -1224,7 +1536,7 @@ public final class IrGenerator {
         if (target instanceof ArrayAccessExpression aexpr) {
             IrValue array = lowerExpression(aexpr.array());
             IrValue index = lowerExpression(aexpr.index());
-            JType elemType = typed.expressionTypes().get(aexpr);
+            JType elemType = remapType(typed.expressionTypes().get(aexpr));
             IrValue casted = castIfNeeded(value, IrType.from(elemType));
             builder.storeElement(array, index, casted);
             return casted;
@@ -1247,7 +1559,7 @@ public final class IrGenerator {
                     nfs.offset());
             return builder.nativeLoad(addr, IrType.from(nfs.type()));
         }
-        FieldSymbol field = (FieldSymbol) resolved;
+        FieldSymbol field = remapField((FieldSymbol) resolved);
         if (field.isStatic()) {
             return builder.loadStatic(
                     field.staticGlobal(), IrType.from(field.type()), field.isVolatile());
@@ -1284,6 +1596,40 @@ public final class IrGenerator {
         }
         ConstructorSymbol ctor = (ConstructorSymbol) resolved;
         ClassSymbol cs = ctor.owner();
+        // Inside a specialized body, new Foo<T>(...) must allocate Foo$P_...
+        if (currentClass != null && currentClass.isSpecialized()
+                && currentClass.genericOrigin() != null
+                && cs.isGeneric() && !cs.isSpecialized()) {
+            List<JType> specArgs = new ArrayList<>();
+            if (!n.typeArguments().isEmpty()) {
+                TypeSubstitution sub = TypeSubstitution.zip(
+                        currentClass.genericOrigin().typeParameters(),
+                        currentClass.specializationArgs());
+                for (TypeName tn : n.typeArguments()) {
+                    JType arg = resolveTypeNameInOwner(tn, false, currentClass);
+                    specArgs.add(sub.apply(arg));
+                }
+            } else {
+                specArgs = currentClass.specializationArgs();
+            }
+            if (!specArgs.isEmpty()) {
+                String specName = GenericLowering.specializedName(cs, specArgs);
+                ClassSymbol spec = typed.classes().get(specName);
+                if (spec != null) {
+                    ConstructorSymbol specCtor = null;
+                    for (ConstructorSymbol c : spec.constructors()) {
+                        if (c.parameters().size() == ctor.parameters().size()) {
+                            specCtor = c;
+                            break;
+                        }
+                    }
+                    if (specCtor != null) {
+                        ctor = specCtor;
+                        cs = spec;
+                    }
+                }
+            }
+        }
         ClassLayout layout = cs.layout();
         IrValue obj = builder.newObject(
                 cs.name(),
@@ -1304,30 +1650,35 @@ public final class IrGenerator {
     }
 
     private IrValue lowerNewArray(NewArrayExpression n) {
-        ClassMetadata meta = (ClassMetadata) typed.resolvedSymbols().get(n);
-        JType elem = typed.expressionTypes().get(n);
-        ArrayType at = (ArrayType) elem;
+        JType arrayType = remapType(typed.expressionTypes().get(n));
+        ArrayType at = (ArrayType) arrayType;
+        JType elementType = at.elementType();
+        ClassMetadata meta = arrayMetadataForElement(elementType);
         IrValue length = lowerExpression(n.length());
         length = castIfNeeded(length, IrType.I32);
-        long elemSize = ObjectLayoutBuilder.sizeOf(at.elementType());
+        long elemSize = ObjectLayoutBuilder.sizeOf(elementType);
         return builder.newArray(
-                IrType.from(at.elementType()),
+                IrType.from(elementType),
                 length,
                 elemSize,
                 meta.globalName(),
-                at.elementType().isReference());
+                elementType.isReference());
     }
 
     private IrValue lowerArrayLoad(ArrayAccessExpression a) {
         IrValue array = lowerExpression(a.array());
         IrValue index = lowerExpression(a.index());
-        JType elemType = typed.expressionTypes().get(a);
+        JType elemType = remapType(typed.expressionTypes().get(a));
         return builder.loadElement(array, index, IrType.from(elemType));
     }
 
     private IrValue lowerInstanceOf(InstanceOfExpression i) {
-        ClassMetadata meta = (ClassMetadata) typed.resolvedSymbols().get(i);
+        Object resolved = typed.resolvedSymbols().get(i);
         IrValue obj = lowerExpression(i.expression());
+        if (resolved instanceof InterfaceMetadata im) {
+            return builder.instanceOfInterface(obj, im.interfaceId());
+        }
+        ClassMetadata meta = (ClassMetadata) resolved;
         return builder.instanceOf(obj, meta.globalName());
     }
 
@@ -1337,6 +1688,9 @@ public final class IrGenerator {
         if (resolved instanceof NativePtrType || typed.expressionTypes().get(c) instanceof NativePtrType) {
             // NativePtr casts are bitcasts at IR level (same machine pointer width).
             return castIfNeeded(obj, IrType.NATIVE_PTR);
+        }
+        if (resolved instanceof InterfaceMetadata im) {
+            return builder.checkedCastInterface(obj, im.interfaceId());
         }
         ClassMetadata meta = (ClassMetadata) resolved;
         return builder.checkedCast(obj, meta.globalName());
@@ -1375,6 +1729,28 @@ public final class IrGenerator {
         };
     }
 
+    private void lowerSamInvokeThunk(IrFunction function, MethodSymbol ms) {
+        builder.beginFunction(function);
+        IrValue.Local thisLocal = builder.alloca("this", IrType.PTR);
+        builder.store(new IrValue.Param("this", IrType.PTR), thisLocal);
+        IrValue receiver = builder.load(thisLocal);
+        List<IrValue> invokeArgs = new ArrayList<>();
+        for (var p : ms.parameters()) {
+            IrType ty = IrType.from(p.type());
+            IrValue.Local local = builder.alloca(p.name(), ty);
+            builder.store(new IrValue.Param(p.name(), ty), local);
+            invokeArgs.add(builder.load(local));
+        }
+        IrType ret = IrType.from(ms.returnType());
+        if (ret == IrType.VOID) {
+            builder.invokeCallable(receiver, ret, invokeArgs);
+            builder.retVoid();
+        } else {
+            IrValue result = builder.invokeCallable(receiver, ret, invokeArgs);
+            builder.ret(result);
+        }
+    }
+
     private IrValue lowerCall(MethodCallExpression m) {
         Object resolved = typed.resolvedSymbols().get(m);
         if (resolved instanceof NativeCallbackSite site) {
@@ -1391,6 +1767,29 @@ public final class IrGenerator {
         if (resolved instanceof NativeIntrinsic intrinsic) {
             return lowerNativeIntrinsic(intrinsic, m);
         }
+        if (resolved instanceof InterfaceCallTarget ict) {
+            IrValue receiver = m.receiver() != null
+                    ? lowerExpression(m.receiver())
+                    : builder.load(builder.local("this"));
+            builder.nullCheck(receiver);
+            List<IrValue> args = new ArrayList<>();
+            args.add(receiver);
+            List<JType> paramTypes = ict.parameterTypes();
+            for (int i = 0; i < m.arguments().size(); i++) {
+                IrValue arg = lowerExpression(m.arguments().get(i));
+                if (i < paramTypes.size()) {
+                    arg = castIfNeeded(arg, IrType.from(paramTypes.get(i)));
+                }
+                args.add(arg);
+            }
+            return builder.interfaceCall(
+                    receiver,
+                    ict.interfaceSymbol().interfaceId(),
+                    ict.slot(),
+                    IrType.from(ict.returnType()),
+                    args,
+                    ict.interfaceSymbol().name() + "." + ict.interfaceMethod().name());
+        }
         MethodSymbol ms = (MethodSymbol) resolved;
         List<IrValue> args = new ArrayList<>();
         IrValue receiver = null;
@@ -1400,7 +1799,23 @@ public final class IrGenerator {
             } else {
                 receiver = builder.load(builder.local("this"));
             }
-            builder.nullCheck(receiver);
+            JType recvJ = m.receiver() != null
+                    ? remapType(typed.expressionTypes().get(m.receiver()))
+                    : null;
+            // Primitive-specialized bodies: T.hashCode()/equals() lower to value ops (no boxing).
+            if (recvJ instanceof PrimitiveType) {
+                if ("hashCode".equals(ms.name()) && m.arguments().isEmpty()) {
+                    return primitiveHashCode(receiver, (PrimitiveType) recvJ);
+                }
+                if ("equals".equals(ms.name()) && m.arguments().size() == 1) {
+                    IrValue other = lowerExpression(m.arguments().getFirst());
+                    other = castIfNeeded(other, IrType.from(recvJ));
+                    return builder.compare(IrInstruction.CmpOp.EQ, receiver, other);
+                }
+            }
+            if (!(recvJ instanceof PrimitiveType)) {
+                builder.nullCheck(receiver);
+            }
             args.add(receiver);
         }
         // Static call may still have a type-name receiver in AST (LibC.puts); ignore it.
@@ -1408,7 +1823,8 @@ public final class IrGenerator {
         for (int i = 0; i < m.arguments().size(); i++) {
             IrValue arg = lowerExpression(m.arguments().get(i));
             if (i < paramTypes.size()) {
-                arg = castIfNeeded(arg, IrType.from(paramTypes.get(i)));
+                JType pt = remapType(paramTypes.get(i));
+                arg = castIfNeeded(arg, IrType.from(pt != null ? pt : paramTypes.get(i)));
             }
             args.add(arg);
         }
@@ -1418,22 +1834,26 @@ public final class IrGenerator {
             return builder.invokeCallable(receiver, IrType.from(ms.returnType()), invokeArgs);
         }
 
-        if (ms.owner().name().equals("Throwable") && ms.name().equals("getMessage") && receiver != null) {
-            ClassLayout layout = ms.owner().layout();
+        ClassSymbol ownerClass = ms.classOwner();
+        if (ownerClass != null && ownerClass.name().equals("Throwable")
+                && ms.name().equals("getMessage") && receiver != null) {
+            ClassLayout layout = ownerClass.layout();
             return builder.loadField(
                     receiver,
-                    ms.owner().name(),
+                    ownerClass.name(),
                     layout.llvmTypeName(),
                     1,
                     IrType.PTR);
         }
 
         // String intrinsics
-        if (ms.owner().isBuiltin() && ms.owner().name().equals("String") && receiver != null) {
+        if (ownerClass != null && ownerClass.isBuiltin()
+                && ownerClass.name().equals("String") && receiver != null) {
             return switch (ms.name()) {
                 case "length" -> builder.call("jnative_string_length", IrType.I32, List.of(receiver));
                 case "charAt" -> builder.call("jnative_string_char_at", IrType.I16, args);
-                case "equals" -> builder.call("jnative_string_equals", IrType.I1, args);
+                case "equals" -> builder.call("jnative_string_equals_object", IrType.I1, args);
+                case "hashCode" -> builder.call("jnative_string_hashcode", IrType.I32, List.of(receiver));
                 case "indexOf" -> builder.call("jnative_string_index_of", IrType.I32, args);
                 case "indexOfFrom" -> builder.call("jnative_string_index_of_from", IrType.I32, args);
                 case "substring" -> builder.call("jnative_string_substring", IrType.PTR, args);
@@ -1828,14 +2248,23 @@ public final class IrGenerator {
             return lowerLogical(b);
         }
 
-        // String concat
+        // String concat (String+String, String+number, number+String)
         if (b.operator() == BinaryOp.ADD) {
             JType lt = typed.expressionTypes().get(b.left());
             JType rt = typed.expressionTypes().get(b.right());
-            if (lt instanceof ClassType lc && lc.name().equals("String")
-                    && rt instanceof ClassType rc && rc.name().equals("String")) {
+            boolean leftStr = lt instanceof ClassType lc && lc.name().equals("String");
+            boolean rightStr = rt instanceof ClassType rc && rc.name().equals("String");
+            if (leftStr || rightStr) {
                 IrValue left = lowerExpression(b.left());
                 IrValue right = lowerExpression(b.right());
+                if (!leftStr && lt != null && lt.isNumeric()) {
+                    left = builder.call("jnative_string_value_of_i32", IrType.PTR,
+                            List.of(castIfNeeded(left, IrType.I32)), false);
+                }
+                if (!rightStr && rt != null && rt.isNumeric()) {
+                    right = builder.call("jnative_string_value_of_i32", IrType.PTR,
+                            List.of(castIfNeeded(right, IrType.I32)), false);
+                }
                 return builder.call("jnative_string_concat", IrType.PTR, List.of(left, right));
             }
         }
@@ -1922,6 +2351,14 @@ public final class IrGenerator {
     }
 
     private IrValue castIfNeeded(IrValue value, IrType target) {
+        // Specialized bodies may clear slots with null; map to zero for primitive storage.
+        if (value instanceof IrValue.Const c
+                && "null".equals(String.valueOf(c.value()))
+                && target != IrType.PTR
+                && target != IrType.NATIVE_PTR
+                && target != IrType.VOID) {
+            return defaultValue(target);
+        }
         return builder.cast(value, target);
     }
 

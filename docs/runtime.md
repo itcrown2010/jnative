@@ -114,9 +114,9 @@ backend/llvm/runtime/
   BytesRuntimeEmitter
 ```
 
-## GC readiness (0.5)
+## GC (0.5 → 0.13)
 
-- All heap alloc routes through runtime helpers.
-- `ClassMetadata.referenceFieldGepIndices` lists reference fields.
+- All managed heap alloc routes through runtime helpers (`jnative_gc_alloc` / GC2 TLAB).
+- `ClassMetadata.referenceFieldGepIndices` lists reference fields for precise scan/copy.
 - Array flags distinguish reference vs primitive elements.
-- No scanning yet; metadata is sufficient to add it later.
+- **0.13 default:** generational GC2 — see [gc2.md](gc2.md). Legacy mark-sweep via `JNATIVE_GC=marksweep`.

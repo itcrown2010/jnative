@@ -9,6 +9,8 @@ public record MethodDeclaration(
         boolean isStatic,
         boolean isNative,
         boolean isConstructor,
+        boolean isAbstract,
+        List<TypeParameterDeclaration> typeParameters,
         TypeName returnType,
         boolean returnsArray,
         String name,
@@ -28,7 +30,7 @@ public record MethodDeclaration(
             BlockStatement body,
             SourceLocation location
     ) {
-        this(isPublic, isStatic, false, isConstructor, returnType, false, name, parameters, body,
+        this(isPublic, isStatic, false, isConstructor, false, List.of(), returnType, false, name, parameters, body,
                 null, null, location);
     }
 
@@ -45,7 +47,44 @@ public record MethodDeclaration(
             NativeAnnotation nativeAnnotation,
             SourceLocation location
     ) {
-        this(isPublic, isStatic, isNative, isConstructor, returnType, returnsArray, name, parameters, body,
-                nativeAnnotation, null, location);
+        this(isPublic, isStatic, isNative, isConstructor, false, List.of(), returnType, returnsArray, name, parameters,
+                body, nativeAnnotation, null, location);
+    }
+
+    public MethodDeclaration(
+            boolean isPublic,
+            boolean isStatic,
+            boolean isNative,
+            boolean isConstructor,
+            TypeName returnType,
+            boolean returnsArray,
+            String name,
+            List<Parameter> parameters,
+            BlockStatement body,
+            NativeAnnotation nativeAnnotation,
+            EffectContract effectContract,
+            SourceLocation location
+    ) {
+        this(isPublic, isStatic, isNative, isConstructor, false, List.of(), returnType, returnsArray, name, parameters,
+                body, nativeAnnotation, effectContract, location);
+    }
+
+    public MethodDeclaration(
+            boolean isPublic,
+            boolean isStatic,
+            boolean isNative,
+            boolean isConstructor,
+            boolean isAbstract,
+            TypeName returnType,
+            boolean returnsArray,
+            String name,
+            List<Parameter> parameters,
+            BlockStatement body,
+            NativeAnnotation nativeAnnotation,
+            EffectContract effectContract,
+            SourceLocation location
+    ) {
+        this(isPublic, isStatic, isNative, isConstructor, isAbstract, List.of(), returnType, returnsArray, name,
+                parameters, body, nativeAnnotation, effectContract, location);
     }
 }

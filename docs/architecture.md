@@ -23,9 +23,17 @@ See [optimizer.md](optimizer.md) and [jnative-0.12-build-report.md](jnative-0.12
 
 High-level IR passes in `io.jnative.opt` before LLVM: escape analysis, scalar replacement, managed stack allocation (with GC field roots), CHA/devirtualization, safe inlining, constprop/DCE, check/safepoint elimination, whole-program DCE. See [optimizer.md](optimizer.md).
 
+## Interfaces (0.14)
+
+`InterfaceSymbol` / `InterfaceType`, ITable dispatch (`InterfaceCall`), abstract classes, functional-interface lambdas (adapter + callable runtime). See [interfaces.md](interfaces.md).
+
+## GC2 (0.13)
+
+Default **generational** heap: TLAB bump allocation, young semi-space copying (Cheney), promotion to malloc-backed old mark-sweep, write barriers on managed stores. Legacy `JNATIVE_GC=marksweep` retained. See [gc2.md](gc2.md).
+
 ## GC (0.5 / 0.12 stack objects)
 
-Precise STW mark-sweep; Java refs point past a 24-byte `GcHeader`; roots via shadow stack of PTR alloca addresses **and** reference field slots of stack-managed objects. Exception current pointer is also a precise GC root.
+Precise STW; Java refs point past a 24-byte `GcHeader`; roots via shadow stack of PTR alloca addresses **and** reference field slots of stack-managed objects. Exception / Thread roots are updateable slots for moving GC.
 
 ## Exceptions (0.6)
 

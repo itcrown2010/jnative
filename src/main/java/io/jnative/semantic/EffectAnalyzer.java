@@ -557,22 +557,33 @@ public final class EffectAnalyzer {
                 if (parent == null) {
                     continue;
                 }
-                if (parent.contractNoGc() && child.effectiveEffects().violatesNoGc()) {
-                    reporter.error(child.location(),
-                            "override effect contract violation: '" + child.name()
-                                    + "' may allocate but overrides @NoGC method");
-                }
-                if (parent.contractNoThrow() && child.effectiveEffects().violatesNoThrow()) {
-                    reporter.error(child.location(),
-                            "override effect contract violation: '" + child.name()
-                                    + "' may throw but overrides @NoThrow method");
-                }
-                if (parent.contractNoBlock() && child.effectiveEffects().violatesNoBlock()) {
-                    reporter.error(child.location(),
-                            "override effect contract violation: '" + child.name()
-                                    + "' may block but overrides @NoBlock method");
+                verifyImplementationContracts(child, parent, "override");
+            }
+            for (io.jnative.semantic.InterfaceSymbol iface : cls.transitiveInterfaces()) {
+                for (io.jnative.semantic.InterfaceMethodSlot slot : iface.slots()) {
+                    io.jnative.vtable.ITableBuilder.resolveImplementation(cls, slot.method())
+                            .ifPresent(impl -> verifyImplementationContracts(
+                                    impl, slot.method(), "implements interface method"));
                 }
             }
+        }
+    }
+
+    private void verifyImplementationContracts(MethodSymbol impl, MethodSymbol required, String context) {
+        if (required.contractNoGc() && impl.effectiveEffects().violatesNoGc()) {
+            reporter.error(impl.location(),
+                    context + " effect contract violation: '" + impl.name()
+                            + "' may allocate but required method is @NoGC");
+        }
+        if (required.contractNoThrow() && impl.effectiveEffects().violatesNoThrow()) {
+            reporter.error(impl.location(),
+                    context + " effect contract violation: '" + impl.name()
+                            + "' may throw but required method is @NoThrow");
+        }
+        if (required.contractNoBlock() && impl.effectiveEffects().violatesNoBlock()) {
+            reporter.error(impl.location(),
+                    context + " effect contract violation: '" + impl.name()
+                            + "' may block but required method is @NoBlock");
         }
     }
 
