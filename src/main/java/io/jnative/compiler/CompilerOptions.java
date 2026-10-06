@@ -32,6 +32,8 @@ public final class CompilerOptions {
     private boolean emitWat;
     private boolean emitWasm;
     private boolean emitJsGlue;
+    private boolean emitRpc;
+    private boolean emitRpcSchema;
     private boolean runAfterBuild;
     private final List<Path> libraryPaths = new ArrayList<>();
     private final List<String> linkLibraries = new ArrayList<>();
@@ -68,6 +70,22 @@ public final class CompilerOptions {
 
     public void setEmitJsGlue(boolean emitJsGlue) {
         this.emitJsGlue = emitJsGlue;
+    }
+
+    public boolean emitRpc() {
+        return emitRpc;
+    }
+
+    public void setEmitRpc(boolean emitRpc) {
+        this.emitRpc = emitRpc;
+    }
+
+    public boolean emitRpcSchema() {
+        return emitRpcSchema;
+    }
+
+    public void setEmitRpcSchema(boolean emitRpcSchema) {
+        this.emitRpcSchema = emitRpcSchema;
     }
 
     public boolean runAfterBuild() {

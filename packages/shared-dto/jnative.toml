@@ -1,0 +1,10 @@
+[package]
+name = "shared-dto"
+namespace = "jnative"
+version = "1.0.0"
+description = "Shared DTO for fullstack"
+license = "MIT"
+type = "source"
+
+[dependencies]
+"jnative/json-demo" = "^2.0.0"

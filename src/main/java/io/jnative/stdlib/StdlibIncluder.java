@@ -76,6 +76,25 @@ public final class StdlibIncluder {
                 || sourceText.contains("extends WebUiComponent");
     }
 
+    public static boolean needsRpc(String sourceText) {
+        if (sourceText == null) {
+            return false;
+        }
+        return sourceText.contains("@Rpc")
+                || sourceText.contains("jnative.rpc")
+                || sourceText.contains("RpcHttp.")
+                || sourceText.contains("RpcEnvelope.")
+                || sourceText.contains("_Rpc.mount")
+                || sourceText.contains("_Rpc.client");
+    }
+
+    public static String prependRpcStdlib(String userSource) throws IOException {
+        if (userSource.contains("// JNative RPC Runtime (0.28)")) {
+            return userSource;
+        }
+        return load("stdlib/rpc/RpcLib.java") + "\n\n" + userSource;
+    }
+
     public static boolean needsUi(String sourceText) {
         if (sourceText == null) {
             return false;
@@ -484,10 +503,11 @@ public final class StdlibIncluder {
         boolean wantBrowser = needsBrowser(userSource);
         boolean wantDatabase = needsDatabase(userSource);
         boolean wantCrypto = needsCrypto(userSource) || wantWeb;
-        boolean wantAsync = needsAsync(userSource) || wantWeb || wantDatabase || wantCrypto || wantBrowser;
+        boolean wantRpc = needsRpc(userSource);
+        boolean wantAsync = needsAsync(userSource) || wantWeb || wantDatabase || wantCrypto || wantBrowser || wantRpc;
         // Advanced UI / Graphics / Editor use ArrayList / Function from collections.
         if (needsCollections(text) || wantUi || wantGraphics || wantEditor || wantJson || wantIo || wantStudio
-                || wantAsync || wantDatabase || wantCrypto) {
+                || wantAsync || wantDatabase || wantCrypto || wantRpc) {
             text = prependCollectionsStdlib(text);
         }
         if (wantAsync) {
@@ -499,7 +519,7 @@ public final class StdlibIncluder {
         if (wantCrypto || needsCrypto(text)) {
             text = prependCryptoStdlib(text);
         }
-        if (wantJson || needsJson(text)) {
+        if (wantJson || needsJson(text) || wantRpc) {
             text = prependJsonStdlib(text);
         }
         if (wantIo || needsIo(text)) {
@@ -519,10 +539,10 @@ public final class StdlibIncluder {
         if (wantStudio || needsStudio(text)) {
             text = prependStudioStdlib(text);
         }
-        if (needsHttp(text) || wantWeb || needsWeb(text)) {
+        if (needsHttp(text) || wantWeb || needsWeb(text) || wantRpc) {
             text = prependHttpStdlib(text);
         }
-        if (wantWeb || needsWeb(text)) {
+        if (wantWeb || needsWeb(text) || wantRpc) {
             text = prependWebStdlib(text);
         }
         if (wantBrowser || needsBrowser(text)) {
@@ -530,6 +550,9 @@ public final class StdlibIncluder {
         }
         if (needsWebui(text)) {
             text = prependWebuiStdlib(text);
+        }
+        if (wantRpc || needsRpc(text)) {
+            text = prependRpcStdlib(text);
         }
         return text;
     }

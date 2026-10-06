@@ -1,0 +1,10 @@
+[package]
+name = "json-demo"
+namespace = "jnative"
+version = "2.1.0"
+description = "JSON DTO helpers demo"
+license = "Apache-2.0"
+type = "source"
+min_compiler = "0.30"
+
+[dependencies]

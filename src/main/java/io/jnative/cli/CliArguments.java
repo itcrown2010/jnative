@@ -22,7 +22,7 @@ public final class CliArguments {
                 case "-h", "--help" -> options.setHelp(true);
                 case "-v", "--version" -> options.setVersion(true);
                 case "-O0" -> options.setOptLevel(0);
-                case "-O1" -> options.setOptLevel(1);
+                case "-O1", "-Odev" -> options.setOptLevel(1);
                 case "-O2" -> options.setOptLevel(2);
                 case "-O3" -> options.setOptLevel(3);
                 case "-o" -> {
@@ -68,6 +68,8 @@ public final class CliArguments {
                 case "--emit-wat" -> options.setEmitWat(true);
                 case "--emit-wasm" -> options.setEmitWasm(true);
                 case "--emit-js-glue" -> options.setEmitJsGlue(true);
+                case "--emit-rpc" -> options.setEmitRpc(true);
+                case "--emit-rpc-schema" -> options.setEmitRpcSchema(true);
                 case "build" -> { /* jnative build --target ... */ }
                 case "run" -> options.setRunAfterBuild(true);
                 case "--library-path", "-L" -> {
@@ -113,31 +115,6 @@ public final class CliArguments {
     }
 
     public static String helpText() {
-        return """
-                JNative 0.26 — Java → Native / WebAssembly compiler
-
-                Usage:
-                  jnative <source.java> [-o <output>] [-O0|-O1|-O2|-O3]
-                  jnative build --target wasm32-browser <source.java> [-o dist]
-                  jnative run --target wasm32-browser <source.java>
-                  jnative <source.java> --emit-ast|--emit-ir|--emit-llvm|--emit-wat
-                  jnative --version
-                  jnative --help
-
-                Targets:
-                  --target native           Host native executable (default)
-                  --target wasm32-browser   WebAssembly + JS glue for browsers
-
-                Options:
-                  -o <path>              Output path (exe or dist/ directory for wasm)
-                  -O0, -O1, -O2, -O3      Optimization level (default -O2)
-                  --emit-wat             Keep/emit WebAssembly text
-                  --emit-wasm            Emit .wasm (wasm target)
-                  --emit-js-glue         Emit JS loader
-                  --emit-ast/--emit-ir/--emit-llvm
-                  --keep-temps           Keep temporary files
-                  -h, --help             Show this help
-                  -v, --version          Show version
-                """;
+        return io.jnative.cli.CliDispatcher.helpText();
     }
 }

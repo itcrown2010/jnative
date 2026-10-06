@@ -7,7 +7,10 @@ import io.jnative.lexer.TokenType;
 
 import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 
 /**
@@ -18,6 +21,8 @@ public final class Parser {
     private final DiagnosticReporter reporter;
     private int current;
     private final Set<String> knownClassNames = new HashSet<>();
+    private final Map<String, List<MarkerAnnotation>> typeAnnotations = new LinkedHashMap<>();
+    private final Map<String, List<MarkerAnnotation>> methodAnnotations = new LinkedHashMap<>();
 
     public Parser(List<Token> tokens, DiagnosticReporter reporter) {
         this.tokens = tokens;
@@ -28,6 +33,8 @@ public final class Parser {
         // Pre-scan class names so local variable declarations like `Person p` work.
         collectClassNames();
         current = 0;
+        typeAnnotations.clear();
+        methodAnnotations.clear();
 
         List<ClassDeclaration> classes = new ArrayList<>();
         var loc = peek().location();
@@ -44,7 +51,7 @@ public final class Parser {
             reporter.error(e.location(), e.getMessage());
             synchronize();
         }
-        return new CompilationUnit(fileName, classes, loc);
+        return new CompilationUnit(fileName, classes, Map.copyOf(typeAnnotations), Map.copyOf(methodAnnotations), loc);
     }
 
     private void skipUntilSemicolon() {
@@ -145,6 +152,7 @@ public final class Parser {
     private ClassDeclaration parseTypeDeclaration() {
         boolean nativeStruct = false;
         EffectContract typeEffects = EffectContract.empty(peek().location());
+        List<MarkerAnnotation> pendingTypeAnns = new ArrayList<>();
         while (check(TokenType.AT)) {
             ParsedAnnotation ann = parseAnnotation();
             if ("NativeStruct".equals(ann.name())) {
@@ -153,6 +161,8 @@ public final class Parser {
                 reporter.error(ann.location(), "class-level @Native is not supported");
             } else if (ann.effectContract() != null) {
                 typeEffects = typeEffects.merge(ann.effectContract());
+            } else if (ann.marker() != null) {
+                pendingTypeAnns.add(ann.marker());
             } else {
                 reporter.error(ann.location(),
                         "@" + ann.name() + " is not allowed on type declarations");
@@ -170,6 +180,9 @@ public final class Parser {
             consume(TokenType.CLASS, "expected 'class' or 'interface'");
         }
         Token name = consume(TokenType.IDENTIFIER, "expected type name");
+        if (!pendingTypeAnns.isEmpty()) {
+            typeAnnotations.put(name.lexeme(), List.copyOf(pendingTypeAnns));
+        }
         List<TypeParameterDeclaration> typeParams = parseTypeParameterList();
         // Locals/params may use class type parameters as types (e.g. T value = ...).
         for (TypeParameterDeclaration tp : typeParams) {
@@ -266,6 +279,7 @@ public final class Parser {
                                   EffectContract typeEffects) {
         NativeAnnotation nativeAnnotation = null;
         EffectContract effectContract = typeEffects.merge(EffectContract.empty(peek().location()));
+        List<MarkerAnnotation> pendingMemberAnns = new ArrayList<>();
         while (check(TokenType.AT)) {
             ParsedAnnotation ann = parseAnnotation();
             if ("Native".equals(ann.name())) {
@@ -275,6 +289,8 @@ public final class Parser {
                 nativeAnnotation = ann.nativeAnnotation();
             } else if (ann.effectContract() != null) {
                 effectContract = effectContract.merge(ann.effectContract());
+            } else if (ann.marker() != null) {
+                pendingMemberAnns.add(ann.marker());
             } else {
                 reporter.error(ann.location(),
                         "@" + ann.name() + " is not allowed on class members");
@@ -407,6 +423,9 @@ public final class Parser {
                     true, isStatic, isNative, false, methodAbstract && !isNative, isAsync,
                     methodTypeParams, type, isArray,
                     name.lexeme(), params, body, nativeAnnotation, effectContract, name.location()));
+            if (!pendingMemberAnns.isEmpty()) {
+                methodAnnotations.put(className + "." + name.lexeme(), List.copyOf(pendingMemberAnns));
+            }
             return;
         }
 
@@ -432,18 +451,40 @@ public final class Parser {
 
     /**
      * Parsed annotation. Exactly one of {@code nativeAnnotation} / {@code effectContract}
-     * may be set (or neither for NativeStruct/Stack).
+     * / {@code marker} may be set (or none for NativeStruct/Stack).
      */
     private record ParsedAnnotation(
             String name,
             NativeAnnotation nativeAnnotation,
             EffectContract effectContract,
+            MarkerAnnotation marker,
             io.jnative.diagnostics.SourceLocation location
     ) {
         ParsedAnnotation(String name, NativeAnnotation nativeAnnotation,
                          io.jnative.diagnostics.SourceLocation location) {
-            this(name, nativeAnnotation, null, location);
+            this(name, nativeAnnotation, null, null, location);
         }
+
+        ParsedAnnotation(String name, NativeAnnotation nativeAnnotation,
+                         EffectContract effectContract,
+                         io.jnative.diagnostics.SourceLocation location) {
+            this(name, nativeAnnotation, effectContract, null, location);
+        }
+    }
+
+    private static boolean isRpcMarkerName(String annName) {
+        return annName.equals("Rpc")
+                || annName.equals("Authenticated")
+                || annName.equals("Role")
+                || annName.equals("Permission")
+                || annName.equals("RpcTimeout")
+                || annName.equals("Idempotent")
+                || annName.equals("Sensitive")
+                || annName.equals("RpcStream")
+                || annName.equals("Valid")
+                || annName.equals("RpcError")
+                || annName.equals("RpcGet")
+                || annName.equals("MaxRequestBytes");
     }
 
     private ParsedAnnotation parseAnnotation() {
@@ -482,6 +523,7 @@ public final class Parser {
                     "Native",
                     new NativeAnnotation(symbol, library, effects, at.location()),
                     null,
+                    null,
                     at.location());
         }
         if (annName.equals("NoGC") || annName.equals("NoThrow") || annName.equals("NoBlock")
@@ -503,7 +545,7 @@ public final class Parser {
                     annName.equals("NoBlock") || det,
                     det,
                     at.location());
-            return new ParsedAnnotation(annName, null, ec, at.location());
+            return new ParsedAnnotation(annName, null, ec, null, at.location());
         }
         if (annName.equals("NativeStruct") || annName.equals("Stack")) {
             if (match(TokenType.LPAREN)) {
@@ -516,9 +558,72 @@ public final class Parser {
                 }
                 consume(TokenType.RPAREN, "expected ')' after @" + annName);
             }
-            return new ParsedAnnotation(annName, null, null, at.location());
+            return new ParsedAnnotation(annName, null, null, null, at.location());
+        }
+        if (isRpcMarkerName(annName)) {
+            MarkerAnnotation marker = parseRpcMarker(annName, at);
+            return new ParsedAnnotation(annName, null, null, marker, at.location());
         }
         throw error(name, "unknown annotation '@" + annName + "'");
+    }
+
+    private MarkerAnnotation parseRpcMarker(String annName, Token at) {
+        if (!match(TokenType.LPAREN)) {
+            return new MarkerAnnotation(annName, at.location());
+        }
+        if (check(TokenType.RPAREN)) {
+            consume(TokenType.RPAREN, "expected ')'");
+            return new MarkerAnnotation(annName, at.location());
+        }
+        // @Rpc("/path") or @Rpc(value="/path", version=1) or @Role("ADMIN") or @RpcTimeout(5000)
+        if (check(TokenType.STRING_LITERAL)) {
+            Token lit = advance();
+            String path = lit.lexeme();
+            Integer version = null;
+            if (match(TokenType.COMMA)) {
+                Token key = consume(TokenType.IDENTIFIER, "expected annotation attribute");
+                consume(TokenType.ASSIGN, "expected '='");
+                Token val = advance();
+                if (key.lexeme().equals("version") && val.type() == TokenType.INT_LITERAL) {
+                    version = Integer.parseInt(val.lexeme());
+                }
+            }
+            consume(TokenType.RPAREN, "expected ')' after @" + annName);
+            if (version != null) {
+                return new MarkerAnnotation(annName, Optional.of(path), Optional.of(version), at.location());
+            }
+            return new MarkerAnnotation(annName, path, at.location());
+        }
+        if (check(TokenType.INT_LITERAL)) {
+            Token lit = advance();
+            consume(TokenType.RPAREN, "expected ')' after @" + annName);
+            return new MarkerAnnotation(annName, Integer.parseInt(lit.lexeme()), at.location());
+        }
+        // Named attributes: value=..., version=...
+        String stringValue = null;
+        Integer intValue = null;
+        do {
+            Token key = consume(TokenType.IDENTIFIER, "expected annotation attribute");
+            consume(TokenType.ASSIGN, "expected '=' in annotation");
+            Token val = advance();
+            if (key.lexeme().equals("value") || key.lexeme().equals("path")) {
+                stringValue = val.lexeme();
+            } else if (key.lexeme().equals("version") || key.lexeme().equals("ms")
+                    || key.lexeme().equals("bytes")) {
+                if (val.type() == TokenType.INT_LITERAL) {
+                    intValue = Integer.parseInt(val.lexeme());
+                }
+            } else if (val.type() == TokenType.STRING_LITERAL) {
+                stringValue = val.lexeme();
+            } else if (val.type() == TokenType.INT_LITERAL) {
+                intValue = Integer.parseInt(val.lexeme());
+            }
+        } while (match(TokenType.COMMA));
+        consume(TokenType.RPAREN, "expected ')' after @" + annName);
+        return new MarkerAnnotation(annName,
+                Optional.ofNullable(stringValue),
+                Optional.ofNullable(intValue),
+                at.location());
     }
 
     private boolean isConstructorStart(String className) {

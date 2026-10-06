@@ -1,0 +1,10 @@
+[package]
+name = "sqlite-native"
+namespace = "jnative"
+version = "1.4.0"
+description = "Native sqlite FFI metadata demo"
+license = "MIT"
+type = "native"
+requires = ["NATIVE_FFI", "FILESYSTEM"]
+
+[dependencies]

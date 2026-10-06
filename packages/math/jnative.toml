@@ -1,0 +1,11 @@
+[package]
+name = "math"
+namespace = "jnative"
+version = "1.2.0"
+description = "Simple math helpers"
+license = "MIT"
+type = "source"
+min_compiler = "0.30"
+
+[dependencies]
+"jnative/hello" = "^1.0.0"

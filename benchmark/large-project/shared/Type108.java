@@ -1,0 +1,6 @@
+class Type108 {
+    int id;
+    String name;
+    int getId() { return id; }
+    private int helper() { return 108; }
+}

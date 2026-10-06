@@ -1,0 +1,49 @@
+{
+  "jnativeRpc": "0.28",
+  "services": [
+    {
+      "name": "UserApi",
+      "path": "/api/users",
+      "version": 1,
+      "serviceId": 1006844114,
+      "methods": [
+        {
+          "name": "listUsers",
+          "methodId": 3680212832,
+          "httpPath": "/api/users/listUsers",
+          "httpMethod": "POST",
+          "returnType": "ArrayList<User>",
+          "authenticated": false,
+          "parameters": []
+        },
+        {
+          "name": "getUser",
+          "methodId": 533321530,
+          "httpPath": "/api/users/getUser",
+          "httpMethod": "POST",
+          "returnType": "User",
+          "authenticated": false,
+          "parameters": [{"name":"id","type":"int"}]
+        },
+        {
+          "name": "createUser",
+          "methodId": 2832152813,
+          "httpPath": "/api/users/createUser",
+          "httpMethod": "POST",
+          "returnType": "User",
+          "authenticated": true,
+          "parameters": [{"name":"request","type":"CreateUserRequest"}]
+        },
+        {
+          "name": "deleteUser",
+          "methodId": 1785855230,
+          "httpPath": "/api/users/deleteUser",
+          "httpMethod": "POST",
+          "returnType": "void",
+          "authenticated": false,
+          "parameters": [{"name":"id","type":"int"}]
+        }
+      ]
+    }
+  ]
+}

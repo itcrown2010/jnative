@@ -1,0 +1,4 @@
+# target	path
+server	/Users/zhangxiaoda/jnative/examples/dev/admin/.jnative/build/server
+browser	/Users/zhangxiaoda/jnative/examples/dev/admin/.jnative/build/browser
+desktop	/Users/zhangxiaoda/jnative/examples/dev/admin/.jnative/build/desktop

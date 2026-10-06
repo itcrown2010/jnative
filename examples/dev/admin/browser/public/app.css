@@ -1,0 +1,11 @@
+body {
+  font-family: Georgia, "Times New Roman", serif;
+  margin: 2rem;
+  background: linear-gradient(160deg, #f7f3eb, #e8eef5);
+  color: #1a1a1a;
+}
+
+h1 {
+  font-size: 2.4rem;
+  letter-spacing: -0.02em;
+}

@@ -1,0 +1,10 @@
+[package]
+name = "webui-charts"
+namespace = "jnative"
+version = "1.0.0"
+description = "Browser chart widget package"
+license = "MIT"
+type = "source"
+requires = ["BROWSER_DOM", "JS_INTEROP"]
+
+[dependencies]

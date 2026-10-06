@@ -1,0 +1,14 @@
+{
+  "name": "admin",
+  "modules": {
+    "shared": { "kind": "lib", "src": "shared" },
+    "server": { "kind": "server", "src": "server", "dependsOn": ["shared"] },
+    "browser": { "kind": "browser", "src": "browser", "dependsOn": ["shared"] },
+    "desktop": { "kind": "desktop", "src": "desktop", "dependsOn": ["shared"] }
+  },
+  "targets": [
+    { "name": "server", "triple": "native", "module": "server", "main": "App", "output": ".jnative/build/server" },
+    { "name": "browser", "triple": "wasm32-browser", "module": "browser", "main": "UsersPage", "output": ".jnative/build/browser" },
+    { "name": "desktop", "triple": "desktop-native", "module": "desktop", "main": "App", "output": ".jnative/build/desktop" }
+  ]
+}

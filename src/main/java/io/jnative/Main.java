@@ -1,16 +1,12 @@
 package io.jnative;
 
-import io.jnative.cli.CliArguments;
-import io.jnative.compiler.CompileResult;
-import io.jnative.compiler.CompilerOptions;
-import io.jnative.compiler.JNativeCompiler;
-import io.jnative.diagnostics.Diagnostic;
+import io.jnative.cli.CliDispatcher;
 
 /**
  * JNative CLI entry point.
  */
 public final class Main {
-    public static final String VERSION = "0.27";
+    public static final String VERSION = "0.30";
 
     private Main() {
     }
@@ -21,33 +17,16 @@ public final class Main {
     }
 
     public static int run(String[] args) {
-        CompilerOptions options;
         try {
-            options = CliArguments.parse(args);
+            return CliDispatcher.dispatch(args);
         } catch (IllegalArgumentException e) {
             System.err.println("error: " + e.getMessage());
-            System.err.println(CliArguments.helpText());
+            System.err.println(CliDispatcher.helpText());
+            return 1;
+        } catch (Exception e) {
+            System.err.println("error: " + e.getMessage());
+            e.printStackTrace(System.err);
             return 1;
         }
-
-        if (options.help()) {
-            System.out.print(CliArguments.helpText());
-            return 0;
-        }
-        if (options.version()) {
-            System.out.println("JNative " + VERSION);
-            return 0;
-        }
-        if (options.sourceFile() == null) {
-            System.err.println("error: no input file");
-            System.err.println(CliArguments.helpText());
-            return 1;
-        }
-
-        CompileResult result = new JNativeCompiler().compile(options);
-        for (Diagnostic d : result.diagnostics()) {
-            System.err.println(d);
-        }
-        return result.success() ? 0 : 1;
     }
 }

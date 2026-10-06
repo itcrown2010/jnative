@@ -168,6 +168,56 @@ public final class JNativeCompiler {
             return new CompileResult(false, ast, null, null, null, reporter.diagnostics());
         }
 
+        // ---- RPC (0.28): analyze @Rpc interfaces → generate dispatcher/client source ----
+        io.jnative.rpc.RpcAnalyzer rpcAnalyzer = new io.jnative.rpc.RpcAnalyzer(reporter);
+        java.util.List<io.jnative.rpc.RpcServiceModel> rpcServices = rpcAnalyzer.analyze(ast);
+        if (reporter.hasErrors()) {
+            return new CompileResult(false, ast, null, null, null, reporter.diagnostics());
+        }
+        if (!rpcServices.isEmpty() && !sourceText.contains("BEGIN GENERATED RPC")) {
+            String generated = io.jnative.rpc.RpcCodeGenerator.generate(rpcServices);
+            if (options.emitRpc()) {
+                System.out.print(io.jnative.rpc.RpcSchemaGenerator.toReport(rpcServices));
+            }
+            if (options.emitRpcSchema() || options.emitRpc()) {
+                try {
+                    Path schemaOut = options.outputFile() != null
+                            ? options.outputFile().getParent()
+                            : source.getParent();
+                    if (schemaOut == null) {
+                        schemaOut = Path.of(".");
+                    }
+                    Files.createDirectories(schemaOut);
+                    Files.writeString(schemaOut.resolve("rpc-schema.json"),
+                            io.jnative.rpc.RpcSchemaGenerator.toJsonSchema(rpcServices),
+                            StandardCharsets.UTF_8);
+                } catch (IOException e) {
+                    reporter.error(SourceLocation.UNKNOWN, "failed to write rpc-schema.json: " + e.getMessage());
+                }
+            }
+            sourceText = sourceText + "\n\n" + generated;
+            reporter = new DiagnosticReporter();
+            lexer = new Lexer(sourceText, fileName);
+            tokens = lexer.tokenize();
+            for (Token token : tokens) {
+                if (token.type() == TokenType.ERROR) {
+                    reporter.error(token.location(), token.lexeme());
+                }
+            }
+            if (reporter.hasErrors()) {
+                return fail(reporter);
+            }
+            parser = new Parser(tokens, reporter);
+            ast = parser.parse(fileName);
+            if (reporter.hasErrors()) {
+                return new CompileResult(false, ast, null, null, null, reporter.diagnostics());
+            }
+            // Re-analyze after merge (generated has no @Rpc)
+            rpcServices = new io.jnative.rpc.RpcAnalyzer(reporter).analyze(ast);
+        } else if (options.emitRpc() && !rpcServices.isEmpty()) {
+            System.out.print(io.jnative.rpc.RpcSchemaGenerator.toReport(rpcServices));
+        }
+
         if (options.emitAst()) {
             System.out.print(AstPrinter.print(ast));
         }

@@ -1,0 +1,8 @@
+[package]
+name = "webui-charts"
+namespace = "jnative"
+version = "1.0.0"
+min_compiler = "0.30"
+type = "source"
+requires = ["JS_INTEROP", "BROWSER_DOM"]
+

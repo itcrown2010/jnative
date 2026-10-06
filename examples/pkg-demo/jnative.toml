@@ -1,0 +1,17 @@
+[package]
+name = "pkg-demo"
+namespace = "demo"
+version = "0.1.0"
+description = "Package manager consumer demo"
+license = "MIT"
+
+[dependencies]
+"jnative/math" = "^1.2.0"
+"jnative/json-demo" = "^2.0.0"
+"jnative/shared-dto" = "^1.0.0"
+
+[target.browser.dependencies]
+"jnative/webui-charts" = "^1.0.0"
+
+[target.native.dependencies]
+"jnative/sqlite-native" = "^1.4.0"

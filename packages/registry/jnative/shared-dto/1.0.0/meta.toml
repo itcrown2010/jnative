@@ -1,0 +1,10 @@
+[package]
+name = "shared-dto"
+namespace = "jnative"
+version = "1.0.0"
+min_compiler = "0.30"
+type = "source"
+
+[dependencies]
+"json-demo" = "^2.0.0"
+
