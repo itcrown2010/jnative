@@ -17,6 +17,7 @@ public record TypedCompilationUnit(
         Map<String, NativeStructSymbol> nativeStructs,
         Map<Expression, JType> expressionTypes,
         Map<Expression, Object> resolvedSymbols,
+        Map<Expression, CallableBinding> callableBindings,
         Map<String, ClassMetadata> arrayMetadatas,
         Map<CatchClause, ClassSymbol> catchTypes,
         List<String> nativeLibraries,

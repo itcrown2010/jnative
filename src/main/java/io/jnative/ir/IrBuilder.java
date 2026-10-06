@@ -46,6 +46,10 @@ public final class IrBuilder {
         return block;
     }
 
+    public boolean currentBlockTerminated() {
+        return block.isTerminated();
+    }
+
     public void setBlock(IrBasicBlock block) {
         this.block = block;
     }
@@ -494,5 +498,59 @@ public final class IrBuilder {
 
     public void clearReturnCompletion() {
         call("jnative_completion_clear", IrType.VOID, java.util.List.of(), false);
+    }
+
+    public IrValue makeCallable(
+            String samClass,
+            String metadataGlobal,
+            long sizeBytes,
+            String codeSymbol,
+            IrValue envOrNull,
+            boolean hasEnv
+    ) {
+        IrValue.Temp t = temp(IrType.PTR);
+        emit(new IrInstruction.MakeCallable(
+                t, samClass, metadataGlobal, sizeBytes, codeSymbol, envOrNull, hasEnv));
+        return protectRef(t);
+    }
+
+    public IrValue invokeCallable(IrValue callable, IrType returnType, java.util.List<IrValue> args) {
+        if (returnType == IrType.VOID) {
+            emit(new IrInstruction.InvokeCallable(null, callable, returnType, args));
+            maybeCheckPending();
+            return null;
+        }
+        IrValue.Temp t = temp(returnType);
+        emit(new IrInstruction.InvokeCallable(t, callable, returnType, args));
+        maybeCheckPending();
+        if (returnType.isManagedPointer()) {
+            return protectRef(t);
+        }
+        return t;
+    }
+
+    public IrValue createNativeCallback(
+            String trampolineSymbol,
+            IrValue callable,
+            String invokeRuntime,
+            int callbackId,
+            String metadataGlobal,
+            long handleSizeBytes
+    ) {
+        IrValue.Temp t = temp(IrType.PTR);
+        emit(new IrInstruction.CreateNativeCallback(
+                t, trampolineSymbol, callable, invokeRuntime, callbackId, metadataGlobal, handleSizeBytes));
+        return protectRef(t);
+    }
+
+    public void releaseNativeCallback(
+            IrValue handle,
+            String llvmTypeName,
+            int slotFieldIndex,
+            int handleFieldIndex,
+            int retainedFieldIndex
+    ) {
+        emit(new IrInstruction.ReleaseNativeCallback(
+                handle, llvmTypeName, slotFieldIndex, handleFieldIndex, retainedFieldIndex));
     }
 }

@@ -9,6 +9,8 @@ public final class IrFunction {
     private final List<IrValue.Param> params;
     private final List<IrBasicBlock> blocks = new ArrayList<>();
     private final boolean isMain;
+    private boolean omitSafepoints;
+    private boolean noGcRegion;
 
     public IrFunction(String name, IrType returnType, List<IrValue.Param> params, boolean isMain) {
         this.name = name;
@@ -35,6 +37,22 @@ public final class IrFunction {
 
     public boolean isMain() {
         return isMain;
+    }
+
+    public boolean omitSafepoints() {
+        return omitSafepoints;
+    }
+
+    public void setOmitSafepoints(boolean omitSafepoints) {
+        this.omitSafepoints = omitSafepoints;
+    }
+
+    public boolean noGcRegion() {
+        return noGcRegion;
+    }
+
+    public void setNoGcRegion(boolean noGcRegion) {
+        this.noGcRegion = noGcRegion;
     }
 
     public IrBasicBlock addBlock(String name) {

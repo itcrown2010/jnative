@@ -11,10 +11,13 @@ import io.jnative.diagnostics.SourceLocation;
 import io.jnative.ir.IrGenerator;
 import io.jnative.ir.IrModule;
 import io.jnative.ir.IrPrinter;
+import io.jnative.opt.OptimizationPipeline;
+import io.jnative.opt.OptimizationReport;
 import io.jnative.lexer.Lexer;
 import io.jnative.lexer.Token;
 import io.jnative.lexer.TokenType;
 import io.jnative.parser.Parser;
+import io.jnative.semantic.EffectAnalyzer;
 import io.jnative.semantic.SemanticAnalyzer;
 import io.jnative.semantic.TypedCompilationUnit;
 
@@ -89,6 +92,19 @@ public final class JNativeCompiler {
             return new CompileResult(false, ast, null, null, null, reporter.diagnostics());
         }
 
+        EffectAnalyzer effectAnalyzer = new EffectAnalyzer(reporter);
+        effectAnalyzer.analyze(typed, ast);
+        if (reporter.hasErrors()) {
+            return new CompileResult(false, ast, null, null, null, reporter.diagnostics());
+        }
+
+        if (options.emitEffects()) {
+            System.out.print(effectAnalyzer.emitEffectsReport(typed));
+            if (options.emitOnly()) {
+                return new CompileResult(true, ast, null, null, null, reporter.diagnostics());
+            }
+        }
+
         if (options.emitLayout()) {
             for (var ns : typed.nativeStructs().values()) {
                 if (ns.layout() != null) {
@@ -101,8 +117,27 @@ public final class JNativeCompiler {
 
         // IR
         IrModule ir = new IrGenerator().generate(typed);
-        if (options.emitIr()) {
+
+        if (options.emitIrBeforeOpt()) {
             System.out.print(IrPrinter.print(ir));
+        }
+
+        OptimizationReport optReport = null;
+        if (options.optLevel() > 0 || options.emitIrBeforeOpt() || options.optReport()
+                || options.emitIrAfterOpt() || options.emitEscapeAnalysis()
+                || options.explainOpt() || options.verifyIr()) {
+            OptimizationPipeline pipeline = OptimizationPipeline.forLevel(options.optLevel());
+            optReport = pipeline.run(ir, typed, options);
+        }
+
+        if (options.emitIrAfterOpt() || (options.emitIr() && options.optLevel() > 0)) {
+            System.out.print(IrPrinter.print(ir));
+        } else if (options.emitIr()) {
+            System.out.print(IrPrinter.print(ir));
+        }
+
+        if (options.optReport() && optReport != null) {
+            System.out.print(optReport);
         }
 
         // LLVM
@@ -134,12 +169,14 @@ public final class JNativeCompiler {
             nativeDir = Files.createTempDirectory("jnative-native-");
             java.util.List<Path> socketSources = io.jnative.backend.NativeRuntimeSources
                     .materializeSocketSources(nativeDir, toolchain.get().platform());
+            java.util.List<Path> extraSources = new java.util.ArrayList<>(socketSources);
+            extraSources.addAll(options.extraNativeSources());
 
             NativeLinker linker = new NativeLinker(toolchain.get());
             java.util.LinkedHashSet<String> libs = new java.util.LinkedHashSet<>(ir.nativeLibraries());
             libs.addAll(options.linkLibraries());
             NativeLinker.LinkResult linkResult = linker.link(
-                    llFile, output, libs, options.libraryPaths(), socketSources);
+                    llFile, output, libs, options.libraryPaths(), extraSources, options.optLevel());
             if (!linkResult.success()) {
                 reporter.error(SourceLocation.UNKNOWN,
                         "clang failed with exit code " + linkResult.exitCode()

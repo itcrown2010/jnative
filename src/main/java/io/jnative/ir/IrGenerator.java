@@ -6,13 +6,17 @@ import io.jnative.layout.ClassLayout;
 import io.jnative.layout.ObjectLayoutBuilder;
 import io.jnative.semantic.ArrayLengthSymbol;
 import io.jnative.semantic.ArrayType;
+import io.jnative.semantic.CallableBinding;
 import io.jnative.semantic.ClassMetadata;
 import io.jnative.semantic.ClassSymbol;
 import io.jnative.semantic.ClassType;
+import io.jnative.semantic.ClosureCapture;
 import io.jnative.semantic.ConstructorSymbol;
 import io.jnative.semantic.FieldSymbol;
+import io.jnative.semantic.FunctionType;
 import io.jnative.semantic.JType;
 import io.jnative.semantic.MethodSymbol;
+import io.jnative.semantic.NativeCallbackSite;
 import io.jnative.semantic.NativeIntrinsic;
 import io.jnative.semantic.NativePtrType;
 import io.jnative.semantic.NativeStructFieldSymbol;
@@ -29,9 +33,11 @@ import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Deque;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * Lowers typed AST to JNative IR (0.4 runtime foundation).
@@ -43,6 +49,7 @@ public final class IrGenerator {
     private ClassSymbol currentClass;
     private MethodSymbol currentMethod;
     private ConstructorSymbol currentConstructor;
+    private IrFunction currentFunction;
     private final Map<String, IrFunction> functionsByMangled = new LinkedHashMap<>();
     private final Deque<TryFrame> tryFrames = new ArrayDeque<>();
     /** Number of finally blocks currently being lowered (return-in-finally must not re-enter). */
@@ -139,6 +146,7 @@ public final class IrGenerator {
                     }
                     IrFunction function = new IrFunction(
                             ms.mangledName(), IrType.from(ms.returnType()), params, ms.isMain());
+                    configureEffectFlags(function, ms);
                     module.addFunction(function);
                     functionsByMangled.put(ms.mangledName(), function);
                     methodAst.put(ms, method);
@@ -185,6 +193,7 @@ public final class IrGenerator {
 
         lowerBuiltinThrowableMethods(module, typed);
         lowerDelegatingBuiltinConstructors(module, typed);
+        lowerCallableFunctions(module, typed);
         lowerThreadBuiltins(module, typed);
         lowerStaticClinit(module, typed);
 
@@ -225,17 +234,53 @@ public final class IrGenerator {
                 module.addFunction(function);
                 functionsByMangled.put(ms.mangledName(), function);
                 builder.beginFunction(function);
+                IrValue.Local thisLocal = builder.alloca("this", IrType.PTR);
+                builder.store(new IrValue.Param("this", IrType.PTR), thisLocal);
+                IrValue thisPtr = builder.load(thisLocal);
+                FieldSymbol targetField = thread.findField("target").orElseThrow();
+                IrValue target = builder.loadField(
+                        thisPtr,
+                        thread.name(),
+                        thread.layout().llvmTypeName(),
+                        targetField.gepIndex(),
+                        IrType.PTR);
+                IrValue hasTarget = builder.compare(
+                        IrInstruction.CmpOp.NE, target, new IrValue.Const(IrType.PTR, "null"));
+                IrBasicBlock invokeBlock = builder.newBlock("run.target");
+                IrBasicBlock endBlock = builder.newBlock("run.end");
+                builder.condBranch(hasTarget, invokeBlock, endBlock);
+                builder.setBlock(invokeBlock);
+                builder.invokeCallable(target, IrType.VOID, List.of());
+                builder.branch(endBlock);
+                builder.setBlock(endBlock);
                 builder.retVoid();
             });
             for (ConstructorSymbol ctor : thread.constructors()) {
                 if (functionsByMangled.containsKey(ctor.mangledName())) {
                     continue;
                 }
-                IrFunction function = new IrFunction(
-                        ctor.mangledName(), IrType.VOID, List.of(new IrValue.Param("this", IrType.PTR)), false);
+                List<IrValue.Param> params = new ArrayList<>();
+                params.add(new IrValue.Param("this", IrType.PTR));
+                if (!ctor.parameters().isEmpty()) {
+                    params.add(new IrValue.Param("target", IrType.PTR));
+                }
+                IrFunction function = new IrFunction(ctor.mangledName(), IrType.VOID, params, false);
                 module.addFunction(function);
                 functionsByMangled.put(ctor.mangledName(), function);
                 builder.beginFunction(function);
+                IrValue.Local thisLocal = builder.alloca("this", IrType.PTR);
+                builder.store(new IrValue.Param("this", IrType.PTR), thisLocal);
+                if (!ctor.parameters().isEmpty()) {
+                    IrValue.Local targetLocal = builder.alloca("target", IrType.PTR);
+                    builder.store(new IrValue.Param("target", IrType.PTR), targetLocal);
+                    FieldSymbol targetField = thread.findField("target").orElseThrow();
+                    builder.storeField(
+                            builder.load(thisLocal),
+                            thread.name(),
+                            thread.layout().llvmTypeName(),
+                            targetField.gepIndex(),
+                            builder.load(targetLocal));
+                }
                 builder.retVoid();
             }
         }
@@ -363,6 +408,22 @@ public final class IrGenerator {
     }
 
     private void lowerDelegatingBuiltinConstructors(IrModule module, TypedCompilationUnit typed) {
+        // Object root constructor (empty).
+        ClassSymbol object = typed.classes().get("Object");
+        if (object != null) {
+            for (ConstructorSymbol ctor : object.constructors()) {
+                if (functionsByMangled.containsKey(ctor.mangledName())) {
+                    continue;
+                }
+                IrFunction function = new IrFunction(
+                        ctor.mangledName(), IrType.VOID,
+                        List.of(new IrValue.Param("this", IrType.PTR)), false);
+                module.addFunction(function);
+                functionsByMangled.put(ctor.mangledName(), function);
+                builder.beginFunction(function);
+                builder.retVoid();
+            }
+        }
         for (ClassSymbol cls : typed.classes().values()) {
             if (!cls.isBuiltin() || cls.name().equals("Throwable") || cls.name().equals("String")
                     || cls.name().equals("Object")) {
@@ -451,6 +512,9 @@ public final class IrGenerator {
         IrValue.Local thisLocal = builder.alloca("this", IrType.PTR);
         builder.store(new IrValue.Param("this", IrType.PTR), thisLocal);
         emitDelegation(ctor, thisLocal);
+        if (ctor.delegatesTo() == null || ctor.delegatesToSuper()) {
+            emitInstanceFieldInitializers(ctor.owner(), thisLocal);
+        }
         builder.retVoid();
     }
 
@@ -483,11 +547,17 @@ public final class IrGenerator {
                 }
                 builder.constructorCall(target.mangledName(), args);
             }
+            if (ctor.delegatesToSuper()) {
+                emitInstanceFieldInitializers(ctor.owner(), thisLocal);
+            }
             for (int i = 1; i < stmts.size(); i++) {
                 lowerStatement(stmts.get(i));
             }
         } else {
             emitDelegation(ctor, thisLocal);
+            if (ctor.delegatesTo() == null || ctor.delegatesToSuper()) {
+                emitInstanceFieldInitializers(ctor.owner(), thisLocal);
+            }
             for (Statement s : stmts) {
                 lowerStatement(s);
             }
@@ -507,7 +577,33 @@ public final class IrGenerator {
         builder.constructorCall(ctor.delegatesTo().mangledName(), args);
     }
 
+    /** Run instance field initializers after super() (not after this()). */
+    private void emitInstanceFieldInitializers(ClassSymbol cls, IrValue.Local thisLocal) {
+        IrValue thisPtr = builder.load(thisLocal);
+        ClassLayout layout = cls.layout();
+        for (FieldSymbol field : cls.declaredFields()) {
+            if (field.isStatic() || field.initializer() == null) {
+                continue;
+            }
+            IrValue value = lowerExpression(field.initializer());
+            builder.storeField(
+                    thisPtr,
+                    cls.name(),
+                    layout.llvmTypeName(),
+                    field.gepIndex(),
+                    castIfNeeded(value, IrType.from(field.type())),
+                    field.isVolatile());
+        }
+    }
+
+    private static void configureEffectFlags(IrFunction function, MethodSymbol ms) {
+        boolean noGc = ms.contractNoGc();
+        function.setOmitSafepoints(noGc);
+        function.setNoGcRegion(noGc);
+    }
+
     private void lowerMethod(IrFunction function, MethodDeclaration method, MethodSymbol ms) {
+        currentFunction = function;
         builder.beginFunction(function);
 
         if (!ms.isStatic()) {
@@ -529,6 +625,7 @@ public final class IrGenerator {
                 builder.ret(defaultValue(function.returnType()));
             }
         }
+        currentFunction = null;
     }
 
     private void lowerStatement(Statement stmt) {
@@ -800,7 +897,9 @@ public final class IrGenerator {
         builder.setBlock(bodyBlock);
         lowerStatement(w.body());
         if (!builder.block().isTerminated()) {
-            builder.safepointPoll();
+            if (currentFunction == null || !currentFunction.omitSafepoints()) {
+                builder.safepointPoll();
+            }
             builder.branch(condBlock);
         }
         builder.setBlock(endBlock);
@@ -831,7 +930,9 @@ public final class IrGenerator {
             lowerExpression(f.update());
         }
         if (!builder.block().isTerminated()) {
-            builder.safepointPoll();
+            if (currentFunction == null || !currentFunction.omitSafepoints()) {
+                builder.safepointPoll();
+            }
             builder.branch(condBlock);
         }
         builder.setBlock(endBlock);
@@ -863,7 +964,178 @@ public final class IrGenerator {
                 builder.gcCollect();
                 yield new IrValue.Const(IrType.I32, 0);
             }
+            case LambdaExpression l -> lowerCallable(l);
+            case MethodReferenceExpression r -> lowerCallable(r);
         };
+    }
+
+    private IrValue lowerCallable(Expression expr) {
+        CallableBinding binding = typed.callableBindings().get(expr);
+        if (binding == null) {
+            throw new IllegalStateException("missing callable binding for " + expr.getClass().getSimpleName());
+        }
+        IrValue env = new IrValue.Const(IrType.PTR, "null");
+        boolean hasEnv = false;
+        if (binding.envClass() != null) {
+            ClassSymbol envClass = binding.envClass();
+            ClassLayout layout = envClass.layout();
+            IrValue envObj = builder.newObject(
+                    envClass.name(),
+                    layout.llvmTypeName(),
+                    layout.instanceSize(),
+                    envClass.metadata().globalName());
+            for (ClosureCapture cap : binding.captures()) {
+                FieldSymbol field = envClass.findField(cap.fieldName()).orElseThrow();
+                IrValue val = loadCaptureValue(cap);
+                builder.storeField(
+                        envObj, envClass.name(), layout.llvmTypeName(), field.gepIndex(),
+                        castIfNeeded(val, IrType.from(field.type())));
+            }
+            env = envObj;
+            hasEnv = true;
+        } else if (binding.receiverExpression() != null) {
+            env = lowerExpression(binding.receiverExpression());
+            hasEnv = true;
+        }
+        ClassSymbol sam = binding.samClass();
+        return builder.makeCallable(
+                sam.name(),
+                sam.metadata().globalName(),
+                sam.layout().instanceSize(),
+                binding.codeSymbolName(),
+                env,
+                hasEnv);
+    }
+
+    private IrValue loadCaptureValue(ClosureCapture cap) {
+        // Captured locals are resolved via VariableSymbol name in enclosing function scope.
+        IrValue.Local local = builder.local(cap.variable().name());
+        if (local == null) {
+            throw new IllegalStateException("missing capture local " + cap.variable().name());
+        }
+        if (cap.variable().isStackAllocated()) {
+            return local;
+        }
+        return builder.load(local);
+    }
+
+    private void lowerCallableFunctions(IrModule module, TypedCompilationUnit typed) {
+        Set<String> emitted = new HashSet<>();
+        for (CallableBinding binding : typed.callableBindings().values()) {
+            if (!emitted.add(binding.codeSymbolName())) {
+                continue;
+            }
+            if (binding.targetMethod() != null) {
+                lowerMethodRefThunk(module, binding);
+            } else {
+                lowerLambdaFunction(module, binding);
+            }
+        }
+    }
+
+    private void lowerLambdaFunction(IrModule module, CallableBinding binding) {
+        FunctionType ft = binding.samClass().functionType();
+        List<IrValue.Param> params = new ArrayList<>();
+        params.add(new IrValue.Param("env", IrType.PTR));
+        for (int i = 0; i < ft.parameterTypes().size(); i++) {
+            params.add(new IrValue.Param("p" + i, IrType.from(ft.parameterTypes().get(i))));
+        }
+        IrType ret = IrType.from(ft.returnType());
+        IrFunction function = new IrFunction(binding.codeSymbolName(), ret, params, false);
+        module.addFunction(function);
+        functionsByMangled.put(binding.codeSymbolName(), function);
+        builder.beginFunction(function);
+        if (binding.envClass() != null) {
+            for (ClosureCapture cap : binding.captures()) {
+                FieldSymbol field = binding.envClass().findField(cap.fieldName()).orElseThrow();
+                IrValue envPtr = new IrValue.Param("env", IrType.PTR);
+                IrValue val = builder.loadField(
+                        envPtr,
+                        binding.envClass().name(),
+                        binding.envClass().layout().llvmTypeName(),
+                        field.gepIndex(),
+                        IrType.from(field.type()));
+                IrValue.Local capLocal = builder.alloca(cap.variable().name(), IrType.from(cap.type()));
+                builder.store(val, capLocal);
+            }
+        }
+        for (int i = 0; i < binding.lambdaParameters().size(); i++) {
+            var lp = binding.lambdaParameters().get(i);
+            IrType pTy = IrType.from(ft.parameterTypes().get(i));
+            IrValue.Local pLocal = builder.alloca(lp.name(), pTy);
+            builder.store(new IrValue.Param("p" + i, pTy), pLocal);
+        }
+        if (binding.bodyBlock() != null) {
+            for (Statement stmt : binding.bodyBlock().statements()) {
+                lowerStatement(stmt);
+            }
+            if (!builder.currentBlockTerminated()) {
+                if (ret == IrType.VOID) {
+                    builder.retVoid();
+                } else {
+                    builder.ret(defaultValue(ret));
+                }
+            }
+        } else {
+            IrValue result = lowerExpression(binding.bodyExpression());
+            if (ret == IrType.VOID) {
+                builder.retVoid();
+            } else {
+                builder.ret(castIfNeeded(result, ret));
+            }
+        }
+    }
+
+    private void lowerMethodRefThunk(IrModule module, CallableBinding binding) {
+        MethodSymbol target = binding.targetMethod();
+        FunctionType ft = binding.samClass().functionType();
+        List<IrValue.Param> params = new ArrayList<>();
+        params.add(new IrValue.Param("env", IrType.PTR));
+        for (int i = 0; i < ft.parameterTypes().size(); i++) {
+            params.add(new IrValue.Param("p" + i, IrType.from(ft.parameterTypes().get(i))));
+        }
+        IrType ret = IrType.from(ft.returnType());
+        IrFunction function = new IrFunction(binding.codeSymbolName(), ret, params, false);
+        module.addFunction(function);
+        functionsByMangled.put(binding.codeSymbolName(), function);
+        builder.beginFunction(function);
+
+        List<IrValue> samArgs = new ArrayList<>();
+        for (int i = 0; i < ft.parameterTypes().size(); i++) {
+            samArgs.add(new IrValue.Param("p" + i, IrType.from(ft.parameterTypes().get(i))));
+        }
+
+        IrValue result;
+        if (target.isStatic()) {
+            result = builder.call(target.mangledName(), ret, samArgs);
+        } else {
+            IrValue receiver = new IrValue.Param("env", IrType.PTR);
+            List<IrValue> callArgs = new ArrayList<>();
+            callArgs.add(receiver);
+            callArgs.addAll(samArgs);
+            if (binding.isVirtualMethodRef() && target.vtableSlot() != null) {
+                MethodSymbol slotMethod = target;
+                while (slotMethod.overrides() != null) {
+                    slotMethod = slotMethod.overrides();
+                }
+                int slot = slotMethod.vtableSlot() != null ? slotMethod.vtableSlot() : target.vtableSlot();
+                // VirtualCall args must include this as arg0 (same as lowerCall).
+                result = builder.virtualCall(
+                        receiver,
+                        slot,
+                        ret,
+                        callArgs,
+                        target.owner().name() + "." + target.name());
+            } else {
+                result = builder.call(target.mangledName(), ret, callArgs);
+            }
+        }
+
+        if (ret == IrType.VOID) {
+            builder.retVoid();
+        } else {
+            builder.ret(castIfNeeded(result, ret));
+        }
     }
 
     private IrValue lowerVariable(VariableExpression v) {
@@ -1105,6 +1377,17 @@ public final class IrGenerator {
 
     private IrValue lowerCall(MethodCallExpression m) {
         Object resolved = typed.resolvedSymbols().get(m);
+        if (resolved instanceof NativeCallbackSite site) {
+            IrValue callable = lowerExpression(m.arguments().getFirst());
+            ClassSymbol handleClass = typed.requireClass("NativeCallbackHandle");
+            return builder.createNativeCallback(
+                    site.trampolineSymbol(),
+                    callable,
+                    site.invokeRuntime(),
+                    site.callbackId(),
+                    handleClass.metadata().globalName(),
+                    handleClass.layout().instanceSize());
+        }
         if (resolved instanceof NativeIntrinsic intrinsic) {
             return lowerNativeIntrinsic(intrinsic, m);
         }
@@ -1128,6 +1411,11 @@ public final class IrGenerator {
                 arg = castIfNeeded(arg, IrType.from(paramTypes.get(i)));
             }
             args.add(arg);
+        }
+
+        if (ms.samInvokeRuntime() != null && receiver != null) {
+            List<IrValue> invokeArgs = args.size() > 1 ? args.subList(1, args.size()) : List.of();
+            return builder.invokeCallable(receiver, IrType.from(ms.returnType()), invokeArgs);
         }
 
         if (ms.owner().name().equals("Throwable") && ms.name().equals("getMessage") && receiver != null) {
@@ -1247,6 +1535,9 @@ public final class IrGenerator {
         if ("Bytes".equals(ms.owner().name())) {
             return lowerBytesIntrinsic(ms, args);
         }
+        if ("NativeCallbackHandle".equals(ms.owner().name())) {
+            return lowerNativeCallbackHandleIntrinsic(ms, args);
+        }
         if ("Thread".equals(ms.owner().name())) {
             return lowerThreadIntrinsic(ms, args);
         }
@@ -1296,6 +1587,37 @@ public final class IrGenerator {
         };
     }
 
+    private IrValue lowerNativeCallbackHandleIntrinsic(MethodSymbol ms, List<IrValue> args) {
+        ClassSymbol handleClass = typed.requireClass("NativeCallbackHandle");
+        ClassLayout layout = handleClass.layout();
+        IrValue handle = args.getFirst();
+        return switch (ms.name()) {
+            case "pointer" -> {
+                FieldSymbol handleField = handleClass.findField("handle").orElseThrow();
+                IrValue bits = builder.loadField(
+                        handle,
+                        handleClass.name(),
+                        layout.llvmTypeName(),
+                        handleField.gepIndex(),
+                        IrType.I64);
+                yield castIfNeeded(bits, IrType.NATIVE_PTR);
+            }
+            case "close" -> {
+                FieldSymbol slotField = handleClass.findField("slot").orElseThrow();
+                FieldSymbol handleField = handleClass.findField("handle").orElseThrow();
+                FieldSymbol retainedField = handleClass.findField("retained").orElseThrow();
+                builder.releaseNativeCallback(
+                        handle,
+                        layout.llvmTypeName(),
+                        slotField.gepIndex(),
+                        handleField.gepIndex(),
+                        retainedField.gepIndex());
+                yield new IrValue.Const(IrType.I32, 0);
+            }
+            default -> throw new IllegalStateException("unknown NativeCallbackHandle intrinsic " + ms.name());
+        };
+    }
+
     private IrValue lowerThreadIntrinsic(MethodSymbol ms, List<IrValue> args) {
         return switch (ms.name()) {
             case "start" -> {
@@ -1327,6 +1649,7 @@ public final class IrGenerator {
                 builder.call("jnative_mutex_unlock", IrType.VOID, List.of(args.get(0)), true);
                 yield new IrValue.Const(IrType.I32, 0);
             }
+            case "tryLock" -> builder.call("jnative_mutex_trylock", IrType.I1, List.of(args.get(0)), false);
             default -> throw new IllegalStateException("unknown Mutex intrinsic " + ms.name());
         };
     }

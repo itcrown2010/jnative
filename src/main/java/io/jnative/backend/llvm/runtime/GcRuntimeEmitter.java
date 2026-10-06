@@ -75,12 +75,38 @@ public final class GcRuntimeEmitter {
                   ret ptr %o
                 }
 
+                ; True iff header is on the intrusive heap list (rejects stack-managed objects).
+                define i1 @jnative_gc_header_in_heap(ptr %hdr) {
+                entry:
+                  %head = load ptr, ptr @jn.gc.heap_head, align 8
+                  br label %loop
+                loop:
+                  %cur = phi ptr [ %head, %entry ], [ %next, %cont ]
+                  %isnull = icmp eq ptr %cur, null
+                  br i1 %isnull, label %no, label %cmp
+                cmp:
+                  %eq = icmp eq ptr %cur, %hdr
+                  br i1 %eq, label %yes, label %cont
+                cont:
+                  %np = getelementptr %jn.GcHeader, ptr %cur, i32 0, i32 0
+                  %next = load ptr, ptr %np, align 8
+                  br label %loop
+                yes:
+                  ret i1 true
+                no:
+                  ret i1 false
+                }
+
                 define void @jnative_gc_mark_push(ptr %obj) {
                 entry:
                   %isnull = icmp eq ptr %obj, null
-                  br i1 %isnull, label %done, label %check
+                  br i1 %isnull, label %done, label %heapcheck
                 done:
                   ret void
+                heapcheck:
+                  %hdr0 = call ptr @jnative_gc_object_to_header(ptr %obj)
+                  %inheap = call i1 @jnative_gc_header_in_heap(ptr %hdr0)
+                  br i1 %inheap, label %check, label %done
                 check:
                   %hdr = call ptr @jnative_gc_object_to_header(ptr %obj)
                   %mp = getelementptr %jn.GcHeader, ptr %hdr, i32 0, i32 2
@@ -397,9 +423,25 @@ public final class GcRuntimeEmitter {
                   ret void
                 }
 
+                @.jn.nogc.violation = private unnamed_addr constant [67 x i8] c"JNative runtime violation: managed allocation inside @NoGC region\\0A\\00", align 1
+
+                define void @jnative_nogc_alloc_violation() {
+                entry:
+                  call i32 @puts(ptr @.jn.nogc.violation)
+                  call void @abort()
+                  unreachable
+                }
+
                 define ptr @jnative_gc_alloc(i64 %payload) {
                 entry:
                   call void @jnative_gc_ensure_init()
+                  %nogc = call i32 @jn_nogc_depth()
+                  %violate = icmp sgt i32 %nogc, 0
+                  br i1 %violate, label %abort_nogc, label %poll
+                abort_nogc:
+                  call void @jnative_nogc_alloc_violation()
+                  unreachable
+                poll:
                   call void @jn_safepoint_poll()
                   %stress = load i32, ptr @jn.gc.stress, align 4
                   %dostress = icmp ne i32 %stress, 0

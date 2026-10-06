@@ -63,8 +63,17 @@ public final class Lexer {
             case '-' -> {
                 if (match('-')) {
                     addToken(TokenType.MINUS_MINUS);
+                } else if (match('>')) {
+                    addToken(TokenType.ARROW);
                 } else {
                     addToken(TokenType.MINUS);
+                }
+            }
+            case ':' -> {
+                if (match(':')) {
+                    addToken(TokenType.COLON_COLON);
+                } else {
+                    errorToken("unexpected character ':'");
                 }
             }
             case '*' -> addToken(TokenType.STAR);

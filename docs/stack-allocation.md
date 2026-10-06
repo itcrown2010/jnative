@@ -1,34 +1,33 @@
-# Stack Allocation (0.8)
+# Stack allocation (managed objects)
+
+`StackAllocationPass` (enabled at `-O2`+) rewrites remaining `NO_ESCAPE` `NewObject` instructions to **stack-managed** storage.
+
+## Distinct from `@Stack NativeStruct`
+
+| | `@Stack` NativeStruct | Optimizer stack-managed object |
+|--|----------------------|--------------------------------|
+| Layout | native C layout | managed class layout + `ClassMetadata*` |
+| GC | not a GC object | not on GC heap; **reference fields are precise roots** |
+| Escape | compile-time `@Stack` | requires escape analysis (`NO_ESCAPE`) |
+
+## Semantics retained
+
+- Zero-init, metadata install, constructor / field init still run
+- Field load/store and `==` identity behave as for heap objects of the same type
+- Lifetime = current activation; must not escape
+
+## GC roots
+
+For each stack-managed object, LLVM registers every **managed reference field slot** on the shadow stack (`jnative_gc_frame_set_root`). The object pointer itself is not a heap object; `jnative_gc_mark_push` rejects non-heap addresses via `jnative_gc_header_in_heap`.
+
+Example:
 
 ```java
-@Stack
-Point p = new Point();
+Holder h = new Holder();   // stack at -O2
+h.person = make();         // Person heap (RETURN_ESCAPE)
+System.gc();               // must see h.person
 ```
 
-Requires `@NativeStruct`. Managed classes (`@Stack Person`) are rejected in 0.8.
+## Interaction with scalar replacement
 
-## Lowering
-
-```text
-@Stack Point p = new Point();
-  → IR:  stackalloc Point
-  → LLVM: alloca %struct.Point + memset zero
-```
-
-**Zero GC allocation.** No Object header, ClassMetadata, or vtable.
-
-## Lifetime
-
-Valid for the current function invocation only. Leaving the function invalidates the storage.
-
-## AddressOf
-
-```java
-NativePtr<Point> ptr = Native.addressOf(p);
-```
-
-Produces a `STACK` provenance pointer. Passing it to a native call is allowed (non-capturing contract). Returning it or storing it into a managed field is a **compile-time error**.
-
-## Exceptions
-
-On `throw` / unwind, stack frames disappear with the function — no manual cleanup.
+Primitive-only non-escaping objects (e.g. `Point`) are preferably **scalar-replaced** first; stack allocation covers cases with reference fields that remain after that pass.

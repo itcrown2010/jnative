@@ -29,6 +29,24 @@ public final class IrBasicBlock {
             return;
         }
         instructions.add(instruction);
+        markTerminator(instruction);
+    }
+
+    public void setTerminated(boolean terminated) {
+        this.terminated = terminated;
+    }
+
+    public void recalcTerminated() {
+        terminated = false;
+        for (IrInstruction inst : instructions) {
+            markTerminator(inst);
+            if (terminated) {
+                break;
+            }
+        }
+    }
+
+    private void markTerminator(IrInstruction instruction) {
         if (instruction instanceof IrInstruction.Branch
                 || instruction instanceof IrInstruction.CondBranch
                 || instruction instanceof IrInstruction.Return) {

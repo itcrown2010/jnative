@@ -43,7 +43,10 @@ public record ClassType(ClassSymbol classSymbol) implements JType {
             return true;
         }
         if (other instanceof ClassType ct) {
-            // Subtyping: Dog isAssignable to Animal if Dog extends Animal
+            if (classSymbol.functionType() != null && ct.classSymbol().functionType() != null) {
+                return classSymbol.functionType().isAssignableFrom(ct.classSymbol().functionType())
+                        || ct.classSymbol().isSubtypeOf(classSymbol);
+            }
             return ct.classSymbol().isSubtypeOf(this.classSymbol);
         }
         return false;

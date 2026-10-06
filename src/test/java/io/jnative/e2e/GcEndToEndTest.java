@@ -44,7 +44,7 @@ class GcEndToEndTest {
                 """, "GcDead", Map.of(
                 "JNATIVE_GC_THRESHOLD", "4096",
                 "JNATIVE_GC_STATS", "1"
-        ));
+        ), 0); // -O0: heap pressure test must not scalar-replace allocations away
         assertEquals("1\n", stripStats(r.stdout));
         assertTrue(r.collections > 0, "expected collections > 0, got " + r.collections);
         assertTrue(r.freed > 0, "expected freed > 0, got " + r.freed);
@@ -137,7 +137,7 @@ class GcEndToEndTest {
                 }
                 """, "GcCycleDead", Map.of(
                 "JNATIVE_GC_STATS", "1"
-        ));
+        ), 0); // -O0: assert heap free of unreachable cycle
         assertEquals("1\n", stripStats(r.stdout));
         assertTrue(r.collections > 0);
         assertTrue(r.freed >= 2, "cycle should be freed, freed=" + r.freed);
@@ -277,7 +277,7 @@ class GcEndToEndTest {
                 """, "GcMillion", Map.of(
                 "JNATIVE_GC_STRESS", "1",
                 "JNATIVE_GC_STATS", "1"
-        ));
+        ), 0); // -O0: stress heap allocator / collector
         assertEquals("1\n", stripStats(r.stdout));
         assertTrue(r.collections > 0);
         assertTrue(r.freed > 0);
@@ -288,11 +288,16 @@ class GcEndToEndTest {
     }
 
     private NativeResult run(String source, String name, Map<String, String> env) throws Exception {
+        return run(source, name, env, 2);
+    }
+
+    private NativeResult run(String source, String name, Map<String, String> env, int optLevel) throws Exception {
         Assumptions.assumeTrue(Toolchain.detect().isPresent(), "clang not available");
         Path javaFile = tempDir.resolve(name + ".java");
         Files.writeString(javaFile, source, StandardCharsets.UTF_8);
         Path out = tempDir.resolve(name);
         CompilerOptions options = new CompilerOptions();
+        options.setOptLevel(optLevel);
         options.setSourceFile(javaFile);
         options.setOutputFile(out);
         CompileResult result = new JNativeCompiler().compile(options);

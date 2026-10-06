@@ -187,6 +187,32 @@ public final class AstPrinter {
             case FieldAccessExpression f -> printExpr(f.receiver()) + "." + f.fieldName();
             case NullLiteralExpression ignored -> "null";
             case ThisExpression ignored -> "this";
+            case LambdaExpression l -> {
+                StringBuilder sb = new StringBuilder("(");
+                for (int i = 0; i < l.parameters().size(); i++) {
+                    if (i > 0) {
+                        sb.append(", ");
+                    }
+                    var p = l.parameters().get(i);
+                    if (p.type() != null) {
+                        sb.append(p.type()).append(' ');
+                    }
+                    sb.append(p.name());
+                }
+                sb.append(") -> ");
+                if (l.isBlock()) {
+                    sb.append("{ ... }");
+                } else {
+                    sb.append(printExpr(l.expressionBody()));
+                }
+                yield sb.toString();
+            }
+            case MethodReferenceExpression r -> {
+                if (r.typeName() != null) {
+                    yield r.typeName().name() + "::" + r.methodName();
+                }
+                yield printExpr(r.receiver()) + "::" + r.methodName();
+            }
         };
     }
 

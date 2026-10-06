@@ -165,7 +165,7 @@ class ThreadEndToEndTest {
                         }
                     }
                 }
-                class Consumer extends Thread {
+                class BufferConsumer extends Thread {
                     public void run() {
                         int i = 0;
                         while (i < 10000) {
@@ -190,7 +190,7 @@ class ThreadEndToEndTest {
                     static int consumed;
                     public static void main(String[] args) {
                         Producer p = new Producer();
-                        Consumer c = new Consumer();
+                        BufferConsumer c = new BufferConsumer();
                         p.start();
                         c.start();
                         p.join();

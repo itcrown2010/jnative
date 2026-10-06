@@ -57,6 +57,12 @@ public final class ArrayRuntimeEmitter {
         sb.append("define ptr @jnative_array_elem_ptr(ptr %arr, i32 %index, i64 %elemSize) {\n");
         sb.append("entry:\n");
         sb.append("  call void @jnative_array_bounds_check(ptr %arr, i32 %index)\n");
+        sb.append("  %p = call ptr @jnative_array_elem_ptr_unchecked(ptr %arr, i32 %index, i64 %elemSize)\n");
+        sb.append("  ret ptr %p\n");
+        sb.append("}\n\n");
+
+        sb.append("define ptr @jnative_array_elem_ptr_unchecked(ptr %arr, i32 %index, i64 %elemSize) {\n");
+        sb.append("entry:\n");
         sb.append("  %idx64 = sext i32 %index to i64\n");
         sb.append("  %off = mul i64 %idx64, %elemSize\n");
         sb.append("  %base = add i64 %off, 16\n");

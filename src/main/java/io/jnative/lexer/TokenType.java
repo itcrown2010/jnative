@@ -75,6 +75,8 @@ public enum TokenType {
     NOT,
     PLUS_PLUS,
     MINUS_MINUS,
+    ARROW,
+    COLON_COLON,
 
     // Special
     EOF,

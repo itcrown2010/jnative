@@ -19,7 +19,9 @@ public sealed interface IrInstruction
         IrInstruction.LoadStatic, IrInstruction.StoreStatic,
         IrInstruction.SafepointPoll,
         IrInstruction.AtomicLoad, IrInstruction.AtomicStore,
-        IrInstruction.AtomicRmw, IrInstruction.CompareExchange {
+        IrInstruction.AtomicRmw, IrInstruction.CompareExchange,
+        IrInstruction.MakeCallable, IrInstruction.InvokeCallable, IrInstruction.CreateNativeCallback,
+        IrInstruction.ReleaseNativeCallback {
 
     record Alloca(IrValue.Local dest) implements IrInstruction {
     }
@@ -67,14 +69,28 @@ public sealed interface IrInstruction
     record JumpLabel(String name) implements IrInstruction {
     }
 
-    /** Allocate object, zero-init, install ClassMetadata* in header. */
+    /**
+     * Allocate object, zero-init, install ClassMetadata* in header.
+     * When {@code stackAllocated}, storage is the current activation (managed layout retained);
+     * reference fields must be registered as precise GC roots by the LLVM backend.
+     */
     record NewObject(
             IrValue.Temp dest,
             String className,
             String llvmTypeName,
             long sizeBytes,
-            String metadataGlobal
+            String metadataGlobal,
+            boolean stackAllocated
     ) implements IrInstruction {
+        public NewObject(
+                IrValue.Temp dest,
+                String className,
+                String llvmTypeName,
+                long sizeBytes,
+                String metadataGlobal
+        ) {
+            this(dest, className, llvmTypeName, sizeBytes, metadataGlobal, false);
+        }
     }
 
     record ConstructorCall(String mangledName, List<IrValue> args) implements IrInstruction {
@@ -191,7 +207,16 @@ public sealed interface IrInstruction
     ) implements IrInstruction {
     }
 
-    record LoadElement(IrValue.Temp dest, IrValue array, IrValue index, IrType elementType) implements IrInstruction {
+    record LoadElement(
+            IrValue.Temp dest,
+            IrValue array,
+            IrValue index,
+            IrType elementType,
+            boolean unchecked
+    ) implements IrInstruction {
+        public LoadElement(IrValue.Temp dest, IrValue array, IrValue index, IrType elementType) {
+            this(dest, array, index, elementType, false);
+        }
     }
 
     record StoreElement(IrValue array, IrValue index, IrValue value) implements IrInstruction {
@@ -277,6 +302,49 @@ public sealed interface IrInstruction
             IrValue base,
             IrValue elements,
             long elementSize
+    ) implements IrInstruction {
+    }
+
+    /** Allocate a SAM callable object: metadata + code ptr (i64) + env ref. */
+    record MakeCallable(
+            IrValue.Temp dest,
+            String samClass,
+            String metadataGlobal,
+            long sizeBytes,
+            String codeSymbol,
+            IrValue envOrNull,
+            boolean hasEnv
+    ) implements IrInstruction {
+    }
+
+    /** Invoke a managed SAM via indirect call through its code field. */
+    record InvokeCallable(
+            IrValue.Temp dest,
+            IrValue callable,
+            IrType returnType,
+            List<IrValue> args
+    ) implements IrInstruction {
+    }
+
+    /** Register a managed callable as a native callback; returns handle object. */
+    record CreateNativeCallback(
+            IrValue.Temp destHandle,
+            String trampolineSymbol,
+            IrValue callable,
+            String invokeRuntime,
+            int callbackId,
+            String metadataGlobal,
+            long handleSizeBytes
+    ) implements IrInstruction {
+    }
+
+    /** Clear a native callback slot and release the handle's retained callable. */
+    record ReleaseNativeCallback(
+            IrValue handle,
+            String llvmTypeName,
+            int slotFieldIndex,
+            int handleFieldIndex,
+            int retainedFieldIndex
     ) implements IrInstruction {
     }
 }

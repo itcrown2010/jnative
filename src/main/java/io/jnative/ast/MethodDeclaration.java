@@ -15,6 +15,7 @@ public record MethodDeclaration(
         List<Parameter> parameters,
         BlockStatement body,
         NativeAnnotation nativeAnnotation,
+        EffectContract effectContract,
         SourceLocation location
 ) implements AstNode {
     public MethodDeclaration(
@@ -27,6 +28,24 @@ public record MethodDeclaration(
             BlockStatement body,
             SourceLocation location
     ) {
-        this(isPublic, isStatic, false, isConstructor, returnType, false, name, parameters, body, null, location);
+        this(isPublic, isStatic, false, isConstructor, returnType, false, name, parameters, body,
+                null, null, location);
+    }
+
+    public MethodDeclaration(
+            boolean isPublic,
+            boolean isStatic,
+            boolean isNative,
+            boolean isConstructor,
+            TypeName returnType,
+            boolean returnsArray,
+            String name,
+            List<Parameter> parameters,
+            BlockStatement body,
+            NativeAnnotation nativeAnnotation,
+            SourceLocation location
+    ) {
+        this(isPublic, isStatic, isNative, isConstructor, returnType, returnsArray, name, parameters, body,
+                nativeAnnotation, null, location);
     }
 }

@@ -88,7 +88,8 @@ public final class IrPrinter {
             case IrInstruction.JumpLabel j -> j.name() + ":";
             case IrInstruction.NewObject n ->
                     n.dest().name() + " = new " + n.className()
-                            + " size=" + n.sizeBytes() + " metadata=@" + n.metadataGlobal();
+                            + " size=" + n.sizeBytes() + " metadata=@" + n.metadataGlobal()
+                            + (n.stackAllocated() ? " stack" : "");
             case IrInstruction.ConstructorCall c -> {
                 StringBuilder sb = new StringBuilder("ctorcall ").append(c.mangledName()).append('(');
                 for (int i = 0; i < c.args().size(); i++) {
@@ -122,7 +123,8 @@ public final class IrPrinter {
                             + " len=" + n.length().name()
                             + " metadata=@" + n.metadataGlobal();
             case IrInstruction.LoadElement l ->
-                    l.dest().name() + " = loadelem " + l.array().name() + "[" + l.index().name() + "]";
+                    l.dest().name() + " = loadelem " + l.array().name() + "[" + l.index().name() + "]"
+                            + (l.unchecked() ? " unchecked" : "");
             case IrInstruction.StoreElement s ->
                     "storeelem " + s.array().name() + "[" + s.index().name() + "] = " + s.value().name();
             case IrInstruction.ArrayLength a ->
@@ -185,6 +187,24 @@ public final class IrPrinter {
             case IrInstruction.CompareExchange c ->
                     c.destSuccess().name() + " = cmpxchg " + c.address().name()
                             + ", " + c.expected().name() + ", " + c.update().name();
+            case IrInstruction.MakeCallable m ->
+                    m.dest().name() + " = make_callable " + m.samClass()
+                            + " code=@" + m.codeSymbol() + " hasEnv=" + m.hasEnv();
+            case IrInstruction.InvokeCallable i -> {
+                StringBuilder sb = new StringBuilder();
+                if (i.dest() != null) {
+                    sb.append(i.dest().name()).append(" = ");
+                }
+                sb.append("invoke_callable ").append(i.callable().name())
+                        .append(" -> ").append(i.returnType());
+                yield sb.toString();
+            }
+            case IrInstruction.CreateNativeCallback c ->
+                    c.destHandle().name() + " = native_callback "
+                            + c.callable().name() + " @" + c.trampolineSymbol()
+                            + " id=" + c.callbackId();
+            case IrInstruction.ReleaseNativeCallback r ->
+                    "release_native_callback " + r.handle().name();
         };
     }
 

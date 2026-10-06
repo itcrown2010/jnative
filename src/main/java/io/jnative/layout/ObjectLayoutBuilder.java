@@ -6,7 +6,9 @@ import io.jnative.semantic.ClassSymbol;
 import io.jnative.semantic.ClassType;
 import io.jnative.semantic.ErrorType;
 import io.jnative.semantic.FieldSymbol;
+import io.jnative.semantic.FunctionType;
 import io.jnative.semantic.JType;
+import io.jnative.semantic.NativeFunctionPtrType;
 import io.jnative.semantic.NativePtrType;
 import io.jnative.semantic.NativeStructType;
 import io.jnative.semantic.NullType;
@@ -118,6 +120,8 @@ public final class ObjectLayoutBuilder {
             case ClassType ignored -> POINTER_SIZE;
             case ArrayType ignored -> POINTER_SIZE;
             case NativePtrType ignored -> POINTER_SIZE;
+            case NativeFunctionPtrType ignored -> POINTER_SIZE;
+            case FunctionType ignored -> POINTER_SIZE;
             case NativeStructType ns -> (int) ns.symbol().layout().size();
             case NullType ignored -> POINTER_SIZE;
             case VoidType ignored -> 0;
@@ -136,6 +140,8 @@ public final class ObjectLayoutBuilder {
             case ClassType ignored -> POINTER_SIZE;
             case ArrayType ignored -> POINTER_SIZE;
             case NativePtrType ignored -> POINTER_SIZE;
+            case NativeFunctionPtrType ignored -> POINTER_SIZE;
+            case FunctionType ignored -> POINTER_SIZE;
             case NativeStructType ns -> ns.symbol().layout().alignment();
             case NullType ignored -> POINTER_SIZE;
             case VoidType ignored -> 1;
@@ -157,6 +163,8 @@ public final class ObjectLayoutBuilder {
             case ClassType ignored -> "ptr";
             case ArrayType ignored -> "ptr";
             case NativePtrType ignored -> "ptr";
+            case NativeFunctionPtrType ignored -> "ptr";
+            case FunctionType ignored -> "ptr";
             case NativeStructType ns -> "%" + ns.symbol().layout().llvmTypeName();
             case NullType ignored -> "ptr";
             case VoidType ignored -> "void";

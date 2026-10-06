@@ -20,6 +20,7 @@ import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 
@@ -32,6 +33,7 @@ public final class SemanticAnalyzer {
     private final Map<String, NativeStructSymbol> nativeStructs = new LinkedHashMap<>();
     private final Map<Expression, JType> expressionTypes = new HashMap<>();
     private final Map<Expression, Object> resolvedSymbols = new HashMap<>();
+    private final Map<Expression, CallableBinding> callableBindings = new HashMap<>();
     private final Map<Expression, PointerProvenance> provenances = new HashMap<>();
     private final Map<String, ClassMetadata> arrayMetadatas = new LinkedHashMap<>();
     private final Map<ConstructorSymbol, MethodDeclaration> constructorAst = new HashMap<>();
@@ -49,6 +51,15 @@ public final class SemanticAnalyzer {
     private boolean allowingStackNativeNew;
     private final TargetAbi targetAbi = TargetAbi.forHost();
     private final LinkedHashMap<String, String> nativeLibraries = new LinkedHashMap<>();
+    private JType expectedSamType;
+    private boolean inLambdaBody;
+    private Scope lambdaBodyScope;
+    private final Set<VariableSymbol> lambdaCapturedVars = new HashSet<>();
+    private int envClassCounter;
+    private int lambdaCounter;
+    private int callbackCounter;
+    private ClassSymbol runnableClass;
+    private ClassSymbol nativeCallbackHandleClass;
 
     public SemanticAnalyzer(DiagnosticReporter reporter) {
         this.reporter = reporter;
@@ -58,6 +69,7 @@ public final class SemanticAnalyzer {
         classes.clear();
         expressionTypes.clear();
         resolvedSymbols.clear();
+        callableBindings.clear();
         arrayMetadatas.clear();
         constructorAst.clear();
         catchTypes.clear();
@@ -69,6 +81,9 @@ public final class SemanticAnalyzer {
         currentConstructor = null;
         allowingStackNativeNew = false;
 
+        envClassCounter = 0;
+        lambdaCounter = 0;
+        callbackCounter = 0;
         installBuiltins();
         // File.readBytes / argv need these metadatas present for the runtime.
         arrayMetadataFor(PrimitiveType.BYTE);
@@ -159,6 +174,7 @@ public final class SemanticAnalyzer {
                 Map.copyOf(nativeStructs),
                 Map.copyOf(expressionTypes),
                 Map.copyOf(resolvedSymbols),
+                Map.copyOf(callableBindings),
                 Map.copyOf(arrayMetadatas),
                 Map.copyOf(catchTypes),
                 List.copyOf(nativeLibraries.keySet()),
@@ -169,12 +185,15 @@ public final class SemanticAnalyzer {
     private void installBuiltins() {
         installStringBuiltin();
         installObjectHierarchy();
+        installCallableBuiltins();
         installFfiBuiltins();
     }
 
     private void installObjectHierarchy() {
         objectClass = new ClassSymbol("Object", SourceLocation.UNKNOWN, true);
         classes.put("Object", objectClass);
+        objectClass.addConstructor(new ConstructorSymbol(
+                objectClass, List.of(), true, SourceLocation.UNKNOWN));
         objectClass.setLayout(ObjectLayoutBuilder.build(objectClass));
         objectClass.setVtable(new io.jnative.vtable.VTable(objectClass, List.of()));
 
@@ -406,12 +425,81 @@ public final class SemanticAnalyzer {
         installThreadBuiltins();
     }
 
+    private void installCallableBuiltins() {
+        FunctionType voidFn = new FunctionType(List.of(), VoidType.INSTANCE, FunctionType.Domain.MANAGED);
+        runnableClass = installSam("Runnable", "run", voidFn, "jnative_invoke_void");
+
+        FunctionType intUnary = new FunctionType(
+                List.of(PrimitiveType.INT), PrimitiveType.INT, FunctionType.Domain.MANAGED);
+        installSam("IntUnaryFunction", "apply", intUnary, "jnative_invoke_i32_i32");
+        installSam("IntFunction", "apply", intUnary, "jnative_invoke_i32_i32");
+
+        FunctionType intBinary = new FunctionType(
+                List.of(PrimitiveType.INT, PrimitiveType.INT), PrimitiveType.INT, FunctionType.Domain.MANAGED);
+        installSam("IntBinaryFunction", "apply", intBinary, "jnative_invoke_i32_i32_i32");
+
+        FunctionType consumer = new FunctionType(
+                List.of(objectClass.asType()), VoidType.INSTANCE, FunctionType.Domain.MANAGED);
+        installSam("Consumer", "accept", consumer, "jnative_invoke_void_ptr");
+
+        FunctionType intCompare = new FunctionType(
+                List.of(NativePtrType.VOID, NativePtrType.VOID),
+                PrimitiveType.INT, FunctionType.Domain.NATIVE);
+        installSam("IntCompare", "compare", intCompare, "jnative_invoke_i32_ptr_ptr");
+
+        // HttpHandler SAM for stdlib HTTP routing (HttpServerRequest/HttpResponse resolved at use site).
+        FunctionType httpHandler = new FunctionType(
+                List.of(objectClass.asType()), objectClass.asType(), FunctionType.Domain.MANAGED);
+        installSam("HttpHandler", "handle", httpHandler, "jnative_invoke_ptr_ptr");
+
+        nativeCallbackHandleClass = new ClassSymbol("NativeCallbackHandle", SourceLocation.UNKNOWN, true);
+        classes.put("NativeCallbackHandle", nativeCallbackHandleClass);
+        nativeCallbackHandleClass.setSuperClass(objectClass);
+        nativeCallbackHandleClass.addField(new FieldSymbol(
+                nativeCallbackHandleClass, "handle", PrimitiveType.LONG, 0, SourceLocation.UNKNOWN));
+        nativeCallbackHandleClass.addField(new FieldSymbol(
+                nativeCallbackHandleClass, "retained", objectClass.asType(), 1, SourceLocation.UNKNOWN));
+        nativeCallbackHandleClass.addField(new FieldSymbol(
+                nativeCallbackHandleClass, "slot", PrimitiveType.INT, 2, SourceLocation.UNKNOWN));
+        addInstanceFfiIntrinsic(nativeCallbackHandleClass, "pointer",
+                NativeFunctionPtrType.of(voidFn), List.of());
+        addInstanceFfiIntrinsic(nativeCallbackHandleClass, "close", VoidType.INSTANCE, List.of());
+        nativeCallbackHandleClass.setLayout(ObjectLayoutBuilder.build(nativeCallbackHandleClass));
+        nativeCallbackHandleClass.setVtable(new io.jnative.vtable.VTable(nativeCallbackHandleClass, List.of()));
+    }
+
+    private ClassSymbol installSam(String name, String methodName, FunctionType ft, String invokeRuntime) {
+        ClassSymbol sam = new ClassSymbol(name, SourceLocation.UNKNOWN, true);
+        classes.put(name, sam);
+        sam.setSuperClass(objectClass);
+        sam.setFunctionType(ft);
+        sam.addField(new FieldSymbol(sam, "code", PrimitiveType.LONG, 0, SourceLocation.UNKNOWN));
+        sam.addField(new FieldSymbol(sam, "env", objectClass.asType(), 1, SourceLocation.UNKNOWN));
+        List<ParameterSymbol> params = new ArrayList<>();
+        for (int i = 0; i < ft.parameterTypes().size(); i++) {
+            params.add(new ParameterSymbol("p" + i, ft.parameterTypes().get(i), SourceLocation.UNKNOWN));
+        }
+        String mangled = NameMangler.mangleMethod(name, methodName, ft.parameterTypes(), false);
+        MethodSymbol ms = new MethodSymbol(
+                sam, methodName, ft.returnType(), params, false, false, true, mangled, SourceLocation.UNKNOWN);
+        ms.setFfiIntrinsic(true);
+        ms.setSamInvokeRuntime(invokeRuntime);
+        sam.addMethod(ms);
+        sam.setLayout(ObjectLayoutBuilder.build(sam));
+        sam.setVtable(new io.jnative.vtable.VTable(sam, List.of()));
+        return sam;
+    }
+
     private void installThreadBuiltins() {
         ClassSymbol thread = new ClassSymbol("Thread", SourceLocation.UNKNOWN, true);
         classes.put("Thread", thread);
         thread.setSuperClass(objectClass);
         thread.addField(new FieldSymbol(thread, "nativeId", PrimitiveType.LONG, 0, SourceLocation.UNKNOWN));
+        thread.addField(new FieldSymbol(thread, "target", runnableClass.asType(), 1, SourceLocation.UNKNOWN));
         thread.addConstructor(new ConstructorSymbol(thread, List.of(), true, SourceLocation.UNKNOWN));
+        thread.addConstructor(new ConstructorSymbol(thread, List.of(
+                new ParameterSymbol("target", runnableClass.asType(), SourceLocation.UNKNOWN)),
+                false, SourceLocation.UNKNOWN));
         MethodSymbol run = new MethodSymbol(
                 thread, "run", VoidType.INSTANCE, List.of(),
                 false, false, false, NameMangler.mangleMethod("Thread", "run", List.of(), false),
@@ -432,6 +520,7 @@ public final class SemanticAnalyzer {
         mutex.addField(new FieldSymbol(mutex, "handle", PrimitiveType.LONG, 0, SourceLocation.UNKNOWN));
         mutex.addConstructor(new ConstructorSymbol(mutex, List.of(), true, SourceLocation.UNKNOWN));
         addInstanceFfiIntrinsic(mutex, "lock", VoidType.INSTANCE, List.of());
+        addInstanceFfiIntrinsic(mutex, "tryLock", PrimitiveType.BOOLEAN, List.of());
         addInstanceFfiIntrinsic(mutex, "unlock", VoidType.INSTANCE, List.of());
         mutex.setLayout(ObjectLayoutBuilder.build(mutex));
         mutex.setVtable(new io.jnative.vtable.VTable(mutex, List.of()));
@@ -906,6 +995,7 @@ public final class SemanticAnalyzer {
             MethodSymbol ms = new MethodSymbol(
                     symbol, method.name(), returnType, params,
                     method.isStatic(), isMain, method.isNative(), mangled, method.location());
+            applyEffectContract(ms, method.effectContract());
 
             if (method.isNative()) {
                 bindNativeMethod(ms, method, returnType, params);
@@ -1212,9 +1302,43 @@ public final class SemanticAnalyzer {
                     new NativeSignature(abiRet, abiParams),
                     CallingConvention.C);
             ms.setNativeFunction(nf);
+            if (method.nativeAnnotation() != null && method.nativeAnnotation().effects().isPresent()) {
+                String contract = method.nativeAnnotation().effects().get();
+                ms.setNativeEffectsContract(contract);
+                ms.setInferredEffects(effectsFromNativeContract(contract));
+                ms.setEffectiveEffects(ms.inferredEffects().copy());
+            } else {
+                ms.setNativeEffectsContract("UNKNOWN");
+                ms.setInferredEffects(FunctionEffects.unknown());
+                ms.setEffectiveEffects(FunctionEffects.unknown());
+            }
         } catch (IllegalArgumentException ex) {
             reporter.error(method.location(), ex.getMessage());
         }
+    }
+
+    private void applyEffectContract(MethodSymbol ms, io.jnative.ast.EffectContract ec) {
+        if (ec == null) {
+            return;
+        }
+        ms.setContractNoGc(ec.noGc());
+        ms.setContractNoThrow(ec.noThrow());
+        ms.setContractNoBlock(ec.noBlock());
+        FunctionEffects declared = FunctionEffects.none();
+        // Declared contracts forbid effects; stored as flags on the symbol.
+        ms.setDeclaredEffects(declared);
+    }
+
+    private static FunctionEffects effectsFromNativeContract(String contract) {
+        String c = contract == null ? "UNKNOWN" : contract.trim().toUpperCase();
+        return switch (c) {
+            case "PURE" -> FunctionEffects.pure();
+            case "NO_BLOCK" -> new FunctionEffects(FunctionEffects.NATIVE_CALL);
+            case "MAY_BLOCK" -> FunctionEffects.nativeCall(true, false);
+            case "NO_CALLBACK" -> new FunctionEffects(FunctionEffects.NATIVE_CALL);
+            case "MAY_CALLBACK" -> FunctionEffects.nativeCall(false, true);
+            default -> FunctionEffects.unknown();
+        };
     }
 
     private boolean isFfiAllowedType(JType type) {
@@ -1397,7 +1521,7 @@ public final class SemanticAnalyzer {
                         analyzeExpression(init);
                     }
                 } else {
-                    JType initType = analyzeExpression(init);
+                    JType initType = analyzeExpression(init, samExpectedType(type));
                     if (!type.isAssignableFrom(initType)) {
                         reporter.error(v.location(),
                                 "incompatible types: " + initType
@@ -1432,18 +1556,23 @@ public final class SemanticAnalyzer {
             }
             return;
         }
-        if (currentMethod == null) {
+        JType expected;
+        if (inLambdaBody && expectedSamType instanceof ClassType samCt
+                && samCt.classSymbol().functionType() != null) {
+            expected = samCt.classSymbol().functionType().returnType();
+        } else if (currentMethod == null) {
             reporter.error(r.location(), "return outside method");
             return;
+        } else {
+            expected = currentMethod.returnType();
         }
-        JType expected = currentMethod.returnType();
         if (r.value() == null) {
             if (!(expected instanceof VoidType)) {
                 reporter.error(r.location(), "missing return value; expected " + expected);
             }
             return;
         }
-        JType actual = analyzeExpression(r.value());
+        JType actual = analyzeExpression(r.value(), samExpectedType(expected));
         if (expected instanceof VoidType) {
             reporter.error(r.location(), "cannot return a value from void method");
         } else if (!expected.isAssignableFrom(actual)) {
@@ -1456,32 +1585,53 @@ public final class SemanticAnalyzer {
         }
     }
 
+    private JType samExpectedType(JType type) {
+        if (type instanceof ClassType ct && ct.classSymbol().functionType() != null) {
+            return ct;
+        }
+        return null;
+    }
+
     private JType analyzeExpression(Expression expr) {
-        JType type = switch (expr) {
-            case LiteralExpression l -> typeOfLiteral(l);
-            case NullLiteralExpression ignored -> NullType.INSTANCE;
-            case ThisExpression t -> typeOfThis(t);
-            case VariableExpression v -> typeOfVariable(v);
-            case AssignmentExpression a -> typeOfAssignment(a);
-            case BinaryExpression b -> typeOfBinary(b);
-            case UnaryExpression u -> typeOfUnary(u);
-            case MethodCallExpression m -> typeOfCall(m);
-            case PrintlnExpression p -> typeOfPrintln(p);
-            case GroupingExpression g -> analyzeExpression(g.expression());
-            case NewObjectExpression n -> typeOfNew(n);
-            case FieldAccessExpression f -> typeOfFieldAccess(f);
-            case NewArrayExpression n -> typeOfNewArray(n);
-            case ArrayAccessExpression a -> typeOfArrayAccess(a);
-            case InstanceOfExpression i -> typeOfInstanceOf(i);
-            case CastExpression c -> typeOfCast(c);
-            case GcCollectExpression ignored -> VoidType.INSTANCE;
-            case NativeNullExpression n -> {
-                provenances.put(n, PointerProvenance.NULL);
-                yield NativePtrType.VOID;
-            }
-        };
-        expressionTypes.put(expr, type);
-        return type;
+        return analyzeExpression(expr, null);
+    }
+
+    private JType analyzeExpression(Expression expr, JType expected) {
+        JType prevExpected = expectedSamType;
+        if (expected != null) {
+            expectedSamType = expected;
+        }
+        try {
+            JType type = switch (expr) {
+                case LiteralExpression l -> typeOfLiteral(l);
+                case NullLiteralExpression ignored -> NullType.INSTANCE;
+                case ThisExpression t -> typeOfThis(t);
+                case VariableExpression v -> typeOfVariable(v);
+                case AssignmentExpression a -> typeOfAssignment(a);
+                case BinaryExpression b -> typeOfBinary(b);
+                case UnaryExpression u -> typeOfUnary(u);
+                case MethodCallExpression m -> typeOfCall(m);
+                case PrintlnExpression p -> typeOfPrintln(p);
+                case GroupingExpression g -> analyzeExpression(g.expression());
+                case NewObjectExpression n -> typeOfNew(n);
+                case FieldAccessExpression f -> typeOfFieldAccess(f);
+                case NewArrayExpression n -> typeOfNewArray(n);
+                case ArrayAccessExpression a -> typeOfArrayAccess(a);
+                case InstanceOfExpression i -> typeOfInstanceOf(i);
+                case CastExpression c -> typeOfCast(c);
+                case GcCollectExpression ignored -> VoidType.INSTANCE;
+                case NativeNullExpression n -> {
+                    provenances.put(n, PointerProvenance.NULL);
+                    yield NativePtrType.VOID;
+                }
+                case LambdaExpression l -> typeOfLambda(l);
+                case MethodReferenceExpression r -> typeOfMethodReference(r);
+            };
+            expressionTypes.put(expr, type);
+            return type;
+        } finally {
+            expectedSamType = prevExpected;
+        }
     }
 
     private JType typeOfLiteral(LiteralExpression l) {
@@ -1510,6 +1660,14 @@ public final class SemanticAnalyzer {
         if (symbol.isPresent() && symbol.get() instanceof Symbol.VariableBinding vb) {
             resolvedSymbols.put(v, vb.variable());
             VariableSymbol vs = vb.variable();
+            if (inLambdaBody && lambdaBodyScope != null && !isLambdaLocalSymbol(vs)) {
+                lambdaCapturedVars.add(vs);
+                vs.setCapturedByLambda(true);
+                if (vs.isAssignedAfterInit()) {
+                    reporter.error(v.location(),
+                            "local variable '" + v.name() + "' must be effectively final");
+                }
+            }
             if (vs.type() instanceof NativePtrType) {
                 provenances.put(v, vs.provenance());
             }
@@ -1541,7 +1699,7 @@ public final class SemanticAnalyzer {
 
     private JType typeOfAssignment(AssignmentExpression a) {
         JType targetType = analyzeExpression(a.target());
-        JType valueType = analyzeExpression(a.value());
+        JType valueType = analyzeExpression(a.value(), samExpectedType(targetType));
 
         if (!(a.target() instanceof VariableExpression)
                 && !(a.target() instanceof FieldAccessExpression)
@@ -1571,6 +1729,16 @@ public final class SemanticAnalyzer {
                 }
             }
             provenances.put(a, prov);
+        }
+        if (a.target() instanceof VariableExpression ve) {
+            Object sym = resolvedSymbols.get(ve);
+            if (sym instanceof VariableSymbol vs) {
+                vs.setAssignedAfterInit(true);
+                if (vs.isCapturedByLambda()) {
+                    reporter.error(a.location(),
+                            "local variable '" + vs.name() + "' must be effectively final");
+                }
+            }
         }
         return targetType;
     }
@@ -1677,9 +1845,6 @@ public final class SemanticAnalyzer {
         if (m.receiver() instanceof VariableExpression nv && "Native".equals(nv.name())) {
             return typeOfNativeBuiltin(m);
         }
-        for (Expression arg : m.arguments()) {
-            analyzeExpression(arg);
-        }
         if (m.receiver() instanceof VariableExpression v && classes.containsKey(v.name())) {
             ClassSymbol cls = classes.get(v.name());
             Optional<MethodSymbol> method = cls.findMethod(m.name());
@@ -1774,11 +1939,21 @@ public final class SemanticAnalyzer {
         }
         int n = Math.min(args.size(), expected.size());
         for (int i = 0; i < n; i++) {
-            JType actual = expressionTypes.getOrDefault(args.get(i), ErrorType.INSTANCE);
-            if (!expected.get(i).isAssignableFrom(actual)) {
+            JType exp = expected.get(i);
+            JType actual = analyzeExpression(args.get(i), samExpectedType(exp));
+            if (exp instanceof NativePtrType && actual instanceof NativeFunctionPtrType) {
+                // C ABI: function pointers pass as void*.
+                continue;
+            }
+            if (exp instanceof NativeFunctionPtrType expFn && actual instanceof NativeFunctionPtrType actFn) {
+                if (expFn.isAssignableFrom(actFn)) {
+                    continue;
+                }
+            }
+            if (!exp.isAssignableFrom(actual)) {
                 reporter.error(args.get(i).location(),
                         "argument " + (i + 1) + ": " + actual
-                                + " cannot be converted to " + expected.get(i));
+                                + " cannot be converted to " + exp);
             }
             // STACK provenance args are OK for native / FFI calls (non-capturing contract).
         }
@@ -1815,12 +1990,292 @@ public final class SemanticAnalyzer {
             case "loadInt" -> typeOfNativeLoadInt(m);
             case "storeInt" -> typeOfNativeStoreInt(m);
             case "allocate" -> typeOfNativeAllocate(m);
+            case "callback" -> typeOfNativeCallback(m);
             default -> {
                 reporter.error(m.location(),
                         "undefined method '" + m.name() + "' in class 'Native'");
                 yield ErrorType.INSTANCE;
             }
         };
+    }
+
+    private JType typeOfNativeCallback(MethodCallExpression m) {
+        if (m.arguments().size() != 1) {
+            reporter.error(m.location(),
+                    "method 'callback' expects 1 argument(s) but got " + m.arguments().size());
+            return ErrorType.INSTANCE;
+        }
+        Expression arg = m.arguments().getFirst();
+        JType expectedSam = null;
+        if (arg instanceof LambdaExpression lambda) {
+            expectedSam = inferSamTypeForNativeCallback(lambda);
+        } else if (arg instanceof VariableExpression ve) {
+            Optional<Symbol> sym = current.resolve(ve.name());
+            if (sym.isPresent() && sym.get() instanceof Symbol.VariableBinding vb) {
+                JType vt = vb.variable().type();
+                if (vt instanceof ClassType ct && ct.classSymbol().functionType() != null) {
+                    expectedSam = vt;
+                }
+            }
+        }
+        JType argType = analyzeExpression(arg, expectedSam);
+        if (!(argType instanceof ClassType ct) || ct.classSymbol().functionType() == null) {
+            if (!(argType instanceof ErrorType)) {
+                reporter.error(arg.location(), "Native.callback requires a SAM callable");
+            }
+            return ErrorType.INSTANCE;
+        }
+        CallableBinding binding = callableBindings.get(arg);
+        if (binding != null && binding.hasEnv()) {
+            reporter.error(arg.location(), "Native.callback does not support capturing lambdas");
+            return ErrorType.INSTANCE;
+        }
+        FunctionType ft = ct.classSymbol().functionType();
+        int id = callbackCounter++;
+        String trampoline = "_JN_cb_" + id;
+        String invokeRuntime = ct.classSymbol().findMethod(samMethodName(ct.classSymbol()))
+                .orElseThrow()
+                .samInvokeRuntime();
+        resolvedSymbols.put(m, new NativeCallbackSite(trampoline, invokeRuntime, id, ft));
+        return nativeCallbackHandleClass.asType();
+    }
+
+    private JType inferSamTypeForNativeCallback(LambdaExpression lambda) {
+        int n = lambda.parameters().size();
+        if (n == 0) {
+            return classes.get("Runnable").asType();
+        }
+        if (n == 1) {
+            return classes.get("IntUnaryFunction").asType();
+        }
+        if (n == 2) {
+            boolean pointers = lambda.parameters().stream()
+                    .map(LambdaParameter::type)
+                    .filter(Objects::nonNull)
+                    .anyMatch(t -> {
+                        JType resolved = resolveTypeName(t, false, lambda.location());
+                        return resolved instanceof NativePtrType;
+                    });
+            return classes.get(pointers ? "IntCompare" : "IntBinaryFunction").asType();
+        }
+        return null;
+    }
+
+    private boolean isLambdaLocalSymbol(VariableSymbol vs) {
+        if (lambdaBodyScope == null) {
+            return false;
+        }
+        Optional<Symbol> sym = lambdaBodyScope.resolveLocal(vs.name());
+        return sym.isPresent() && sym.get() instanceof Symbol.VariableBinding vb
+                && vb.variable() == vs;
+    }
+
+    private JType typeOfLambda(LambdaExpression lambda) {
+        if (!(expectedSamType instanceof ClassType samCt) || samCt.classSymbol().functionType() == null) {
+            reporter.error(lambda.location(), "cannot infer lambda type; expected SAM type");
+            return ErrorType.INSTANCE;
+        }
+        ClassSymbol samClass = samCt.classSymbol();
+        FunctionType expected = samClass.functionType();
+        if (lambda.parameters().size() != expected.parameterTypes().size()) {
+            reporter.error(lambda.location(),
+                    "lambda parameter count mismatch: expected "
+                            + expected.parameterTypes().size() + " but got "
+                            + lambda.parameters().size());
+            return ErrorType.INSTANCE;
+        }
+
+        Scope outer = current;
+        current = new Scope(outer);
+        lambdaBodyScope = current;
+        lambdaCapturedVars.clear();
+        inLambdaBody = true;
+        List<VariableSymbol> paramSymbols = new ArrayList<>();
+        try {
+            for (int i = 0; i < lambda.parameters().size(); i++) {
+                LambdaParameter p = lambda.parameters().get(i);
+                JType pType = expected.parameterTypes().get(i);
+                if (p.type() != null) {
+                    JType explicit = resolveTypeName(p.type(), p.isArray(), p.location());
+                    if (!pType.isAssignableFrom(explicit) && !explicit.isAssignableFrom(pType)) {
+                        reporter.error(p.location(),
+                                "lambda parameter type mismatch: expected " + pType + " but got " + explicit);
+                    }
+                    pType = explicit;
+                }
+                VariableSymbol vs = new VariableSymbol(
+                        p.name(), pType, VariableSymbol.Kind.PARAMETER, p.location());
+                if (!current.declare(new Symbol.VariableBinding(vs))) {
+                    reporter.error(p.location(), "duplicate lambda parameter '" + p.name() + "'");
+                }
+                paramSymbols.add(vs);
+            }
+            if (lambda.isBlock()) {
+                for (Statement stmt : lambda.blockBody().statements()) {
+                    analyzeStatement(stmt);
+                }
+            } else {
+                JType bodyType = analyzeExpression(lambda.expressionBody());
+                if (!expected.returnType().isAssignableFrom(bodyType)
+                        && !(expected.returnType() instanceof VoidType)) {
+                    if (!(bodyType instanceof ErrorType)) {
+                        reporter.error(lambda.expressionBody().location(),
+                                "lambda body type " + bodyType + " incompatible with "
+                                        + expected.returnType());
+                    }
+                }
+            }
+        } finally {
+            inLambdaBody = false;
+            lambdaBodyScope = null;
+            current = outer;
+        }
+
+        ClassSymbol envClass = null;
+        List<ClosureCapture> captures = List.of();
+        if (!lambdaCapturedVars.isEmpty()) {
+            String envName = "__jn.Env." + (envClassCounter++);
+            envClass = new ClassSymbol(envName, lambda.location(), true);
+            envClass.setSuperClass(objectClass);
+            int idx = 0;
+            List<ClosureCapture> capList = new ArrayList<>();
+            for (VariableSymbol vs : lambdaCapturedVars) {
+                String fieldName = "c" + idx;
+                envClass.addField(new FieldSymbol(
+                        envClass, fieldName, vs.type(), idx, lambda.location()));
+                capList.add(new ClosureCapture(vs, fieldName, vs.type(), vs.type().isReference()));
+                idx++;
+            }
+            envClass.setLayout(ObjectLayoutBuilder.build(envClass));
+            envClass.setVtable(new io.jnative.vtable.VTable(envClass, List.of()));
+            classes.put(envName, envClass);
+            captures = List.copyOf(capList);
+        }
+
+        String codeSymbol = "_JN_lambda_" + (lambdaCounter++);
+        String invokeRuntime = samClass.findMethod(samMethodName(samClass)).orElseThrow().samInvokeRuntime();
+        CallableBinding binding = new CallableBinding(
+                samClass,
+                codeSymbol,
+                envClass,
+                captures,
+                FunctionEffects.unknown(),
+                false,
+                false,
+                null,
+                invokeRuntime,
+                lambda.expressionBody(),
+                lambda.blockBody(),
+                lambda.parameters(),
+                null,
+                null);
+        callableBindings.put(lambda, binding);
+        return samClass.asType();
+    }
+
+    private static String samMethodName(ClassSymbol sam) {
+        return switch (sam.name()) {
+            case "Runnable" -> "run";
+            case "Consumer" -> "accept";
+            case "IntCompare" -> "compare";
+            case "HttpHandler" -> "handle";
+            default -> "apply";
+        };
+    }
+
+    private JType typeOfMethodReference(MethodReferenceExpression ref) {
+        if (!(expectedSamType instanceof ClassType samCt) || samCt.classSymbol().functionType() == null) {
+            reporter.error(ref.location(), "cannot infer method reference type; expected SAM type");
+            return ErrorType.INSTANCE;
+        }
+        ClassSymbol samClass = samCt.classSymbol();
+        FunctionType expected = samClass.functionType();
+        String samMethod = samMethodName(samClass);
+
+        if (ref.typeName() != null) {
+            ClassSymbol cls = classes.get(ref.typeName().name());
+            if (cls == null) {
+                reporter.error(ref.location(), "unknown type '" + ref.typeName().name() + "'");
+                return ErrorType.INSTANCE;
+            }
+            Optional<MethodSymbol> method = cls.findMethod(ref.methodName());
+            if (method.isEmpty() || !method.get().isStatic()) {
+                reporter.error(ref.location(),
+                        "static method '" + ref.methodName() + "' not found on " + cls.name());
+                return ErrorType.INSTANCE;
+            }
+            if (!methodMatchesSam(method.get(), expected)) {
+                reporter.error(ref.location(), "method '" + ref.methodName() + "' incompatible with SAM");
+                return ErrorType.INSTANCE;
+            }
+            String codeSymbol = "_JN_thunk_static_" + cls.name() + "_" + ref.methodName();
+            CallableBinding binding = new CallableBinding(
+                    samClass, codeSymbol, null, List.of(), FunctionEffects.unknown(),
+                    false, false, null,
+                    samClass.findMethod(samMethod).orElseThrow().samInvokeRuntime(),
+                    null, null, List.of(),
+                    method.get(), null);
+            callableBindings.put(ref, binding);
+            return samClass.asType();
+        }
+
+        JType recvType = analyzeExpression(ref.receiver());
+        if (!(recvType instanceof ClassType ct)) {
+            if (!(recvType instanceof ErrorType)) {
+                reporter.error(ref.location(), "method reference requires instance of reference type");
+            }
+            return ErrorType.INSTANCE;
+        }
+        Optional<MethodSymbol> method = ct.classSymbol().findMethod(ref.methodName());
+        if (method.isEmpty() || method.get().isStatic()) {
+            reporter.error(ref.location(),
+                    "instance method '" + ref.methodName() + "' not found on " + ct.name());
+            return ErrorType.INSTANCE;
+        }
+        if (!methodMatchesSam(method.get(), expected)) {
+            reporter.error(ref.location(), "method '" + ref.methodName() + "' incompatible with SAM");
+            return ErrorType.INSTANCE;
+        }
+        String codeSymbol = "_JN_thunk_bound_" + ct.name() + "_" + ref.methodName();
+        // Bound instance method refs always use virtual dispatch when the method is virtual,
+        // so Animal a = new Dog(); a::speak invokes Dog.speak.
+        boolean virtualDispatch = method.get().isVirtual();
+        CallableBinding binding = new CallableBinding(
+                samClass, codeSymbol, null, List.of(), FunctionEffects.unknown(),
+                false, virtualDispatch, ct,
+                samClass.findMethod(samMethod).orElseThrow().samInvokeRuntime(),
+                null, null, List.of(),
+                method.get(), ref.receiver());
+        callableBindings.put(ref, binding);
+        return samClass.asType();
+    }
+
+    private boolean hasSubclassOverride(ClassSymbol staticReceiver, MethodSymbol method) {
+        for (ClassSymbol cls : classes.values()) {
+            if (cls == staticReceiver || !cls.isSubtypeOf(staticReceiver)) {
+                continue;
+            }
+            Optional<MethodSymbol> m = cls.findMethod(method.name());
+            if (m.isPresent() && m.get().overrides() != null) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private boolean methodMatchesSam(MethodSymbol method, FunctionType expected) {
+        if (method.parameterTypes().size() != expected.parameterTypes().size()) {
+            return false;
+        }
+        for (int i = 0; i < expected.parameterTypes().size(); i++) {
+            JType exp = expected.parameterTypes().get(i);
+            JType act = method.parameterTypes().get(i);
+            if (!exp.isAssignableFrom(act) && !act.isAssignableFrom(exp)) {
+                return false;
+            }
+        }
+        return expected.returnType().isAssignableFrom(method.returnType())
+                || method.returnType().isAssignableFrom(expected.returnType());
     }
 
     private JType typeOfNativeAddressOf(MethodCallExpression m) {
@@ -1947,9 +2402,20 @@ public final class SemanticAnalyzer {
             reporter.error(n.location(), "cannot instantiate builtin type '" + n.className() + "'");
             return ErrorType.INSTANCE;
         }
+        List<ConstructorSymbol> byArity = symbol.constructors().stream()
+                .filter(c -> c.parameters().size() == n.arguments().size())
+                .toList();
         List<JType> argTypes = new ArrayList<>();
-        for (Expression arg : n.arguments()) {
-            argTypes.add(analyzeExpression(arg));
+        if (byArity.size() == 1) {
+            ConstructorSymbol only = byArity.getFirst();
+            for (int i = 0; i < n.arguments().size(); i++) {
+                argTypes.add(analyzeExpression(
+                        n.arguments().get(i), samExpectedType(only.parameters().get(i).type())));
+            }
+        } else {
+            for (Expression arg : n.arguments()) {
+                argTypes.add(analyzeExpression(arg));
+            }
         }
         List<CallableResolver.Candidate> candidates = new ArrayList<>();
         for (ConstructorSymbol c : symbol.constructors()) {

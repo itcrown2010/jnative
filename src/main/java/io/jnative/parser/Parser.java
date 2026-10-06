@@ -76,6 +76,14 @@ public final class Parser {
         knownClassNames.add("AtomicInt");
         knownClassNames.add("AtomicLong");
         knownClassNames.add("AtomicBool");
+        knownClassNames.add("Runnable");
+        knownClassNames.add("Consumer");
+        knownClassNames.add("IntUnaryFunction");
+        knownClassNames.add("IntBinaryFunction");
+        knownClassNames.add("IntFunction");
+        knownClassNames.add("IntCompare");
+        knownClassNames.add("HttpHandler");
+        knownClassNames.add("NativeCallbackHandle");
         int saved = current;
         current = 0;
         while (!isAtEnd()) {
@@ -158,10 +166,16 @@ public final class Parser {
                                   List<MethodDeclaration> methods,
                                   boolean nativeStruct) {
         NativeAnnotation nativeAnnotation = null;
-        if (check(TokenType.AT)) {
+        EffectContract effectContract = EffectContract.empty(peek().location());
+        while (check(TokenType.AT)) {
             ParsedAnnotation ann = parseAnnotation();
             if ("Native".equals(ann.name())) {
+                if (nativeAnnotation != null) {
+                    reporter.error(ann.location(), "duplicate @Native");
+                }
                 nativeAnnotation = ann.nativeAnnotation();
+            } else if (ann.effectContract() != null) {
+                effectContract = effectContract.merge(ann.effectContract());
             } else {
                 reporter.error(ann.location(),
                         "@" + ann.name() + " is not allowed on class members");
@@ -198,7 +212,7 @@ public final class Parser {
             BlockStatement body = parseBlock();
             methods.add(new MethodDeclaration(
                     true, false, false, true, TypeName.ofVoid(name.location()), false,
-                    className, params, body, null, name.location()));
+                    className, params, body, null, effectContract, name.location()));
             return;
         }
 
@@ -236,7 +250,7 @@ public final class Parser {
             }
             methods.add(new MethodDeclaration(
                     true, isStatic, isNative, false, type, isArray, name.lexeme(), params, body,
-                    nativeAnnotation, name.location()));
+                    nativeAnnotation, effectContract, name.location()));
             return;
         }
 
@@ -254,14 +268,19 @@ public final class Parser {
     }
 
     /**
-     * Parsed {@code @Native}, {@code @NativeStruct}, or {@code @Stack}.
-     * {@code nativeAnnotation} is non-null only for {@code @Native}.
+     * Parsed annotation. Exactly one of {@code nativeAnnotation} / {@code effectContract}
+     * may be set (or neither for NativeStruct/Stack).
      */
     private record ParsedAnnotation(
             String name,
             NativeAnnotation nativeAnnotation,
+            EffectContract effectContract,
             io.jnative.diagnostics.SourceLocation location
     ) {
+        ParsedAnnotation(String name, NativeAnnotation nativeAnnotation,
+                         io.jnative.diagnostics.SourceLocation location) {
+            this(name, nativeAnnotation, null, location);
+        }
     }
 
     private ParsedAnnotation parseAnnotation() {
@@ -271,13 +290,14 @@ public final class Parser {
         if (annName.equals("Native")) {
             java.util.Optional<String> symbol = java.util.Optional.empty();
             java.util.Optional<String> library = java.util.Optional.empty();
+            java.util.Optional<String> effects = java.util.Optional.empty();
             if (match(TokenType.LPAREN)) {
                 if (!check(TokenType.RPAREN)) {
                     do {
                         Token key = consume(TokenType.IDENTIFIER, "expected annotation attribute");
                         consume(TokenType.ASSIGN, "expected '=' in annotation");
-                        if (!check(TokenType.STRING_LITERAL)) {
-                            throw error(peek(), "annotation attribute value must be a string literal");
+                        if (!check(TokenType.STRING_LITERAL) && !check(TokenType.IDENTIFIER)) {
+                            throw error(peek(), "annotation attribute value must be a string or identifier");
                         }
                         Token value = advance();
                         String lit = value.lexeme();
@@ -285,6 +305,8 @@ public final class Parser {
                             symbol = java.util.Optional.of(lit);
                         } else if (key.lexeme().equals("library")) {
                             library = java.util.Optional.of(lit);
+                        } else if (key.lexeme().equals("effects")) {
+                            effects = java.util.Optional.of(lit);
                         } else {
                             reporter.error(key.location(),
                                     "unknown @Native attribute '" + key.lexeme() + "'");
@@ -294,7 +316,31 @@ public final class Parser {
                 consume(TokenType.RPAREN, "expected ')' after @Native attributes");
             }
             return new ParsedAnnotation(
-                    "Native", new NativeAnnotation(symbol, library, at.location()), at.location());
+                    "Native",
+                    new NativeAnnotation(symbol, library, effects, at.location()),
+                    null,
+                    at.location());
+        }
+        if (annName.equals("NoGC") || annName.equals("NoThrow") || annName.equals("NoBlock")
+                || annName.equals("Deterministic") || annName.equals("RealtimeSafe")) {
+            if (match(TokenType.LPAREN)) {
+                if (!check(TokenType.RPAREN)) {
+                    reporter.error(peek().location(),
+                            "@" + annName + " does not take attributes");
+                    while (!check(TokenType.RPAREN) && !isAtEnd()) {
+                        advance();
+                    }
+                }
+                consume(TokenType.RPAREN, "expected ')' after @" + annName);
+            }
+            boolean det = annName.equals("Deterministic") || annName.equals("RealtimeSafe");
+            EffectContract ec = new EffectContract(
+                    annName.equals("NoGC") || det,
+                    annName.equals("NoThrow") || det,
+                    annName.equals("NoBlock") || det,
+                    det,
+                    at.location());
+            return new ParsedAnnotation(annName, null, ec, at.location());
         }
         if (annName.equals("NativeStruct") || annName.equals("Stack")) {
             if (match(TokenType.LPAREN)) {
@@ -307,7 +353,7 @@ public final class Parser {
                 }
                 consume(TokenType.RPAREN, "expected ')' after @" + annName);
             }
-            return new ParsedAnnotation(annName, null, at.location());
+            return new ParsedAnnotation(annName, null, null, at.location());
         }
         throw error(name, "unknown annotation '@" + annName + "'");
     }
@@ -874,6 +920,17 @@ public final class Parser {
                 expr = new AssignmentExpression(expr, rhs, op.location());
                 continue;
             }
+            if (match(TokenType.COLON_COLON)) {
+                Token methodTok = consume(TokenType.IDENTIFIER, "expected method name after '::'");
+                if (expr instanceof VariableExpression v && knownClassNames.contains(v.name())) {
+                    expr = new MethodReferenceExpression(
+                            TypeName.ofClass(v.name(), v.location()), null, methodTok.lexeme(),
+                            methodTok.location());
+                } else {
+                    expr = new MethodReferenceExpression(null, expr, methodTok.lexeme(), methodTok.location());
+                }
+                continue;
+            }
             break;
         }
         return expr;
@@ -924,6 +981,12 @@ public final class Parser {
             consume(TokenType.RPAREN, "expected ')' after cast type");
             Expression operand = parseUnary();
             return new CastExpression(type, operand, lparen.location());
+        }
+        if (check(TokenType.IDENTIFIER) && isLambdaAhead()) {
+            return parseLambda();
+        }
+        if (check(TokenType.LPAREN) && isLambdaAhead()) {
+            return parseLambda();
         }
         if (match(TokenType.LPAREN)) {
             Token lparen = previous();
@@ -1015,6 +1078,101 @@ public final class Parser {
             case MINUS, PLUS -> primitive;
             default -> false;
         };
+    }
+
+    /**
+     * Lookahead for {@code id -> ...} or {@code (a, b) -> ...} without consuming tokens.
+     */
+    private boolean isLambdaAhead() {
+        int saved = current;
+        try {
+            if (check(TokenType.IDENTIFIER)) {
+                advance();
+                return check(TokenType.ARROW);
+            }
+            if (check(TokenType.LPAREN)) {
+                advance();
+                if (check(TokenType.RPAREN)) {
+                    advance();
+                    return check(TokenType.ARROW);
+                }
+                if (!check(TokenType.IDENTIFIER)) {
+                    return false;
+                }
+                do {
+                    advance(); // param name
+                    if (check(TokenType.IDENTIFIER) && knownClassNames.contains(peek().lexeme())) {
+                        // typed param: Type name
+                        advance();
+                        if (match(TokenType.LBRACKET)) {
+                            consume(TokenType.RBRACKET, "expected ']'");
+                        }
+                    } else if (isPrimitiveTypeToken(peek())) {
+                        advance();
+                        if (match(TokenType.LBRACKET)) {
+                            consume(TokenType.RBRACKET, "expected ']'");
+                        }
+                    }
+                } while (match(TokenType.COMMA));
+                if (!check(TokenType.RPAREN)) {
+                    return false;
+                }
+                advance();
+                return check(TokenType.ARROW);
+            }
+            return false;
+        } finally {
+            current = saved;
+        }
+    }
+
+    private LambdaExpression parseLambda() {
+        Token start = peek();
+        List<LambdaParameter> params = new ArrayList<>();
+        if (check(TokenType.IDENTIFIER)) {
+            Token id = advance();
+            params.add(new LambdaParameter(id.lexeme(), id.location()));
+        } else {
+            consume(TokenType.LPAREN, "expected '(' in lambda");
+            if (!check(TokenType.RPAREN)) {
+                do {
+                    TypeName type = null;
+                    boolean isArray = false;
+                    if (isPrimitiveTypeToken(peek())
+                            || (check(TokenType.IDENTIFIER) && !checkNext(TokenType.COMMA)
+                            && !checkNext(TokenType.RPAREN))) {
+                        if (check(TokenType.IDENTIFIER) && !isPrimitiveTypeToken(peek())
+                                && !knownClassNames.contains(peek().lexeme())
+                                && checkNext(TokenType.IDENTIFIER)) {
+                            // single identifier param without type — handled below
+                        } else if (isPrimitiveTypeToken(peek())
+                                || (check(TokenType.IDENTIFIER) && knownClassNames.contains(peek().lexeme()))) {
+                            type = parseType();
+                            if (match(TokenType.LBRACKET)) {
+                                consume(TokenType.RBRACKET, "expected ']'");
+                                isArray = true;
+                            }
+                        }
+                    }
+                    Token name = consume(TokenType.IDENTIFIER, "expected lambda parameter name");
+                    if (!isArray && match(TokenType.LBRACKET)) {
+                        consume(TokenType.RBRACKET, "expected ']'");
+                        isArray = true;
+                    }
+                    params.add(new LambdaParameter(type, isArray, name.lexeme(), name.location()));
+                } while (match(TokenType.COMMA));
+            }
+            consume(TokenType.RPAREN, "expected ')' after lambda parameters");
+        }
+        consume(TokenType.ARROW, "expected '->' in lambda");
+        Expression expressionBody = null;
+        BlockStatement blockBody = null;
+        if (check(TokenType.LBRACE)) {
+            blockBody = parseBlock();
+        } else {
+            expressionBody = parseExpression();
+        }
+        return new LambdaExpression(params, expressionBody, blockBody, start.location());
     }
 
     private List<Expression> parseArgumentList() {

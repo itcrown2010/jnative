@@ -107,6 +107,19 @@ public final class IrModule {
         functions.add(function);
     }
 
+    public void removeFunctions(java.util.Collection<String> names) {
+        functions.removeIf(f -> names.contains(f.name()));
+    }
+
+    public IrFunction findFunction(String name) {
+        for (IrFunction f : functions) {
+            if (f.name().equals(name)) {
+                return f;
+            }
+        }
+        return null;
+    }
+
     public IrValue.GlobalString addString(String content) {
         String symbol = "str." + strings.size();
         IrValue.GlobalString gs = new IrValue.GlobalString(symbol, content);

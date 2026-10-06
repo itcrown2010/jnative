@@ -24,6 +24,7 @@ public final class RuntimeEmitter {
         new FileRuntimeEmitter(sb).emit();
         new NetworkRuntimeEmitter(sb).emit();
         new ThreadRuntimeEmitter(sb).emit();
+        new CallableRuntimeEmitter(sb).emit();
     }
 
     private void emitDeclarations() {
@@ -35,10 +36,14 @@ public final class RuntimeEmitter {
         sb.append("declare i32 @printf(ptr noundef, ...)\n");
         sb.append("declare i32 @puts(ptr noundef)\n");
         sb.append("declare void @exit(i32 noundef)\n");
+        sb.append("declare void @abort()\n");
         sb.append("declare i64 @strlen(ptr noundef)\n");
         sb.append("declare ptr @getenv(ptr noundef)\n");
         sb.append("declare i64 @atol(ptr noundef)\n");
         sb.append("declare i32 @atexit(ptr noundef)\n");
+        sb.append("declare void @jn_nogc_enter()\n");
+        sb.append("declare void @jn_nogc_leave()\n");
+        sb.append("declare i32 @jn_nogc_depth()\n");
         // libc file I/O (platform layer for 0.8.1; File API does not expose FILE*)
         sb.append("declare ptr @fopen(ptr noundef, ptr noundef)\n");
         sb.append("declare i32 @fclose(ptr noundef)\n");

@@ -17,6 +17,10 @@ typedef struct JNThreadState JNThreadState;
 
 void jn_mt_init(void);
 void jn_thread_attach_main(void);
+/** Returns 1 if newly attached, 0 if already attached. */
+int jn_thread_attach_foreign(void);
+/** Detaches only if this thread was foreign-attached. */
+void jn_thread_detach_foreign(void);
 
 JNThreadState *jn_thread_current(void);
 int64_t jn_thread_id(void);
@@ -38,6 +42,11 @@ void jn_tls_set_ex_return_value(int64_t v);
 void jn_safepoint_poll(void);
 void jn_enter_native(void);
 void jn_leave_native(void);
+
+/** @NoGC region depth — managed allocation aborts when > 0. */
+void jn_nogc_enter(void);
+void jn_nogc_leave(void);
+int jn_nogc_depth(void);
 
 void jn_heap_lock(void);
 void jn_heap_unlock(void);

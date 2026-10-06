@@ -16,6 +16,8 @@ public final class VariableSymbol {
     private final SourceLocation location;
     private final boolean stackAllocated;
     private PointerProvenance provenance = PointerProvenance.UNKNOWN;
+    private boolean assignedAfterInit;
+    private boolean capturedByLambda;
 
     public VariableSymbol(String name, JType type, Kind kind, SourceLocation location) {
         this(name, type, kind, location, false);
@@ -66,5 +68,21 @@ public final class VariableSymbol {
 
     public void setProvenance(PointerProvenance provenance) {
         this.provenance = provenance;
+    }
+
+    public boolean isAssignedAfterInit() {
+        return assignedAfterInit;
+    }
+
+    public void setAssignedAfterInit(boolean assignedAfterInit) {
+        this.assignedAfterInit = assignedAfterInit;
+    }
+
+    public boolean isCapturedByLambda() {
+        return capturedByLambda;
+    }
+
+    public void setCapturedByLambda(boolean capturedByLambda) {
+        this.capturedByLambda = capturedByLambda;
     }
 }

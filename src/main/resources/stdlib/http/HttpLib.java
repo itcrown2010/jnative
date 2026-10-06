@@ -997,6 +997,8 @@ class HttpConnection {
 
 class HttpServer {
     TcpServer server;
+    String rootPath;
+    HttpHandler rootHandler;
 
     static HttpServer listen(String host, int port) {
         HttpServer s = new HttpServer();
@@ -1008,6 +1010,23 @@ class HttpServer {
         HttpServer s = new HttpServer();
         s.server = TcpServer.listenAny(port);
         return s;
+    }
+
+    void get(String path, HttpHandler handler) {
+        rootPath = path;
+        rootHandler = handler;
+    }
+
+    void serveOne() {
+        HttpConnection conn = accept();
+        HttpServerRequest req = conn.readRequest();
+        if (rootHandler != null && req.path().equals(rootPath)) {
+            Object result = rootHandler.handle(req);
+            HttpResponse resp = (HttpResponse) result;
+            conn.send(resp);
+        } else {
+            conn.send(HttpResponse.textStatus(404, "Not Found"));
+        }
     }
 
     HttpConnection accept() {

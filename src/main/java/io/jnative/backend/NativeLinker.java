@@ -44,7 +44,18 @@ public final class NativeLinker {
             Collection<Path> libraryPaths,
             Collection<Path> extraSources
     ) {
-        List<String> command = new ArrayList<>(toolchain.linkCommand(llFile, output));
+        return link(llFile, output, libraries, libraryPaths, extraSources, 2);
+    }
+
+    public LinkResult link(
+            Path llFile,
+            Path output,
+            Collection<String> libraries,
+            Collection<Path> libraryPaths,
+            Collection<Path> extraSources,
+            int optLevel
+    ) {
+        List<String> command = new ArrayList<>(toolchain.linkCommand(llFile, output, optLevel));
         // Insert extra C sources before -o so clang compiles and links them.
         int oIndex = command.indexOf("-o");
         if (oIndex < 0) {

@@ -11,11 +11,20 @@ public final class CompilerOptions {
     private boolean emitIr;
     private boolean emitLlvm;
     private boolean emitLayout;
+    private boolean emitEffects;
+    private int optLevel = 2;
+    private boolean emitIrBeforeOpt;
+    private boolean emitIrAfterOpt;
+    private boolean optReport;
+    private boolean emitEscapeAnalysis;
+    private boolean explainOpt;
+    private boolean verifyIr;
     private boolean keepTemps;
     private boolean help;
     private boolean version;
     private final List<Path> libraryPaths = new ArrayList<>();
     private final List<String> linkLibraries = new ArrayList<>();
+    private final List<Path> extraNativeSources = new ArrayList<>();
 
     public Path sourceFile() {
         return sourceFile;
@@ -65,6 +74,14 @@ public final class CompilerOptions {
         this.emitLayout = emitLayout;
     }
 
+    public boolean emitEffects() {
+        return emitEffects;
+    }
+
+    public void setEmitEffects(boolean emitEffects) {
+        this.emitEffects = emitEffects;
+    }
+
     public boolean keepTemps() {
         return keepTemps;
     }
@@ -105,7 +122,72 @@ public final class CompilerOptions {
         linkLibraries.add(lib);
     }
 
+    public List<Path> extraNativeSources() {
+        return extraNativeSources;
+    }
+
+    public void addExtraNativeSource(Path path) {
+        extraNativeSources.add(path);
+    }
+
+    public int optLevel() {
+        return optLevel;
+    }
+
+    public void setOptLevel(int optLevel) {
+        this.optLevel = Math.max(0, Math.min(3, optLevel));
+    }
+
+    public boolean emitIrBeforeOpt() {
+        return emitIrBeforeOpt;
+    }
+
+    public void setEmitIrBeforeOpt(boolean emitIrBeforeOpt) {
+        this.emitIrBeforeOpt = emitIrBeforeOpt;
+    }
+
+    public boolean emitIrAfterOpt() {
+        return emitIrAfterOpt;
+    }
+
+    public void setEmitIrAfterOpt(boolean emitIrAfterOpt) {
+        this.emitIrAfterOpt = emitIrAfterOpt;
+    }
+
+    public boolean optReport() {
+        return optReport;
+    }
+
+    public void setOptReport(boolean optReport) {
+        this.optReport = optReport;
+    }
+
+    public boolean emitEscapeAnalysis() {
+        return emitEscapeAnalysis;
+    }
+
+    public void setEmitEscapeAnalysis(boolean emitEscapeAnalysis) {
+        this.emitEscapeAnalysis = emitEscapeAnalysis;
+    }
+
+    public boolean explainOpt() {
+        return explainOpt;
+    }
+
+    public void setExplainOpt(boolean explainOpt) {
+        this.explainOpt = explainOpt;
+    }
+
+    public boolean verifyIr() {
+        return verifyIr;
+    }
+
+    public void setVerifyIr(boolean verifyIr) {
+        this.verifyIr = verifyIr;
+    }
+
     public boolean emitOnly() {
-        return emitAst || emitIr || emitLlvm || emitLayout;
+        return emitAst || emitIr || emitLlvm || emitLayout || emitEffects
+                || emitIrBeforeOpt || emitIrAfterOpt || optReport || emitEscapeAnalysis;
     }
 }

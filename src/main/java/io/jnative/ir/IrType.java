@@ -42,6 +42,8 @@ public enum IrType {
             case NativeStructType ignored -> NATIVE_PTR; // stack locals held as address
             case NullType ignored -> PTR;
             case ErrorType ignored -> I32;
+            case io.jnative.semantic.FunctionType ignored -> PTR;
+            case io.jnative.semantic.NativeFunctionPtrType ignored -> NATIVE_PTR;
         };
     }
 

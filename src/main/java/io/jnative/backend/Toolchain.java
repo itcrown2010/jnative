@@ -77,8 +77,13 @@ public final class Toolchain {
     }
 
     public List<String> linkCommand(Path llFile, Path output) {
+        return linkCommand(llFile, output, 2);
+    }
+
+    public List<String> linkCommand(Path llFile, Path output, int optLevel) {
         List<String> cmd = new ArrayList<>();
         cmd.add(clang.toString());
+        cmd.add("-O" + Math.max(0, Math.min(3, optLevel)));
         cmd.add(llFile.toAbsolutePath().toString());
         cmd.add("-o");
         cmd.add(output.toAbsolutePath().toString());

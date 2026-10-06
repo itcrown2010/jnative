@@ -3,11 +3,15 @@
 ```text
 .java
   → Lexer / Parser / AST
-  → Semantic (types, constructors, arrays, String, RTTI, exceptions)
-  → JNative IR (Throw, try CFG, GcCollect, PTR root allocas)
+  → Semantic (types, constructors, arrays, String, RTTI, exceptions, effects)
+  → High-Level IR
+  → Optimization Pipeline (escape, scalar, stack, CHA/devirt, inline, DCE, …)
+  → Optimized IR
   → LLVM (ClassMetadata, shadow stack, GC + exception runtime)
-  → clang → native executable
+  → clang -On → native executable
 ```
+
+See [optimizer.md](optimizer.md) and [jnative-0.12-build-report.md](jnative-0.12-build-report.md).
 
 ## Key packages
 
@@ -15,9 +19,13 @@
 - `layout` — object payload layout (ClassMetadata* header)
 - `backend.llvm.runtime` — Memory / Gc / **Exception** / Array / String / Type / Io emitters
 
-## GC (0.5)
+## Optimizer (0.12)
 
-Precise STW mark-sweep; Java refs point past a 24-byte `GcHeader`; roots via shadow stack of PTR alloca addresses. Exception current pointer is also a precise GC root.
+High-level IR passes in `io.jnative.opt` before LLVM: escape analysis, scalar replacement, managed stack allocation (with GC field roots), CHA/devirtualization, safe inlining, constprop/DCE, check/safepoint elimination, whole-program DCE. See [optimizer.md](optimizer.md).
+
+## GC (0.5 / 0.12 stack objects)
+
+Precise STW mark-sweep; Java refs point past a 24-byte `GcHeader`; roots via shadow stack of PTR alloca addresses **and** reference field slots of stack-managed objects. Exception current pointer is also a precise GC root.
 
 ## Exceptions (0.6)
 

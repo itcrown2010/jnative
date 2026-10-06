@@ -6,7 +6,7 @@ package io.jnative.semantic;
  */
 public sealed interface JType
         permits PrimitiveType, ClassType, ArrayType, NullType, VoidType, ErrorType,
-        NativePtrType, NativeStructType {
+        NativePtrType, NativeStructType, FunctionType, NativeFunctionPtrType {
 
     String displayName();
 

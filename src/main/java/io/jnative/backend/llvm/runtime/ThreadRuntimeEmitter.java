@@ -27,6 +27,7 @@ public final class ThreadRuntimeEmitter {
                 declare void @jn_mutex_destroy(ptr)
                 declare void @jn_mutex_lock(ptr)
                 declare void @jn_mutex_unlock(ptr)
+                declare i32 @jn_mutex_trylock(ptr)
                 declare i32 @jn_mutex_owner_check(ptr)
                 declare ptr @jn_cond_create()
                 declare void @jn_cond_destroy(ptr)
@@ -34,7 +35,7 @@ public final class ThreadRuntimeEmitter {
                 declare void @jn_cond_signal(ptr)
                 declare void @jn_cond_broadcast(ptr)
 
-                ; Thread object: { meta*, i64 nativeId, i32 started }
+                ; Thread object: { meta*, i64 nativeId, ptr target }
                 ; Mutex object: { meta*, ptr handle }
                 ; Condition object: { meta*, ptr handle }
                 ; AtomicInt: { meta*, i32 value }
@@ -102,7 +103,7 @@ public final class ThreadRuntimeEmitter {
                   %isnull = icmp eq ptr %obj0, null
                   br i1 %isnull, label %create, label %ret
                 create:
-                  %obj = call ptr @jnative_gc_alloc(i64 16)
+                  %obj = call ptr @jnative_gc_alloc(i64 24)
                   store ptr @meta.Thread, ptr %obj, align 8
                   %idp = getelementptr i8, ptr %obj, i64 8
                   %tid = call i64 @jn_thread_id()
@@ -155,6 +156,15 @@ public final class ThreadRuntimeEmitter {
                 go:
                   call void @jn_mutex_unlock(ptr %h)
                   ret void
+                }
+
+                define i1 @jnative_mutex_trylock(ptr %self) {
+                entry:
+                  %hp = getelementptr i8, ptr %self, i64 8
+                  %h = load ptr, ptr %hp, align 8
+                  %ok = call i32 @jn_mutex_trylock(ptr %h)
+                  %v = icmp ne i32 %ok, 0
+                  ret i1 %v
                 }
 
                 define void @jnative_cond_init(ptr %self) {

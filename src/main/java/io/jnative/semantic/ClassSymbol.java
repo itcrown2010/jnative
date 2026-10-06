@@ -24,6 +24,7 @@ public final class ClassSymbol {
     private ClassSymbol superClass;
     private VTable vtable;
     private ClassMetadata metadata;
+    private FunctionType functionType;
     private final boolean builtin;
 
     public ClassSymbol(String name, SourceLocation location, boolean builtin) {
@@ -61,6 +62,9 @@ public final class ClassSymbol {
     public boolean isSubtypeOf(ClassSymbol other) {
         if (other == null) {
             return false;
+        }
+        if ("Object".equals(other.name()) && !"Object".equals(name)) {
+            return true;
         }
         ClassSymbol cursor = this;
         while (cursor != null) {
@@ -165,5 +169,13 @@ public final class ClassSymbol {
 
     public ClassMetadata metadata() {
         return metadata;
+    }
+
+    public FunctionType functionType() {
+        return functionType;
+    }
+
+    public void setFunctionType(FunctionType functionType) {
+        this.functionType = functionType;
     }
 }

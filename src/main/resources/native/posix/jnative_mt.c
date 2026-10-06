@@ -22,11 +22,13 @@ struct JNThreadState {
     int64_t ex_return_value;
     int exec_state;
     int safepoint_parked; /* 1 if waiting inside safepoint poll */
+    int no_gc_depth;
     void *thread_obj;
     pthread_t pthread;
     int registered;
     int joined;
     int self_started;
+    int foreign_attached;
     struct JNThreadState *next;
 };
 
@@ -100,6 +102,29 @@ void jn_thread_attach_main(void) {
     pthread_setspecific(tls_key, st);
     st->pthread = pthread_self();
     registry_add(st);
+}
+
+int jn_thread_attach_foreign(void) {
+    jn_mt_init();
+    if (jn_thread_current() != NULL) {
+        return 0;
+    }
+    JNThreadState *st = alloc_state();
+    pthread_setspecific(tls_key, st);
+    st->pthread = pthread_self();
+    st->foreign_attached = 1;
+    registry_add(st);
+    return 1;
+}
+
+void jn_thread_detach_foreign(void) {
+    JNThreadState *st = jn_thread_current();
+    if (st == NULL || !st->foreign_attached) {
+        return;
+    }
+    registry_remove(st);
+    pthread_setspecific(tls_key, NULL);
+    free(st);
 }
 
 int64_t jn_thread_id(void) {
@@ -255,6 +280,25 @@ void jn_leave_native(void) {
         return;
     }
     pthread_mutex_unlock(&gc_mu);
+}
+
+void jn_nogc_enter(void) {
+    JNThreadState *st = jn_thread_current();
+    if (st != NULL) {
+        st->no_gc_depth++;
+    }
+}
+
+void jn_nogc_leave(void) {
+    JNThreadState *st = jn_thread_current();
+    if (st != NULL && st->no_gc_depth > 0) {
+        st->no_gc_depth--;
+    }
+}
+
+int jn_nogc_depth(void) {
+    JNThreadState *st = jn_thread_current();
+    return st != NULL ? st->no_gc_depth : 0;
 }
 
 static int count_managed_mutators(void) {
@@ -523,6 +567,20 @@ void jn_mutex_unlock(void *p) {
     JNMutex *m = (JNMutex *)p;
     m->locked = 0;
     pthread_mutex_unlock(&m->mu);
+}
+
+int jn_mutex_trylock(void *p) {
+    JNMutex *m = (JNMutex *)p;
+    jn_enter_native();
+    int rc = pthread_mutex_trylock(&m->mu);
+    if (rc == 0) {
+        m->locked = 1;
+        m->owner = pthread_self();
+        jn_leave_native();
+        return 1;
+    }
+    jn_leave_native();
+    return 0;
 }
 
 int jn_mutex_owner_check(void *p) {

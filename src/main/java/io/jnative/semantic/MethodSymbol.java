@@ -21,6 +21,18 @@ public final class MethodSymbol {
     private MethodSymbol overrides;
     private NativeFunction nativeFunction;
     private boolean ffiIntrinsic;
+    private String samInvokeRuntime;
+    /** Declared contracts from @NoGC/@NoThrow/@NoBlock/@Deterministic. */
+    private FunctionEffects declaredEffects = FunctionEffects.none();
+    private boolean contractNoGc;
+    private boolean contractNoThrow;
+    private boolean contractNoBlock;
+    /** Inferred from body + callees (filled by EffectAnalyzer). */
+    private FunctionEffects inferredEffects = FunctionEffects.unknown();
+    /** Effective = inferred (after propagation). */
+    private FunctionEffects effectiveEffects = FunctionEffects.unknown();
+    /** Trusted native effects from @Native(effects=...). */
+    private String nativeEffectsContract;
 
     public MethodSymbol(
             ClassSymbol owner,
@@ -132,6 +144,70 @@ public final class MethodSymbol {
 
     public void setFfiIntrinsic(boolean ffiIntrinsic) {
         this.ffiIntrinsic = ffiIntrinsic;
+    }
+
+    public String samInvokeRuntime() {
+        return samInvokeRuntime;
+    }
+
+    public void setSamInvokeRuntime(String samInvokeRuntime) {
+        this.samInvokeRuntime = samInvokeRuntime;
+    }
+
+    public FunctionEffects declaredEffects() {
+        return declaredEffects;
+    }
+
+    public void setDeclaredEffects(FunctionEffects declaredEffects) {
+        this.declaredEffects = declaredEffects != null ? declaredEffects : FunctionEffects.none();
+    }
+
+    public boolean contractNoGc() {
+        return contractNoGc;
+    }
+
+    public void setContractNoGc(boolean contractNoGc) {
+        this.contractNoGc = contractNoGc;
+    }
+
+    public boolean contractNoThrow() {
+        return contractNoThrow;
+    }
+
+    public void setContractNoThrow(boolean contractNoThrow) {
+        this.contractNoThrow = contractNoThrow;
+    }
+
+    public boolean contractNoBlock() {
+        return contractNoBlock;
+    }
+
+    public void setContractNoBlock(boolean contractNoBlock) {
+        this.contractNoBlock = contractNoBlock;
+    }
+
+    public FunctionEffects inferredEffects() {
+        return inferredEffects;
+    }
+
+    public void setInferredEffects(FunctionEffects inferredEffects) {
+        this.inferredEffects = inferredEffects != null ? inferredEffects : FunctionEffects.unknown();
+    }
+
+    public FunctionEffects effectiveEffects() {
+        return effectiveEffects;
+    }
+
+    public void setEffectiveEffects(FunctionEffects effectiveEffects) {
+        this.effectiveEffects = effectiveEffects != null ? effectiveEffects : FunctionEffects.unknown();
+    }
+
+    public String nativeEffectsContract() {
+        return nativeEffectsContract;
+    }
+
+    public void setNativeEffectsContract(String nativeEffectsContract) {
+        this.nativeEffectsContract = nativeEffectsContract;
     }
 
     public boolean sameSignatureAs(MethodSymbol other) {

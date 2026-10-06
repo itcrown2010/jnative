@@ -41,6 +41,7 @@ GcFrame { prev*, rootCount, slotAddr[n] }   // TLS head per ThreadState
 - GC scans **all** registered threads via `jn_foreach_root_slot` + TLS exceptions + Thread objects + static managed fields
 - Global root (0.6): `@jn.ex.current` scanned in `jnative_gc_mark_from_roots`
 - Reference locals, parameters, `this`, and protected reference temporaries are PTR allocas
+- **0.12:** stack-allocated managed objects also register each **reference field slot** as a root (object itself is not on the heap; `jnative_gc_header_in_heap` rejects stack pointers during mark)
 
 Roots store **addresses of slots**, not copied pointer values, so updates remain visible.
 
