@@ -48,6 +48,9 @@ public final class JNativeCompiler {
         String sourceText;
         try {
             sourceText = Files.readString(source, StandardCharsets.UTF_8);
+            if (io.jnative.stdlib.StdlibIncluder.needsHttp(sourceText)) {
+                sourceText = io.jnative.stdlib.StdlibIncluder.prependHttpStdlib(sourceText);
+            }
         } catch (IOException e) {
             reporter.error(new SourceLocation(source.toString(), 0, 0),
                     "failed to read source: " + e.getMessage());
@@ -86,6 +89,16 @@ public final class JNativeCompiler {
             return new CompileResult(false, ast, null, null, null, reporter.diagnostics());
         }
 
+        if (options.emitLayout()) {
+            for (var ns : typed.nativeStructs().values()) {
+                if (ns.layout() != null) {
+                    System.out.print(ns.layout().describe());
+                    System.out.println();
+                }
+            }
+            return new CompileResult(true, ast, null, null, null, reporter.diagnostics());
+        }
+
         // IR
         IrModule ir = new IrGenerator().generate(typed);
         if (options.emitIr()) {
@@ -113,12 +126,20 @@ public final class JNativeCompiler {
 
         Path output = resolveOutput(options, source, toolchain.get().platform());
         Path llFile = null;
+        Path nativeDir = null;
         try {
             llFile = Files.createTempFile("jnative-", ".ll");
             Files.writeString(llFile, llvmIr, StandardCharsets.UTF_8);
 
+            nativeDir = Files.createTempDirectory("jnative-native-");
+            java.util.List<Path> socketSources = io.jnative.backend.NativeRuntimeSources
+                    .materializeSocketSources(nativeDir, toolchain.get().platform());
+
             NativeLinker linker = new NativeLinker(toolchain.get());
-            NativeLinker.LinkResult linkResult = linker.link(llFile, output);
+            java.util.LinkedHashSet<String> libs = new java.util.LinkedHashSet<>(ir.nativeLibraries());
+            libs.addAll(options.linkLibraries());
+            NativeLinker.LinkResult linkResult = linker.link(
+                    llFile, output, libs, options.libraryPaths(), socketSources);
             if (!linkResult.success()) {
                 reporter.error(SourceLocation.UNKNOWN,
                         "clang failed with exit code " + linkResult.exitCode()
@@ -130,6 +151,19 @@ public final class JNativeCompiler {
             reporter.error(SourceLocation.UNKNOWN, "I/O error: " + e.getMessage());
             return new CompileResult(false, ast, ir, llvmIr, null, reporter.diagnostics());
         } finally {
+            if (nativeDir != null && !options.keepTemps()) {
+                try (var walk = Files.walk(nativeDir)) {
+                    walk.sorted(java.util.Comparator.reverseOrder()).forEach(p -> {
+                        try {
+                            Files.deleteIfExists(p);
+                        } catch (IOException ignored) {
+                            // best-effort
+                        }
+                    });
+                } catch (IOException ignored) {
+                    // best-effort
+                }
+            }
             if (llFile != null && !options.keepTemps()) {
                 try {
                     Files.deleteIfExists(llFile);

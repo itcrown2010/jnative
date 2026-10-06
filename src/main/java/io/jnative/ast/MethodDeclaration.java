@@ -7,11 +7,26 @@ import java.util.List;
 public record MethodDeclaration(
         boolean isPublic,
         boolean isStatic,
+        boolean isNative,
         boolean isConstructor,
         TypeName returnType,
+        boolean returnsArray,
         String name,
         List<Parameter> parameters,
         BlockStatement body,
+        NativeAnnotation nativeAnnotation,
         SourceLocation location
 ) implements AstNode {
+    public MethodDeclaration(
+            boolean isPublic,
+            boolean isStatic,
+            boolean isConstructor,
+            TypeName returnType,
+            String name,
+            List<Parameter> parameters,
+            BlockStatement body,
+            SourceLocation location
+    ) {
+        this(isPublic, isStatic, false, isConstructor, returnType, false, name, parameters, body, null, location);
+    }
 }

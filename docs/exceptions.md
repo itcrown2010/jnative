@@ -13,12 +13,19 @@ Checked-exception static enforcement (`throws` / catch-or-declare) is **not impl
 Object
   └── Throwable          (field: String message; getMessage())
         └── Exception
+              ├── IOException
+              │     ├── FileNotFoundException
+              │     └── SocketException
+              │           ├── ConnectException
+              │           ├── UnknownHostException
+              │           └── SocketTimeoutException
               └── RuntimeException
                     ├── NullPointerException
                     ├── ArrayIndexOutOfBoundsException
                     ├── NegativeArraySizeException
                     ├── ClassCastException
-                    └── ArithmeticException
+                    ├── ArithmeticException
+                    └── IllegalArgumentException
 ```
 
 User classes may `extends Exception` / `RuntimeException` like ordinary classes.

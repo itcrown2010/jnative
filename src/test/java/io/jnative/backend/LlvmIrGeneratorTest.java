@@ -32,7 +32,8 @@ class LlvmIrGeneratorTest {
                     }
                 }
                 """);
-        assertTrue(ll.contains("define i32 @main()"));
+        assertTrue(ll.contains("define i32 @main(i32 %argc, ptr %argv)"), ll);
+        assertTrue(ll.contains("jnative_argv_to_string_array"));
         assertTrue(ll.contains("define void @jn_main"));
         assertTrue(ll.contains("jnative_println_i32"));
     }

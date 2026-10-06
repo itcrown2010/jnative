@@ -10,7 +10,7 @@ import io.jnative.diagnostics.Diagnostic;
  * JNative CLI entry point.
  */
 public final class Main {
-    public static final String VERSION = "0.3.0";
+    public static final String VERSION = "0.9";
 
     private Main() {
     }

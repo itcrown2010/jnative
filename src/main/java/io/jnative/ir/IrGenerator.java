@@ -1,6 +1,7 @@
 package io.jnative.ir;
 
 import io.jnative.ast.*;
+import io.jnative.ffi.AbiType;
 import io.jnative.layout.ClassLayout;
 import io.jnative.layout.ObjectLayoutBuilder;
 import io.jnative.semantic.ArrayLengthSymbol;
@@ -12,9 +13,15 @@ import io.jnative.semantic.ConstructorSymbol;
 import io.jnative.semantic.FieldSymbol;
 import io.jnative.semantic.JType;
 import io.jnative.semantic.MethodSymbol;
+import io.jnative.semantic.NativeIntrinsic;
+import io.jnative.semantic.NativePtrType;
+import io.jnative.semantic.NativeStructFieldSymbol;
+import io.jnative.semantic.NativeStructSymbol;
+import io.jnative.semantic.NativeStructType;
 import io.jnative.semantic.ParameterSymbol;
 import io.jnative.semantic.PrimitiveType;
 import io.jnative.semantic.TypedCompilationUnit;
+import io.jnative.semantic.VariableSymbol;
 import io.jnative.semantic.VoidType;
 
 import java.nio.charset.StandardCharsets;
@@ -69,12 +76,33 @@ public final class IrGenerator {
         for (ClassMetadata meta : typed.arrayMetadatas().values()) {
             module.addArrayMetadata(meta);
         }
+        for (NativeStructSymbol ns : typed.nativeStructs().values()) {
+            if (ns.layout() != null) {
+                module.addNativeStructLayout(ns.layout());
+            }
+        }
+        for (ClassSymbol cls : typed.classes().values()) {
+            for (FieldSymbol field : cls.declaredFields()) {
+                if (!field.isStatic()) {
+                    continue;
+                }
+                IrType ft = IrType.from(field.type());
+                module.addStaticField(new IrModule.StaticField(
+                        field.staticGlobal(), ft, field.isVolatile(), field.isReference()));
+            }
+        }
 
         Map<MethodSymbol, MethodDeclaration> methodAst = new HashMap<>();
         Map<ConstructorSymbol, MethodDeclaration> ctorAst = new HashMap<>();
 
         for (ClassDeclaration cls : unit.classes()) {
+            if (cls.nativeStruct()) {
+                continue;
+            }
             ClassSymbol classSymbol = typed.classes().get(cls.name());
+            if (classSymbol == null) {
+                continue;
+            }
             for (MethodDeclaration method : cls.methods()) {
                 if (method.isConstructor()) {
                     ConstructorSymbol ctor = findCtor(classSymbol, method);
@@ -94,6 +122,12 @@ public final class IrGenerator {
                 } else {
                     MethodSymbol ms = classSymbol.findMethod(method.name()).orElse(null);
                     if (ms == null) {
+                        continue;
+                    }
+                    if (ms.isNative()) {
+                        if (ms.nativeFunction() != null) {
+                            module.addNativeDeclaration(ms.nativeFunction());
+                        }
                         continue;
                     }
                     List<IrValue.Param> params = new ArrayList<>();
@@ -151,11 +185,119 @@ public final class IrGenerator {
 
         lowerBuiltinThrowableMethods(module, typed);
         lowerDelegatingBuiltinConstructors(module, typed);
+        lowerThreadBuiltins(module, typed);
+        lowerStaticClinit(module, typed);
 
         currentClass = null;
         currentMethod = null;
         currentConstructor = null;
         return module;
+    }
+
+    private void lowerStaticClinit(IrModule module, TypedCompilationUnit typed) {
+        IrFunction clinit = new IrFunction("jnative_clinit", IrType.VOID, List.of(), false);
+        module.addFunction(clinit);
+        builder.beginFunction(clinit);
+        for (ClassSymbol cls : typed.classes().values()) {
+            for (FieldSymbol field : cls.declaredFields()) {
+                if (!field.isStatic() || field.initializer() == null) {
+                    continue;
+                }
+                currentClass = cls;
+                currentMethod = null;
+                IrValue value = lowerExpression(field.initializer());
+                IrValue casted = castIfNeeded(value, IrType.from(field.type()));
+                builder.storeStatic(field.staticGlobal(), casted, field.isVolatile());
+            }
+        }
+        builder.retVoid();
+    }
+
+    private void lowerThreadBuiltins(IrModule module, TypedCompilationUnit typed) {
+        ClassSymbol thread = typed.classes().get("Thread");
+        if (thread != null) {
+            thread.findMethod("run").ifPresent(ms -> {
+                if (functionsByMangled.containsKey(ms.mangledName())) {
+                    return;
+                }
+                IrFunction function = new IrFunction(
+                        ms.mangledName(), IrType.VOID, List.of(new IrValue.Param("this", IrType.PTR)), false);
+                module.addFunction(function);
+                functionsByMangled.put(ms.mangledName(), function);
+                builder.beginFunction(function);
+                builder.retVoid();
+            });
+            for (ConstructorSymbol ctor : thread.constructors()) {
+                if (functionsByMangled.containsKey(ctor.mangledName())) {
+                    continue;
+                }
+                IrFunction function = new IrFunction(
+                        ctor.mangledName(), IrType.VOID, List.of(new IrValue.Param("this", IrType.PTR)), false);
+                module.addFunction(function);
+                functionsByMangled.put(ctor.mangledName(), function);
+                builder.beginFunction(function);
+                builder.retVoid();
+            }
+        }
+        for (String name : List.of("Mutex", "Condition")) {
+            ClassSymbol cls = typed.classes().get(name);
+            if (cls == null) {
+                continue;
+            }
+            for (ConstructorSymbol ctor : cls.constructors()) {
+                if (functionsByMangled.containsKey(ctor.mangledName())) {
+                    continue;
+                }
+                IrFunction function = new IrFunction(
+                        ctor.mangledName(), IrType.VOID, List.of(new IrValue.Param("this", IrType.PTR)), false);
+                module.addFunction(function);
+                functionsByMangled.put(ctor.mangledName(), function);
+                builder.beginFunction(function);
+                IrValue.Local thisLocal = builder.alloca("this", IrType.PTR);
+                builder.store(new IrValue.Param("this", IrType.PTR), thisLocal);
+                String init = name.equals("Mutex") ? "jnative_mutex_init" : "jnative_cond_init";
+                builder.call(init, IrType.VOID, List.of(builder.load(thisLocal)), false);
+                builder.retVoid();
+            }
+        }
+        lowerAtomicCtor(module, typed, "AtomicInt", "jnative_atomic_int_init", IrType.I32);
+        lowerAtomicCtor(module, typed, "AtomicLong", "jnative_atomic_long_init", IrType.I64);
+        lowerAtomicCtor(module, typed, "AtomicBool", "jnative_atomic_bool_init", IrType.I1);
+    }
+
+    private void lowerAtomicCtor(
+            IrModule module, TypedCompilationUnit typed, String className, String initFn, IrType valueTy
+    ) {
+        ClassSymbol cls = typed.classes().get(className);
+        if (cls == null) {
+            return;
+        }
+        for (ConstructorSymbol ctor : cls.constructors()) {
+            if (functionsByMangled.containsKey(ctor.mangledName())) {
+                continue;
+            }
+            List<IrValue.Param> params = new ArrayList<>();
+            params.add(new IrValue.Param("this", IrType.PTR));
+            if (!ctor.parameters().isEmpty()) {
+                params.add(new IrValue.Param("value", valueTy));
+            }
+            IrFunction function = new IrFunction(ctor.mangledName(), IrType.VOID, params, false);
+            module.addFunction(function);
+            functionsByMangled.put(ctor.mangledName(), function);
+            builder.beginFunction(function);
+            IrValue.Local thisLocal = builder.alloca("this", IrType.PTR);
+            builder.store(new IrValue.Param("this", IrType.PTR), thisLocal);
+            IrValue val;
+            if (ctor.parameters().isEmpty()) {
+                val = new IrValue.Const(valueTy, "0");
+            } else {
+                IrValue.Local vLocal = builder.alloca("value", valueTy);
+                builder.store(new IrValue.Param("value", valueTy), vLocal);
+                val = builder.load(vLocal);
+            }
+            builder.call(initFn, IrType.VOID, List.of(builder.load(thisLocal), val), false);
+            builder.retVoid();
+        }
     }
 
     private void lowerBuiltinThrowableMethods(IrModule module, TypedCompilationUnit typed) {
@@ -273,12 +415,30 @@ public final class IrGenerator {
     private JType resolveTypeName(TypeName typeName, boolean isArray) {
         JType base = switch (typeName.kind()) {
             case VOID -> VoidType.INSTANCE;
+            case BYTE -> PrimitiveType.BYTE;
+            case SHORT -> PrimitiveType.SHORT;
             case INT -> PrimitiveType.INT;
             case LONG -> PrimitiveType.LONG;
+            case FLOAT -> PrimitiveType.FLOAT;
             case DOUBLE -> PrimitiveType.DOUBLE;
             case BOOLEAN -> PrimitiveType.BOOLEAN;
             case CHAR -> PrimitiveType.CHAR;
+            case NATIVE_PTR -> {
+                TypeName arg = typeName.typeArgument();
+                if (arg == null) {
+                    yield NativePtrType.VOID;
+                }
+                JType pointee = resolveTypeName(arg, false);
+                yield NativePtrType.of(pointee);
+            }
             case CLASS -> {
+                if ("NativePtr".equals(typeName.name())) {
+                    yield NativePtrType.VOID;
+                }
+                NativeStructSymbol ns = typed.nativeStructs().get(typeName.name());
+                if (ns != null) {
+                    yield ns.asType();
+                }
                 ClassSymbol cs = typed.classes().get(typeName.name());
                 yield cs != null ? cs.asType() : PrimitiveType.INT;
             }
@@ -355,9 +515,6 @@ public final class IrGenerator {
             builder.store(new IrValue.Param("this", IrType.PTR), thisLocal);
         }
         for (var p : ms.parameters()) {
-            if (ms.isMain() && p.type() instanceof ArrayType) {
-                continue;
-            }
             IrType irType = IrType.from(p.type());
             IrValue.Local local = builder.alloca(p.name(), irType);
             builder.store(new IrValue.Param(p.name(), irType), local);
@@ -386,6 +543,21 @@ public final class IrGenerator {
             }
             case VariableDeclaration v -> {
                 JType jt = resolveDeclType(v);
+                if (v.stackAllocated() && jt instanceof NativeStructType nst) {
+                    var layout = nst.symbol().layout();
+                    IrValue.Local local = builder.stackAlloc(
+                            v.name(),
+                            nst.name(),
+                            layout.llvmTypeName(),
+                            layout.alignment(),
+                            layout.size());
+                    // Initializer new Point() is zero-init via StackAlloc lowering; ignore GC new.
+                    if (v.initializer() != null
+                            && !(v.initializer() instanceof NewObjectExpression)) {
+                        throw new IllegalStateException("stack native struct init must be new Struct()");
+                    }
+                    break;
+                }
                 IrType type = IrType.from(jt);
                 IrValue.Local local = builder.alloca(v.name(), type);
                 if (v.initializer() != null) {
@@ -628,6 +800,7 @@ public final class IrGenerator {
         builder.setBlock(bodyBlock);
         lowerStatement(w.body());
         if (!builder.block().isTerminated()) {
+            builder.safepointPoll();
             builder.branch(condBlock);
         }
         builder.setBlock(endBlock);
@@ -658,6 +831,7 @@ public final class IrGenerator {
             lowerExpression(f.update());
         }
         if (!builder.block().isTerminated()) {
+            builder.safepointPoll();
             builder.branch(condBlock);
         }
         builder.setBlock(endBlock);
@@ -667,6 +841,7 @@ public final class IrGenerator {
         return switch (expr) {
             case LiteralExpression l -> lowerLiteral(l);
             case NullLiteralExpression ignored -> new IrValue.Const(IrType.PTR, "null");
+            case NativeNullExpression ignored -> new IrValue.Const(IrType.NATIVE_PTR, "null");
             case ThisExpression ignored -> builder.load(builder.local("this"));
             case VariableExpression v -> lowerVariable(v);
             case AssignmentExpression a -> lowerAssignment(a);
@@ -694,6 +869,10 @@ public final class IrGenerator {
     private IrValue lowerVariable(VariableExpression v) {
         Object resolved = typed.resolvedSymbols().get(v);
         if (resolved instanceof FieldSymbol field) {
+            if (field.isStatic()) {
+                return builder.loadStatic(
+                        field.staticGlobal(), IrType.from(field.type()), field.isVolatile());
+            }
             IrValue thisPtr = builder.load(builder.local("this"));
             ClassLayout layout = field.owner().layout();
             return builder.loadField(
@@ -701,11 +880,23 @@ public final class IrGenerator {
                     field.owner().name(),
                     layout.llvmTypeName(),
                     field.gepIndex(),
-                    IrType.from(field.type()));
+                    IrType.from(field.type()),
+                    field.isVolatile());
+        }
+        if (resolved instanceof ClassSymbol) {
+            throw new IllegalStateException("class name used as value: " + v.name());
         }
         IrValue.Local local = builder.local(v.name());
         if (local == null) {
             throw new IllegalStateException("missing local for " + v.name());
+        }
+        // Stack NativeStruct locals hold the alloca address (NATIVE_PTR) — do not load.
+        if (resolved instanceof VariableSymbol vs && vs.isStackAllocated()) {
+            return local;
+        }
+        if (local.type() == IrType.NATIVE_PTR
+                && typed.expressionTypes().get(v) instanceof NativeStructType) {
+            return local;
         }
         return builder.load(local);
     }
@@ -716,11 +907,15 @@ public final class IrGenerator {
         if (target instanceof VariableExpression v) {
             Object resolved = typed.resolvedSymbols().get(v);
             if (resolved instanceof FieldSymbol field) {
-                IrValue thisPtr = builder.load(builder.local("this"));
-                ClassLayout layout = field.owner().layout();
                 IrValue casted = castIfNeeded(value, IrType.from(field.type()));
-                builder.storeField(thisPtr, field.owner().name(), layout.llvmTypeName(),
-                        field.gepIndex(), casted);
+                if (field.isStatic()) {
+                    builder.storeStatic(field.staticGlobal(), casted, field.isVolatile());
+                } else {
+                    IrValue thisPtr = builder.load(builder.local("this"));
+                    ClassLayout layout = field.owner().layout();
+                    builder.storeField(thisPtr, field.owner().name(), layout.llvmTypeName(),
+                            field.gepIndex(), casted, field.isVolatile());
+                }
                 return casted;
             }
             IrValue.Local local = builder.local(v.name());
@@ -729,12 +924,29 @@ public final class IrGenerator {
             return casted;
         }
         if (target instanceof FieldAccessExpression f) {
-            FieldSymbol field = (FieldSymbol) typed.resolvedSymbols().get(f);
-            IrValue receiver = lowerExpression(f.receiver());
-            ClassLayout layout = field.owner().layout();
+            Object resolved = typed.resolvedSymbols().get(f);
+            if (resolved instanceof NativeStructFieldSymbol nfs) {
+                IrValue base = lowerNativeStructBase(f.receiver(), nfs.owner());
+                IrValue addr = builder.nativeFieldAddress(
+                        base,
+                        nfs.owner().name(),
+                        nfs.owner().layout().llvmTypeName(),
+                        nfs.name(),
+                        nfs.offset());
+                IrValue casted = castIfNeeded(value, IrType.from(nfs.type()));
+                builder.nativeStore(addr, casted);
+                return casted;
+            }
+            FieldSymbol field = (FieldSymbol) resolved;
             IrValue casted = castIfNeeded(value, IrType.from(field.type()));
-            builder.storeField(receiver, field.owner().name(), layout.llvmTypeName(),
-                    field.gepIndex(), casted);
+            if (field.isStatic()) {
+                builder.storeStatic(field.staticGlobal(), casted, field.isVolatile());
+            } else {
+                IrValue receiver = lowerExpression(f.receiver());
+                ClassLayout layout = field.owner().layout();
+                builder.storeField(receiver, field.owner().name(), layout.llvmTypeName(),
+                        field.gepIndex(), casted, field.isVolatile());
+            }
             return casted;
         }
         if (target instanceof ArrayAccessExpression aexpr) {
@@ -753,7 +965,21 @@ public final class IrGenerator {
         if (resolved instanceof ArrayLengthSymbol) {
             return builder.arrayLength(lowerExpression(f.receiver()));
         }
+        if (resolved instanceof NativeStructFieldSymbol nfs) {
+            IrValue base = lowerNativeStructBase(f.receiver(), nfs.owner());
+            IrValue addr = builder.nativeFieldAddress(
+                    base,
+                    nfs.owner().name(),
+                    nfs.owner().layout().llvmTypeName(),
+                    nfs.name(),
+                    nfs.offset());
+            return builder.nativeLoad(addr, IrType.from(nfs.type()));
+        }
         FieldSymbol field = (FieldSymbol) resolved;
+        if (field.isStatic()) {
+            return builder.loadStatic(
+                    field.staticGlobal(), IrType.from(field.type()), field.isVolatile());
+        }
         IrValue receiver = lowerExpression(f.receiver());
         ClassLayout layout = field.owner().layout();
         return builder.loadField(
@@ -761,11 +987,30 @@ public final class IrGenerator {
                 field.owner().name(),
                 layout.llvmTypeName(),
                 field.gepIndex(),
-                IrType.from(field.type()));
+                IrType.from(field.type()),
+                field.isVolatile());
+    }
+
+    private IrValue lowerNativeStructBase(Expression receiver, NativeStructSymbol owner) {
+        if (receiver instanceof VariableExpression v) {
+            Object resolved = typed.resolvedSymbols().get(v);
+            if (resolved instanceof VariableSymbol vs && vs.isStackAllocated()) {
+                return builder.local(v.name());
+            }
+        }
+        JType recvType = typed.expressionTypes().get(receiver);
+        if (recvType instanceof NativePtrType || recvType instanceof NativeStructType) {
+            return lowerExpression(receiver);
+        }
+        return lowerExpression(receiver);
     }
 
     private IrValue lowerNew(NewObjectExpression n) {
-        ConstructorSymbol ctor = (ConstructorSymbol) typed.resolvedSymbols().get(n);
+        Object resolved = typed.resolvedSymbols().get(n);
+        if (resolved instanceof NativeStructSymbol) {
+            throw new IllegalStateException("native struct new outside @Stack lowering");
+        }
+        ConstructorSymbol ctor = (ConstructorSymbol) resolved;
         ClassSymbol cs = ctor.owner();
         ClassLayout layout = cs.layout();
         IrValue obj = builder.newObject(
@@ -815,13 +1060,55 @@ public final class IrGenerator {
     }
 
     private IrValue lowerCast(CastExpression c) {
-        ClassMetadata meta = (ClassMetadata) typed.resolvedSymbols().get(c);
+        Object resolved = typed.resolvedSymbols().get(c);
         IrValue obj = lowerExpression(c.expression());
+        if (resolved instanceof NativePtrType || typed.expressionTypes().get(c) instanceof NativePtrType) {
+            // NativePtr casts are bitcasts at IR level (same machine pointer width).
+            return castIfNeeded(obj, IrType.NATIVE_PTR);
+        }
+        ClassMetadata meta = (ClassMetadata) resolved;
         return builder.checkedCast(obj, meta.globalName());
     }
 
+    private IrValue lowerNativeIntrinsic(NativeIntrinsic intrinsic, MethodCallExpression m) {
+        return switch (intrinsic) {
+            case ADDRESS_OF -> {
+                Expression arg = m.arguments().get(0);
+                if (arg instanceof VariableExpression v) {
+                    IrValue.Local local = builder.local(v.name());
+                    yield builder.addressOf(local);
+                }
+                yield castIfNeeded(lowerExpression(arg), IrType.NATIVE_PTR);
+            }
+            case LOAD_INT -> builder.nativeLoad(
+                    lowerExpression(m.arguments().get(0)), IrType.I32);
+            case STORE_INT -> {
+                builder.nativeStore(
+                        lowerExpression(m.arguments().get(0)),
+                        castIfNeeded(lowerExpression(m.arguments().get(1)), IrType.I32));
+                yield new IrValue.Const(IrType.I32, 0);
+            }
+            case ALLOCATE_STRUCT -> {
+                TypeName tn = m.typeArguments().get(0);
+                NativeStructSymbol ns = typed.requireNativeStruct(
+                        tn.kind() == TypeName.Kind.CLASS ? tn.name() : tn.toString());
+                // Also resolve via expression type
+                JType ret = typed.expressionTypes().get(m);
+                if (ret instanceof NativePtrType np && np.pointee() instanceof NativeStructType nst) {
+                    ns = nst.symbol();
+                }
+                IrValue size = new IrValue.Const(IrType.I64, ns.layout().size());
+                yield builder.call("jnative_native_alloc", IrType.NATIVE_PTR, List.of(size), false);
+            }
+        };
+    }
+
     private IrValue lowerCall(MethodCallExpression m) {
-        MethodSymbol ms = (MethodSymbol) typed.resolvedSymbols().get(m);
+        Object resolved = typed.resolvedSymbols().get(m);
+        if (resolved instanceof NativeIntrinsic intrinsic) {
+            return lowerNativeIntrinsic(intrinsic, m);
+        }
+        MethodSymbol ms = (MethodSymbol) resolved;
         List<IrValue> args = new ArrayList<>();
         IrValue receiver = null;
         if (!ms.isStatic()) {
@@ -833,6 +1120,7 @@ public final class IrGenerator {
             builder.nullCheck(receiver);
             args.add(receiver);
         }
+        // Static call may still have a type-name receiver in AST (LibC.puts); ignore it.
         List<JType> paramTypes = ms.parameterTypes();
         for (int i = 0; i < m.arguments().size(); i++) {
             IrValue arg = lowerExpression(m.arguments().get(i));
@@ -858,8 +1146,26 @@ public final class IrGenerator {
                 case "length" -> builder.call("jnative_string_length", IrType.I32, List.of(receiver));
                 case "charAt" -> builder.call("jnative_string_char_at", IrType.I16, args);
                 case "equals" -> builder.call("jnative_string_equals", IrType.I1, args);
+                case "indexOf" -> builder.call("jnative_string_index_of", IrType.I32, args);
+                case "indexOfFrom" -> builder.call("jnative_string_index_of_from", IrType.I32, args);
+                case "substring" -> builder.call("jnative_string_substring", IrType.PTR, args);
+                case "substringFrom" -> builder.call("jnative_string_substring_from", IrType.PTR, args);
+                case "startsWith" -> builder.call("jnative_string_starts_with", IrType.I1, args);
+                case "endsWith" -> builder.call("jnative_string_ends_with", IrType.I1, args);
+                case "equalsIgnoreCase" -> builder.call("jnative_string_equals_ignore_case", IrType.I1, args);
+                case "trim" -> builder.call("jnative_string_trim", IrType.PTR, List.of(receiver));
+                case "getBytes" -> builder.call("jnative_string_get_bytes", IrType.PTR, List.of(receiver));
+                case "toLowerCase" -> builder.call("jnative_string_to_lower", IrType.PTR, List.of(receiver));
                 default -> builder.call(ms.mangledName(), IrType.from(ms.returnType()), args);
             };
+        }
+
+        if (ms.isFfiIntrinsic()) {
+            return lowerFfiIntrinsic(ms, args);
+        }
+
+        if (ms.isNative() && ms.nativeFunction() != null) {
+            return lowerNativeCall(ms, args);
         }
 
         if (ms.isVirtual() && ms.vtableSlot() != null && receiver != null) {
@@ -877,6 +1183,306 @@ public final class IrGenerator {
         }
 
         return builder.call(ms.mangledName(), IrType.from(ms.returnType()), args);
+    }
+
+    private IrValue lowerNativeCall(MethodSymbol ms, List<IrValue> javaArgs) {
+        var nf = ms.nativeFunction();
+        builder.module().addNativeDeclaration(nf);
+        List<IrValue> abiArgs = new ArrayList<>();
+        List<IrType> abiArgTypes = new ArrayList<>();
+        List<IrValue> cstringTemps = new ArrayList<>();
+        List<AbiType> paramAbis = nf.parameterAbis();
+        for (int i = 0; i < javaArgs.size(); i++) {
+            IrValue arg = javaArgs.get(i);
+            AbiType abi = i < paramAbis.size() ? paramAbis.get(i) : AbiType.PTR;
+            if (abi == AbiType.CSTRING) {
+                IrValue cstr = builder.call(
+                        "jnative_ffi_string_to_cstr", IrType.NATIVE_PTR, List.of(arg), false);
+                abiArgs.add(cstr);
+                abiArgTypes.add(IrType.NATIVE_PTR);
+                cstringTemps.add(cstr);
+            } else {
+                IrType irt = switch (abi) {
+                    case I32, U32 -> IrType.I32;
+                    case I64, U64, SIZE -> IrType.I64;
+                    case F64 -> IrType.DOUBLE;
+                    case F32 -> IrType.DOUBLE;
+                    case I16, U16 -> IrType.I16;
+                    case I8, U8 -> IrType.I32;
+                    case PTR, CSTRING -> IrType.NATIVE_PTR;
+                    case VOID -> IrType.VOID;
+                    default -> IrType.from(ms.parameters().get(i).type());
+                };
+                abiArgs.add(castIfNeeded(arg, irt));
+                abiArgTypes.add(irt);
+            }
+        }
+        IrType retIr = IrType.from(ms.returnType());
+        if (nf.returnAbi() == AbiType.SIZE || nf.returnAbi() == AbiType.I64) {
+            retIr = IrType.I64;
+        } else if (nf.returnAbi() == AbiType.PTR) {
+            retIr = IrType.NATIVE_PTR;
+        } else if (nf.returnAbi() == AbiType.VOID) {
+            retIr = IrType.VOID;
+        }
+        IrValue result = builder.nativeCall(
+                nf.symbol(),
+                retIr,
+                abiArgs,
+                abiArgTypes,
+                nf.library().orElse(null));
+        for (IrValue temp : cstringTemps) {
+            builder.call("jnative_ffi_cstr_free", IrType.VOID, List.of(temp), false);
+        }
+        return result;
+    }
+
+    private IrValue lowerFfiIntrinsic(MethodSymbol ms, List<IrValue> args) {
+        if ("File".equals(ms.owner().name())) {
+            return lowerFileIntrinsic(ms, args);
+        }
+        if ("TcpSocket".equals(ms.owner().name()) || "TcpServer".equals(ms.owner().name())) {
+            return lowerTcpIntrinsic(ms, args);
+        }
+        if ("Bytes".equals(ms.owner().name())) {
+            return lowerBytesIntrinsic(ms, args);
+        }
+        if ("Thread".equals(ms.owner().name())) {
+            return lowerThreadIntrinsic(ms, args);
+        }
+        if ("Mutex".equals(ms.owner().name())) {
+            return lowerMutexIntrinsic(ms, args);
+        }
+        if ("Condition".equals(ms.owner().name())) {
+            return lowerConditionIntrinsic(ms, args);
+        }
+        if (ms.owner().name().startsWith("Atomic")) {
+            return lowerAtomicIntrinsic(ms, args);
+        }
+        if ("String".equals(ms.owner().name())) {
+            if ("fromBytes".equals(ms.name())) {
+                return builder.call("jnative_string_from_bytes", IrType.PTR, List.of(args.get(0)), false);
+            }
+            if ("valueOf".equals(ms.name())) {
+                return builder.call("jnative_string_value_of_i32", IrType.PTR, List.of(args.get(0)), false);
+            }
+        }
+        return switch (ms.name()) {
+            case "allocate" -> builder.call(
+                    "jnative_native_alloc", IrType.NATIVE_PTR, List.of(castIfNeeded(args.get(0), IrType.I64)), false);
+            case "free" -> {
+                builder.call("jnative_native_free", IrType.VOID, List.of(args.get(0)), false);
+                yield new IrValue.Const(IrType.I32, 0);
+            }
+            case "getInt" -> builder.call(
+                    "jnative_native_get_i32",
+                    IrType.I32,
+                    List.of(args.get(0), castIfNeeded(args.get(1), IrType.I64)),
+                    false);
+            case "putInt" -> {
+                builder.call(
+                        "jnative_native_put_i32",
+                        IrType.VOID,
+                        List.of(args.get(0), castIfNeeded(args.get(1), IrType.I64), args.get(2)),
+                        false);
+                yield new IrValue.Const(IrType.I32, 0);
+            }
+            case "fromCString" -> builder.call(
+                    "jnative_ffi_cstr_to_string",
+                    IrType.PTR,
+                    List.of(args.get(0)),
+                    false);
+            default -> throw new IllegalStateException("unknown FFI intrinsic " + ms.name());
+        };
+    }
+
+    private IrValue lowerThreadIntrinsic(MethodSymbol ms, List<IrValue> args) {
+        return switch (ms.name()) {
+            case "start" -> {
+                builder.call("jnative_thread_start", IrType.VOID, List.of(args.get(0)), true);
+                yield new IrValue.Const(IrType.I32, 0);
+            }
+            case "join" -> {
+                builder.call("jnative_thread_join", IrType.VOID, List.of(args.get(0)), false);
+                yield new IrValue.Const(IrType.I32, 0);
+            }
+            case "sleep" -> {
+                builder.call("jnative_thread_sleep", IrType.VOID,
+                        List.of(castIfNeeded(args.get(0), IrType.I64)), false);
+                yield new IrValue.Const(IrType.I32, 0);
+            }
+            case "currentThread" -> builder.call("jnative_thread_current", IrType.PTR, List.of(), false);
+            case "id" -> builder.call("jnative_thread_id_of", IrType.I64, List.of(args.get(0)), false);
+            default -> throw new IllegalStateException("unknown Thread intrinsic " + ms.name());
+        };
+    }
+
+    private IrValue lowerMutexIntrinsic(MethodSymbol ms, List<IrValue> args) {
+        return switch (ms.name()) {
+            case "lock" -> {
+                builder.call("jnative_mutex_lock", IrType.VOID, List.of(args.get(0)), true);
+                yield new IrValue.Const(IrType.I32, 0);
+            }
+            case "unlock" -> {
+                builder.call("jnative_mutex_unlock", IrType.VOID, List.of(args.get(0)), true);
+                yield new IrValue.Const(IrType.I32, 0);
+            }
+            default -> throw new IllegalStateException("unknown Mutex intrinsic " + ms.name());
+        };
+    }
+
+    private IrValue lowerConditionIntrinsic(MethodSymbol ms, List<IrValue> args) {
+        return switch (ms.name()) {
+            case "await" -> {
+                builder.call("jnative_cond_await", IrType.VOID, List.of(args.get(0), args.get(1)), true);
+                yield new IrValue.Const(IrType.I32, 0);
+            }
+            case "signal" -> {
+                builder.call("jnative_cond_signal", IrType.VOID, List.of(args.get(0)), false);
+                yield new IrValue.Const(IrType.I32, 0);
+            }
+            case "signalAll" -> {
+                builder.call("jnative_cond_signal_all", IrType.VOID, List.of(args.get(0)), false);
+                yield new IrValue.Const(IrType.I32, 0);
+            }
+            default -> throw new IllegalStateException("unknown Condition intrinsic " + ms.name());
+        };
+    }
+
+    private IrValue lowerAtomicIntrinsic(MethodSymbol ms, List<IrValue> args) {
+        String owner = ms.owner().name();
+        String prefix = switch (owner) {
+            case "AtomicInt" -> "jnative_atomic_int_";
+            case "AtomicLong" -> "jnative_atomic_long_";
+            case "AtomicBool" -> "jnative_atomic_bool_";
+            default -> throw new IllegalStateException("unknown atomic class " + owner);
+        };
+        IrType ret = IrType.from(ms.returnType());
+        return switch (ms.name()) {
+            case "get" -> builder.call(prefix + "get", ret, List.of(args.get(0)), false);
+            case "set" -> {
+                builder.call(prefix + "set", IrType.VOID, List.of(args.get(0), args.get(1)), false);
+                yield new IrValue.Const(IrType.I32, 0);
+            }
+            case "compareAndSet" -> builder.call(
+                    prefix + "cas", IrType.I1, List.of(args.get(0), args.get(1), args.get(2)), false);
+            case "getAndIncrement" -> builder.call(prefix + "get_and_inc", ret, List.of(args.get(0)), false);
+            case "incrementAndGet" -> builder.call(prefix + "inc_and_get", ret, List.of(args.get(0)), false);
+            default -> throw new IllegalStateException("unknown atomic intrinsic " + ms.name());
+        };
+    }
+
+    private IrValue lowerFileIntrinsic(MethodSymbol ms, List<IrValue> args) {
+        // File.* → runtime; check pending exception after calls that may throw.
+        return switch (ms.name()) {
+            case "readString" -> builder.call(
+                    "jnative_file_read_string", IrType.PTR, List.of(args.get(0)), true);
+            case "readBytes" -> builder.call(
+                    "jnative_file_read_bytes", IrType.PTR, List.of(args.get(0)), true);
+            case "writeString" -> {
+                builder.call("jnative_file_write_string", IrType.VOID,
+                        List.of(args.get(0), args.get(1)), true);
+                yield new IrValue.Const(IrType.I32, 0);
+            }
+            case "writeBytes" -> {
+                builder.call("jnative_file_write_bytes", IrType.VOID,
+                        List.of(args.get(0), args.get(1)), true);
+                yield new IrValue.Const(IrType.I32, 0);
+            }
+            case "exists" -> builder.call(
+                    "jnative_file_exists", IrType.I1, List.of(args.get(0)), false);
+            case "size" -> builder.call(
+                    "jnative_file_size", IrType.I64, List.of(args.get(0)), true);
+            case "delete" -> builder.call(
+                    "jnative_file_delete", IrType.I1, List.of(args.get(0)), false);
+            default -> throw new IllegalStateException("unknown File intrinsic " + ms.name());
+        };
+    }
+
+    private IrValue lowerBytesIntrinsic(MethodSymbol ms, List<IrValue> args) {
+        return switch (ms.name()) {
+            case "fromString" -> builder.call(
+                    "jnative_bytes_from_string", IrType.PTR, List.of(args.get(0)), false);
+            case "toString" -> builder.call(
+                    "jnative_bytes_to_string", IrType.PTR, List.of(args.get(0)), false);
+            case "concat" -> builder.call(
+                    "jnative_bytes_concat", IrType.PTR, List.of(args.get(0), args.get(1)), false);
+            case "copy" -> {
+                builder.call("jnative_bytes_copy", IrType.VOID, args, false);
+                yield new IrValue.Const(IrType.I32, 0);
+            }
+            case "indexOf2" -> builder.call(
+                    "jnative_bytes_index_of2", IrType.I32, args, false);
+            case "slice" -> builder.call(
+                    "jnative_bytes_slice", IrType.PTR,
+                    List.of(args.get(0), args.get(1), args.get(2)), false);
+            default -> throw new IllegalStateException("unknown Bytes intrinsic " + ms.name());
+        };
+    }
+
+    private IrValue lowerTcpIntrinsic(MethodSymbol ms, List<IrValue> args) {
+        String owner = ms.owner().name();
+        String name = ms.name();
+        if ("TcpSocket".equals(owner)) {
+            return switch (name) {
+                case "connect" -> builder.call(
+                        "jnative_tcp_connect", IrType.PTR, List.of(args.get(0), args.get(1)), true);
+                case "connectTimeout" -> builder.call(
+                        "jnative_tcp_connect_timeout", IrType.PTR,
+                        List.of(args.get(0), args.get(1), args.get(2)), true);
+                case "read" -> builder.call(
+                        "jnative_tcp_read", IrType.I32, List.of(args.get(0), args.get(1)), true);
+                case "readBytes" -> builder.call(
+                        "jnative_tcp_read_bytes", IrType.PTR, List.of(args.get(0), args.get(1)), true);
+                case "readAllBytes" -> builder.call(
+                        "jnative_tcp_read_all_bytes", IrType.PTR, List.of(args.get(0)), true);
+                case "readString" -> builder.call(
+                        "jnative_tcp_read_string", IrType.PTR, List.of(args.get(0), args.get(1)), true);
+                case "readAllString" -> builder.call(
+                        "jnative_tcp_read_all_string", IrType.PTR, List.of(args.get(0)), true);
+                case "write" -> {
+                    builder.call("jnative_tcp_write", IrType.VOID, List.of(args.get(0), args.get(1)), true);
+                    yield new IrValue.Const(IrType.I32, 0);
+                }
+                case "writeString" -> {
+                    builder.call("jnative_tcp_write_string", IrType.VOID,
+                            List.of(args.get(0), args.get(1)), true);
+                    yield new IrValue.Const(IrType.I32, 0);
+                }
+                case "close" -> {
+                    builder.call("jnative_tcp_close", IrType.VOID, List.of(args.get(0)), false);
+                    yield new IrValue.Const(IrType.I32, 0);
+                }
+                case "isClosed" -> builder.call(
+                        "jnative_tcp_is_closed", IrType.I1, List.of(args.get(0)), false);
+                case "setReadTimeout" -> {
+                    builder.call("jnative_tcp_set_read_timeout", IrType.VOID,
+                            List.of(args.get(0), args.get(1)), true);
+                    yield new IrValue.Const(IrType.I32, 0);
+                }
+                case "setWriteTimeout" -> {
+                    builder.call("jnative_tcp_set_write_timeout", IrType.VOID,
+                            List.of(args.get(0), args.get(1)), true);
+                    yield new IrValue.Const(IrType.I32, 0);
+                }
+                default -> throw new IllegalStateException("unknown TcpSocket intrinsic " + name);
+            };
+        }
+        return switch (name) {
+            case "listen" -> builder.call(
+                    "jnative_tcp_listen", IrType.PTR, List.of(args.get(0), args.get(1)), true);
+            case "listenAny" -> builder.call(
+                    "jnative_tcp_listen_any", IrType.PTR, List.of(args.get(0)), true);
+            case "accept" -> builder.call(
+                    "jnative_tcp_accept", IrType.PTR, List.of(args.get(0)), true);
+            case "close" -> {
+                builder.call("jnative_tcp_server_close", IrType.VOID, List.of(args.get(0)), false);
+                yield new IrValue.Const(IrType.I32, 0);
+            }
+            case "isClosed" -> builder.call(
+                    "jnative_tcp_server_is_closed", IrType.I1, List.of(args.get(0)), false);
+            default -> throw new IllegalStateException("unknown TcpServer intrinsic " + name);
+        };
     }
 
     private IrValue lowerLiteral(LiteralExpression l) {
@@ -915,7 +1521,8 @@ public final class IrGenerator {
         IrValue right = lowerExpression(b.right());
 
         if ((b.operator() == BinaryOp.EQ || b.operator() == BinaryOp.NE)
-                && left.type() == IrType.PTR && right.type() == IrType.PTR) {
+                && (left.type() == IrType.PTR || left.type() == IrType.NATIVE_PTR)
+                && (right.type() == IrType.PTR || right.type() == IrType.NATIVE_PTR)) {
             return builder.compare(
                     b.operator() == BinaryOp.EQ ? IrInstruction.CmpOp.EQ : IrInstruction.CmpOp.NE,
                     left, right);
@@ -979,6 +1586,9 @@ public final class IrGenerator {
         if (a == IrType.PTR || b == IrType.PTR) {
             return IrType.PTR;
         }
+        if (a == IrType.NATIVE_PTR || b == IrType.NATIVE_PTR) {
+            return IrType.NATIVE_PTR;
+        }
         if (a == IrType.I16 || b == IrType.I16) {
             return IrType.I32;
         }
@@ -995,11 +1605,14 @@ public final class IrGenerator {
     private IrValue defaultValue(IrType type) {
         return switch (type) {
             case I1 -> new IrValue.Const(IrType.I1, false);
+            case I8 -> new IrValue.Const(IrType.I8, 0);
             case I16 -> new IrValue.Const(IrType.I16, 0);
+            case FLOAT -> new IrValue.Const(IrType.FLOAT, 0.0f);
             case I32 -> new IrValue.Const(IrType.I32, 0);
             case I64 -> new IrValue.Const(IrType.I64, 0L);
             case DOUBLE -> new IrValue.Const(IrType.DOUBLE, 0.0);
             case PTR -> new IrValue.Const(IrType.PTR, "null");
+            case NATIVE_PTR -> new IrValue.Const(IrType.NATIVE_PTR, "null");
             case VOID -> null;
         };
     }

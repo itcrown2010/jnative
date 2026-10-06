@@ -1,7 +1,7 @@
 package io.jnative.backend.llvm.runtime;
 
 /**
- * Explicit exception propagation runtime (0.6). Uses thread-ready global state.
+ * Explicit exception propagation (0.6/0.9). State is thread-local via {@code jn_tls_ex_*}.
  */
 public final class ExceptionRuntimeEmitter {
     private final StringBuilder sb;
@@ -11,12 +11,17 @@ public final class ExceptionRuntimeEmitter {
     }
 
     public void emit() {
-        sb.append("@jn.ex.current = global ptr null\n");
-        sb.append("@jn.ex.pending = global i1 false\n");
-        sb.append("@jn.ex.returnPending = global i1 false\n");
-        sb.append("@jn.ex.returnValue = global i64 0\n");
-        sb.append('\n');
+        sb.append("""
+                declare ptr @jn_tls_ex_current()
+                declare void @jn_tls_set_ex_current(ptr)
+                declare i32 @jn_tls_ex_pending()
+                declare void @jn_tls_set_ex_pending(i32)
+                declare i32 @jn_tls_ex_return_pending()
+                declare void @jn_tls_set_ex_return_pending(i32)
+                declare i64 @jn_tls_ex_return_value()
+                declare void @jn_tls_set_ex_return_value(i64)
 
+                """);
         emitThrow();
         emitPending();
         emitTake();
@@ -37,9 +42,9 @@ public final class ExceptionRuntimeEmitter {
                   call void @jnative_throw_npe()
                   ret void
                 set:
-                  store ptr %ex, ptr @jn.ex.current, align 8
-                  store i1 true, ptr @jn.ex.pending, align 1
-                  store i1 false, ptr @jn.ex.returnPending, align 1
+                  call void @jn_tls_set_ex_current(ptr %ex)
+                  call void @jn_tls_set_ex_pending(i32 1)
+                  call void @jn_tls_set_ex_return_pending(i32 0)
                   ret void
                 }
 
@@ -50,8 +55,9 @@ public final class ExceptionRuntimeEmitter {
         sb.append("""
                 define i1 @jnative_exception_pending() {
                 entry:
-                  %p = load i1, ptr @jn.ex.pending, align 1
-                  ret i1 %p
+                  %p = call i32 @jn_tls_ex_pending()
+                  %r = icmp ne i32 %p, 0
+                  ret i1 %r
                 }
 
                 """);
@@ -61,8 +67,8 @@ public final class ExceptionRuntimeEmitter {
         sb.append("""
                 define ptr @jnative_exception_take() {
                 entry:
-                  %ex = load ptr, ptr @jn.ex.current, align 8
-                  store i1 false, ptr @jn.ex.pending, align 1
+                  %ex = call ptr @jn_tls_ex_current()
+                  call void @jn_tls_set_ex_pending(i32 0)
                   ret ptr %ex
                 }
 
@@ -73,8 +79,8 @@ public final class ExceptionRuntimeEmitter {
         sb.append("""
                 define void @jnative_exception_clear() {
                 entry:
-                  store ptr null, ptr @jn.ex.current, align 8
-                  store i1 false, ptr @jn.ex.pending, align 1
+                  call void @jn_tls_set_ex_current(ptr null)
+                  call void @jn_tls_set_ex_pending(i32 0)
                   ret void
                 }
 
@@ -85,7 +91,7 @@ public final class ExceptionRuntimeEmitter {
         sb.append("""
                 define ptr @jnative_exception_peek() {
                 entry:
-                  %ex = load ptr, ptr @jn.ex.current, align 8
+                  %ex = call ptr @jn_tls_ex_current()
                   ret ptr %ex
                 }
 
@@ -96,15 +102,25 @@ public final class ExceptionRuntimeEmitter {
         sb.append("""
                 define void @jnative_exception_uncaught() {
                 entry:
-                  %ex = load ptr, ptr @jn.ex.current, align 8
+                  %ex = call ptr @jn_tls_ex_current()
                   call void @jnative_print_uncaught(ptr %ex)
                   call void @exit(i32 1)
                   unreachable
                 }
 
+                define void @jnative_exception_uncaught_worker() {
+                entry:
+                  %ex = call ptr @jn_tls_ex_current()
+                  call void @jnative_print_uncaught_worker(ptr %ex)
+                  call void @jnative_exception_clear()
+                  ret void
+                }
+
                 define void @jnative_print_uncaught(ptr %ex) {
                 entry:
                   call i32 @puts(ptr @.jn.uncaught.prefix)
+                  br label %body
+                body:
                   %meta = load ptr, ptr %ex, align 8
                   %nameField = getelementptr %jn.ClassMeta, ptr %meta, i32 0, i32 4
                   %name = load ptr, ptr %nameField, align 8
@@ -120,15 +136,29 @@ public final class ExceptionRuntimeEmitter {
                   ret void
                 }
 
+                define void @jnative_print_uncaught_worker(ptr %ex) {
+                entry:
+                  call i32 @puts(ptr @.jn.uncaught.worker)
+                  %isnull = icmp eq ptr %ex, null
+                  br i1 %isnull, label %done, label %body
+                body:
+                  call void @jnative_print_uncaught(ptr %ex)
+                  br label %done
+                done:
+                  ret void
+                }
+
                 """);
+        // prefix strings emitted in RuntimeEmitter already for uncaught.prefix; add worker below via append
+        emitCString(".jn.uncaught.worker", "Uncaught exception in worker thread:");
     }
 
     private void emitCompletion() {
         sb.append("""
                 define void @jnative_completion_set_return_i64(i64 %v) {
                 entry:
-                  store i64 %v, ptr @jn.ex.returnValue, align 8
-                  store i1 true, ptr @jn.ex.returnPending, align 1
+                  call void @jn_tls_set_ex_return_value(i64 %v)
+                  call void @jn_tls_set_ex_return_pending(i32 1)
                   ret void
                 }
 
@@ -141,14 +171,15 @@ public final class ExceptionRuntimeEmitter {
 
                 define i1 @jnative_completion_has_return() {
                 entry:
-                  %r = load i1, ptr @jn.ex.returnPending, align 1
+                  %p = call i32 @jn_tls_ex_return_pending()
+                  %r = icmp ne i32 %p, 0
                   ret i1 %r
                 }
 
                 define i64 @jnative_completion_take_return_i64() {
                 entry:
-                  %v = load i64, ptr @jn.ex.returnValue, align 8
-                  store i1 false, ptr @jn.ex.returnPending, align 1
+                  %v = call i64 @jn_tls_ex_return_value()
+                  call void @jn_tls_set_ex_return_pending(i32 0)
                   ret i64 %v
                 }
 
@@ -161,8 +192,8 @@ public final class ExceptionRuntimeEmitter {
 
                 define void @jnative_completion_clear() {
                 entry:
-                  store i1 false, ptr @jn.ex.returnPending, align 1
-                  store i64 0, ptr @jn.ex.returnValue, align 8
+                  call void @jn_tls_set_ex_return_pending(i32 0)
+                  call void @jn_tls_set_ex_return_value(i64 0)
                   ret void
                 }
 
@@ -208,8 +239,35 @@ public final class ExceptionRuntimeEmitter {
                   call void @jnative_throw_simple(ptr @meta.ArithmeticException, i64 16)
                   ret void
                 }
-                ; Exception object size is 16 bytes: ClassMetadata* + String message.
+
+                define void @jnative_throw_illegal_monitor() {
+                entry:
+                  call void @jnative_throw_simple(ptr @meta.IllegalMonitorStateException, i64 16)
+                  ret void
+                }
+
+                define void @jnative_throw_illegal_state() {
+                entry:
+                  call void @jnative_throw_simple(ptr @meta.IllegalStateException, i64 16)
+                  ret void
+                }
 
                 """);
+    }
+
+    private void emitCString(String name, String content) {
+        byte[] bytes = content.getBytes(java.nio.charset.StandardCharsets.UTF_8);
+        int len = bytes.length + 1;
+        sb.append('@').append(name).append(" = private unnamed_addr constant [")
+                .append(len).append(" x i8] c\"");
+        for (byte b : bytes) {
+            int v = b & 0xff;
+            if (v >= 32 && v < 127 && v != '"' && v != '\\') {
+                sb.append((char) v);
+            } else {
+                sb.append(String.format("\\%02X", v));
+            }
+        }
+        sb.append("\\00\", align 1\n");
     }
 }

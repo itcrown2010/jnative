@@ -139,6 +139,52 @@ public final class IrPrinter {
             case IrInstruction.GcCollect ignored -> "gc.collect";
             case IrInstruction.Throw t -> "throw " + t.exception().name();
             case IrInstruction.ClearException ignored -> "exception.clear";
+            case IrInstruction.NativeCall n -> {
+                StringBuilder s = new StringBuilder("nativecall ").append(n.symbol()).append('(');
+                for (int i = 0; i < n.args().size(); i++) {
+                    if (i > 0) {
+                        s.append(", ");
+                    }
+                    s.append(n.args().get(i).name());
+                }
+                s.append(')');
+                if (n.dest() != null) {
+                    yield n.dest().name() + " = " + s;
+                }
+                yield s.toString();
+            }
+            case IrInstruction.StackAlloc a ->
+                    a.dest().name() + " = stackalloc %" + a.llvmTypeName()
+                            + " align=" + a.alignment() + " size=" + a.sizeBytes();
+            case IrInstruction.AddressOf a ->
+                    a.dest().name() + " = addressof " + a.stackLocal().name();
+            case IrInstruction.NativeFieldAddress f ->
+                    f.dest().name() + " = nativefield " + f.structName() + "." + f.fieldName()
+                            + " +" + f.byteOffset() + ", " + f.base().name();
+            case IrInstruction.NativeLoad l ->
+                    l.dest().name() + " = nativeload " + l.valueType() + ", " + l.address().name();
+            case IrInstruction.NativeStore s ->
+                    "nativestore " + s.value().name() + ", " + s.address().name();
+            case IrInstruction.NativePtrAdd a ->
+                    a.dest().name() + " = nativeptradd " + a.base().name()
+                            + ", " + a.elements().name() + " *" + a.elementSize();
+            case IrInstruction.LoadStatic l ->
+                    l.dest().name() + " = loadstatic @" + l.globalName()
+                            + (l.isVolatile() ? " volatile" : "");
+            case IrInstruction.StoreStatic s ->
+                    "storestatic @" + s.globalName() + ", " + s.value().name()
+                            + (s.isVolatile() ? " volatile" : "");
+            case IrInstruction.SafepointPoll ignored -> "safepoint.poll";
+            case IrInstruction.AtomicLoad a ->
+                    a.dest().name() + " = atomicload " + a.order() + " " + a.address().name();
+            case IrInstruction.AtomicStore a ->
+                    "atomicstore " + a.order() + " " + a.value().name() + ", " + a.address().name();
+            case IrInstruction.AtomicRmw a ->
+                    a.dest().name() + " = atomicrmw " + a.op() + " " + a.order()
+                            + " " + a.address().name() + ", " + a.value().name();
+            case IrInstruction.CompareExchange c ->
+                    c.destSuccess().name() + " = cmpxchg " + c.address().name()
+                            + ", " + c.expected().name() + ", " + c.update().name();
         };
     }
 

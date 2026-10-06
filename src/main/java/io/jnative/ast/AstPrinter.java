@@ -20,7 +20,11 @@ public final class AstPrinter {
     }
 
     private static void printClass(ClassDeclaration cls, StringBuilder sb, int indent) {
-        indent(sb, indent).append("Class ").append(cls.name());
+        indent(sb, indent);
+        if (cls.nativeStruct()) {
+            sb.append("@NativeStruct ");
+        }
+        sb.append("Class ").append(cls.name());
         if (cls.superClassName() != null) {
             sb.append(" extends ").append(cls.superClassName());
         }
@@ -65,7 +69,11 @@ public final class AstPrinter {
                 indent(sb, indent).append("}\n");
             }
             case VariableDeclaration v -> {
-                indent(sb, indent).append("Var ").append(v.type());
+                indent(sb, indent);
+                if (v.stackAllocated()) {
+                    sb.append("@Stack ");
+                }
+                sb.append("Var ").append(v.type());
                 if (v.isArray()) {
                     sb.append("[]");
                 }
@@ -146,7 +154,18 @@ public final class AstPrinter {
                 if (m.receiver() != null) {
                     sb.append(printExpr(m.receiver())).append('.');
                 }
-                sb.append(m.name()).append('(');
+                sb.append(m.name());
+                if (m.typeArguments() != null && !m.typeArguments().isEmpty()) {
+                    sb.append('<');
+                    for (int i = 0; i < m.typeArguments().size(); i++) {
+                        if (i > 0) {
+                            sb.append(", ");
+                        }
+                        sb.append(m.typeArguments().get(i));
+                    }
+                    sb.append('>');
+                }
+                sb.append('(');
                 appendArguments(m.arguments(), sb);
                 sb.append(')');
                 yield sb.toString();
@@ -164,6 +183,7 @@ public final class AstPrinter {
             case InstanceOfExpression i -> "(" + printExpr(i.expression()) + " instanceof " + i.type() + ")";
             case CastExpression c -> "((" + c.type() + ") " + printExpr(c.expression()) + ")";
             case GcCollectExpression ignored -> "System.gc()";
+            case NativeNullExpression ignored -> "NativePtr.NULL";
             case FieldAccessExpression f -> printExpr(f.receiver()) + "." + f.fieldName();
             case NullLiteralExpression ignored -> "null";
             case ThisExpression ignored -> "this";

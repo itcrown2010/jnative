@@ -8,6 +8,7 @@
 - 0.4 Runtime Foundation
 - 0.5 Native Garbage Collector
 - 0.6 Exceptions
+- 0.7 Native Interop / FFI
 
 ## Next
 

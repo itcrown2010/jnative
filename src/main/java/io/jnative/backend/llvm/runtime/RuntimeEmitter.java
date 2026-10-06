@@ -17,8 +17,13 @@ public final class RuntimeEmitter {
         new GcRuntimeEmitter(sb).emit();
         new ArrayRuntimeEmitter(sb).emit();
         new StringRuntimeEmitter(sb).emit();
+        new BytesRuntimeEmitter(sb).emit();
         new TypeRuntimeEmitter(sb).emit();
         new IoRuntimeEmitter(sb).emit();
+        new FfiRuntimeEmitter(sb).emit();
+        new FileRuntimeEmitter(sb).emit();
+        new NetworkRuntimeEmitter(sb).emit();
+        new ThreadRuntimeEmitter(sb).emit();
     }
 
     private void emitDeclarations() {
@@ -34,6 +39,14 @@ public final class RuntimeEmitter {
         sb.append("declare ptr @getenv(ptr noundef)\n");
         sb.append("declare i64 @atol(ptr noundef)\n");
         sb.append("declare i32 @atexit(ptr noundef)\n");
+        // libc file I/O (platform layer for 0.8.1; File API does not expose FILE*)
+        sb.append("declare ptr @fopen(ptr noundef, ptr noundef)\n");
+        sb.append("declare i32 @fclose(ptr noundef)\n");
+        sb.append("declare i64 @fread(ptr noundef, i64 noundef, i64 noundef, ptr noundef)\n");
+        sb.append("declare i64 @fwrite(ptr noundef, i64 noundef, i64 noundef, ptr noundef)\n");
+        sb.append("declare i32 @fseek(ptr noundef, i64 noundef, i32 noundef)\n");
+        sb.append("declare i64 @ftell(ptr noundef)\n");
+        sb.append("declare i32 @remove(ptr noundef)\n");
         sb.append('\n');
         emitCString(".fmt.i32", "%d\n");
         emitCString(".fmt.i64", "%lld\n");

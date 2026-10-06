@@ -1,6 +1,7 @@
 package io.jnative.semantic;
 
 import io.jnative.diagnostics.SourceLocation;
+import io.jnative.ffi.PointerProvenance;
 
 public final class VariableSymbol {
     public enum Kind {
@@ -13,12 +14,30 @@ public final class VariableSymbol {
     private final JType type;
     private final Kind kind;
     private final SourceLocation location;
+    private final boolean stackAllocated;
+    private PointerProvenance provenance = PointerProvenance.UNKNOWN;
 
     public VariableSymbol(String name, JType type, Kind kind, SourceLocation location) {
+        this(name, type, kind, location, false);
+    }
+
+    public VariableSymbol(
+            String name,
+            JType type,
+            Kind kind,
+            SourceLocation location,
+            boolean stackAllocated
+    ) {
         this.name = name;
         this.type = type;
         this.kind = kind;
         this.location = location;
+        this.stackAllocated = stackAllocated;
+        if (stackAllocated) {
+            this.provenance = PointerProvenance.STACK;
+        } else if (type instanceof NativePtrType) {
+            this.provenance = PointerProvenance.UNKNOWN;
+        }
     }
 
     public String name() {
@@ -35,5 +54,17 @@ public final class VariableSymbol {
 
     public SourceLocation location() {
         return location;
+    }
+
+    public boolean isStackAllocated() {
+        return stackAllocated;
+    }
+
+    public PointerProvenance provenance() {
+        return provenance;
+    }
+
+    public void setProvenance(PointerProvenance provenance) {
+        this.provenance = provenance;
     }
 }

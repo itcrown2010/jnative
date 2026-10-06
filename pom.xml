@@ -6,7 +6,7 @@
 
     <groupId>io.jnative</groupId>
     <artifactId>jnative</artifactId>
-    <version>0.6.0</version>
+    <version>0.9</version>
     <packaging>jar</packaging>
 
     <name>JNative</name>

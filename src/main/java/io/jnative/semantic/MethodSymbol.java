@@ -1,6 +1,7 @@
 package io.jnative.semantic;
 
 import io.jnative.diagnostics.SourceLocation;
+import io.jnative.ffi.NativeFunction;
 
 import java.util.List;
 import java.util.Objects;
@@ -13,10 +14,13 @@ public final class MethodSymbol {
     private final boolean isStatic;
     private final boolean isMain;
     private final boolean isVirtual;
+    private final boolean isNative;
     private final String mangledName;
     private final SourceLocation location;
     private Integer vtableSlot;
     private MethodSymbol overrides;
+    private NativeFunction nativeFunction;
+    private boolean ffiIntrinsic;
 
     public MethodSymbol(
             ClassSymbol owner,
@@ -28,13 +32,28 @@ public final class MethodSymbol {
             String mangledName,
             SourceLocation location
     ) {
+        this(owner, name, returnType, parameters, isStatic, isMain, false, mangledName, location);
+    }
+
+    public MethodSymbol(
+            ClassSymbol owner,
+            String name,
+            JType returnType,
+            List<ParameterSymbol> parameters,
+            boolean isStatic,
+            boolean isMain,
+            boolean isNative,
+            String mangledName,
+            SourceLocation location
+    ) {
         this.owner = owner;
         this.name = name;
         this.returnType = returnType;
         this.parameters = List.copyOf(parameters);
         this.isStatic = isStatic;
         this.isMain = isMain;
-        this.isVirtual = !isStatic && !isMain;
+        this.isNative = isNative;
+        this.isVirtual = !isStatic && !isMain && !isNative;
         this.mangledName = mangledName;
         this.location = location;
     }
@@ -71,6 +90,10 @@ public final class MethodSymbol {
         return isVirtual;
     }
 
+    public boolean isNative() {
+        return isNative;
+    }
+
     public String mangledName() {
         return mangledName;
     }
@@ -93,6 +116,22 @@ public final class MethodSymbol {
 
     public void setOverrides(MethodSymbol overrides) {
         this.overrides = overrides;
+    }
+
+    public NativeFunction nativeFunction() {
+        return nativeFunction;
+    }
+
+    public void setNativeFunction(NativeFunction nativeFunction) {
+        this.nativeFunction = nativeFunction;
+    }
+
+    public boolean isFfiIntrinsic() {
+        return ffiIntrinsic;
+    }
+
+    public void setFfiIntrinsic(boolean ffiIntrinsic) {
+        this.ffiIntrinsic = ffiIntrinsic;
     }
 
     public boolean sameSignatureAs(MethodSymbol other) {
@@ -121,6 +160,9 @@ public final class MethodSymbol {
         }
         if (a instanceof ArrayType aa && b instanceof ArrayType ab) {
             return signatureTypeEquals(aa.elementType(), ab.elementType());
+        }
+        if (a instanceof NativePtrType && b instanceof NativePtrType) {
+            return true;
         }
         return a.equals(b);
     }

@@ -1,6 +1,8 @@
 package io.jnative.compiler;
 
 import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.List;
 
 public final class CompilerOptions {
     private Path sourceFile;
@@ -8,9 +10,12 @@ public final class CompilerOptions {
     private boolean emitAst;
     private boolean emitIr;
     private boolean emitLlvm;
+    private boolean emitLayout;
     private boolean keepTemps;
     private boolean help;
     private boolean version;
+    private final List<Path> libraryPaths = new ArrayList<>();
+    private final List<String> linkLibraries = new ArrayList<>();
 
     public Path sourceFile() {
         return sourceFile;
@@ -52,6 +57,14 @@ public final class CompilerOptions {
         this.emitLlvm = emitLlvm;
     }
 
+    public boolean emitLayout() {
+        return emitLayout;
+    }
+
+    public void setEmitLayout(boolean emitLayout) {
+        this.emitLayout = emitLayout;
+    }
+
     public boolean keepTemps() {
         return keepTemps;
     }
@@ -76,7 +89,23 @@ public final class CompilerOptions {
         this.version = version;
     }
 
+    public List<Path> libraryPaths() {
+        return libraryPaths;
+    }
+
+    public void addLibraryPath(Path path) {
+        libraryPaths.add(path);
+    }
+
+    public List<String> linkLibraries() {
+        return linkLibraries;
+    }
+
+    public void addLinkLibrary(String lib) {
+        linkLibraries.add(lib);
+    }
+
     public boolean emitOnly() {
-        return emitAst || emitIr || emitLlvm;
+        return emitAst || emitIr || emitLlvm || emitLayout;
     }
 }

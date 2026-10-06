@@ -11,7 +11,7 @@ Java Source
 Generated programs do **not** require a JVM/JRE at runtime.
 
 > **Important:** JNative is **not** a complete Java SE implementation.
-> Current release: **0.5 — Native Garbage Collector**.
+> Current release: **0.9 — Multithreading & Concurrent Runtime**.
 
 ## Requirements
 
@@ -31,36 +31,28 @@ mvn test
 ```bash
 java -jar target/jnative.jar examples/Hello.java -o Hello
 ./Hello
+
+java -jar target/jnative.jar examples/Cat.java -o jcat
+./jcat hello.txt
 ```
 
-GC env (optional):
+## What's new in 0.8.3
 
-```bash
-JNATIVE_GC_STRESS=1 JNATIVE_GC_STATS=1 ./Hello
-```
-
-## What's new in 0.5
-
-- Precise stop-the-world mark-sweep GC (non-moving, single-threaded)
-- GC header + allocation registry
-- Shadow-stack precise roots
-- `System.gc()` intrinsic
-- Stress / stats via environment variables
+- HTTP/1.1 `HttpClient` / `HttpServer` as JNative stdlib on `TcpSocket`
+- Chunked transfer, redirects, binary bodies, curl E2E
+- `examples/HttpDownload.java`, `examples/HttpHelloServer.java`
 
 ## Documentation
 
+- [HTTP](docs/http.md)
+- [Networking](docs/networking.md)
+- [File I/O](docs/file-io.md)
 - [Architecture](docs/architecture.md)
 - [Language support](docs/language-support.md)
-- [Object model](docs/object-model.md)
+- [FFI](docs/ffi.md)
+- [Native struct](docs/native-struct.md)
 - [GC](docs/gc.md)
-- [Memory model](docs/memory-model.md)
-- [Runtime](docs/runtime.md)
-- [Constructors](docs/constructors.md)
-- [Arrays](docs/arrays.md)
-- [String](docs/string.md)
-- [RTTI](docs/rtti.md)
-- [Inheritance](docs/inheritance.md)
-- [VTable](docs/vtable.md)
+- [Exceptions](docs/exceptions.md)
 
 ## License
 

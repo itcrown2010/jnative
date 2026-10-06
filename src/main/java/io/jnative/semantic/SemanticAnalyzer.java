@@ -5,6 +5,13 @@ import io.jnative.diagnostics.DiagnosticReporter;
 import io.jnative.diagnostics.SourceLocation;
 import io.jnative.layout.ObjectLayoutBuilder;
 import io.jnative.mangle.NameMangler;
+import io.jnative.ffi.AbiType;
+import io.jnative.ffi.CallingConvention;
+import io.jnative.ffi.NativeFunction;
+import io.jnative.ffi.NativeSignature;
+import io.jnative.ffi.NativeStructLayoutBuilder;
+import io.jnative.ffi.PointerProvenance;
+import io.jnative.ffi.TargetAbi;
 import io.jnative.vtable.VTableBuilder;
 
 import java.util.ArrayList;
@@ -17,13 +24,15 @@ import java.util.Optional;
 import java.util.Set;
 
 /**
- * Semantic analysis for JNative 0.4 (constructors, arrays, String, RTTI).
+ * Semantic analysis for JNative 0.8 (native data model, constructors, arrays, String, RTTI).
  */
 public final class SemanticAnalyzer {
     private final DiagnosticReporter reporter;
     private final Map<String, ClassSymbol> classes = new LinkedHashMap<>();
+    private final Map<String, NativeStructSymbol> nativeStructs = new LinkedHashMap<>();
     private final Map<Expression, JType> expressionTypes = new HashMap<>();
     private final Map<Expression, Object> resolvedSymbols = new HashMap<>();
+    private final Map<Expression, PointerProvenance> provenances = new HashMap<>();
     private final Map<String, ClassMetadata> arrayMetadatas = new LinkedHashMap<>();
     private final Map<ConstructorSymbol, MethodDeclaration> constructorAst = new HashMap<>();
     private final Map<CatchClause, ClassSymbol> catchTypes = new HashMap<>();
@@ -35,6 +44,11 @@ public final class SemanticAnalyzer {
     private ClassSymbol stringClass;
     private ClassSymbol objectClass;
     private ClassSymbol throwableClass;
+    private ClassSymbol nativeMemoryClass;
+    private ClassSymbol nativeClass;
+    private boolean allowingStackNativeNew;
+    private final TargetAbi targetAbi = TargetAbi.forHost();
+    private final LinkedHashMap<String, String> nativeLibraries = new LinkedHashMap<>();
 
     public SemanticAnalyzer(DiagnosticReporter reporter) {
         this.reporter = reporter;
@@ -47,28 +61,61 @@ public final class SemanticAnalyzer {
         arrayMetadatas.clear();
         constructorAst.clear();
         catchTypes.clear();
+        nativeStructs.clear();
+        provenances.clear();
         current = new Scope(null);
         currentClass = null;
         currentMethod = null;
         currentConstructor = null;
+        allowingStackNativeNew = false;
 
         installBuiltins();
+        // File.readBytes / argv need these metadatas present for the runtime.
+        arrayMetadataFor(PrimitiveType.BYTE);
+        arrayMetadataFor(stringClass.asType());
+        nativeLibraries.clear();
+        nativeStructs.clear();
+        provenances.clear();
 
         for (ClassDeclaration cls : unit.classes()) {
-            declareClass(cls);
+            if (cls.nativeStruct()) {
+                declareNativeStruct(cls);
+            } else {
+                declareClass(cls);
+            }
         }
         for (ClassDeclaration cls : unit.classes()) {
-            linkSuperClass(cls);
+            if (!cls.nativeStruct()) {
+                linkSuperClass(cls);
+            }
         }
         detectInheritanceCycles(unit);
 
         for (ClassDeclaration cls : unit.classes()) {
+            if (!cls.nativeStruct()) {
+                continue;
+            }
+            NativeStructSymbol symbol = nativeStructs.get(cls.name());
+            if (symbol != null) {
+                registerNativeStructFields(symbol, cls);
+            }
+        }
+        detectRecursiveNativeStructs();
+        buildNativeStructLayouts();
+
+        for (ClassDeclaration cls : unit.classes()) {
+            if (cls.nativeStruct()) {
+                continue;
+            }
             ClassSymbol symbol = classes.get(cls.name());
             if (symbol != null) {
                 registerFields(symbol, cls);
             }
         }
         for (ClassDeclaration cls : unit.classes()) {
+            if (cls.nativeStruct()) {
+                continue;
+            }
             ClassSymbol symbol = classes.get(cls.name());
             if (symbol != null) {
                 registerMethods(symbol, cls);
@@ -87,11 +134,15 @@ public final class SemanticAnalyzer {
         detectConstructorCycles();
 
         for (ClassDeclaration cls : unit.classes()) {
+            if (cls.nativeStruct()) {
+                continue;
+            }
             ClassSymbol symbol = classes.get(cls.name());
             if (symbol == null) {
                 continue;
             }
             currentClass = symbol;
+            analyzeStaticFieldInitializers(symbol);
             for (MethodDeclaration method : cls.methods()) {
                 if (method.isConstructor()) {
                     analyzeConstructor(symbol, method);
@@ -105,16 +156,20 @@ public final class SemanticAnalyzer {
         return new TypedCompilationUnit(
                 unit,
                 Map.copyOf(classes),
+                Map.copyOf(nativeStructs),
                 Map.copyOf(expressionTypes),
                 Map.copyOf(resolvedSymbols),
                 Map.copyOf(arrayMetadatas),
-                Map.copyOf(catchTypes)
+                Map.copyOf(catchTypes),
+                List.copyOf(nativeLibraries.keySet()),
+                targetAbi
         );
     }
 
     private void installBuiltins() {
         installStringBuiltin();
         installObjectHierarchy();
+        installFfiBuiltins();
     }
 
     private void installObjectHierarchy() {
@@ -132,6 +187,12 @@ public final class SemanticAnalyzer {
 
         ClassSymbol exceptionClass = newExceptionClass("Exception", throwableClass);
         ClassSymbol runtimeExceptionClass = newExceptionClass("RuntimeException", exceptionClass);
+        ClassSymbol ioExceptionClass = newExceptionClass("IOException", exceptionClass);
+        ClassSymbol fileNotFoundClass = newExceptionClass("FileNotFoundException", ioExceptionClass);
+        ClassSymbol socketExceptionClass = newExceptionClass("SocketException", ioExceptionClass);
+        ClassSymbol connectExceptionClass = newExceptionClass("ConnectException", socketExceptionClass);
+        ClassSymbol unknownHostClass = newExceptionClass("UnknownHostException", socketExceptionClass);
+        ClassSymbol socketTimeoutClass = newExceptionClass("SocketTimeoutException", socketExceptionClass);
 
         FieldSymbol messageField = new FieldSymbol(
                 throwableClass, "message", stringClass.asType(), 0, SourceLocation.UNKNOWN);
@@ -152,28 +213,63 @@ public final class SemanticAnalyzer {
 
         ConstructorSymbol exceptionString = addStringSuperCtor(exceptionClass);
         ConstructorSymbol runtimeString = addStringSuperCtor(runtimeExceptionClass);
+        ConstructorSymbol ioString = addStringSuperCtor(ioExceptionClass);
+        ConstructorSymbol fnfString = addStringSuperCtor(fileNotFoundClass);
+        ConstructorSymbol socketString = addStringSuperCtor(socketExceptionClass);
+        ConstructorSymbol connectString = addStringSuperCtor(connectExceptionClass);
+        ConstructorSymbol unknownHostString = addStringSuperCtor(unknownHostClass);
+        ConstructorSymbol socketTimeoutString = addStringSuperCtor(socketTimeoutClass);
         exceptionString.setDelegatesTo(throwableStringCtor);
         exceptionString.setDelegatesToSuper(true);
         runtimeString.setDelegatesTo(exceptionString);
         runtimeString.setDelegatesToSuper(true);
+        ioString.setDelegatesTo(exceptionString);
+        ioString.setDelegatesToSuper(true);
+        fnfString.setDelegatesTo(ioString);
+        fnfString.setDelegatesToSuper(true);
+        socketString.setDelegatesTo(ioString);
+        socketString.setDelegatesToSuper(true);
+        connectString.setDelegatesTo(socketString);
+        connectString.setDelegatesToSuper(true);
+        unknownHostString.setDelegatesTo(socketString);
+        unknownHostString.setDelegatesToSuper(true);
+        socketTimeoutString.setDelegatesTo(socketString);
+        socketTimeoutString.setDelegatesToSuper(true);
         exceptionClass.constructors().getFirst().setDelegatesTo(throwableDefault);
         exceptionClass.constructors().getFirst().setDelegatesToSuper(true);
         runtimeExceptionClass.constructors().getFirst().setDelegatesTo(exceptionClass.constructors().getFirst());
         runtimeExceptionClass.constructors().getFirst().setDelegatesToSuper(true);
+        ioExceptionClass.constructors().getFirst().setDelegatesTo(exceptionClass.constructors().getFirst());
+        ioExceptionClass.constructors().getFirst().setDelegatesToSuper(true);
+        fileNotFoundClass.constructors().getFirst().setDelegatesTo(ioExceptionClass.constructors().getFirst());
+        fileNotFoundClass.constructors().getFirst().setDelegatesToSuper(true);
+        socketExceptionClass.constructors().getFirst().setDelegatesTo(ioExceptionClass.constructors().getFirst());
+        socketExceptionClass.constructors().getFirst().setDelegatesToSuper(true);
+        connectExceptionClass.constructors().getFirst().setDelegatesTo(socketExceptionClass.constructors().getFirst());
+        connectExceptionClass.constructors().getFirst().setDelegatesToSuper(true);
+        unknownHostClass.constructors().getFirst().setDelegatesTo(socketExceptionClass.constructors().getFirst());
+        unknownHostClass.constructors().getFirst().setDelegatesToSuper(true);
+        socketTimeoutClass.constructors().getFirst().setDelegatesTo(socketExceptionClass.constructors().getFirst());
+        socketTimeoutClass.constructors().getFirst().setDelegatesToSuper(true);
 
         List<ClassSymbol> leaves = new ArrayList<>();
         for (String leaf : List.of(
                 "NullPointerException", "ArrayIndexOutOfBoundsException", "NegativeArraySizeException",
-                "ClassCastException", "ArithmeticException")) {
+                "ClassCastException", "ArithmeticException", "IllegalArgumentException",
+                "IllegalStateException", "IllegalMonitorStateException")) {
             ClassSymbol leafClass = newExceptionClass(leaf, runtimeExceptionClass);
             leafClass.constructors().getFirst().setDelegatesTo(runtimeExceptionClass.constructors().getFirst());
             leafClass.constructors().getFirst().setDelegatesToSuper(true);
+            ConstructorSymbol leafString = addStringSuperCtor(leafClass);
+            leafString.setDelegatesTo(runtimeString);
+            leafString.setDelegatesToSuper(true);
             leaves.add(leafClass);
         }
 
         // Layouts must be built after message field exists, parents before children.
         for (ClassSymbol cls : List.of(
-                throwableClass, exceptionClass, runtimeExceptionClass)) {
+                throwableClass, exceptionClass, runtimeExceptionClass, ioExceptionClass, fileNotFoundClass,
+                socketExceptionClass, connectExceptionClass, unknownHostClass, socketTimeoutClass)) {
             cls.setLayout(ObjectLayoutBuilder.build(cls));
             cls.setVtable(VTableBuilder.build(cls));
         }
@@ -219,8 +315,310 @@ public final class SemanticAnalyzer {
                 false, false, "_JN_String_equals_CString", SourceLocation.UNKNOWN);
         stringClass.addMethod(equals);
 
+        // General-purpose String helpers (0.8.3) — not HTTP-specific.
+        JType stringType = stringClass.asType();
+        JType byteArray = new ArrayType(PrimitiveType.BYTE);
+        addStringIntrinsic("indexOf", PrimitiveType.INT, List.of(
+                new ParameterSymbol("needle", stringType, SourceLocation.UNKNOWN)));
+        addStringIntrinsic("indexOfFrom", PrimitiveType.INT, List.of(
+                new ParameterSymbol("needle", stringType, SourceLocation.UNKNOWN),
+                new ParameterSymbol("from", PrimitiveType.INT, SourceLocation.UNKNOWN)));
+        addStringIntrinsic("substring", stringType, List.of(
+                new ParameterSymbol("begin", PrimitiveType.INT, SourceLocation.UNKNOWN),
+                new ParameterSymbol("end", PrimitiveType.INT, SourceLocation.UNKNOWN)));
+        addStringIntrinsic("substringFrom", stringType, List.of(
+                new ParameterSymbol("begin", PrimitiveType.INT, SourceLocation.UNKNOWN)));
+        addStringIntrinsic("startsWith", PrimitiveType.BOOLEAN, List.of(
+                new ParameterSymbol("prefix", stringType, SourceLocation.UNKNOWN)));
+        addStringIntrinsic("endsWith", PrimitiveType.BOOLEAN, List.of(
+                new ParameterSymbol("suffix", stringType, SourceLocation.UNKNOWN)));
+        addStringIntrinsic("equalsIgnoreCase", PrimitiveType.BOOLEAN, List.of(
+                new ParameterSymbol("other", stringType, SourceLocation.UNKNOWN)));
+        addStringIntrinsic("trim", stringType, List.of());
+        addStringIntrinsic("getBytes", byteArray, List.of());
+        addStringIntrinsic("toLowerCase", stringType, List.of());
+
+        MethodSymbol fromBytes = new MethodSymbol(
+                stringClass, "fromBytes", stringType,
+                List.of(new ParameterSymbol("bytes", byteArray, SourceLocation.UNKNOWN)),
+                true, false, true, "_JN_String_fromBytes", SourceLocation.UNKNOWN);
+        fromBytes.setFfiIntrinsic(true);
+        stringClass.addMethod(fromBytes);
+
+        MethodSymbol valueOf = new MethodSymbol(
+                stringClass, "valueOf", stringType,
+                List.of(new ParameterSymbol("value", PrimitiveType.INT, SourceLocation.UNKNOWN)),
+                true, false, true, "_JN_String_valueOf_i32", SourceLocation.UNKNOWN);
+        valueOf.setFfiIntrinsic(true);
+        stringClass.addMethod(valueOf);
+
         stringClass.setLayout(ObjectLayoutBuilder.build(stringClass));
         stringClass.setVtable(new io.jnative.vtable.VTable(stringClass, List.of()));
+    }
+
+    private void addStringIntrinsic(String name, JType ret, List<ParameterSymbol> params) {
+        String mangled = NameMangler.mangleMethod(
+                "String", name, params.stream().map(ParameterSymbol::type).toList(), false);
+        MethodSymbol ms = new MethodSymbol(
+                stringClass, name, ret, params, false, false, true, mangled, SourceLocation.UNKNOWN);
+        ms.setFfiIntrinsic(true);
+        stringClass.addMethod(ms);
+    }
+
+    private void installFfiBuiltins() {
+        // NativePtr is a type name (NativePtrType), not an instantiable class.
+        ClassSymbol np = new ClassSymbol("NativePtr", SourceLocation.UNKNOWN, true);
+        classes.put("NativePtr", np);
+        np.setLayout(ObjectLayoutBuilder.build(np));
+        np.setVtable(new io.jnative.vtable.VTable(np, List.of()));
+
+        // Builtin Native: addressOf / loadInt / storeInt / allocate handled in typeOfCall.
+        nativeClass = new ClassSymbol("Native", SourceLocation.UNKNOWN, true);
+        classes.put("Native", nativeClass);
+        nativeClass.setLayout(ObjectLayoutBuilder.build(nativeClass));
+        nativeClass.setVtable(new io.jnative.vtable.VTable(nativeClass, List.of()));
+
+        nativeMemoryClass = new ClassSymbol("NativeMemory", SourceLocation.UNKNOWN, true);
+        classes.put("NativeMemory", nativeMemoryClass);
+
+        addFfiIntrinsic(nativeMemoryClass, "allocate", NativePtrType.VOID,
+                List.of(new ParameterSymbol("size", PrimitiveType.LONG, SourceLocation.UNKNOWN)));
+        addFfiIntrinsic(nativeMemoryClass, "free", VoidType.INSTANCE,
+                List.of(new ParameterSymbol("ptr", NativePtrType.VOID, SourceLocation.UNKNOWN)));
+        addFfiIntrinsic(nativeMemoryClass, "getInt", PrimitiveType.INT,
+                List.of(
+                        new ParameterSymbol("ptr", NativePtrType.VOID, SourceLocation.UNKNOWN),
+                        new ParameterSymbol("offset", PrimitiveType.LONG, SourceLocation.UNKNOWN)));
+        addFfiIntrinsic(nativeMemoryClass, "putInt", VoidType.INSTANCE,
+                List.of(
+                        new ParameterSymbol("ptr", NativePtrType.VOID, SourceLocation.UNKNOWN),
+                        new ParameterSymbol("offset", PrimitiveType.LONG, SourceLocation.UNKNOWN),
+                        new ParameterSymbol("value", PrimitiveType.INT, SourceLocation.UNKNOWN)));
+        addFfiIntrinsic(nativeMemoryClass, "fromCString", stringClass.asType(),
+                List.of(new ParameterSymbol("ptr", NativePtrType.VOID, SourceLocation.UNKNOWN)));
+
+        nativeMemoryClass.setLayout(ObjectLayoutBuilder.build(nativeMemoryClass));
+        nativeMemoryClass.setVtable(new io.jnative.vtable.VTable(nativeMemoryClass, List.of()));
+
+        installFileBuiltins();
+        installNetworkBuiltins();
+        installBytesBuiltin();
+        installThreadBuiltins();
+    }
+
+    private void installThreadBuiltins() {
+        ClassSymbol thread = new ClassSymbol("Thread", SourceLocation.UNKNOWN, true);
+        classes.put("Thread", thread);
+        thread.setSuperClass(objectClass);
+        thread.addField(new FieldSymbol(thread, "nativeId", PrimitiveType.LONG, 0, SourceLocation.UNKNOWN));
+        thread.addConstructor(new ConstructorSymbol(thread, List.of(), true, SourceLocation.UNKNOWN));
+        MethodSymbol run = new MethodSymbol(
+                thread, "run", VoidType.INSTANCE, List.of(),
+                false, false, false, NameMangler.mangleMethod("Thread", "run", List.of(), false),
+                SourceLocation.UNKNOWN);
+        thread.addMethod(run);
+        addInstanceFfiIntrinsic(thread, "start", VoidType.INSTANCE, List.of());
+        addInstanceFfiIntrinsic(thread, "join", VoidType.INSTANCE, List.of());
+        addInstanceFfiIntrinsic(thread, "id", PrimitiveType.LONG, List.of());
+        addFfiIntrinsic(thread, "sleep", VoidType.INSTANCE, List.of(
+                new ParameterSymbol("ms", PrimitiveType.LONG, SourceLocation.UNKNOWN)));
+        addFfiIntrinsic(thread, "currentThread", thread.asType(), List.of());
+        thread.setLayout(ObjectLayoutBuilder.build(thread));
+        thread.setVtable(VTableBuilder.build(thread));
+
+        ClassSymbol mutex = new ClassSymbol("Mutex", SourceLocation.UNKNOWN, true);
+        classes.put("Mutex", mutex);
+        mutex.setSuperClass(objectClass);
+        mutex.addField(new FieldSymbol(mutex, "handle", PrimitiveType.LONG, 0, SourceLocation.UNKNOWN));
+        mutex.addConstructor(new ConstructorSymbol(mutex, List.of(), true, SourceLocation.UNKNOWN));
+        addInstanceFfiIntrinsic(mutex, "lock", VoidType.INSTANCE, List.of());
+        addInstanceFfiIntrinsic(mutex, "unlock", VoidType.INSTANCE, List.of());
+        mutex.setLayout(ObjectLayoutBuilder.build(mutex));
+        mutex.setVtable(new io.jnative.vtable.VTable(mutex, List.of()));
+
+        ClassSymbol condition = new ClassSymbol("Condition", SourceLocation.UNKNOWN, true);
+        classes.put("Condition", condition);
+        condition.setSuperClass(objectClass);
+        condition.addField(new FieldSymbol(
+                condition, "handle", PrimitiveType.LONG, 0, SourceLocation.UNKNOWN));
+        condition.addConstructor(new ConstructorSymbol(condition, List.of(), true, SourceLocation.UNKNOWN));
+        addInstanceFfiIntrinsic(condition, "await", VoidType.INSTANCE, List.of(
+                new ParameterSymbol("lock", mutex.asType(), SourceLocation.UNKNOWN)));
+        addInstanceFfiIntrinsic(condition, "signal", VoidType.INSTANCE, List.of());
+        addInstanceFfiIntrinsic(condition, "signalAll", VoidType.INSTANCE, List.of());
+        condition.setLayout(ObjectLayoutBuilder.build(condition));
+        condition.setVtable(new io.jnative.vtable.VTable(condition, List.of()));
+
+        installAtomicBuiltin("AtomicInt", PrimitiveType.INT);
+        installAtomicBuiltin("AtomicLong", PrimitiveType.LONG);
+        installAtomicBuiltin("AtomicBool", PrimitiveType.BOOLEAN);
+    }
+
+    private void installAtomicBuiltin(String name, JType valueType) {
+        ClassSymbol cls = new ClassSymbol(name, SourceLocation.UNKNOWN, true);
+        classes.put(name, cls);
+        cls.setSuperClass(objectClass);
+        cls.addField(new FieldSymbol(cls, "value", valueType, 0, false, true, SourceLocation.UNKNOWN));
+        ParameterSymbol v = new ParameterSymbol("value", valueType, SourceLocation.UNKNOWN);
+        ConstructorSymbol ctor = new ConstructorSymbol(cls, List.of(v), false, SourceLocation.UNKNOWN);
+        cls.addConstructor(ctor);
+        cls.addConstructor(new ConstructorSymbol(cls, List.of(), true, SourceLocation.UNKNOWN));
+        addInstanceFfiIntrinsic(cls, "get", valueType, List.of());
+        addInstanceFfiIntrinsic(cls, "set", VoidType.INSTANCE, List.of(
+                new ParameterSymbol("value", valueType, SourceLocation.UNKNOWN)));
+        addInstanceFfiIntrinsic(cls, "compareAndSet", PrimitiveType.BOOLEAN, List.of(
+                new ParameterSymbol("expected", valueType, SourceLocation.UNKNOWN),
+                new ParameterSymbol("update", valueType, SourceLocation.UNKNOWN)));
+        if (!(valueType instanceof PrimitiveType p && p == PrimitiveType.BOOLEAN)) {
+            addInstanceFfiIntrinsic(cls, "getAndIncrement", valueType, List.of());
+            addInstanceFfiIntrinsic(cls, "incrementAndGet", valueType, List.of());
+        }
+        cls.setLayout(ObjectLayoutBuilder.build(cls));
+        cls.setVtable(new io.jnative.vtable.VTable(cls, List.of()));
+    }
+
+    private void installBytesBuiltin() {
+        ClassSymbol bytesClass = new ClassSymbol("Bytes", SourceLocation.UNKNOWN, true);
+        classes.put("Bytes", bytesClass);
+        JType byteArray = new ArrayType(PrimitiveType.BYTE);
+        JType stringType = stringClass.asType();
+
+        addFfiIntrinsic(bytesClass, "fromString", byteArray, List.of(
+                new ParameterSymbol("s", stringType, SourceLocation.UNKNOWN)));
+        addFfiIntrinsic(bytesClass, "toString", stringType, List.of(
+                new ParameterSymbol("data", byteArray, SourceLocation.UNKNOWN)));
+        addFfiIntrinsic(bytesClass, "concat", byteArray, List.of(
+                new ParameterSymbol("a", byteArray, SourceLocation.UNKNOWN),
+                new ParameterSymbol("b", byteArray, SourceLocation.UNKNOWN)));
+        addFfiIntrinsic(bytesClass, "copy", VoidType.INSTANCE, List.of(
+                new ParameterSymbol("src", byteArray, SourceLocation.UNKNOWN),
+                new ParameterSymbol("srcPos", PrimitiveType.INT, SourceLocation.UNKNOWN),
+                new ParameterSymbol("dst", byteArray, SourceLocation.UNKNOWN),
+                new ParameterSymbol("dstPos", PrimitiveType.INT, SourceLocation.UNKNOWN),
+                new ParameterSymbol("len", PrimitiveType.INT, SourceLocation.UNKNOWN)));
+        addFfiIntrinsic(bytesClass, "indexOf2", PrimitiveType.INT, List.of(
+                new ParameterSymbol("data", byteArray, SourceLocation.UNKNOWN),
+                new ParameterSymbol("from", PrimitiveType.INT, SourceLocation.UNKNOWN),
+                new ParameterSymbol("b0", PrimitiveType.INT, SourceLocation.UNKNOWN),
+                new ParameterSymbol("b1", PrimitiveType.INT, SourceLocation.UNKNOWN)));
+        addFfiIntrinsic(bytesClass, "slice", byteArray, List.of(
+                new ParameterSymbol("data", byteArray, SourceLocation.UNKNOWN),
+                new ParameterSymbol("from", PrimitiveType.INT, SourceLocation.UNKNOWN),
+                new ParameterSymbol("to", PrimitiveType.INT, SourceLocation.UNKNOWN)));
+
+        bytesClass.setLayout(ObjectLayoutBuilder.build(bytesClass));
+        bytesClass.setVtable(new io.jnative.vtable.VTable(bytesClass, List.of()));
+    }
+
+    private void installFileBuiltins() {
+        ClassSymbol fileClass = new ClassSymbol("File", SourceLocation.UNKNOWN, true);
+        classes.put("File", fileClass);
+
+        JType stringType = stringClass.asType();
+        JType byteArray = new ArrayType(PrimitiveType.BYTE);
+
+        addFfiIntrinsic(fileClass, "readString", stringType,
+                List.of(new ParameterSymbol("path", stringType, SourceLocation.UNKNOWN)));
+        addFfiIntrinsic(fileClass, "readBytes", byteArray,
+                List.of(new ParameterSymbol("path", stringType, SourceLocation.UNKNOWN)));
+        addFfiIntrinsic(fileClass, "writeString", VoidType.INSTANCE,
+                List.of(
+                        new ParameterSymbol("path", stringType, SourceLocation.UNKNOWN),
+                        new ParameterSymbol("text", stringType, SourceLocation.UNKNOWN)));
+        addFfiIntrinsic(fileClass, "writeBytes", VoidType.INSTANCE,
+                List.of(
+                        new ParameterSymbol("path", stringType, SourceLocation.UNKNOWN),
+                        new ParameterSymbol("data", byteArray, SourceLocation.UNKNOWN)));
+        addFfiIntrinsic(fileClass, "exists", PrimitiveType.BOOLEAN,
+                List.of(new ParameterSymbol("path", stringType, SourceLocation.UNKNOWN)));
+        addFfiIntrinsic(fileClass, "size", PrimitiveType.LONG,
+                List.of(new ParameterSymbol("path", stringType, SourceLocation.UNKNOWN)));
+        addFfiIntrinsic(fileClass, "delete", PrimitiveType.BOOLEAN,
+                List.of(new ParameterSymbol("path", stringType, SourceLocation.UNKNOWN)));
+
+        fileClass.setLayout(ObjectLayoutBuilder.build(fileClass));
+        fileClass.setVtable(new io.jnative.vtable.VTable(fileClass, List.of()));
+    }
+
+    private void installNetworkBuiltins() {
+        JType stringType = stringClass.asType();
+        JType byteArray = new ArrayType(PrimitiveType.BYTE);
+
+        ClassSymbol tcpSocket = new ClassSymbol("TcpSocket", SourceLocation.UNKNOWN, true);
+        classes.put("TcpSocket", tcpSocket);
+        tcpSocket.setSuperClass(objectClass);
+        // Opaque NativeSocketHandle storage (i64) + closed flag; not part of the public API surface.
+        tcpSocket.addField(new FieldSymbol(tcpSocket, "handle", PrimitiveType.LONG, 0, SourceLocation.UNKNOWN));
+        tcpSocket.addField(new FieldSymbol(tcpSocket, "closed", PrimitiveType.BOOLEAN, 1, SourceLocation.UNKNOWN));
+
+        ClassSymbol tcpServer = new ClassSymbol("TcpServer", SourceLocation.UNKNOWN, true);
+        classes.put("TcpServer", tcpServer);
+        tcpServer.setSuperClass(objectClass);
+        tcpServer.addField(new FieldSymbol(tcpServer, "handle", PrimitiveType.LONG, 0, SourceLocation.UNKNOWN));
+        tcpServer.addField(new FieldSymbol(tcpServer, "closed", PrimitiveType.BOOLEAN, 1, SourceLocation.UNKNOWN));
+
+        JType socketType = tcpSocket.asType();
+        JType serverType = tcpServer.asType();
+
+        addFfiIntrinsic(tcpSocket, "connect", socketType, List.of(
+                new ParameterSymbol("host", stringType, SourceLocation.UNKNOWN),
+                new ParameterSymbol("port", PrimitiveType.INT, SourceLocation.UNKNOWN)));
+        addFfiIntrinsic(tcpSocket, "connectTimeout", socketType, List.of(
+                new ParameterSymbol("host", stringType, SourceLocation.UNKNOWN),
+                new ParameterSymbol("port", PrimitiveType.INT, SourceLocation.UNKNOWN),
+                new ParameterSymbol("timeoutMs", PrimitiveType.INT, SourceLocation.UNKNOWN)));
+
+        addInstanceFfiIntrinsic(tcpSocket, "read", PrimitiveType.INT, List.of(
+                new ParameterSymbol("buffer", byteArray, SourceLocation.UNKNOWN)));
+        addInstanceFfiIntrinsic(tcpSocket, "readBytes", byteArray, List.of(
+                new ParameterSymbol("maxBytes", PrimitiveType.INT, SourceLocation.UNKNOWN)));
+        addInstanceFfiIntrinsic(tcpSocket, "readAllBytes", byteArray, List.of());
+        addInstanceFfiIntrinsic(tcpSocket, "readString", stringType, List.of(
+                new ParameterSymbol("maxBytes", PrimitiveType.INT, SourceLocation.UNKNOWN)));
+        addInstanceFfiIntrinsic(tcpSocket, "readAllString", stringType, List.of());
+        addInstanceFfiIntrinsic(tcpSocket, "write", VoidType.INSTANCE, List.of(
+                new ParameterSymbol("data", byteArray, SourceLocation.UNKNOWN)));
+        addInstanceFfiIntrinsic(tcpSocket, "writeString", VoidType.INSTANCE, List.of(
+                new ParameterSymbol("data", stringType, SourceLocation.UNKNOWN)));
+        addInstanceFfiIntrinsic(tcpSocket, "close", VoidType.INSTANCE, List.of());
+        addInstanceFfiIntrinsic(tcpSocket, "isClosed", PrimitiveType.BOOLEAN, List.of());
+        addInstanceFfiIntrinsic(tcpSocket, "setReadTimeout", VoidType.INSTANCE, List.of(
+                new ParameterSymbol("ms", PrimitiveType.INT, SourceLocation.UNKNOWN)));
+        addInstanceFfiIntrinsic(tcpSocket, "setWriteTimeout", VoidType.INSTANCE, List.of(
+                new ParameterSymbol("ms", PrimitiveType.INT, SourceLocation.UNKNOWN)));
+
+        addFfiIntrinsic(tcpServer, "listen", serverType, List.of(
+                new ParameterSymbol("host", stringType, SourceLocation.UNKNOWN),
+                new ParameterSymbol("port", PrimitiveType.INT, SourceLocation.UNKNOWN)));
+        addFfiIntrinsic(tcpServer, "listenAny", serverType, List.of(
+                new ParameterSymbol("port", PrimitiveType.INT, SourceLocation.UNKNOWN)));
+        addInstanceFfiIntrinsic(tcpServer, "accept", socketType, List.of());
+        addInstanceFfiIntrinsic(tcpServer, "close", VoidType.INSTANCE, List.of());
+        addInstanceFfiIntrinsic(tcpServer, "isClosed", PrimitiveType.BOOLEAN, List.of());
+
+        tcpSocket.setLayout(ObjectLayoutBuilder.build(tcpSocket));
+        tcpSocket.setVtable(new io.jnative.vtable.VTable(tcpSocket, List.of()));
+        tcpServer.setLayout(ObjectLayoutBuilder.build(tcpServer));
+        tcpServer.setVtable(new io.jnative.vtable.VTable(tcpServer, List.of()));
+    }
+
+    private void addFfiIntrinsic(ClassSymbol owner, String name, JType ret, List<ParameterSymbol> params) {
+        String mangled = NameMangler.mangleMethod(
+                owner.name(), name, params.stream().map(ParameterSymbol::type).toList(), false);
+        MethodSymbol ms = new MethodSymbol(
+                owner, name, ret, params, true, false, false, mangled, SourceLocation.UNKNOWN);
+        ms.setFfiIntrinsic(true);
+        owner.addMethod(ms);
+    }
+
+    private void addInstanceFfiIntrinsic(ClassSymbol owner, String name, JType ret, List<ParameterSymbol> params) {
+        String mangled = NameMangler.mangleMethod(
+                owner.name(), name, params.stream().map(ParameterSymbol::type).toList(), false);
+        // isNative=true → non-virtual; still marked ffiIntrinsic for runtime lowering.
+        MethodSymbol ms = new MethodSymbol(
+                owner, name, ret, params, false, false, true, mangled, SourceLocation.UNKNOWN);
+        ms.setFfiIntrinsic(true);
+        owner.addMethod(ms);
     }
 
     private boolean isThrowableType(JType type) {
@@ -231,11 +629,120 @@ public final class SemanticAnalyzer {
     }
 
     private void declareClass(ClassDeclaration cls) {
-        if (classes.containsKey(cls.name())) {
+        if (classes.containsKey(cls.name()) || nativeStructs.containsKey(cls.name())) {
             reporter.error(cls.location(), "duplicate class '" + cls.name() + "'");
             return;
         }
         classes.put(cls.name(), new ClassSymbol(cls.name(), cls.location(), false));
+    }
+
+    private void declareNativeStruct(ClassDeclaration cls) {
+        if (classes.containsKey(cls.name()) || nativeStructs.containsKey(cls.name())) {
+            reporter.error(cls.location(), "duplicate type '" + cls.name() + "'");
+            return;
+        }
+        nativeStructs.put(cls.name(), new NativeStructSymbol(cls.name(), cls.location()));
+    }
+
+    private void registerNativeStructFields(NativeStructSymbol symbol, ClassDeclaration cls) {
+        int index = 0;
+        for (FieldDeclaration field : cls.fields()) {
+            JType type = resolveTypeName(field.type(), false, field.location());
+            if (!isAllowedNativeStructFieldType(type)) {
+                if (!(type instanceof ErrorType)) {
+                    reporter.error(field.location(),
+                            "unsupported @NativeStruct field type: " + type);
+                }
+                type = ErrorType.INSTANCE;
+            }
+            if (symbol.findField(field.name()).isPresent()) {
+                reporter.error(field.location(), "duplicate field '" + field.name() + "'");
+                continue;
+            }
+            symbol.addField(new NativeStructFieldSymbol(
+                    symbol, field.name(), type, index, field.location()));
+            index++;
+        }
+    }
+
+    private boolean isAllowedNativeStructFieldType(JType type) {
+        if (type instanceof PrimitiveType p) {
+            return p != PrimitiveType.BOOLEAN;
+        }
+        return type instanceof NativePtrType || type instanceof NativeStructType;
+    }
+
+    private void detectRecursiveNativeStructs() {
+        Map<NativeStructSymbol, Integer> color = new HashMap<>();
+        for (NativeStructSymbol s : nativeStructs.values()) {
+            color.put(s, 0);
+        }
+        for (NativeStructSymbol s : nativeStructs.values()) {
+            if (color.get(s) == 0) {
+                dfsNativeStructCycle(s, color);
+            }
+        }
+    }
+
+    private void dfsNativeStructCycle(NativeStructSymbol s, Map<NativeStructSymbol, Integer> color) {
+        color.put(s, 1);
+        for (NativeStructFieldSymbol field : s.declaredFields()) {
+            if (!(field.type() instanceof NativeStructType nestedType)) {
+                continue;
+            }
+            NativeStructSymbol nested = nestedType.symbol();
+            int c = color.getOrDefault(nested, 2);
+            if (c == 1) {
+                reporter.error(field.location(),
+                        "recursive native struct; use NativePtr");
+            } else if (c == 0) {
+                dfsNativeStructCycle(nested, color);
+            }
+        }
+        color.put(s, 2);
+    }
+
+    private void buildNativeStructLayouts() {
+        for (NativeStructSymbol symbol : topologicalNativeStructs()) {
+            try {
+                symbol.setLayout(NativeStructLayoutBuilder.buildWithNested(symbol, targetAbi));
+            } catch (RuntimeException ex) {
+                reporter.error(symbol.location(),
+                        "cannot layout native struct '" + symbol.name() + "': " + ex.getMessage());
+            }
+        }
+    }
+
+    private List<NativeStructSymbol> topologicalNativeStructs() {
+        List<NativeStructSymbol> result = new ArrayList<>();
+        Set<NativeStructSymbol> visiting = new HashSet<>();
+        Set<NativeStructSymbol> visited = new HashSet<>();
+        for (NativeStructSymbol s : nativeStructs.values()) {
+            topoNativeStructVisit(s, visiting, visited, result);
+        }
+        return result;
+    }
+
+    private void topoNativeStructVisit(
+            NativeStructSymbol s,
+            Set<NativeStructSymbol> visiting,
+            Set<NativeStructSymbol> visited,
+            List<NativeStructSymbol> result
+    ) {
+        if (visited.contains(s)) {
+            return;
+        }
+        if (!visiting.add(s)) {
+            return;
+        }
+        for (NativeStructFieldSymbol field : s.declaredFields()) {
+            if (field.type() instanceof NativeStructType nested) {
+                topoNativeStructVisit(nested.symbol(), visiting, visited, result);
+            }
+        }
+        visiting.remove(s);
+        visited.add(s);
+        result.add(s);
     }
 
     private void linkSuperClass(ClassDeclaration cls) {
@@ -324,12 +831,24 @@ public final class SemanticAnalyzer {
     private void registerFields(ClassSymbol symbol, ClassDeclaration cls) {
         int index = 0;
         for (FieldDeclaration field : cls.fields()) {
-            JType type = resolveTypeName(field.type(), false, field.location());
+            JType type = resolveTypeName(field.type(), field.isArray(), field.location());
             if (type instanceof VoidType) {
                 reporter.error(field.location(), "field cannot have type void");
                 type = ErrorType.INSTANCE;
             }
-            FieldSymbol fs = new FieldSymbol(symbol, field.name(), type, index, field.location());
+            if (type instanceof NativeStructType) {
+                reporter.error(field.location(),
+                        "native struct requires explicit storage: @Stack or NativeMemory");
+                type = ErrorType.INSTANCE;
+            }
+            if (field.isVolatile() && type.isReference() && !field.isStatic()) {
+                // allowed; volatile refs use acquire/release loads/stores
+            }
+            FieldSymbol fs = new FieldSymbol(
+                    symbol, field.name(), type, index, field.isStatic(), field.isVolatile(), field.location());
+            if (field.initializer() != null) {
+                fs.setInitializer(field.initializer());
+            }
             if (!symbol.addField(fs)) {
                 if (symbol.superClass().flatMap(s -> s.findField(field.name())).isPresent()) {
                     reporter.error(field.location(),
@@ -343,6 +862,22 @@ public final class SemanticAnalyzer {
         }
     }
 
+    private void analyzeStaticFieldInitializers(ClassSymbol symbol) {
+        MethodSymbol prevMethod = currentMethod;
+        currentMethod = null; // treat as static context
+        for (FieldSymbol field : symbol.declaredFields()) {
+            if (!field.isStatic() || field.initializer() == null) {
+                continue;
+            }
+            JType initType = analyzeExpression(field.initializer());
+            if (!field.type().isAssignableFrom(initType) && !(initType instanceof ErrorType)) {
+                reporter.error(field.location(),
+                        "incompatible types: " + initType + " cannot be converted to " + field.type());
+            }
+        }
+        currentMethod = prevMethod;
+    }
+
     private void registerMethods(ClassSymbol symbol, ClassDeclaration cls) {
         for (MethodDeclaration method : cls.methods()) {
             if (method.isConstructor()) {
@@ -353,7 +888,7 @@ public final class SemanticAnalyzer {
                 JType pt = resolveTypeName(p.type(), p.isArray(), p.location());
                 params.add(new ParameterSymbol(p.name(), pt, p.location()));
             }
-            JType returnType = resolveTypeName(method.returnType(), false, method.location());
+            JType returnType = resolveTypeName(method.returnType(), method.returnsArray(), method.location());
 
             boolean isMain = method.name().equals("main")
                     && method.isStatic()
@@ -370,13 +905,20 @@ public final class SemanticAnalyzer {
 
             MethodSymbol ms = new MethodSymbol(
                     symbol, method.name(), returnType, params,
-                    method.isStatic(), isMain, mangled, method.location());
+                    method.isStatic(), isMain, method.isNative(), mangled, method.location());
+
+            if (method.isNative()) {
+                bindNativeMethod(ms, method, returnType, params);
+            }
 
             Optional<MethodSymbol> inherited = symbol.superClass()
                     .flatMap(s -> s.findMethod(method.name()));
             if (inherited.isPresent()) {
                 MethodSymbol parent = inherited.get();
-                if (parent.isStatic() || ms.isStatic()) {
+                if (ms.isNative() || parent.isNative()) {
+                    reporter.error(method.location(),
+                            "native methods cannot override or be overridden");
+                } else if (parent.isStatic() || ms.isStatic()) {
                     if (parent.isStatic() && ms.isStatic()) {
                         reporter.error(method.location(),
                                 "method overloading/hiding of static '" + method.name()
@@ -607,6 +1149,11 @@ public final class SemanticAnalyzer {
                 reporter.error(p.location(), "duplicate parameter '" + p.name() + "'");
             }
         }
+        if (method.isNative()) {
+            current = null;
+            currentMethod = null;
+            return;
+        }
         analyzeStatement(method.body());
         if (!(currentMethod.returnType() instanceof VoidType)
                 && !(currentMethod.returnType() instanceof ErrorType)) {
@@ -617,6 +1164,87 @@ public final class SemanticAnalyzer {
         }
         current = null;
         currentMethod = null;
+    }
+
+    private void bindNativeMethod(
+            MethodSymbol ms,
+            MethodDeclaration method,
+            JType returnType,
+            List<ParameterSymbol> params
+    ) {
+        if (!method.isStatic()) {
+            reporter.error(method.location(), "instance native methods are not supported in 0.7");
+        }
+        if (method.body() != null) {
+            reporter.error(method.location(), "native method cannot have a body");
+        }
+        for (ParameterSymbol p : params) {
+            if (!isFfiAllowedType(p.type())) {
+                reporter.error(p.location(),
+                        "unsupported native parameter type: " + p.type());
+            }
+        }
+        if (!(returnType instanceof VoidType) && !isFfiAllowedType(returnType)) {
+            reporter.error(method.location(),
+                    "unsupported native return type: " + returnType);
+        }
+        String symbol = method.nativeAnnotation() != null
+                ? method.nativeAnnotation().symbol().orElse(method.name())
+                : method.name();
+        String library = method.nativeAnnotation() != null
+                ? method.nativeAnnotation().library().orElse(null)
+                : null;
+        if (library != null) {
+            nativeLibraries.putIfAbsent(library, library);
+        }
+        try {
+            List<AbiType> abiParams = new ArrayList<>();
+            for (ParameterSymbol p : params) {
+                abiParams.add(mapToAbi(p.type()));
+            }
+            AbiType abiRet = returnType instanceof VoidType
+                    ? AbiType.VOID
+                    : mapToAbi(returnType);
+            NativeFunction nf = new NativeFunction(
+                    method.name(),
+                    symbol,
+                    library,
+                    new NativeSignature(abiRet, abiParams),
+                    CallingConvention.C);
+            ms.setNativeFunction(nf);
+        } catch (IllegalArgumentException ex) {
+            reporter.error(method.location(), ex.getMessage());
+        }
+    }
+
+    private boolean isFfiAllowedType(JType type) {
+        if (type instanceof PrimitiveType) {
+            return true;
+        }
+        if (type instanceof NativePtrType) {
+            return true;
+        }
+        // NativeStruct by-value is not an FFI parameter/return type in 0.8.
+        if (type instanceof NativeStructType) {
+            return false;
+        }
+        if (type instanceof ClassType ct && ct.name().equals("String")) {
+            return true;
+        }
+        return false;
+    }
+
+    private AbiType mapToAbi(JType type) {
+        if (type instanceof NativePtrType) {
+            return AbiType.PTR;
+        }
+        if (type instanceof ClassType ct && ct.name().equals("String")) {
+            return AbiType.CSTRING;
+        }
+        if (type instanceof PrimitiveType p) {
+            return targetAbi.mapPrimitiveJavaType(p.displayName());
+        }
+        throw new IllegalArgumentException("unsupported ABI mapping for " + type);
     }
 
     private boolean hasReturn(Statement stmt) {
@@ -735,15 +1363,62 @@ public final class SemanticAnalyzer {
             reporter.error(v.location(), "cannot declare variable of type void");
             type = ErrorType.INSTANCE;
         }
+        if (v.stackAllocated()) {
+            if (!(type instanceof NativeStructType) && !(type instanceof ErrorType)) {
+                reporter.error(v.location(), "@Stack requires a @NativeStruct type");
+            }
+        } else if (type instanceof NativeStructType) {
+            reporter.error(v.location(),
+                    "native struct requires explicit storage: @Stack or NativeMemory");
+        }
+
         if (v.initializer() != null) {
-            JType initType = analyzeExpression(v.initializer());
-            if (!type.isAssignableFrom(initType)) {
-                reporter.error(v.location(),
-                        "incompatible types: " + initType + " cannot be converted to " + type);
+            boolean prev = allowingStackNativeNew;
+            allowingStackNativeNew = v.stackAllocated() && type instanceof NativeStructType;
+            try {
+                Expression init = v.initializer();
+                if (allowingStackNativeNew) {
+                    if (init instanceof NewObjectExpression n
+                            && type instanceof NativeStructType ns
+                            && n.className().equals(ns.name())
+                            && n.arguments().isEmpty()) {
+                        JType initType = analyzeExpression(init);
+                        if (!type.isAssignableFrom(initType) && !(initType instanceof ErrorType)) {
+                            reporter.error(v.location(),
+                                    "incompatible types: " + initType
+                                            + " cannot be converted to " + type);
+                        }
+                    } else {
+                        reporter.error(v.location(),
+                                "stack-allocated native struct initializer must be new "
+                                        + (type instanceof NativeStructType ns
+                                        ? ns.name()
+                                        : "Struct") + "()");
+                        analyzeExpression(init);
+                    }
+                } else {
+                    JType initType = analyzeExpression(init);
+                    if (!type.isAssignableFrom(initType)) {
+                        reporter.error(v.location(),
+                                "incompatible types: " + initType
+                                        + " cannot be converted to " + type);
+                    }
+                    if (type instanceof NativePtrType && init instanceof NativeNullExpression) {
+                        // NativePtr.NULL is assignable to any NativePtr.
+                    }
+                }
+            } finally {
+                allowingStackNativeNew = prev;
             }
         }
+
         VariableSymbol vs = new VariableSymbol(
-                v.name(), type, VariableSymbol.Kind.LOCAL, v.location());
+                v.name(), type, VariableSymbol.Kind.LOCAL, v.location(), v.stackAllocated());
+        if (v.stackAllocated()) {
+            vs.setProvenance(PointerProvenance.STACK);
+        } else if (type instanceof NativePtrType && v.initializer() != null) {
+            vs.setProvenance(provenances.getOrDefault(v.initializer(), PointerProvenance.UNKNOWN));
+        }
         if (!current.declare(new Symbol.VariableBinding(vs))) {
             reporter.error(v.location(), "duplicate variable '" + v.name() + "'");
         }
@@ -775,6 +1450,10 @@ public final class SemanticAnalyzer {
             reporter.error(r.location(),
                     "incompatible return type: " + actual + " cannot be converted to " + expected);
         }
+        if (actual instanceof NativePtrType
+                && provenances.get(r.value()) == PointerProvenance.STACK) {
+            reporter.error(r.location(), "stack pointer escapes via return");
+        }
     }
 
     private JType analyzeExpression(Expression expr) {
@@ -796,6 +1475,10 @@ public final class SemanticAnalyzer {
             case InstanceOfExpression i -> typeOfInstanceOf(i);
             case CastExpression c -> typeOfCast(c);
             case GcCollectExpression ignored -> VoidType.INSTANCE;
+            case NativeNullExpression n -> {
+                provenances.put(n, PointerProvenance.NULL);
+                yield NativePtrType.VOID;
+            }
         };
         expressionTypes.put(expr, type);
         return type;
@@ -826,16 +1509,31 @@ public final class SemanticAnalyzer {
         Optional<Symbol> symbol = current.resolve(v.name());
         if (symbol.isPresent() && symbol.get() instanceof Symbol.VariableBinding vb) {
             resolvedSymbols.put(v, vb.variable());
-            return vb.variable().type();
+            VariableSymbol vs = vb.variable();
+            if (vs.type() instanceof NativePtrType) {
+                provenances.put(v, vs.provenance());
+            }
+            return vs.type();
         }
-        boolean inInstance = currentConstructor != null
-                || (currentMethod != null && !currentMethod.isStatic());
-        if (inInstance && currentClass != null) {
+        if (currentClass != null) {
             Optional<FieldSymbol> field = currentClass.findField(v.name());
             if (field.isPresent()) {
-                resolvedSymbols.put(v, field.get());
-                return field.get().type();
+                FieldSymbol fs = field.get();
+                boolean inInstance = currentConstructor != null
+                        || (currentMethod != null && !currentMethod.isStatic());
+                if (fs.isStatic() || inInstance) {
+                    resolvedSymbols.put(v, fs);
+                    if (fs.type() instanceof NativePtrType) {
+                        provenances.put(v, PointerProvenance.UNKNOWN);
+                    }
+                    return fs.type();
+                }
             }
+        }
+        if (classes.containsKey(v.name())) {
+            // Class name used as static-field / static-method receiver.
+            resolvedSymbols.put(v, classes.get(v.name()));
+            return classes.get(v.name()).asType();
         }
         reporter.error(v.location(), "undefined variable '" + v.name() + "'");
         return ErrorType.INSTANCE;
@@ -859,6 +1557,20 @@ public final class SemanticAnalyzer {
             reporter.error(a.location(),
                     "incompatible types: " + valueType + " cannot be converted to " + targetType);
             return ErrorType.INSTANCE;
+        }
+        if (targetType instanceof NativePtrType) {
+            PointerProvenance prov = provenances.getOrDefault(a.value(), PointerProvenance.UNKNOWN);
+            if (prov == PointerProvenance.STACK
+                    && a.target() instanceof FieldAccessExpression) {
+                reporter.error(a.location(), "stack pointer escapes via field store");
+            }
+            if (a.target() instanceof VariableExpression) {
+                Object sym = resolvedSymbols.get(a.target());
+                if (sym instanceof VariableSymbol vs) {
+                    vs.setProvenance(prov);
+                }
+            }
+            provenances.put(a, prov);
         }
         return targetType;
     }
@@ -911,6 +1623,9 @@ public final class SemanticAnalyzer {
                 if (left instanceof ErrorType || right instanceof ErrorType) {
                     yield ErrorType.INSTANCE;
                 }
+                if (left instanceof NativePtrType && right instanceof NativePtrType) {
+                    yield PrimitiveType.BOOLEAN;
+                }
                 if (left.isReference() || right.isReference()
                         || left instanceof NullType || right instanceof NullType) {
                     if ((left.isReference() || left instanceof NullType)
@@ -959,8 +1674,33 @@ public final class SemanticAnalyzer {
     }
 
     private JType typeOfCall(MethodCallExpression m) {
+        if (m.receiver() instanceof VariableExpression nv && "Native".equals(nv.name())) {
+            return typeOfNativeBuiltin(m);
+        }
         for (Expression arg : m.arguments()) {
             analyzeExpression(arg);
+        }
+        if (m.receiver() instanceof VariableExpression v && classes.containsKey(v.name())) {
+            ClassSymbol cls = classes.get(v.name());
+            Optional<MethodSymbol> method = cls.findMethod(m.name());
+            if (method.isEmpty()) {
+                reporter.error(m.location(),
+                        "undefined method '" + m.name() + "' in class '" + cls.name() + "'");
+                return ErrorType.INSTANCE;
+            }
+            MethodSymbol ms = method.get();
+            if (!ms.isStatic()) {
+                reporter.error(m.location(),
+                        "instance method '" + m.name() + "' cannot be called on a type name");
+                return ErrorType.INSTANCE;
+            }
+            checkArguments(m, ms);
+            checkNetworkPortLiteral(m, ms);
+            resolvedSymbols.put(m, ms);
+            if (ms.isFfiIntrinsic() && "allocate".equals(ms.name())) {
+                provenances.put(m, PointerProvenance.NATIVE_HEAP);
+            }
+            return ms.returnType();
         }
         if (m.receiver() != null) {
             JType recvType = analyzeExpression(m.receiver());
@@ -1040,7 +1780,135 @@ public final class SemanticAnalyzer {
                         "argument " + (i + 1) + ": " + actual
                                 + " cannot be converted to " + expected.get(i));
             }
+            // STACK provenance args are OK for native / FFI calls (non-capturing contract).
         }
+    }
+
+    /** Compile-time port range check when the port argument is an int literal. */
+    private void checkNetworkPortLiteral(MethodCallExpression m, MethodSymbol ms) {
+        String owner = ms.owner().name();
+        int portArgIndex = -1;
+        if ("TcpSocket".equals(owner)
+                && ("connect".equals(ms.name()) || "connectTimeout".equals(ms.name()))) {
+            portArgIndex = 1;
+        } else if ("TcpServer".equals(owner) && "listen".equals(ms.name())) {
+            portArgIndex = 1;
+        } else if ("TcpServer".equals(owner) && "listenAny".equals(ms.name())) {
+            portArgIndex = 0;
+        }
+        if (portArgIndex < 0 || portArgIndex >= m.arguments().size()) {
+            return;
+        }
+        Expression portExpr = m.arguments().get(portArgIndex);
+        if (portExpr instanceof LiteralExpression lit && lit.kind() == LiteralExpression.Kind.INT) {
+            int port = ((Number) lit.value()).intValue();
+            if (port < 0 || port > 65535) {
+                reporter.error(portExpr.location(),
+                        "port out of range (0..65535): " + port);
+            }
+        }
+    }
+
+    private JType typeOfNativeBuiltin(MethodCallExpression m) {
+        return switch (m.name()) {
+            case "addressOf" -> typeOfNativeAddressOf(m);
+            case "loadInt" -> typeOfNativeLoadInt(m);
+            case "storeInt" -> typeOfNativeStoreInt(m);
+            case "allocate" -> typeOfNativeAllocate(m);
+            default -> {
+                reporter.error(m.location(),
+                        "undefined method '" + m.name() + "' in class 'Native'");
+                yield ErrorType.INSTANCE;
+            }
+        };
+    }
+
+    private JType typeOfNativeAddressOf(MethodCallExpression m) {
+        if (m.arguments().size() != 1) {
+            reporter.error(m.location(),
+                    "method 'addressOf' expects 1 argument(s) but got " + m.arguments().size());
+            return ErrorType.INSTANCE;
+        }
+        Expression arg = m.arguments().getFirst();
+        JType argType = analyzeExpression(arg);
+        if (!(arg instanceof VariableExpression)
+                || !(resolvedSymbols.get(arg) instanceof VariableSymbol vs)
+                || !vs.isStackAllocated()
+                || !(vs.type() instanceof NativeStructType nst)) {
+            if (!(argType instanceof ErrorType)) {
+                reporter.error(arg.location(),
+                        "addressOf requires a @Stack @NativeStruct variable");
+            }
+            return ErrorType.INSTANCE;
+        }
+        resolvedSymbols.put(m, NativeIntrinsic.ADDRESS_OF);
+        NativePtrType result = NativePtrType.of(nst);
+        provenances.put(m, PointerProvenance.STACK);
+        return result;
+    }
+
+    private JType typeOfNativeLoadInt(MethodCallExpression m) {
+        if (m.arguments().size() != 1) {
+            reporter.error(m.location(),
+                    "method 'loadInt' expects 1 argument(s) but got " + m.arguments().size());
+            return ErrorType.INSTANCE;
+        }
+        Expression arg = m.arguments().getFirst();
+        JType argType = analyzeExpression(arg);
+        if (!(argType instanceof NativePtrType) && !(argType instanceof ErrorType)) {
+            reporter.error(arg.location(),
+                    "argument 1: " + argType + " cannot be converted to NativePtr");
+        }
+        resolvedSymbols.put(m, NativeIntrinsic.LOAD_INT);
+        return PrimitiveType.INT;
+    }
+
+    private JType typeOfNativeStoreInt(MethodCallExpression m) {
+        if (m.arguments().size() != 2) {
+            reporter.error(m.location(),
+                    "method 'storeInt' expects 2 argument(s) but got " + m.arguments().size());
+            return ErrorType.INSTANCE;
+        }
+        Expression ptrArg = m.arguments().get(0);
+        Expression valueArg = m.arguments().get(1);
+        JType ptrType = analyzeExpression(ptrArg);
+        JType valueType = analyzeExpression(valueArg);
+        if (!(ptrType instanceof NativePtrType) && !(ptrType instanceof ErrorType)) {
+            reporter.error(ptrArg.location(),
+                    "argument 1: " + ptrType + " cannot be converted to NativePtr");
+        }
+        if (!PrimitiveType.INT.isAssignableFrom(valueType) && !(valueType instanceof ErrorType)) {
+            reporter.error(valueArg.location(),
+                    "argument 2: " + valueType + " cannot be converted to int");
+        }
+        resolvedSymbols.put(m, NativeIntrinsic.STORE_INT);
+        return VoidType.INSTANCE;
+    }
+
+    private JType typeOfNativeAllocate(MethodCallExpression m) {
+        for (Expression arg : m.arguments()) {
+            analyzeExpression(arg);
+        }
+        if (!m.arguments().isEmpty()) {
+            reporter.error(m.location(),
+                    "method 'allocate' expects 0 argument(s) but got " + m.arguments().size());
+        }
+        if (m.typeArguments().size() != 1) {
+            reporter.error(m.location(), "Native.allocate requires a type argument");
+            return ErrorType.INSTANCE;
+        }
+        JType typeArg = resolveTypeName(m.typeArguments().getFirst(), false, m.location());
+        if (!(typeArg instanceof NativeStructType nst)) {
+            if (!(typeArg instanceof ErrorType)) {
+                reporter.error(m.location(),
+                        "Native.allocate requires a @NativeStruct type");
+            }
+            return ErrorType.INSTANCE;
+        }
+        resolvedSymbols.put(m, NativeIntrinsic.ALLOCATE_STRUCT);
+        NativePtrType result = NativePtrType.of(nst);
+        provenances.put(m, PointerProvenance.NATIVE_HEAP);
+        return result;
     }
 
     private JType typeOfPrintln(PrintlnExpression p) {
@@ -1054,9 +1922,29 @@ public final class SemanticAnalyzer {
     }
 
     private JType typeOfNew(NewObjectExpression n) {
+        NativeStructSymbol nativeStruct = nativeStructs.get(n.className());
+        if (nativeStruct != null) {
+            for (Expression arg : n.arguments()) {
+                analyzeExpression(arg);
+            }
+            if (!allowingStackNativeNew) {
+                reporter.error(n.location(),
+                        "native struct requires explicit storage: @Stack or NativeMemory");
+            } else if (!n.arguments().isEmpty()) {
+                reporter.error(n.location(),
+                        "stack-allocated native struct initializer must be new "
+                                + n.className() + "()");
+            }
+            resolvedSymbols.put(n, nativeStruct);
+            return nativeStruct.asType();
+        }
         ClassSymbol symbol = classes.get(n.className());
-        if (symbol == null || symbol.isBuiltin()) {
+        if (symbol == null) {
             reporter.error(n.location(), "undefined class '" + n.className() + "'");
+            return ErrorType.INSTANCE;
+        }
+        if (symbol.isBuiltin() && !isConstructibleBuiltin(symbol)) {
+            reporter.error(n.location(), "cannot instantiate builtin type '" + n.className() + "'");
             return ErrorType.INSTANCE;
         }
         List<JType> argTypes = new ArrayList<>();
@@ -1076,6 +1964,15 @@ public final class SemanticAnalyzer {
         }
         resolvedSymbols.put(n, ctor);
         return symbol.asType();
+    }
+
+    private boolean isConstructibleBuiltin(ClassSymbol symbol) {
+        String name = symbol.name();
+        if ("Thread".equals(name) || "Mutex".equals(name) || "Condition".equals(name)
+                || "AtomicInt".equals(name) || "AtomicLong".equals(name) || "AtomicBool".equals(name)) {
+            return true;
+        }
+        return throwableClass != null && symbol.isSubtypeOf(throwableClass);
     }
 
     private JType typeOfNewArray(NewArrayExpression n) {
@@ -1114,6 +2011,28 @@ public final class SemanticAnalyzer {
             resolvedSymbols.put(f, ArrayLengthSymbol.INSTANCE);
             return PrimitiveType.INT;
         }
+        NativeStructSymbol structSymbol = null;
+        if (recvType instanceof NativeStructType nst) {
+            structSymbol = nst.symbol();
+        } else if (recvType instanceof NativePtrType np
+                && np.pointee() instanceof NativeStructType nst) {
+            structSymbol = nst.symbol();
+        }
+        if (structSymbol != null) {
+            Optional<NativeStructFieldSymbol> nsField = structSymbol.findField(f.fieldName());
+            if (nsField.isEmpty()) {
+                reporter.error(f.location(),
+                        "unknown field '" + f.fieldName() + "' in native struct '"
+                                + structSymbol.name() + "'");
+                return ErrorType.INSTANCE;
+            }
+            resolvedSymbols.put(f, nsField.get());
+            JType fieldType = nsField.get().type();
+            if (fieldType instanceof NativePtrType) {
+                provenances.put(f, PointerProvenance.UNKNOWN);
+            }
+            return fieldType;
+        }
         if (!(recvType instanceof ClassType ct)) {
             if (!(recvType instanceof ErrorType) && !(recvType instanceof NullType)) {
                 reporter.error(f.location(),
@@ -1129,8 +2048,23 @@ public final class SemanticAnalyzer {
                     "unknown field '" + f.fieldName() + "' in class '" + ct.name() + "'");
             return ErrorType.INSTANCE;
         }
-        resolvedSymbols.put(f, field.get());
-        return field.get().type();
+        FieldSymbol fs = field.get();
+        boolean receiverIsTypeName = f.receiver() instanceof VariableExpression ve
+                && resolvedSymbols.get(ve) instanceof ClassSymbol;
+        if (fs.isStatic()) {
+            if (!receiverIsTypeName && !(f.receiver() instanceof VariableExpression)) {
+                // allow instance.staticField as Java does
+            }
+        } else if (receiverIsTypeName) {
+            reporter.error(f.location(),
+                    "instance field '" + f.fieldName() + "' cannot be accessed via type name");
+            return ErrorType.INSTANCE;
+        }
+        resolvedSymbols.put(f, fs);
+        if (fs.type() instanceof NativePtrType) {
+            provenances.put(f, PointerProvenance.UNKNOWN);
+        }
+        return fs.type();
     }
 
     private JType typeOfInstanceOf(InstanceOfExpression i) {
@@ -1147,6 +2081,13 @@ public final class SemanticAnalyzer {
     private JType typeOfCast(CastExpression c) {
         JType source = analyzeExpression(c.expression());
         JType target = resolveTypeName(c.type(), false, c.location());
+        if (target instanceof NativePtrType && source instanceof NativePtrType) {
+            provenances.put(c, provenances.getOrDefault(c.expression(), PointerProvenance.UNKNOWN));
+            return target;
+        }
+        if (target instanceof NativePtrType && source instanceof ErrorType) {
+            return target;
+        }
         if (!(target instanceof ClassType targetCt)) {
             reporter.error(c.location(), "cast target must be a class type");
             return ErrorType.INSTANCE;
@@ -1185,12 +2126,23 @@ public final class SemanticAnalyzer {
         SourceLocation loc = typeName.location() != null ? typeName.location() : fallback;
         JType base = switch (typeName.kind()) {
             case VOID -> VoidType.INSTANCE;
+            case BYTE -> PrimitiveType.BYTE;
+            case SHORT -> PrimitiveType.SHORT;
             case INT -> PrimitiveType.INT;
             case LONG -> PrimitiveType.LONG;
+            case FLOAT -> PrimitiveType.FLOAT;
             case DOUBLE -> PrimitiveType.DOUBLE;
             case BOOLEAN -> PrimitiveType.BOOLEAN;
             case CHAR -> PrimitiveType.CHAR;
+            case NATIVE_PTR -> resolveNativePtrType(typeName, loc);
             case CLASS -> {
+                if ("NativePtr".equals(typeName.name())) {
+                    yield NativePtrType.VOID;
+                }
+                NativeStructSymbol nativeStruct = nativeStructs.get(typeName.name());
+                if (nativeStruct != null) {
+                    yield nativeStruct.asType();
+                }
                 ClassSymbol symbol = classes.get(typeName.name());
                 if (symbol == null) {
                     reporter.error(loc, "undefined class '" + typeName.name() + "'");
@@ -1200,7 +2152,8 @@ public final class SemanticAnalyzer {
             }
         };
         if (isArray) {
-            if (base instanceof VoidType || base instanceof ErrorType) {
+            if (base instanceof VoidType || base instanceof ErrorType
+                    || base instanceof NativeStructType) {
                 reporter.error(loc, "invalid array type");
                 return ErrorType.INSTANCE;
             }
@@ -1208,5 +2161,47 @@ public final class SemanticAnalyzer {
             return new ArrayType(base);
         }
         return base;
+    }
+
+    private JType resolveNativePtrType(TypeName typeName, SourceLocation loc) {
+        TypeName arg = typeName.typeArgument();
+        if (arg == null) {
+            return NativePtrType.VOID;
+        }
+        JType pointee = resolveNativePtrPointee(arg, loc);
+        if (pointee instanceof ErrorType) {
+            return NativePtrType.VOID;
+        }
+        return NativePtrType.of(pointee);
+    }
+
+    private JType resolveNativePtrPointee(TypeName arg, SourceLocation loc) {
+        JType pointee = resolveTypeName(arg, false, loc);
+        if (pointee instanceof ErrorType) {
+            return pointee;
+        }
+        if (pointee instanceof VoidType) {
+            return pointee;
+        }
+        if (pointee instanceof PrimitiveType p) {
+            if (p == PrimitiveType.BOOLEAN) {
+                reporter.error(loc, "boolean cannot be a NativePtr pointee without NativeBool");
+                return ErrorType.INSTANCE;
+            }
+            return pointee;
+        }
+        if (pointee instanceof NativeStructType) {
+            return pointee;
+        }
+        if (pointee instanceof ClassType) {
+            reporter.error(loc, "managed class cannot be a NativePtr pointee");
+            return ErrorType.INSTANCE;
+        }
+        if (pointee instanceof ArrayType) {
+            reporter.error(loc, "array cannot be a NativePtr pointee");
+            return ErrorType.INSTANCE;
+        }
+        reporter.error(loc, "invalid NativePtr pointee type: " + pointee);
+        return ErrorType.INSTANCE;
     }
 }

@@ -1,12 +1,12 @@
-# JNative GC (0.5)
+# JNative GC (0.5 / 0.9 multi-thread STW)
 
 ## Algorithm
 
 ```text
-Precise · Stop-the-world · Mark-Sweep · Non-moving · Single-threaded
+Precise · Stop-the-world · Mark-Sweep · Non-moving · Multi-thread aware
 ```
 
-No write/read barriers. No concurrent or moving collection.
+No write/read barriers. No concurrent or moving collection. See `docs/safepoints.md`.
 
 ## Object layout
 
@@ -30,14 +30,15 @@ jnative_string_*
 
 Every allocation is linked on `@jn.gc.heap_head` (intrusive list) so the runtime can **enumerate** all managed objects.
 
-## Roots (precise shadow stack)
+## Roots (precise per-thread shadow stacks)
 
 ```text
-GcFrame { prev*, rootCount, slotAddr[n] }
+GcFrame { prev*, rootCount, slotAddr[n] }   // TLS head per ThreadState
 ```
 
 - Enter method: `jnative_gc_frame_push` + register every `ptr` alloca address
 - Exit / return: `jnative_gc_frame_pop`
+- GC scans **all** registered threads via `jn_foreach_root_slot` + TLS exceptions + Thread objects + static managed fields
 - Global root (0.6): `@jn.ex.current` scanned in `jnative_gc_mark_from_roots`
 - Reference locals, parameters, `this`, and protected reference temporaries are PTR allocas
 

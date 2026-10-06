@@ -5,6 +5,8 @@ import io.jnative.semantic.ClassType;
 import io.jnative.semantic.ErrorType;
 import io.jnative.semantic.JType;
 import io.jnative.semantic.MethodSymbol;
+import io.jnative.semantic.NativePtrType;
+import io.jnative.semantic.NativeStructType;
 import io.jnative.semantic.NullType;
 import io.jnative.semantic.PrimitiveType;
 import io.jnative.semantic.VoidType;
@@ -48,6 +50,10 @@ public final class NameMangler {
         return "class." + sanitize(className);
     }
 
+    public static String llvmNativeStructName(String name) {
+        return "struct." + sanitize(name);
+    }
+
     public static String arrayMetaName(JType elementType) {
         return "array." + typeCode(elementType);
     }
@@ -55,8 +61,11 @@ public final class NameMangler {
     public static String typeCode(JType type) {
         return switch (type) {
             case PrimitiveType p -> switch (p) {
+                case BYTE -> "i8";
+                case SHORT -> "i16";
                 case INT -> "i32";
                 case LONG -> "i64";
+                case FLOAT -> "f32";
                 case DOUBLE -> "f64";
                 case BOOLEAN -> "i1";
                 case CHAR -> "i16";
@@ -65,6 +74,8 @@ public final class NameMangler {
             case NullType ignored -> "null";
             case ClassType c -> "C" + sanitize(c.name());
             case ArrayType a -> "A" + typeCode(a.elementType());
+            case NativePtrType np -> "nptr_" + typeCode(np.pointee());
+            case NativeStructType ns -> "NS" + sanitize(ns.name());
             case ErrorType ignored -> "err";
         };
     }

@@ -11,8 +11,11 @@ public enum TokenType {
     CLASS,
     STATIC,
     VOID,
+    BYTE,
+    SHORT,
     INT,
     LONG,
+    FLOAT,
     DOUBLE,
     BOOLEAN,
     IF,
@@ -34,6 +37,8 @@ public enum TokenType {
     FINALLY,
     THROW,
     THROWS,
+    NATIVE,
+    VOLATILE,
 
     // Identifiers & literals
     IDENTIFIER,
@@ -52,6 +57,7 @@ public enum TokenType {
     SEMICOLON,
     COMMA,
     DOT,
+    AT,
     ASSIGN,
     PLUS,
     MINUS,
@@ -83,8 +89,11 @@ public enum TokenType {
         KEYWORDS.put("class", CLASS);
         KEYWORDS.put("static", STATIC);
         KEYWORDS.put("void", VOID);
+        KEYWORDS.put("byte", BYTE);
+        KEYWORDS.put("short", SHORT);
         KEYWORDS.put("int", INT);
         KEYWORDS.put("long", LONG);
+        KEYWORDS.put("float", FLOAT);
         KEYWORDS.put("double", DOUBLE);
         KEYWORDS.put("boolean", BOOLEAN);
         KEYWORDS.put("if", IF);
@@ -106,6 +115,8 @@ public enum TokenType {
         KEYWORDS.put("finally", FINALLY);
         KEYWORDS.put("throw", THROW);
         KEYWORDS.put("throws", THROWS);
+        KEYWORDS.put("native", NATIVE);
+        KEYWORDS.put("volatile", VOLATILE);
     }
 
     public static TokenType keywordOrIdentifier(String text) {

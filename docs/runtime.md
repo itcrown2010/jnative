@@ -58,6 +58,44 @@ Layout: `{ ClassMetadata*, i32 length, padding, elements... }`
 
 `jnative_println_{i32,i64,f64,bool,char,string}`
 
+## File I/O (0.8.1)
+
+| API | Role |
+|-----|------|
+| `jnative_file_read_string` / `read_bytes` | Disk → GC String / `byte[]` |
+| `jnative_file_write_string` / `write_bytes` | GC payload → disk |
+| `jnative_file_exists` / `size` / `delete` | Metadata ops |
+| `jnative_argv_to_string_array` | `argc`/`argv` → managed `String[]` |
+
+Platform: libc today (`fopen`/`fread`/…). See [file-io.md](file-io.md).
+
+## Networking (0.8.2)
+
+| API | Role |
+|-----|------|
+| `jnative_tcp_connect` / `connect_timeout` | DNS + TCP connect → managed `TcpSocket` |
+| `jnative_tcp_listen` / `listen_any` | bind/listen → managed `TcpServer` |
+| `jnative_tcp_accept` | accept → new `TcpSocket` |
+| `jnative_tcp_read*` / `write*` | stream I/O (partial write-all; EOF) |
+| `jnative_tcp_close` / timeouts | idempotent close; `SO_*TIMEO` |
+
+Platform: `jnative_plat_tcp_*` in bundled C (`native/posix` or `native/windows`).
+See [networking.md](networking.md).
+
+## HTTP (0.8.3)
+
+No `jnative_http_*` runtime. HTTP is stdlib JNative source using `TcpSocket` + `Bytes` / `String` helpers.
+See [http.md](http.md).
+
+## String / Bytes helpers (0.8.3)
+
+| API | Role |
+|-----|------|
+| `jnative_string_index_of*` / `substring*` / `starts_with` / `ends_with` | parsing |
+| `jnative_string_equals_ignore_case` / `trim` / `to_lower` | headers |
+| `jnative_string_get_bytes` / `from_bytes` / `value_of_i32` | wire ↔ String |
+| `jnative_bytes_*` | concat / copy / slice / CRLF search |
+
 ## Module layout (compiler)
 
 ```text
@@ -68,6 +106,12 @@ backend/llvm/runtime/
   StringRuntimeEmitter
   TypeRuntimeEmitter
   IoRuntimeEmitter
+  FfiRuntimeEmitter
+  FileRuntimeEmitter
+  NetworkRuntimeEmitter
+  SocketRuntimeEmitter
+  DnsRuntimeEmitter
+  BytesRuntimeEmitter
 ```
 
 ## GC readiness (0.5)

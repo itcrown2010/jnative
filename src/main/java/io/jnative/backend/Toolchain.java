@@ -83,6 +83,7 @@ public final class Toolchain {
         cmd.add("-o");
         cmd.add(output.toAbsolutePath().toString());
         cmd.add("-Wno-override-module");
+        cmd.add("-pthread");
         return cmd;
     }
 }

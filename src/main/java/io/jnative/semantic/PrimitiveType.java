@@ -1,8 +1,11 @@
 package io.jnative.semantic;
 
 public enum PrimitiveType implements JType {
+    BYTE("byte"),
+    SHORT("short"),
     INT("int"),
     LONG("long"),
+    FLOAT("float"),
     DOUBLE("double"),
     BOOLEAN("boolean"),
     CHAR("char");
@@ -30,12 +33,12 @@ public enum PrimitiveType implements JType {
 
     @Override
     public boolean isNumeric() {
-        return this == INT || this == LONG || this == DOUBLE || this == CHAR;
+        return this != BOOLEAN;
     }
 
     @Override
     public boolean isInteger() {
-        return this == INT || this == LONG || this == CHAR;
+        return this == BYTE || this == SHORT || this == INT || this == LONG || this == CHAR;
     }
 
     @Override
@@ -46,17 +49,27 @@ public enum PrimitiveType implements JType {
         if (other == this) {
             return true;
         }
-        // char <-> int widening loosely for 0.4
-        if (this == INT && other == CHAR) {
+        if (!(other instanceof PrimitiveType op)) {
+            return false;
+        }
+        // char <-> int widening loosely
+        if (this == INT && (op == CHAR || op == BYTE || op == SHORT)) {
             return true;
         }
-        if (this == CHAR && other == INT) {
-            return true; // allow int literal to char in simple cases
-        }
-        if (this == LONG && (other == INT || other == CHAR)) {
+        // Allow int literals / values into byte/short/char (narrowing, Java subset).
+        if ((this == BYTE || this == SHORT || this == CHAR) && op == INT) {
             return true;
         }
-        if (this == DOUBLE && (other == INT || other == LONG || other == CHAR)) {
+        if (this == SHORT && op == BYTE) {
+            return true;
+        }
+        if (this == LONG && (op == INT || op == CHAR || op == BYTE || op == SHORT)) {
+            return true;
+        }
+        if (this == FLOAT && (op == INT || op == LONG || op == CHAR || op == BYTE || op == SHORT)) {
+            return true;
+        }
+        if (this == DOUBLE && (op == INT || op == LONG || op == FLOAT || op == CHAR || op == BYTE || op == SHORT)) {
             return true;
         }
         return false;

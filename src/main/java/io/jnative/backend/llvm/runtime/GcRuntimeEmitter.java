@@ -1,13 +1,14 @@
 package io.jnative.backend.llvm.runtime;
 
 /**
- * Precise stop-the-world mark-sweep GC for JNative 0.5.
+ * Precise stop-the-world mark-sweep GC (0.5 / 0.9 multi-thread).
  *
  * <pre>
  * Allocation: [ GcHeader 24B | Object payload... ]
  * Java refs point at payload (ClassMetadata*), not GcHeader.
  *
- * Non-moving, single-threaded, precise roots via shadow stack.
+ * Non-moving, precise roots via per-thread shadow stacks (TLS).
+ * STW coordinates all mutators via jn_gc_stw_*; heap list locked.
  * </pre>
  */
 public final class GcRuntimeEmitter {
@@ -24,8 +25,23 @@ public final class GcRuntimeEmitter {
                 ; === JNative GC 0.5 ===
                 %jn.GcHeader = type { ptr, i64, i32, i32 }
 
+                declare ptr @jn_tls_frame()
+                declare void @jn_tls_set_frame(ptr)
+                declare void @jn_safepoint_poll()
+                declare void @jn_heap_lock()
+                declare void @jn_heap_unlock()
+                declare void @jn_gc_stw_begin()
+                declare void @jn_gc_stw_end()
+                declare void @jn_gc_collect_lock()
+                declare void @jn_gc_collect_unlock()
+                declare void @jn_foreach_root_slot(ptr, ptr)
+                declare void @jn_foreach_ex_root(ptr, ptr)
+                declare void @jn_foreach_thread_obj_root(ptr, ptr)
+                declare void @jn_thread_attach_main()
+                declare void @jn_enter_native()
+                declare void @jn_leave_native()
+
                 @jn.gc.heap_head = global ptr null, align 8
-                @jn.gc.frame = global ptr null, align 8
                 @jn.gc.allocated_bytes = global i64 0, align 8
                 @jn.gc.live_bytes = global i64 0, align 8
                 @jn.gc.threshold = global i64 1048576, align 8
@@ -163,46 +179,31 @@ public final class GcRuntimeEmitter {
                   ret void
                 }
 
+                define void @jnative_gc_mark_slot_cb(ptr %slot, ptr %ctx) {
+                entry:
+                  %snull = icmp eq ptr %slot, null
+                  br i1 %snull, label %done, label %load
+                load:
+                  %ref = load ptr, ptr %slot, align 8
+                  call void @jnative_gc_mark_push(ptr %ref)
+                  br label %done
+                done:
+                  ret void
+                }
+
+                define void @jnative_gc_mark_obj_cb(ptr %obj, ptr %ctx) {
+                entry:
+                  call void @jnative_gc_mark_push(ptr %obj)
+                  ret void
+                }
+
                 define void @jnative_gc_mark_from_roots() {
                 entry:
                   store i64 0, ptr @jn.gc.mark_size, align 8
-                  %frame0 = load ptr, ptr @jn.gc.frame, align 8
-                  br label %frames
-                frames:
-                  %frame = phi ptr [ %frame0, %entry ], [ %prev, %fnext ]
-                  %fnull = icmp eq ptr %frame, null
-                  br i1 %fnull, label %process, label %scanframe
-                scanframe:
-                  %np = getelementptr i8, ptr %frame, i64 8
-                  %n = load i32, ptr %np, align 4
-                  %roots = getelementptr i8, ptr %frame, i64 16
-                  br label %rloop
-                rloop:
-                  %ri = phi i32 [ 0, %scanframe ], [ %rinext, %rcont ]
-                  %rcmp = icmp slt i32 %ri, %n
-                  br i1 %rcmp, label %rbody, label %fnext
-                rbody:
-                  %ri64 = sext i32 %ri to i64
-                  %slotp = getelementptr ptr, ptr %roots, i64 %ri64
-                  %slot = load ptr, ptr %slotp, align 8
-                  %snull = icmp eq ptr %slot, null
-                  br i1 %snull, label %rcont, label %rload
-                rload:
-                  %ref = load ptr, ptr %slot, align 8
-                  call void @jnative_gc_mark_push(ptr %ref)
-                  br label %rcont
-                rcont:
-                  %rinext = add i32 %ri, 1
-                  br label %rloop
-                fnext:
-                  %prev = load ptr, ptr %frame, align 8
-                  br label %frames
-                process:
-                  %exroot = load ptr, ptr @jn.ex.current, align 8
-                  %exnull = icmp eq ptr %exroot, null
-                  br i1 %exnull, label %work, label %markex
-                markex:
-                  call void @jnative_gc_mark_push(ptr %exroot)
+                  call void @jn_foreach_root_slot(ptr @jnative_gc_mark_slot_cb, ptr null)
+                  call void @jn_foreach_ex_root(ptr @jnative_gc_mark_obj_cb, ptr null)
+                  call void @jn_foreach_thread_obj_root(ptr @jnative_gc_mark_obj_cb, ptr null)
+                  call void @jnative_mark_static_roots()
                   br label %work
                 work:
                   %sz = load i64, ptr @jn.gc.mark_size, align 8
@@ -293,7 +294,9 @@ public final class GcRuntimeEmitter {
                 define void @jnative_gc_collect() {
                 entry:
                   call void @jnative_gc_ensure_init()
-                  ; clear marks
+                  call void @jn_gc_collect_lock()
+                  call void @jn_gc_stw_begin()
+                  call void @jn_heap_lock()
                   %h0 = load ptr, ptr @jn.gc.heap_head, align 8
                   br label %clear
                 clear:
@@ -316,15 +319,18 @@ public final class GcRuntimeEmitter {
                   store i64 %col2, ptr @jn.gc.collections, align 8
                   %stress = load i32, ptr @jn.gc.stress, align 4
                   %nostress = icmp eq i32 %stress, 0
-                  br i1 %nostress, label %rethresh, label %done
+                  br i1 %nostress, label %rethresh, label %unlock
                 rethresh:
                   %live = load i64, ptr @jn.gc.live_bytes, align 8
                   %thr2 = mul i64 %live, 2
                   %min = icmp ult i64 %thr2, 1048576
                   %nth = select i1 %min, i64 1048576, i64 %thr2
                   store i64 %nth, ptr @jn.gc.threshold, align 8
-                  br label %done
-                done:
+                  br label %unlock
+                unlock:
+                  call void @jn_heap_unlock()
+                  call void @jn_gc_stw_end()
+                  call void @jn_gc_collect_unlock()
                   ret void
                 }
 
@@ -394,16 +400,22 @@ public final class GcRuntimeEmitter {
                 define ptr @jnative_gc_alloc(i64 %payload) {
                 entry:
                   call void @jnative_gc_ensure_init()
+                  call void @jn_safepoint_poll()
                   %stress = load i32, ptr @jn.gc.stress, align 4
                   %dostress = icmp ne i32 %stress, 0
                   br i1 %dostress, label %collect, label %check
                 check:
+                  call void @jn_heap_lock()
                   %ab = load i64, ptr @jn.gc.allocated_bytes, align 8
                   %th = load i64, ptr @jn.gc.threshold, align 8
                   %over = icmp uge i64 %ab, %th
-                  br i1 %over, label %collect, label %alloc
+                  br i1 %over, label %needgc, label %alloc
+                needgc:
+                  call void @jn_heap_unlock()
+                  br label %collect
                 collect:
                   call void @jnative_gc_collect()
+                  call void @jn_heap_lock()
                   br label %alloc
                 alloc:
                   %total = add i64 %payload, 24
@@ -428,6 +440,7 @@ public final class GcRuntimeEmitter {
                   %ao = load i64, ptr @jn.gc.allocated_objects, align 8
                   %ao2 = add i64 %ao, 1
                   store i64 %ao2, ptr @jn.gc.allocated_objects, align 8
+                  call void @jn_heap_unlock()
                   %obj = getelementptr i8, ptr %raw, i64 24
                   ret ptr %obj
                 }
@@ -445,11 +458,11 @@ public final class GcRuntimeEmitter {
                   %total = add i64 %bytes, 16
                   %frame = call ptr @malloc(i64 %total)
                   call ptr @memset(ptr %frame, i32 0, i64 %total)
-                  %prev = load ptr, ptr @jn.gc.frame, align 8
+                  %prev = call ptr @jn_tls_frame()
                   store ptr %prev, ptr %frame, align 8
                   %np = getelementptr i8, ptr %frame, i64 8
                   store i32 %n, ptr %np, align 4
-                  store ptr %frame, ptr @jn.gc.frame, align 8
+                  call void @jn_tls_set_frame(ptr %frame)
                   ret ptr %frame
                 }
 
@@ -464,15 +477,21 @@ public final class GcRuntimeEmitter {
 
                 define void @jnative_gc_frame_pop() {
                 entry:
-                  %frame = load ptr, ptr @jn.gc.frame, align 8
+                  %frame = call ptr @jn_tls_frame()
                   %isnull = icmp eq ptr %frame, null
                   br i1 %isnull, label %done, label %pop
                 pop:
                   %prev = load ptr, ptr %frame, align 8
-                  store ptr %prev, ptr @jn.gc.frame, align 8
+                  call void @jn_tls_set_frame(ptr %prev)
                   call void @free(ptr %frame)
                   br label %done
                 done:
+                  ret void
+                }
+
+                define void @jnative_safepoint_poll() {
+                entry:
+                  call void @jn_safepoint_poll()
                   ret void
                 }
 

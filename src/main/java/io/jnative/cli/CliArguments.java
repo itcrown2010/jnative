@@ -30,7 +30,20 @@ public final class CliArguments {
                 case "--emit-ast" -> options.setEmitAst(true);
                 case "--emit-ir" -> options.setEmitIr(true);
                 case "--emit-llvm" -> options.setEmitLlvm(true);
+                case "--emit-layout" -> options.setEmitLayout(true);
                 case "--keep-temps" -> options.setKeepTemps(true);
+                case "--library-path", "-L" -> {
+                    if (i + 1 >= args.length) {
+                        throw new IllegalArgumentException("missing path after " + arg);
+                    }
+                    options.addLibraryPath(Path.of(args[++i]));
+                }
+                case "--link", "-l" -> {
+                    if (i + 1 >= args.length) {
+                        throw new IllegalArgumentException("missing library after " + arg);
+                    }
+                    options.addLinkLibrary(args[++i]);
+                }
                 default -> {
                     if (arg.startsWith("-")) {
                         throw new IllegalArgumentException("unknown option: " + arg);
@@ -47,24 +60,28 @@ public final class CliArguments {
 
     public static String helpText() {
         return """
-                JNative 0.3 — experimental Java native compiler
+                JNative 0.8 — experimental Java native compiler
 
                 Usage:
                   jnative <source.java> [-o <output>]
                   jnative <source.java> --emit-ast
                   jnative <source.java> --emit-ir
                   jnative <source.java> --emit-llvm
+                  jnative <source.java> --emit-layout
                   jnative --version
                   jnative --help
 
                 Options:
-                  -o <path>       Output executable path
-                  --emit-ast      Print AST and stop
-                  --emit-ir       Print JNative IR and stop
-                  --emit-llvm     Print LLVM IR and stop
-                  --keep-temps    Keep temporary .ll files
-                  -h, --help      Show this help
-                  -v, --version   Show version
+                  -o <path>            Output executable path
+                  --emit-ast           Print AST and stop
+                  --emit-ir            Print JNative IR and stop
+                  --emit-llvm          Print LLVM IR and stop
+                  --emit-layout        Print NativeStruct layouts and stop
+                  --library-path <dir> Add native library search path (-L)
+                  --link <name>        Link additional native library (-l)
+                  --keep-temps         Keep temporary .ll files
+                  -h, --help           Show this help
+                  -v, --version        Show version
                 """;
     }
 }

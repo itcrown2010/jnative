@@ -1,4 +1,7 @@
-# JNative Memory Model (0.5)
+# JNative Memory Model (0.8 / 0.9)
+
+Concurrent access rules (volatile / Mutex / Atomic / start-join) are in
+[concurrency-memory-model.md](concurrency-memory-model.md).
 
 ## References
 
@@ -34,14 +37,17 @@ Array metadata uses flags:
 
 ## Allocation ownership
 
-| Kind | Allocator |
-|------|-----------|
-| `new T` | GC payload + store metadata |
-| `new T[n]` | GC payload (meta, length, elements) |
-| String literal/concat | GC payload with inline UTF-8 |
+| Kind | Allocator | Ownership |
+|------|-----------|-----------|
+| `new Person()` (managed) | GC heap | GC |
+| `@Stack Point p = new Point()` | native stack (`alloca`) | Automatic (frame) |
+| `Native.allocate<Point>()` / `NativeMemory.allocate` | native heap (`malloc`) | Manual `free` |
+| `new T[n]` / String | GC heap | GC |
+| `File.read*` temps | native heap (`malloc`) | Always freed before return |
+| `File.read*` results | GC heap (`String` / `byte[]`) | GC |
 
-No unmanaged `malloc` for Java-visible objects outside the GC allocator.
+Managed and native worlds must not be mixed without an explicit bridge (FFI / CString / File copy).
 
 ## Non-moving
 
-Pointers remain stable for object lifetime. No read/write barriers in 0.5.
+Managed pointers remain stable for object lifetime (GC is non-moving). Do **not** rely on this for FFI into Java objects — use temporary CString / copies.

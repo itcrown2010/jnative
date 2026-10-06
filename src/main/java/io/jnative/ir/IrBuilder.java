@@ -132,7 +132,7 @@ public final class IrBuilder {
         if (checkException) {
             maybeCheckPending();
         }
-        if (returnType == IrType.PTR) {
+        if (returnType.isManagedPointer()) {
             return protectRef(t);
         }
         return t;
@@ -174,20 +174,53 @@ public final class IrBuilder {
     }
 
     public IrValue loadField(IrValue receiver, String className, String llvmTypeName, int fieldIndex, IrType fieldType) {
+        return loadField(receiver, className, llvmTypeName, fieldIndex, fieldType, false);
+    }
+
+    public IrValue loadField(
+            IrValue receiver, String className, String llvmTypeName, int fieldIndex, IrType fieldType,
+            boolean isVolatile
+    ) {
         emit(new IrInstruction.NullCheck(receiver));
         maybeCheckPending();
         IrValue.Temp t = temp(fieldType);
-        emit(new IrInstruction.LoadField(t, receiver, className, llvmTypeName, fieldIndex, fieldType));
-        if (fieldType == IrType.PTR) {
+        emit(new IrInstruction.LoadField(
+                t, receiver, className, llvmTypeName, fieldIndex, fieldType, isVolatile));
+        if (fieldType.isManagedPointer()) {
             return protectRef(t);
         }
         return t;
     }
 
     public void storeField(IrValue receiver, String className, String llvmTypeName, int fieldIndex, IrValue value) {
+        storeField(receiver, className, llvmTypeName, fieldIndex, value, false);
+    }
+
+    public void storeField(
+            IrValue receiver, String className, String llvmTypeName, int fieldIndex, IrValue value,
+            boolean isVolatile
+    ) {
         emit(new IrInstruction.NullCheck(receiver));
         maybeCheckPending();
-        emit(new IrInstruction.StoreField(receiver, className, llvmTypeName, fieldIndex, value));
+        emit(new IrInstruction.StoreField(
+                receiver, className, llvmTypeName, fieldIndex, value, isVolatile));
+    }
+
+    public IrValue loadStatic(String globalName, IrType fieldType, boolean isVolatile) {
+        IrValue.Temp t = temp(fieldType);
+        emit(new IrInstruction.LoadStatic(t, globalName, fieldType, isVolatile));
+        if (fieldType.isManagedPointer()) {
+            return protectRef(t);
+        }
+        return t;
+    }
+
+    public void storeStatic(String globalName, IrValue value, boolean isVolatile) {
+        emit(new IrInstruction.StoreStatic(globalName, value, isVolatile));
+    }
+
+    public void safepointPoll() {
+        emit(new IrInstruction.SafepointPoll());
     }
 
     public void nullCheck(IrValue pointer) {
@@ -204,7 +237,7 @@ public final class IrBuilder {
         IrValue.Temp t = temp(returnType);
         emit(new IrInstruction.VirtualCall(t, receiver, slot, returnType, args, debugName));
         maybeCheckPending();
-        if (returnType == IrType.PTR) {
+        if (returnType.isManagedPointer()) {
             return protectRef(t);
         }
         return t;
@@ -227,7 +260,7 @@ public final class IrBuilder {
         IrValue.Temp t = temp(elementType);
         emit(new IrInstruction.LoadElement(t, array, index, elementType));
         maybeCheckPending();
-        if (elementType == IrType.PTR) {
+        if (elementType.isManagedPointer()) {
             return protectRef(t);
         }
         return t;
@@ -268,12 +301,29 @@ public final class IrBuilder {
      * root scan keeps it live across GC safepoints.
      */
     public IrValue protectRef(IrValue ref) {
-        if (ref.type() != IrType.PTR) {
-            return ref;
+        if (ref.type().isManagedPointer()) {
+            IrValue.Local slot = alloca("gctmp." + tempId, IrType.PTR);
+            store(ref, slot);
+            return load(slot);
         }
-        IrValue.Local slot = alloca("gctmp." + tempId, IrType.PTR);
-        store(ref, slot);
-        return load(slot);
+        return ref;
+    }
+
+    public IrValue nativeCall(
+            String symbol,
+            IrType returnType,
+            java.util.List<IrValue> args,
+            java.util.List<IrType> argTypes,
+            String library
+    ) {
+        // Native calls are not JNative exception sources and not GC safepoints (0.7).
+        if (returnType == IrType.VOID) {
+            emit(new IrInstruction.NativeCall(null, symbol, returnType, args, argTypes, library, false));
+            return null;
+        }
+        IrValue.Temp t = temp(returnType);
+        emit(new IrInstruction.NativeCall(t, symbol, returnType, args, argTypes, library, false));
+        return t;
     }
 
     public void gcCollect() {
@@ -343,13 +393,65 @@ public final class IrBuilder {
     private IrValue defaultValue(IrType type) {
         return switch (type) {
             case I1 -> new IrValue.Const(IrType.I1, false);
+            case I8 -> new IrValue.Const(IrType.I8, 0);
             case I16 -> new IrValue.Const(IrType.I16, 0);
             case I32 -> new IrValue.Const(IrType.I32, 0);
             case I64 -> new IrValue.Const(IrType.I64, 0L);
+            case FLOAT -> new IrValue.Const(IrType.FLOAT, 0.0f);
             case DOUBLE -> new IrValue.Const(IrType.DOUBLE, 0.0);
             case PTR -> new IrValue.Const(IrType.PTR, "null");
+            case NATIVE_PTR -> new IrValue.Const(IrType.NATIVE_PTR, "null");
             case VOID -> null;
         };
+    }
+
+    public IrValue.Local stackAlloc(
+            String identifier,
+            String structName,
+            String llvmTypeName,
+            int alignment,
+            long sizeBytes
+    ) {
+        IrValue.Local local = new IrValue.Local(identifier, IrType.NATIVE_PTR);
+        locals.put(identifier, local);
+        entryBlock.instructions().add(entryAllocaCount++,
+                new IrInstruction.StackAlloc(local, structName, llvmTypeName, alignment, sizeBytes));
+        return local;
+    }
+
+    public IrValue addressOf(IrValue.Local stackLocal) {
+        IrValue.Temp t = temp(IrType.NATIVE_PTR);
+        emit(new IrInstruction.AddressOf(t, stackLocal));
+        return t;
+    }
+
+    public IrValue nativeFieldAddress(
+            IrValue base,
+            String structName,
+            String llvmTypeName,
+            String fieldName,
+            long byteOffset
+    ) {
+        IrValue.Temp t = temp(IrType.NATIVE_PTR);
+        emit(new IrInstruction.NativeFieldAddress(
+                t, base, structName, llvmTypeName, fieldName, byteOffset));
+        return t;
+    }
+
+    public IrValue nativeLoad(IrValue address, IrType valueType) {
+        IrValue.Temp t = temp(valueType);
+        emit(new IrInstruction.NativeLoad(t, address, valueType));
+        return t;
+    }
+
+    public void nativeStore(IrValue address, IrValue value) {
+        emit(new IrInstruction.NativeStore(address, value));
+    }
+
+    public IrValue nativePtrAdd(IrValue base, IrValue elements, long elementSize) {
+        IrValue.Temp t = temp(IrType.NATIVE_PTR);
+        emit(new IrInstruction.NativePtrAdd(t, base, elements, elementSize));
+        return t;
     }
 
     public void setReturnCompletion(IrValue value) {
