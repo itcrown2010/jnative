@@ -250,6 +250,36 @@ public final class JNativeCompiler {
             System.out.print(optReport);
         }
 
+        // ---- wasm32-browser: skip host LLVM, emit .wasm + JS ----
+        if (options.isWasmBrowserTarget()) {
+            try {
+                io.jnative.layout.LayoutConfig.configureWasm32();
+                Path outDir = options.outputFile() != null
+                        ? options.outputFile()
+                        : source.toAbsolutePath().getParent().resolve("dist");
+                if (outDir != null && outDir.getFileName() != null
+                        && outDir.getFileName().toString().endsWith(".wasm")) {
+                    outDir = outDir.getParent();
+                }
+                var artifact = new io.jnative.backend.wasm.WasmBrowserBackend().compile(
+                        new io.jnative.backend.BackendRequest(
+                                source, sourceText, typed, ir, options, outDir));
+                System.out.println("wasm32-browser: " + artifact.primaryOutput());
+                for (Path p : artifact.secondaryOutputs()) {
+                    System.out.println("  + " + p);
+                }
+                if (options.runAfterBuild()) {
+                    startWasmDevServer(outDir);
+                }
+                return new CompileResult(true, ast, ir, null, artifact.primaryOutput(), reporter.diagnostics());
+            } catch (Exception e) {
+                reporter.error(SourceLocation.UNKNOWN, "wasm backend failed: " + e.getMessage());
+                return new CompileResult(false, ast, ir, null, null, reporter.diagnostics());
+            } finally {
+                io.jnative.layout.LayoutConfig.configureNative64();
+            }
+        }
+
         // LLVM
         String llvmIr = new LlvmIrGenerator().generate(ir);
         if (options.emitLlvm()) {
@@ -282,6 +312,9 @@ public final class JNativeCompiler {
             boolean includeGraphics = irText.contains("jnative_gfx_");
             boolean includePoll = irText.contains("jnative_poll_")
                     || irText.contains("jnative_plat_set_nonblocking");
+            boolean includeCrypto = irText.contains("jnative_secure_random")
+                    || irText.contains("jnative_bit_and")
+                    || irText.contains("jnative_crypto");
             boolean headless = options.headless()
                     || "headless".equalsIgnoreCase(options.uiBackend())
                     || "1".equals(System.getenv("JNATIVE_HEADLESS"));
@@ -300,6 +333,8 @@ public final class JNativeCompiler {
             NativeLinker linker = new NativeLinker(toolchain.get());
             java.util.LinkedHashSet<String> libs = new java.util.LinkedHashSet<>(ir.nativeLibraries());
             libs.addAll(options.linkLibraries());
+            /* @Native(library="jnative_crypto") symbols are in the linked object, not a .dylib */
+            libs.remove("jnative_crypto");
             java.util.List<String> linkFlags = new java.util.ArrayList<>(options.extraLinkFlags());
             if (includeGraphics || includeUi) {
                 libs.add("z");
@@ -315,6 +350,13 @@ public final class JNativeCompiler {
                 linkFlags.add("Cocoa");
                 linkFlags.add("-framework");
                 linkFlags.add("AppKit");
+            }
+            boolean linkSecurity =
+                    (toolchain.get().platform() == Platform.MACOS_ARM64
+                    || toolchain.get().platform() == Platform.MACOS_X86_64);
+            if (linkSecurity) {
+                linkFlags.add("-framework");
+                linkFlags.add("Security");
             }
             if ("gui".equalsIgnoreCase(options.appType())
                     && toolchain.get().platform() == Platform.WINDOWS_X86_64) {
@@ -367,6 +409,29 @@ public final class JNativeCompiler {
             base = base.substring(0, dot);
         }
         return source.getParent().resolve(platform.executableName(base));
+    }
+
+    /** Serve dist/ for `jnative run --target wasm32-browser`. */
+    private static void startWasmDevServer(Path outDir) throws IOException {
+        int port = 3000;
+        System.out.println("Serving " + outDir.toAbsolutePath() + " at http://localhost:" + port);
+        System.out.println("Press Ctrl+C to stop.");
+        // Minimal static server via Python (always available on macOS/Linux CI agents).
+        try {
+            new ProcessBuilder(
+                    "python3", "-c",
+                    "from http.server import SimpleHTTPRequestHandler,ThreadingHTTPServer\n"
+                            + "import os\n"
+                            + "os.chdir(r'''" + outDir.toAbsolutePath() + "''')\n"
+                            + "class H(SimpleHTTPRequestHandler):\n"
+                            + "  extensions_map={**SimpleHTTPRequestHandler.extensions_map,'': 'application/octet-stream','.wasm':'application/wasm'}\n"
+                            + "ThreadingHTTPServer(('127.0.0.1'," + port + "),H).serve_forever()\n")
+                    .inheritIO()
+                    .start()
+                    .waitFor();
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
     }
 
     private static CompileResult fail(DiagnosticReporter reporter) {

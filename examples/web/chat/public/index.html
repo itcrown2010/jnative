@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <title>JNative Chat</title>
+  <link rel="stylesheet" href="/style.css"/>
+</head>
+<body>
+  <main>
+    <h1>JNative Chat</h1>
+    <section id="auth">
+      <h2>Register / Login</h2>
+      <input id="email" placeholder="email"/>
+      <input id="displayName" placeholder="display name"/>
+      <input id="password" type="password" placeholder="password"/>
+      <button id="register">Register</button>
+      <button id="login">Login</button>
+      <button id="logout">Logout</button>
+      <p id="me"></p>
+    </section>
+    <section id="room">
+      <h2>Lobby</h2>
+      <div id="messages"></div>
+      <input id="content" placeholder="message"/>
+      <button id="send">Send</button>
+    </section>
+  </main>
+  <script src="/app.js"></script>
+</body>
+</html>

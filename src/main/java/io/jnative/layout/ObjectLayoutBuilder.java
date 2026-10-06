@@ -24,19 +24,32 @@ import java.util.List;
 public final class ObjectLayoutBuilder {
 
     /** Object header: ClassMetadata* (metadata holds vtable* for dispatch). */
+    public static long HEADER_SIZE() {
+        return LayoutConfig.headerSize();
+    }
+
+    public static int HEADER_ALIGNMENT() {
+        return LayoutConfig.pointerAlign();
+    }
+
+    public static int POINTER_SIZE() {
+        return LayoutConfig.pointerSize();
+    }
+
+    /** @deprecated use {@link #HEADER_SIZE()} */
+    public static final long DEFAULT_HEADER_SIZE = 8;
+    public static final int DEFAULT_HEADER_ALIGNMENT = 8;
+
+    /** Compatibility constants — prefer {@link LayoutConfig}. */
     public static final long HEADER_SIZE = 8;
     public static final int HEADER_ALIGNMENT = 8;
     public static final int POINTER_SIZE = 8;
-
-    /** @deprecated use {@link #HEADER_SIZE} */
-    public static final long DEFAULT_HEADER_SIZE = HEADER_SIZE;
-    public static final int DEFAULT_HEADER_ALIGNMENT = HEADER_ALIGNMENT;
 
     private ObjectLayoutBuilder() {
     }
 
     public static ClassLayout build(ClassSymbol classSymbol) {
-        return build(classSymbol, HEADER_SIZE, HEADER_ALIGNMENT);
+        return build(classSymbol, LayoutConfig.headerSize(), LayoutConfig.pointerAlign());
     }
 
     public static ClassLayout build(ClassSymbol classSymbol, long headerSize, int headerAlignment) {
@@ -117,19 +130,19 @@ public final class ObjectLayoutBuilder {
                 case INT, FLOAT -> 4;
                 case LONG, DOUBLE -> 8;
             };
-            case ClassType ignored -> POINTER_SIZE;
-            case io.jnative.semantic.InterfaceType ignored -> POINTER_SIZE;
-            case io.jnative.semantic.ParameterizedType ignored -> POINTER_SIZE;
-            case io.jnative.semantic.TypeVariable ignored -> POINTER_SIZE;
-            case io.jnative.semantic.WildcardType ignored -> POINTER_SIZE;
-            case ArrayType ignored -> POINTER_SIZE;
-            case NativePtrType ignored -> POINTER_SIZE;
-            case NativeFunctionPtrType ignored -> POINTER_SIZE;
-            case FunctionType ignored -> POINTER_SIZE;
+            case ClassType ignored -> LayoutConfig.pointerSize();
+            case io.jnative.semantic.InterfaceType ignored -> LayoutConfig.pointerSize();
+            case io.jnative.semantic.ParameterizedType ignored -> LayoutConfig.pointerSize();
+            case io.jnative.semantic.TypeVariable ignored -> LayoutConfig.pointerSize();
+            case io.jnative.semantic.WildcardType ignored -> LayoutConfig.pointerSize();
+            case ArrayType ignored -> LayoutConfig.pointerSize();
+            case NativePtrType ignored -> LayoutConfig.pointerSize();
+            case NativeFunctionPtrType ignored -> LayoutConfig.pointerSize();
+            case FunctionType ignored -> LayoutConfig.pointerSize();
             case NativeStructType ns -> (int) ns.symbol().layout().size();
-            case NullType ignored -> POINTER_SIZE;
+            case NullType ignored -> LayoutConfig.pointerSize();
             case VoidType ignored -> 0;
-            case ErrorType ignored -> POINTER_SIZE;
+            case ErrorType ignored -> LayoutConfig.pointerSize();
         };
     }
 
@@ -141,19 +154,19 @@ public final class ObjectLayoutBuilder {
                 case INT, FLOAT -> 4;
                 case LONG, DOUBLE -> 8;
             };
-            case ClassType ignored -> POINTER_SIZE;
-            case io.jnative.semantic.InterfaceType ignored -> POINTER_SIZE;
-            case io.jnative.semantic.ParameterizedType ignored -> POINTER_SIZE;
-            case io.jnative.semantic.TypeVariable ignored -> POINTER_SIZE;
-            case io.jnative.semantic.WildcardType ignored -> POINTER_SIZE;
-            case ArrayType ignored -> POINTER_SIZE;
-            case NativePtrType ignored -> POINTER_SIZE;
-            case NativeFunctionPtrType ignored -> POINTER_SIZE;
-            case FunctionType ignored -> POINTER_SIZE;
+            case ClassType ignored -> LayoutConfig.pointerAlign();
+            case io.jnative.semantic.InterfaceType ignored -> LayoutConfig.pointerAlign();
+            case io.jnative.semantic.ParameterizedType ignored -> LayoutConfig.pointerAlign();
+            case io.jnative.semantic.TypeVariable ignored -> LayoutConfig.pointerAlign();
+            case io.jnative.semantic.WildcardType ignored -> LayoutConfig.pointerAlign();
+            case ArrayType ignored -> LayoutConfig.pointerAlign();
+            case NativePtrType ignored -> LayoutConfig.pointerAlign();
+            case NativeFunctionPtrType ignored -> LayoutConfig.pointerAlign();
+            case FunctionType ignored -> LayoutConfig.pointerAlign();
             case NativeStructType ns -> ns.symbol().layout().alignment();
-            case NullType ignored -> POINTER_SIZE;
+            case NullType ignored -> LayoutConfig.pointerAlign();
             case VoidType ignored -> 1;
-            case ErrorType ignored -> POINTER_SIZE;
+            case ErrorType ignored -> LayoutConfig.pointerAlign();
         };
     }
 

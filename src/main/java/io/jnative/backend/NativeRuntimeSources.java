@@ -75,6 +75,8 @@ public final class NativeRuntimeSources {
             sources.add(copyResource("native/posix/jnative_mt.c", dir.resolve("jnative_mt.c")));
             copyResource("native/posix/jnative_gc2.h", dir.resolve("jnative_gc2.h"));
             sources.add(copyResource("native/posix/jnative_gc2.c", dir.resolve("jnative_gc2.c")));
+            sources.add(copyResource(
+                    "native/posix/jnative_crypto.c", dir.resolve("jnative_crypto.c")));
             copyResource("native/posix/jnative_fs.h", dir.resolve("jnative_fs.h"));
             sources.add(copyResource("native/posix/jnative_fs.c", dir.resolve("jnative_fs.c")));
             copyResource("native/posix/jnative_proc.h", dir.resolve("jnative_proc.h"));

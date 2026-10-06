@@ -28,10 +28,63 @@ public final class CompilerOptions {
     private boolean headless;
     private String uiBackend = "auto";
     private String appType = "console";
+    private String target = "native";
+    private boolean emitWat;
+    private boolean emitWasm;
+    private boolean emitJsGlue;
+    private boolean runAfterBuild;
     private final List<Path> libraryPaths = new ArrayList<>();
     private final List<String> linkLibraries = new ArrayList<>();
     private final List<Path> extraNativeSources = new ArrayList<>();
     private final List<String> extraLinkFlags = new ArrayList<>();
+
+    public String target() {
+        return target;
+    }
+
+    public void setTarget(String target) {
+        this.target = target == null ? "native" : target;
+    }
+
+    public boolean emitWat() {
+        return emitWat;
+    }
+
+    public void setEmitWat(boolean emitWat) {
+        this.emitWat = emitWat;
+    }
+
+    public boolean emitWasm() {
+        return emitWasm;
+    }
+
+    public void setEmitWasm(boolean emitWasm) {
+        this.emitWasm = emitWasm;
+    }
+
+    public boolean emitJsGlue() {
+        return emitJsGlue;
+    }
+
+    public void setEmitJsGlue(boolean emitJsGlue) {
+        this.emitJsGlue = emitJsGlue;
+    }
+
+    public boolean runAfterBuild() {
+        return runAfterBuild;
+    }
+
+    public void setRunAfterBuild(boolean runAfterBuild) {
+        this.runAfterBuild = runAfterBuild;
+    }
+
+    public boolean isWasmBrowserTarget() {
+        try {
+            return io.jnative.backend.CompileTarget.parse(target).isBrowser();
+        } catch (IllegalArgumentException e) {
+            return false;
+        }
+    }
 
     public Path sourceFile() {
         return sourceFile;

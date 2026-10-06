@@ -1208,6 +1208,12 @@ class WebServer {
                 }
                 if (ok != 0) {
                     count = count + 1;
+                    if (tryWebSocketUpgrade(conn, req) != 0) {
+                        keep = 0;
+                        ok = 0;
+                    }
+                }
+                if (ok != 0) {
                     WebContext ctx = app.dispatch(req);
                     String connHdr = req.headers().getOrEmpty("Connection").toLowerCase();
                     int wantClose = 0;
@@ -1217,7 +1223,6 @@ class WebServer {
                     if (count >= app.config.keepAliveMax) {
                         wantClose = 1;
                     }
-                    /* Prefer close for curl-like clients; keep-alive still honored when requested. */
                     if (wantClose == 0 && connHdr.indexOf("keep-alive") < 0) {
                         wantClose = 1;
                     }
@@ -1244,6 +1249,70 @@ class WebServer {
         connLock.unlock();
     }
 
+    int tryWebSocketUpgrade(HttpConnection conn, HttpServerRequest req) {
+        String upgrade = req.headers().getOrEmpty("Upgrade").toLowerCase();
+        String connection = req.headers().getOrEmpty("Connection").toLowerCase();
+        if (upgrade.equals("websocket") == false) {
+            return 0;
+        }
+        if (connection.indexOf("upgrade") < 0) {
+            return 0;
+        }
+        WebSocketHandler handler = app.findWebSocket(req.path());
+        if (handler == null) {
+            return 0;
+        }
+        String version = req.headers().getOrEmpty("Sec-WebSocket-Version");
+        if (version.equals("13") == false) {
+            return 0;
+        }
+        String key = req.headers().getOrEmpty("Sec-WebSocket-Key");
+        if (key.length() == 0) {
+            return 0;
+        }
+        String accept = WebSocketAccept.compute(key);
+        HttpResponse resp = HttpResponse.bytesStatus(101, new byte[0]);
+        resp.reasonPhrase = "Switching Protocols";
+        resp.headers.set("Upgrade", "websocket");
+        resp.headers.set("Connection", "Upgrade");
+        resp.headers.set("Sec-WebSocket-Accept", accept);
+        conn.send(resp);
+        EventLoop loop = app.webLoop;
+        if (loop == null) {
+            loop = Async.defaultLoop();
+        }
+        WebSocketConnection ws = WebSocketConnection.open(conn.socket, loop, 1048576, 256);
+        handler.onConnect(ws);
+        ws.pumpWriteOnce();
+        int alive = 1;
+        while (alive != 0 && ws.isOpen() != 0 && stopped == 0) {
+            ws.pumpWriteOnce();
+            ws.pumpReadOnce();
+            drainWsMessages(handler, ws);
+            ws.pumpWriteOnce();
+            if (ws.isOpen() == 0) {
+                alive = 0;
+            } else {
+                Thread.sleep(1);
+            }
+        }
+        ws.close(1000, "bye");
+        return 1;
+    }
+
+    void drainWsMessages(WebSocketHandler handler, WebSocketConnection ws) {
+        int more = 1;
+        while (more != 0) {
+            if (ws.inbound == null || ws.inbound.storage.size() == 0) {
+                more = 0;
+            } else {
+                Object msgObj = ws.inbound.storage.removeFirst();
+                WebSocketMessage msg = (WebSocketMessage)msgObj;
+                handler.onMessage(ws, msg);
+            }
+        }
+    }
+
     void stop() {
         stopped = 1;
         if (http != null) {
@@ -1266,6 +1335,7 @@ class WebApp {
     EventLoop webLoop;
     EventLoopRunner webLoopRunner;
     int loopDispatch;
+    HashMap<String, WebSocketHandler> wsHandlers;
 
     WebApp() {
         this(new WebConfig());
@@ -1281,6 +1351,15 @@ class WebApp {
         webLoop = null;
         webLoopRunner = null;
         loopDispatch = 0;
+        wsHandlers = new HashMap<String, WebSocketHandler>();
+    }
+
+    void websocket(String path, WebSocketHandler handler) {
+        wsHandlers.put(path, handler);
+    }
+
+    WebSocketHandler findWebSocket(String path) {
+        return wsHandlers.get(path);
     }
 
     void get(String path, WebHandler handler) {

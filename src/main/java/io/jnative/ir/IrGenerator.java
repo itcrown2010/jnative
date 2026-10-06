@@ -2007,6 +2007,9 @@ public final class IrGenerator {
                 return builder.call("jnative_string_from_bytes", IrType.PTR, List.of(args.get(0)), false);
             }
             if ("valueOf".equals(ms.name())) {
+                if (!args.isEmpty() && args.get(0).type() == IrType.I64) {
+                    return builder.call("jnative_string_value_of_i64", IrType.PTR, List.of(args.get(0)), false);
+                }
                 return builder.call("jnative_string_value_of_i32", IrType.PTR, List.of(args.get(0)), false);
             }
         }
@@ -2335,12 +2338,22 @@ public final class IrGenerator {
                 IrValue left = lowerExpression(b.left());
                 IrValue right = lowerExpression(b.right());
                 if (!leftStr && lt != null && lt.isNumeric()) {
-                    left = builder.call("jnative_string_value_of_i32", IrType.PTR,
-                            List.of(castIfNeeded(left, IrType.I32)), false);
+                    if (lt == PrimitiveType.LONG) {
+                        left = builder.call("jnative_string_value_of_i64", IrType.PTR,
+                                List.of(castIfNeeded(left, IrType.I64)), false);
+                    } else {
+                        left = builder.call("jnative_string_value_of_i32", IrType.PTR,
+                                List.of(castIfNeeded(left, IrType.I32)), false);
+                    }
                 }
                 if (!rightStr && rt != null && rt.isNumeric()) {
-                    right = builder.call("jnative_string_value_of_i32", IrType.PTR,
-                            List.of(castIfNeeded(right, IrType.I32)), false);
+                    if (rt == PrimitiveType.LONG) {
+                        right = builder.call("jnative_string_value_of_i64", IrType.PTR,
+                                List.of(castIfNeeded(right, IrType.I64)), false);
+                    } else {
+                        right = builder.call("jnative_string_value_of_i32", IrType.PTR,
+                                List.of(castIfNeeded(right, IrType.I32)), false);
+                    }
                 }
                 return builder.call("jnative_string_concat", IrType.PTR, List.of(left, right));
             }

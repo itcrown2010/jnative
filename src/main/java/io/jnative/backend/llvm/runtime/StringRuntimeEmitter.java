@@ -434,6 +434,70 @@ public final class StringRuntimeEmitter {
                   ret ptr %r2
                 }
 
+                define ptr @jnative_string_value_of_i64(i64 %value) {
+                entry:
+                  %buf = alloca [24 x i8], align 1
+                  %p = getelementptr [24 x i8], ptr %buf, i64 0, i64 0
+                  %neg = icmp slt i64 %value, 0
+                  br i1 %neg, label %negpath, label %pospath
+                negpath:
+                  store i8 45, ptr %p, align 1
+                  %abs = sub i64 0, %value
+                  %p2 = getelementptr i8, ptr %p, i64 1
+                  %n1 = call i32 @jnative_string_u64_to_dec(i64 %abs, ptr %p2)
+                  %len1 = add i32 %n1, 1
+                  %r1 = call ptr @jnative_string_from_literal(ptr %p, i32 %len1, ptr @meta.String)
+                  ret ptr %r1
+                pospath:
+                  %n2 = call i32 @jnative_string_u64_to_dec(i64 %value, ptr %p)
+                  %r2 = call ptr @jnative_string_from_literal(ptr %p, i32 %n2, ptr @meta.String)
+                  ret ptr %r2
+                }
+
+                define i32 @jnative_string_u64_to_dec(i64 %value, ptr %out) {
+                entry:
+                  %zero = icmp eq i64 %value, 0
+                  br i1 %zero, label %z, label %digits
+                z:
+                  store i8 48, ptr %out, align 1
+                  ret i32 1
+                digits:
+                  %tmp = alloca [24 x i8], align 1
+                  br label %loop
+                loop:
+                  %v = phi i64 [ %value, %digits ], [ %vnext, %body ]
+                  %i = phi i32 [ 0, %digits ], [ %inext, %body ]
+                  %done = icmp eq i64 %v, 0
+                  br i1 %done, label %reverse, label %body
+                body:
+                  %d = urem i64 %v, 10
+                  %di = trunc i64 %d to i32
+                  %ch = add i32 %di, 48
+                  %ch8 = trunc i32 %ch to i8
+                  %tp = getelementptr [24 x i8], ptr %tmp, i64 0, i32 %i
+                  store i8 %ch8, ptr %tp, align 1
+                  %vnext = udiv i64 %v, 10
+                  %inext = add i32 %i, 1
+                  br label %loop
+                reverse:
+                  br label %rloop
+                rloop:
+                  %j = phi i32 [ 0, %reverse ], [ %jnext, %rcopy ]
+                  %done2 = icmp eq i32 %j, %i
+                  br i1 %done2, label %done3, label %rcopy
+                rcopy:
+                  %srcIdx = sub i32 %i, %j
+                  %srcIdx1 = sub i32 %srcIdx, 1
+                  %sp = getelementptr [24 x i8], ptr %tmp, i64 0, i32 %srcIdx1
+                  %c = load i8, ptr %sp, align 1
+                  %dp = getelementptr i8, ptr %out, i32 %j
+                  store i8 %c, ptr %dp, align 1
+                  %jnext = add i32 %j, 1
+                  br label %rloop
+                done3:
+                  ret i32 %i
+                }
+
                 define i32 @jnative_string_u32_to_dec(i32 %value, ptr %out) {
                 entry:
                   %zero = icmp eq i32 %value, 0

@@ -59,6 +59,17 @@ public final class CliArguments {
                     }
                     options.setAppType(args[++i]);
                 }
+                case "--target" -> {
+                    if (i + 1 >= args.length) {
+                        throw new IllegalArgumentException("missing value after --target");
+                    }
+                    options.setTarget(args[++i]);
+                }
+                case "--emit-wat" -> options.setEmitWat(true);
+                case "--emit-wasm" -> options.setEmitWasm(true);
+                case "--emit-js-glue" -> options.setEmitJsGlue(true);
+                case "build" -> { /* jnative build --target ... */ }
+                case "run" -> options.setRunAfterBuild(true);
                 case "--library-path", "-L" -> {
                     if (i + 1 >= args.length) {
                         throw new IllegalArgumentException("missing path after " + arg);
@@ -80,6 +91,10 @@ public final class CliArguments {
                         options.setAppType(arg.substring("--app-type=".length()));
                         continue;
                     }
+                    if (arg.startsWith("--target=")) {
+                        options.setTarget(arg.substring("--target=".length()));
+                        continue;
+                    }
                     if (arg.startsWith("-O") && arg.length() == 3 && Character.isDigit(arg.charAt(2))) {
                         options.setOptLevel(arg.charAt(2) - '0');
                         continue;
@@ -99,41 +114,28 @@ public final class CliArguments {
 
     public static String helpText() {
         return """
-                JNative 0.23 — experimental Java native compiler
+                JNative 0.26 — Java → Native / WebAssembly compiler
 
                 Usage:
                   jnative <source.java> [-o <output>] [-O0|-O1|-O2|-O3]
-                  jnative <source.java> --emit-ast
-                  jnative <source.java> --emit-ir
-                  jnative <source.java> --emit-llvm
-                  jnative <source.java> --emit-layout
-                  jnative <source.java> --emit-effects
+                  jnative build --target wasm32-browser <source.java> [-o dist]
+                  jnative run --target wasm32-browser <source.java>
+                  jnative <source.java> --emit-ast|--emit-ir|--emit-llvm|--emit-wat
                   jnative --version
                   jnative --help
 
+                Targets:
+                  --target native           Host native executable (default)
+                  --target wasm32-browser   WebAssembly + JS glue for browsers
+
                 Options:
-                  -o <path>              Output executable path
+                  -o <path>              Output path (exe or dist/ directory for wasm)
                   -O0, -O1, -O2, -O3      Optimization level (default -O2)
-                  --emit-ast             Print AST and stop
-                  --emit-ir              Print JNative IR (after opt if -O>0) and stop
-                  --emit-ir-before-opt   Print IR before optimization passes
-                  --emit-ir-after-opt    Print IR after optimization passes
-                  --emit-llvm            Print LLVM IR and stop
-                  --emit-layout          Print NativeStruct layouts and stop
-                  --emit-effects         Print inferred effect report and stop
-                  --emit-async           Print async/await lowering report and stop
-                  --emit-generics        Print generic lowering report and stop
-                  --explain-generics     Same as --emit-generics (verbose alias)
-                  --opt-report           Print optimization counters
-                  --emit-escape-analysis Include escape info in opt report
-                  --explain-opt          Verbose optimization notes
-                  --verify-ir            Verify IR after optimization pipeline
-                  --headless             Force headless UI backend (no real window)
-                  --ui-backend <name>    UI backend: auto|headless|cocoa|win32|gtk
-                  --app-type <name>      console (default) or gui
-                  --library-path <dir>   Add native library search path (-L)
-                  --link <name>          Link additional native library (-l)
-                  --keep-temps           Keep temporary .ll files
+                  --emit-wat             Keep/emit WebAssembly text
+                  --emit-wasm            Emit .wasm (wasm target)
+                  --emit-js-glue         Emit JS loader
+                  --emit-ast/--emit-ir/--emit-llvm
+                  --keep-temps           Keep temporary files
                   -h, --help             Show this help
                   -v, --version          Show version
                 """;

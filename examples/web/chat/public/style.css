@@ -1,0 +1,4 @@
+body { font-family: Georgia, serif; max-width: 720px; margin: 2rem auto; padding: 0 1rem; }
+#messages { border: 1px solid #ccc; min-height: 240px; padding: 0.75rem; margin: 0.5rem 0; }
+input { display: block; width: 100%; margin: 0.35rem 0; padding: 0.4rem; }
+button { margin-right: 0.4rem; margin-top: 0.4rem; }

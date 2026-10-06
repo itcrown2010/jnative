@@ -46,6 +46,36 @@ public final class StdlibIncluder {
                 || sourceText.contains("WebException");
     }
 
+    public static boolean needsBrowser(String sourceText) {
+        if (sourceText == null) {
+            return false;
+        }
+        return sourceText.contains("jnative.browser")
+                || sourceText.contains("Browser.console")
+                || sourceText.contains("Browser.document")
+                || sourceText.contains("Browser.window")
+                || sourceText.contains("Browser.localStorage")
+                || sourceText.contains("new Document(")
+                || sourceText.contains("HtmlButtonElement")
+                || sourceText.contains("HtmlInputElement")
+                || needsWebui(sourceText);
+    }
+
+    public static boolean needsWebui(String sourceText) {
+        if (sourceText == null) {
+            return false;
+        }
+        return sourceText.contains("jnative.webui")
+                || sourceText.contains("WebUI.mount")
+                || sourceText.contains("WebUI.stateInt")
+                || sourceText.contains("WebUI.stateString")
+                || sourceText.contains("Html.div2")
+                || sourceText.contains("Html.h1Dynamic")
+                || sourceText.contains("Html.buttonLabel")
+                || sourceText.contains("WebUiComponent")
+                || sourceText.contains("extends WebUiComponent");
+    }
+
     public static boolean needsUi(String sourceText) {
         if (sourceText == null) {
             return false;
@@ -281,9 +311,66 @@ public final class StdlibIncluder {
         return String.join("\n\n", parts);
     }
 
+    public static boolean needsCrypto(String sourceText) {
+        if (sourceText == null) {
+            return false;
+        }
+        return sourceText.contains("jnative.crypto")
+                || sourceText.contains("SecureRandom")
+                || sourceText.contains("Sha1")
+                || sourceText.contains("Sha256")
+                || sourceText.contains("Base64Codec")
+                || sourceText.contains("Password.hash")
+                || sourceText.contains("Password.verify")
+                || sourceText.contains("Jwt.")
+                || sourceText.contains("WebSocketAccept")
+                || sourceText.contains("ConstantTime")
+                || sourceText.contains("Hmac.")
+                || needsRealtime(sourceText)
+                || needsAuth(sourceText);
+    }
+
+    public static boolean needsRealtime(String sourceText) {
+        if (sourceText == null) {
+            return false;
+        }
+        return sourceText.contains("WebSocket")
+                || sourceText.contains("websocket")
+                || sourceText.contains("WebSocketHub")
+                || sourceText.contains("SseStream")
+                || sourceText.contains("SseEvent")
+                || sourceText.contains("ctx.sse");
+    }
+
+    public static boolean needsAuth(String sourceText) {
+        if (sourceText == null) {
+            return false;
+        }
+        return sourceText.contains("SessionManager")
+                || sourceText.contains("UserPrincipal")
+                || sourceText.contains("AuthRequired")
+                || sourceText.contains("AuthRequireRole")
+                || sourceText.contains("InMemorySessionStore")
+                || sourceText.contains("Csrf.")
+                || sourceText.contains("RateLimiter")
+                || sourceText.contains("SecurityHeaders")
+                || sourceText.contains("UnauthorizedException")
+                || sourceText.contains("ForbiddenException")
+                || sourceText.contains("AuthLogin");
+    }
+
+    public static String prependCryptoStdlib(String userSource) throws IOException {
+        if (userSource.contains("// JNative Crypto (0.25)")) {
+            return userSource;
+        }
+        return load("stdlib/crypto/CryptoLib.java") + "\n\n" + userSource;
+    }
+
     public static String prependWebStdlib(String userSource) throws IOException {
         List<String> parts = new ArrayList<>();
         parts.add(load("stdlib/web/WebLib.java"));
+        parts.add(load("stdlib/web/RealtimeLib.java"));
+        parts.add(load("stdlib/web/AuthLib.java"));
         parts.add(userSource);
         return String.join("\n\n", parts);
     }
@@ -394,11 +481,13 @@ public final class StdlibIncluder {
         boolean wantJson = needsJson(userSource) || wantStudio;
         boolean wantIo = needsIo(userSource) || wantStudio;
         boolean wantWeb = needsWeb(userSource);
+        boolean wantBrowser = needsBrowser(userSource);
         boolean wantDatabase = needsDatabase(userSource);
-        boolean wantAsync = needsAsync(userSource) || wantWeb || wantDatabase;
+        boolean wantCrypto = needsCrypto(userSource) || wantWeb;
+        boolean wantAsync = needsAsync(userSource) || wantWeb || wantDatabase || wantCrypto || wantBrowser;
         // Advanced UI / Graphics / Editor use ArrayList / Function from collections.
         if (needsCollections(text) || wantUi || wantGraphics || wantEditor || wantJson || wantIo || wantStudio
-                || wantAsync || wantDatabase) {
+                || wantAsync || wantDatabase || wantCrypto) {
             text = prependCollectionsStdlib(text);
         }
         if (wantAsync) {
@@ -406,6 +495,9 @@ public final class StdlibIncluder {
         }
         if (wantDatabase) {
             text = insertDatabaseStdlib(text);
+        }
+        if (wantCrypto || needsCrypto(text)) {
+            text = prependCryptoStdlib(text);
         }
         if (wantJson || needsJson(text)) {
             text = prependJsonStdlib(text);
@@ -433,7 +525,24 @@ public final class StdlibIncluder {
         if (wantWeb || needsWeb(text)) {
             text = prependWebStdlib(text);
         }
+        if (wantBrowser || needsBrowser(text)) {
+            text = prependBrowserStdlib(text);
+        }
+        if (needsWebui(text)) {
+            text = prependWebuiStdlib(text);
+        }
         return text;
+    }
+
+    public static String prependBrowserStdlib(String userSource) throws IOException {
+        return load("stdlib/browser/BrowserLib.java") + "\n\n" + userSource;
+    }
+
+    public static String prependWebuiStdlib(String userSource) throws IOException {
+        if (userSource.contains("// JNative WebUI (0.27)")) {
+            return userSource;
+        }
+        return load("stdlib/webui/WebUiLib.java") + "\n\n" + userSource;
     }
 
     private static String load(String resource) throws IOException {

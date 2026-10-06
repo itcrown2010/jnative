@@ -17,6 +17,7 @@ public final class IrBuilder {
     private int blockId;
     private int entryAllocaCount;
     private final Map<String, IrValue.Local> locals = new HashMap<>();
+    private final Map<String, Integer> localNameCounts = new HashMap<>();
     private final Deque<IrBasicBlock> exceptionDispatchStack = new ArrayDeque<>();
 
     public IrBuilder(IrModule module) {
@@ -33,6 +34,7 @@ public final class IrBuilder {
         this.blockId = 0;
         this.entryAllocaCount = 0;
         this.locals.clear();
+        this.localNameCounts.clear();
         this.exceptionDispatchStack.clear();
         this.entryBlock = function.addBlock("entry");
         this.block = entryBlock;
@@ -63,7 +65,11 @@ public final class IrBuilder {
     }
 
     public IrValue.Local alloca(String identifier, IrType type) {
-        IrValue.Local local = new IrValue.Local(identifier, type);
+        // Nested/sibling scopes may reuse source names; LLVM SSA names must be unique.
+        int n = localNameCounts.getOrDefault(identifier, 0);
+        localNameCounts.put(identifier, n + 1);
+        String llvmName = n == 0 ? identifier : identifier + "." + n;
+        IrValue.Local local = new IrValue.Local(llvmName, type);
         locals.put(identifier, local);
         // Always place allocas in the entry block (required for shadow-stack roots).
         entryBlock.instructions().add(entryAllocaCount++, new IrInstruction.Alloca(local));
@@ -453,7 +459,10 @@ public final class IrBuilder {
             int alignment,
             long sizeBytes
     ) {
-        IrValue.Local local = new IrValue.Local(identifier, IrType.NATIVE_PTR);
+        int n = localNameCounts.getOrDefault(identifier, 0);
+        localNameCounts.put(identifier, n + 1);
+        String llvmName = n == 0 ? identifier : identifier + "." + n;
+        IrValue.Local local = new IrValue.Local(llvmName, IrType.NATIVE_PTR);
         locals.put(identifier, local);
         entryBlock.instructions().add(entryAllocaCount++,
                 new IrInstruction.StackAlloc(local, structName, llvmTypeName, alignment, sizeBytes));
