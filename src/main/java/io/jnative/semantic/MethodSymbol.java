@@ -37,6 +37,8 @@ public final class MethodSymbol {
     private FunctionEffects effectiveEffects = FunctionEffects.unknown();
     /** Trusted native effects from @Native(effects=...). */
     private String nativeEffectsContract;
+    private boolean isAsync;
+    private JType logicalReturnType;
 
     public MethodSymbol(
             ReferenceTypeSymbol owner,
@@ -263,6 +265,23 @@ public final class MethodSymbol {
 
     public void setNativeEffectsContract(String nativeEffectsContract) {
         this.nativeEffectsContract = nativeEffectsContract;
+    }
+
+    public boolean isAsync() {
+        return isAsync;
+    }
+
+    public void setAsync(boolean isAsync) {
+        this.isAsync = isAsync;
+    }
+
+    /** Declared return type before async lowering ({@code T} in {@code async T m()}). */
+    public JType logicalReturnType() {
+        return logicalReturnType != null ? logicalReturnType : returnType;
+    }
+
+    public void setLogicalReturnType(JType logicalReturnType) {
+        this.logicalReturnType = logicalReturnType;
     }
 
     public boolean sameSignatureAs(MethodSymbol other) {

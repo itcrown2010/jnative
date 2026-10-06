@@ -1641,6 +1641,8 @@ class CodeEditor extends Canvas {
     int insertSpaces;
     int readOnly;
     int wordWrap;
+    int showLineNumbers;
+    int showSyntax;
     UiTimer blinkTimer;
     int shiftSelecting;
     ArrayList<CaretListener> caretListeners;
@@ -1665,6 +1667,8 @@ class CodeEditor extends Canvas {
         insertSpaces = 1;
         readOnly = 0;
         wordWrap = 0;
+        showLineNumbers = 1;
+        showSyntax = 1;
         shiftSelecting = 0;
         caretListeners = new ArrayList<CaretListener>();
         selectionListeners = new ArrayList<SelectionListener>();
@@ -1724,6 +1728,10 @@ class CodeEditor extends Canvas {
         return document;
     }
 
+    int getCaretOffset() {
+        return caret.offset;
+    }
+
     void setText(String text) {
         document.setText(text);
         caret.offset = 0;
@@ -1744,6 +1752,26 @@ class CodeEditor extends Canvas {
         } else {
             readOnly = 0;
         }
+    }
+
+    void setLineNumbersVisible(boolean v) {
+        if (v) {
+            showLineNumbers = 1;
+        } else {
+            showLineNumbers = 0;
+        }
+        repaint();
+    }
+
+    void setSyntaxHighlighting(boolean v) {
+        if (v) {
+            showSyntax = 1;
+            rehighlightAll();
+        } else {
+            showSyntax = 0;
+            spans = new ArrayList<StyledSpan>();
+        }
+        repaint();
     }
 
     void setTheme(EditorTheme t) {
@@ -1794,6 +1822,10 @@ class CodeEditor extends Canvas {
     }
 
     void rehighlightAll() {
+        if (showSyntax == 0) {
+            spans = new ArrayList<StyledSpan>();
+            return;
+        }
         spans = JNativeSyntaxTokenizer.highlightDocument(document);
         lineStates = new ArrayList<int>();
         lineStates.add(0);
@@ -1841,6 +1873,10 @@ class CodeEditor extends Canvas {
     }
 
     int gutterWidthFor() {
+        if (showLineNumbers == 0) {
+            viewport.gutterWidth = 0;
+            return 0;
+        }
         int lines = document.getLineCount();
         int digits = 1;
         int v = lines;
@@ -2262,8 +2298,10 @@ class CodeEditor extends Canvas {
                 g.setColor(theme.currentLine);
                 g.fillRect(0, y, width, viewport.lineHeight);
             }
-            g.setColor(theme.lineNumber);
-            g.drawText("" + (line + 1), 4, y);
+            if (showLineNumbers != 0) {
+                g.setColor(theme.lineNumber);
+                g.drawText("" + (line + 1), 4, y);
+            }
             g.setColor(theme.background);
             text = document.getLine(line);
             lineOff = document.lineToOffset(line);
@@ -2306,8 +2344,10 @@ class CodeEditor extends Canvas {
             }
             line = line + 1;
         }
-        g.setColor(new Color(60, 60, 60));
-        g.drawLine(gw - 2, 0, gw - 2, height);
+        if (showLineNumbers != 0 && gw > 0) {
+            g.setColor(new Color(60, 60, 60));
+            g.drawLine(gw - 2, 0, gw - 2, height);
+        }
         if (caret.visible != 0 && caret.blinkOn != 0) {
             if (caretPos.line >= viewport.firstLine && caretPos.line < last) {
                 lineText = document.getLine(caretPos.line);

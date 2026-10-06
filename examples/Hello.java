@@ -1,5 +1,8 @@
 public class Hello {
     public static void main(String[] args) {
-        System.out.println("Hello JNative");
+        String str="hello world";
+        System.out.println(str+" is the string");
+
+      
     }
 }

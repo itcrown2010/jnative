@@ -15,9 +15,11 @@ public final class FunctionEffects {
     public static final int NATIVE_CALL = 1 << 4;
     public static final int WRITES_GLOBAL = 1 << 5;
     public static final int UNKNOWN = 1 << 6;
+    /** Cooperative async suspension (distinct from BLOCKS — JNative 0.23). */
+    public static final int SUSPENDS = 1 << 7;
 
     public static final int ALL_DANGEROUS =
-            ALLOCATES | SAFEPOINT | THROWS | BLOCKS | NATIVE_CALL | WRITES_GLOBAL | UNKNOWN;
+            ALLOCATES | SAFEPOINT | THROWS | BLOCKS | NATIVE_CALL | WRITES_GLOBAL | UNKNOWN | SUSPENDS;
 
     private int bits;
 
@@ -69,6 +71,10 @@ public final class FunctionEffects {
         return has(BLOCKS) || has(UNKNOWN);
     }
 
+    public boolean maySuspend() {
+        return has(SUSPENDS) || has(UNKNOWN);
+    }
+
     public boolean nativeCall() {
         return has(NATIVE_CALL) || has(UNKNOWN);
     }
@@ -82,7 +88,8 @@ public final class FunctionEffects {
     }
 
     public boolean isDeterministic() {
-        return !mayAllocate() && !maySafepoint() && !mayThrow() && !mayBlock() && !isUnknown();
+        return !mayAllocate() && !maySafepoint() && !mayThrow() && !mayBlock()
+                && !maySuspend() && !isUnknown();
     }
 
     /** Effects forbidden by @NoGC. */
@@ -111,6 +118,9 @@ public final class FunctionEffects {
         }
         if (has(BLOCKS)) {
             names.add("BLOCKS");
+        }
+        if (has(SUSPENDS)) {
+            names.add("SUSPENDS");
         }
         if (has(NATIVE_CALL)) {
             names.add("NATIVE_CALL");
@@ -154,6 +164,10 @@ public final class FunctionEffects {
 
     public static FunctionEffects blocks() {
         return new FunctionEffects(BLOCKS);
+    }
+
+    public static FunctionEffects suspends() {
+        return new FunctionEffects(SUSPENDS | SAFEPOINT);
     }
 
     public static FunctionEffects nativeCall(boolean mayBlock, boolean mayCallback) {

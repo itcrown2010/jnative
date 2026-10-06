@@ -296,6 +296,8 @@ public final class GenericLowering {
             copy.setDeclaredEffects(method.declaredEffects());
             copy.setInferredEffects(method.inferredEffects());
             copy.setEffectiveEffects(method.effectiveEffects());
+            copy.setAsync(method.isAsync());
+            copy.setLogicalReturnType(lowerType(sub.apply(method.logicalReturnType()), classes, objectClass));
             spec.addMethod(copy);
         }
 

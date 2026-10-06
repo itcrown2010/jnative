@@ -11,6 +11,7 @@ public final class IrFunction {
     private final boolean isMain;
     private boolean omitSafepoints;
     private boolean noGcRegion;
+    private boolean isAsync;
 
     public IrFunction(String name, IrType returnType, List<IrValue.Param> params, boolean isMain) {
         this.name = name;
@@ -53,6 +54,14 @@ public final class IrFunction {
 
     public void setNoGcRegion(boolean noGcRegion) {
         this.noGcRegion = noGcRegion;
+    }
+
+    public boolean isAsync() {
+        return isAsync;
+    }
+
+    public void setAsync(boolean isAsync) {
+        this.isAsync = isAsync;
     }
 
     public IrBasicBlock addBlock(String name) {

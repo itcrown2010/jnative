@@ -21,16 +21,31 @@ static int g_cocoa_active = 0;
 }
 @end
 
-@interface JnUiWindow : NSWindow
+@interface JnUiMenuTarget : NSObject
+@end
+@implementation JnUiMenuTarget
+- (void)jnMenuAction:(id)sender {
+    NSMenuItem *item = (NSMenuItem *)sender;
+    int32_t hid = (int32_t)item.tag;
+    if (hid > 0) {
+        jnative_ui_emit_event(hid, JN_UI_EVENT_ACTION);
+    }
+}
+@end
+
+static JnUiMenuTarget *g_menu_target = nil;
+
+@interface JnUiWindow : NSWindow <NSWindowDelegate>
 @property(nonatomic, assign) int32_t jnHandleId;
 @end
 @implementation JnUiWindow
-- (void)close {
-    int32_t hid = self.jnHandleId;
-    [super close];
-    if (hid > 0) {
-        jnative_ui_emit_event(hid, JN_UI_EVENT_CLOSE);
+- (BOOL)windowShouldClose:(NSWindow *)sender {
+    (void)sender;
+    if (self.jnHandleId > 0) {
+        jnative_ui_emit_event(self.jnHandleId, JN_UI_EVENT_CLOSE);
     }
+    /* Managed side decides; call jnative_ui_close_window to actually close. */
+    return NO;
 }
 @end
 
@@ -49,11 +64,63 @@ static int g_cocoa_active = 0;
 @property(nonatomic, strong) NSBitmapImageRep *bitmap;
 @property(nonatomic, assign) int32_t dragging;
 @end
+
+/** Map macOS keyCode / characters to the VK-like codes CodeEditor expects. */
+static int32_t jn_cocoa_key_code(NSEvent *event) {
+    unsigned short kc = event.keyCode;
+    switch (kc) {
+        case 123: return 37; /* left */
+        case 124: return 39; /* right */
+        case 125: return 40; /* down */
+        case 126: return 38; /* up */
+        case 51:  return 8;  /* backspace */
+        case 117: return 46; /* delete */
+        case 36:  return 13; /* return */
+        case 76:  return 13; /* keypad enter */
+        case 48:  return 9;  /* tab */
+        case 115: return 36; /* home */
+        case 119: return 35; /* end */
+        case 116: return 33; /* page up */
+        case 121: return 34; /* page down */
+        case 53:  return 27; /* escape */
+        default: break;
+    }
+    NSString *chars = event.charactersIgnoringModifiers;
+    if (chars != nil && chars.length > 0) {
+        unichar c = [chars characterAtIndex:0];
+        if (c >= 32 && c < 127) {
+            return (int32_t)c;
+        }
+    }
+    return (int32_t)kc;
+}
+
+static int32_t jn_cocoa_key_mods(NSEvent *event) {
+    NSEventModifierFlags f = event.modifierFlags;
+    int32_t mods = 0;
+    if (f & NSEventModifierFlagShift) {
+        mods += 1;
+    }
+    if (f & NSEventModifierFlagControl) {
+        mods += 2;
+    }
+    if (f & NSEventModifierFlagOption) {
+        mods += 4;
+    }
+    if (f & NSEventModifierFlagCommand) {
+        mods += 8;
+    }
+    return mods;
+}
+
 @implementation JnCanvasView
 - (BOOL)isFlipped {
     return YES;
 }
 - (BOOL)acceptsFirstResponder {
+    return YES;
+}
+- (BOOL)canBecomeKeyView {
     return YES;
 }
 - (void)drawRect:(NSRect)dirtyRect {
@@ -70,6 +137,7 @@ static int g_cocoa_active = 0;
     }
 }
 - (void)mouseDown:(NSEvent *)event {
+    [[self window] makeFirstResponder:self];
     NSPoint p = [self convertPoint:event.locationInWindow fromView:nil];
     self.dragging = 1;
     jnative_ui_emit_event_ex(self.jnHandleId, JN_UI_EVENT_MOUSE, JN_UI_MOUSE_DOWN,
@@ -85,6 +153,21 @@ static int g_cocoa_active = 0;
     self.dragging = 0;
     jnative_ui_emit_event_ex(self.jnHandleId, JN_UI_EVENT_MOUSE, JN_UI_MOUSE_UP,
                              (int32_t)p.x, (int32_t)p.y, 1);
+}
+- (void)keyDown:(NSEvent *)event {
+    int32_t code = jn_cocoa_key_code(event);
+    int32_t mods = jn_cocoa_key_mods(event);
+    jnative_ui_emit_event_ex(self.jnHandleId, JN_UI_EVENT_KEY, JN_UI_KEY_DOWN,
+                             code, mods, 0);
+}
+- (void)keyUp:(NSEvent *)event {
+    int32_t code = jn_cocoa_key_code(event);
+    int32_t mods = jn_cocoa_key_mods(event);
+    jnative_ui_emit_event_ex(self.jnHandleId, JN_UI_EVENT_KEY, JN_UI_KEY_UP,
+                             code, mods, 0);
+}
+- (void)flagsChanged:(NSEvent *)event {
+    (void)event;
 }
 - (void)jnPresentRgba:(const uint8_t *)rgba width:(int32_t)w height:(int32_t)h {
     if (rgba == NULL || w <= 0 || h <= 0) {
@@ -211,6 +294,7 @@ int32_t jnative_ui_platform_create_window(int32_t peerId, const char *title, int
                     backing:NSBackingStoreBuffered
                       defer:NO];
     win.jnHandleId = peerId;
+    win.delegate = win;
     [win setTitle:jn_nsstring(title)];
     g_peers[peerId] = win;
     return 1;
@@ -237,7 +321,19 @@ int32_t jnative_ui_platform_create_control(int32_t peerId, int32_t kind, int32_t
         btn.jnHandleId = peerId;
         [btn setTarget:btn];
         [btn setAction:@selector(jnClicked:)];
-        [btn setFrame:NSMakeRect(20, 20, 120, 32)];
+        [btn setBordered:YES];
+        [btn setButtonType:NSButtonTypeMomentaryPushIn];
+        if (@available(macOS 14.0, *)) {
+            [btn setBezelStyle:NSBezelStyleFlexiblePush];
+        } else {
+            [btn setBezelStyle:NSBezelStyleRounded];
+        }
+        [btn setControlSize:NSControlSizeRegular];
+        [btn setAlignment:NSTextAlignmentCenter];
+        [btn sizeToFit];
+        NSRect f = btn.frame;
+        f.origin = NSMakePoint(20, 20);
+        [btn setFrame:f];
         if (parentView != nil) {
             [parentView addSubview:btn];
         }
@@ -378,6 +474,10 @@ int32_t jnative_ui_platform_dialog_message(int32_t windowId, int32_t type,
     if (type == 1) {
         [alert addButtonWithTitle:@"Yes"];
         [alert addButtonWithTitle:@"No"];
+    } else if (type == 3) {
+        [alert addButtonWithTitle:@"Save"];
+        [alert addButtonWithTitle:@"Don't Save"];
+        [alert addButtonWithTitle:@"Cancel"];
     } else {
         [alert addButtonWithTitle:@"OK"];
     }
@@ -385,6 +485,11 @@ int32_t jnative_ui_platform_dialog_message(int32_t windowId, int32_t type,
         [alert setAlertStyle:NSAlertStyleCritical];
     }
     NSModalResponse r = [alert runModal];
+    if (type == 3) {
+        if (r == NSAlertFirstButtonReturn) return 1;      /* Save */
+        if (r == NSAlertSecondButtonReturn) return 2;     /* Don't Save */
+        return 0;                                        /* Cancel */
+    }
     return (r == NSAlertFirstButtonReturn) ? 1 : 0;
 }
 
@@ -471,12 +576,28 @@ void jnative_ui_platform_set_bounds(int32_t handleId, int32_t x, int32_t y, int3
     if ([obj isKindOfClass:[NSView class]]) {
         NSView *view = (NSView *)obj;
         NSView *superView = view.superview;
-        /* JNative layout uses top-left origin; AppKit uses bottom-left. */
-        CGFloat yCocoa = y;
-        if (superView != nil) {
-            yCocoa = superView.bounds.size.height - y - h;
+        CGFloat useW = w;
+        CGFloat useH = h;
+        CGFloat useX = x;
+        CGFloat useY = y;
+        /* Keep intrinsic button height so the title stays vertically centered.
+           Width stays on the layout slot so neighbors do not overlap. */
+        if ([view isKindOfClass:[JnUiButton class]]) {
+            NSButton *btn = (NSButton *)view;
+            NSSize fit = [btn fittingSize];
+            if (fit.height > 1.0) {
+                if (useH > fit.height) {
+                    useY = y + (CGFloat)((int)((useH - fit.height) * 0.5));
+                }
+                useH = fit.height;
+            }
         }
-        [view setFrame:NSMakeRect(x, yCocoa, w, h)];
+        /* JNative layout uses top-left origin; AppKit uses bottom-left. */
+        CGFloat yCocoa = useY;
+        if (superView != nil) {
+            yCocoa = superView.bounds.size.height - useY - useH;
+        }
+        [view setFrame:NSMakeRect(useX, yCocoa, useW, useH)];
     } else if ([obj isKindOfClass:[NSWindow class]]) {
         NSRect f = [(NSWindow *)obj frame];
         f.size.width = w;
@@ -512,6 +633,82 @@ void jnative_ui_platform_set_content(int32_t windowId, int32_t childId) {
         [(NSView *)child setFrame:bounds];
         [(NSView *)child setAutoresizingMask:(NSViewWidthSizable | NSViewHeightSizable)];
     }
+}
+
+void jnative_ui_platform_close_window(int32_t windowId) {
+    id win = (windowId > 0 && windowId < JN_UI_MAX) ? g_peers[windowId] : nil;
+    if ([win isKindOfClass:[NSWindow class]]) {
+        [(NSWindow *)win setDelegate:nil];
+        [(NSWindow *)win close];
+        g_peers[windowId] = nil;
+    }
+}
+
+void jnative_ui_platform_focus(int32_t peerId) {
+    id obj = (peerId > 0 && peerId < JN_UI_MAX) ? g_peers[peerId] : nil;
+    if ([obj isKindOfClass:[NSView class]]) {
+        NSView *view = (NSView *)obj;
+        NSWindow *win = view.window;
+        if (win != nil) {
+            [win makeKeyAndOrderFront:nil];
+            [win makeFirstResponder:view];
+        }
+    }
+}
+
+void jnative_ui_platform_set_menubar(int32_t windowId, int32_t menuBarId) {
+    (void)windowId;
+    if (!g_cocoa_active || menuBarId <= 0) {
+        return;
+    }
+    if (g_menu_target == nil) {
+        g_menu_target = [JnUiMenuTarget new];
+    }
+    NSMenu *mainMenu = [[NSMenu alloc] initWithTitle:@"MainMenu"];
+    /* Standard app menu so Cmd+Q etc. remain available. */
+    NSMenuItem *appItem = [[NSMenuItem alloc] init];
+    NSMenu *appMenu = [[NSMenu alloc] initWithTitle:@"JNative"];
+    [appMenu addItemWithTitle:@"About JNative Notepad"
+                       action:@selector(orderFrontStandardAboutPanel:)
+                keyEquivalent:@""];
+    [appMenu addItem:[NSMenuItem separatorItem]];
+    [appMenu addItemWithTitle:@"Quit"
+                       action:@selector(terminate:)
+                keyEquivalent:@"q"];
+    [appItem setSubmenu:appMenu];
+    [mainMenu addItem:appItem];
+
+    int32_t menuCount = jnative_ui_menu_child_count(menuBarId);
+    for (int32_t mi = 0; mi < menuCount; mi++) {
+        int32_t menuId = jnative_ui_menu_child_at(menuBarId, mi);
+        if (menuId <= 0) continue;
+        const char *mtitle = jnative_ui_peer_text(menuId);
+        NSString *menuTitle = jn_nsstring(mtitle);
+        NSMenuItem *top = [[NSMenuItem alloc] init];
+        NSMenu *submenu = [[NSMenu alloc] initWithTitle:menuTitle];
+        int32_t itemCount = jnative_ui_menu_child_count(menuId);
+        for (int32_t ii = 0; ii < itemCount; ii++) {
+            int32_t itemId = jnative_ui_menu_child_at(menuId, ii);
+            if (itemId <= 0) continue;
+            int32_t kind = jnative_ui_peer_kind(itemId);
+            const char *itext = jnative_ui_peer_text(itemId);
+            if (kind == JN_UI_KIND_SEPARATOR || (itext && strcmp(itext, "-") == 0)) {
+                [submenu addItem:[NSMenuItem separatorItem]];
+                continue;
+            }
+            NSMenuItem *item = [[NSMenuItem alloc]
+                initWithTitle:jn_nsstring(itext)
+                       action:@selector(jnMenuAction:)
+                keyEquivalent:@""];
+            [item setTarget:g_menu_target];
+            [item setTag:(NSInteger)itemId];
+            [submenu addItem:item];
+        }
+        [top setSubmenu:submenu];
+        [top setTitle:menuTitle];
+        [mainMenu addItem:top];
+    }
+    [g_app setMainMenu:mainMenu];
 }
 
 void jnative_ui_platform_reparent(int32_t childId, int32_t parentId) {

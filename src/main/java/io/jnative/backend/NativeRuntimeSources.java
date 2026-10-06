@@ -49,6 +49,21 @@ public final class NativeRuntimeSources {
             boolean headless,
             String uiBackend
     ) throws IOException {
+        return materializeAll(dir, platform, includeUi, includeGraphics, headless, uiBackend, false);
+    }
+
+    /**
+     * @param includePoll whether to link async IoPoller runtime (jnative_poll_*)
+     */
+    public static List<Path> materializeAll(
+            Path dir,
+            Platform platform,
+            boolean includeUi,
+            boolean includeGraphics,
+            boolean headless,
+            String uiBackend,
+            boolean includePoll
+    ) throws IOException {
         Files.createDirectories(dir);
         List<Path> sources = new ArrayList<>();
         copyResource("native/posix/jnative_socket.h", dir.resolve("jnative_socket.h"));
@@ -64,6 +79,20 @@ public final class NativeRuntimeSources {
             sources.add(copyResource("native/posix/jnative_fs.c", dir.resolve("jnative_fs.c")));
             copyResource("native/posix/jnative_proc.h", dir.resolve("jnative_proc.h"));
             sources.add(copyResource("native/posix/jnative_proc.c", dir.resolve("jnative_proc.c")));
+        }
+
+        if (includePoll) {
+            copyResource("native/posix/jnative_poll.h", dir.resolve("jnative_poll.h"));
+            if (platform == Platform.WINDOWS_X86_64) {
+                sources.add(copyResource(
+                        "native/windows/jnative_poll_iocp.c", dir.resolve("jnative_poll_iocp.c")));
+            } else if (platform == Platform.LINUX_X86_64) {
+                sources.add(copyResource(
+                        "native/posix/jnative_poll_epoll.c", dir.resolve("jnative_poll_epoll.c")));
+            } else {
+                sources.add(copyResource(
+                        "native/posix/jnative_poll_kqueue.c", dir.resolve("jnative_poll_kqueue.c")));
+            }
         }
 
         if (includeGraphics || includeUi) {

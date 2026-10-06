@@ -110,6 +110,10 @@ public record TypeName(
         return typeArguments != null && !typeArguments.isEmpty();
     }
 
+    public boolean isVoid() {
+        return kind == Kind.VOID;
+    }
+
     @Override
     public String toString() {
         if (kind == Kind.WILDCARD) {

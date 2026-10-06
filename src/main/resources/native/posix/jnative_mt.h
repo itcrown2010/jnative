@@ -112,6 +112,10 @@ void jn_cond_broadcast(void *c);
 
 int64_t jn_os_thread_count(void); /* registered managed threads */
 
+/** Online CPU / logical processor count (sysconf / equivalent). */
+int32_t jnative_cpu_count(void);
+int64_t jnative_web_mono_millis(void);
+
 /* Join all self-started worker threads still registered (non-daemon). */
 void jn_thread_join_remaining(void);
 

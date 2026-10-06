@@ -508,7 +508,7 @@ class HttpClient {
     }
 
     static int maxBodySize() {
-        return 33554432;
+        return 1048576;
     }
 
     static int maxRedirects() {
@@ -695,18 +695,26 @@ class HttpClient {
         int hdrDone = 0;
         while (hdrDone == 0 && pos < headerText.length()) {
             int next = headerText.indexOfFrom("\r\n", pos);
-            if (next < 0 || next == pos) {
+            if (next == pos) {
                 hdrDone = 1;
             } else {
-                String line = headerText.substring(pos, next);
-                int colon = line.indexOf(":");
-                if (colon <= 0) {
-                    throw new HttpProtocolException("malformed header: " + line);
+                String line = "";
+                if (next < 0) {
+                    line = headerText.substringFrom(pos);
+                    hdrDone = 1;
+                } else {
+                    line = headerText.substring(pos, next);
+                    pos = next + 2;
                 }
-                String name = line.substring(0, colon).trim();
-                String value = line.substringFrom(colon + 1).trim();
-                response.headers.add(name, value);
-                pos = next + 2;
+                if (line.length() > 0) {
+                    int colon = line.indexOf(":");
+                    if (colon <= 0) {
+                        throw new HttpProtocolException("malformed header: " + line);
+                    }
+                    String name = line.substring(0, colon).trim();
+                    String value = line.substringFrom(colon + 1).trim();
+                    response.headers.add(name, value);
+                }
             }
         }
         return response;
@@ -949,16 +957,25 @@ class HttpConnection {
         int reqHdrDone = 0;
         while (reqHdrDone == 0 && pos < headerText.length()) {
             int next = headerText.indexOfFrom("\r\n", pos);
-            if (next < 0 || next == pos) {
+            if (next == pos) {
                 reqHdrDone = 1;
             } else {
-                String line = headerText.substring(pos, next);
-                int colon = line.indexOf(":");
-                if (colon <= 0) {
-                    throw new HttpProtocolException("malformed header");
+                String line = "";
+                if (next < 0) {
+                    /* Last header line: headerText excludes the terminating CRLFCRLF. */
+                    line = headerText.substringFrom(pos);
+                    reqHdrDone = 1;
+                } else {
+                    line = headerText.substring(pos, next);
+                    pos = next + 2;
                 }
-                req.headers.add(line.substring(0, colon).trim(), line.substringFrom(colon + 1).trim());
-                pos = next + 2;
+                if (line.length() > 0) {
+                    int colon = line.indexOf(":");
+                    if (colon <= 0) {
+                        throw new HttpProtocolException("malformed header");
+                    }
+                    req.headers.add(line.substring(0, colon).trim(), line.substringFrom(colon + 1).trim());
+                }
             }
         }
         return req;

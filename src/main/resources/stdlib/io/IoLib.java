@@ -395,6 +395,71 @@ class Desktop {
     }
 }
 
+class EnvNative {
+    @Native(symbol = "getenv")
+    static native NativePtr getenv(String name);
+
+    @Native(symbol = "jnative_cpu_count")
+    static native int cpuCount();
+}
+
+/** Process environment + host CPU count (0.22). */
+class Env {
+    static String get(String name) {
+        NativePtr p = EnvNative.getenv(name);
+        if (p == NativePtr.NULL) {
+            return null;
+        }
+        return NativeMemory.fromCString(p);
+    }
+
+    static String getOr(String name, String def) {
+        String v = get(name);
+        if (v == null) {
+            return def;
+        }
+        return v;
+    }
+
+    static int getInt(String name, int def) {
+        String v = get(name);
+        if (v == null || v.length() == 0) {
+            return def;
+        }
+        int n = 0;
+        int i = 0;
+        int sign = 1;
+        if (v.charAt(0) == 45) {
+            sign = -1;
+            i = 1;
+        }
+        int ok = 0;
+        while (i < v.length()) {
+            int c = v.charAt(i);
+            if (c < 48 || c > 57) {
+                return def;
+            }
+            n = n * 10 + (c - 48);
+            ok = 1;
+            i = i + 1;
+        }
+        if (ok == 0) {
+            return def;
+        }
+        return n * sign;
+    }
+}
+
+class CpuInfo {
+    static int count() {
+        int n = EnvNative.cpuCount();
+        if (n < 1) {
+            return 1;
+        }
+        return n;
+    }
+}
+
 class Logger {
     static int DEBUG = 0;
     static int INFO = 1;

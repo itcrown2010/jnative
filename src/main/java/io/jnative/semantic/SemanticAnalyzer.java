@@ -53,6 +53,7 @@ public final class SemanticAnalyzer {
     private MethodSymbol currentMethod;
     private ConstructorSymbol currentConstructor;
     private ClassSymbol stringClass;
+    private ClassSymbol futureClass;
     private ClassSymbol objectClass;
     private ClassSymbol throwableClass;
     private ClassSymbol nativeMemoryClass;
@@ -99,7 +100,7 @@ public final class SemanticAnalyzer {
         envClassCounter = 0;
         lambdaCounter = 0;
         callbackCounter = 0;
-        installBuiltins();
+        installBuiltins(unit);
         // File.readBytes / argv need these metadatas present for the runtime.
         arrayMetadataFor(PrimitiveType.BYTE);
         arrayMetadataFor(stringClass.asType());
@@ -233,12 +234,17 @@ public final class SemanticAnalyzer {
         );
     }
 
-    private void installBuiltins() {
+    private void installBuiltins(CompilationUnit unit) {
         installObjectBuiltin();
         installStringBuiltin();
         installExceptionHierarchy();
         installCallableBuiltins();
         installFfiBuiltins();
+        boolean hasStdlibFuture = unit.classes().stream()
+                .anyMatch(c -> !c.isInterface() && !c.nativeStruct() && "Future".equals(c.name()));
+        if (!hasStdlibFuture) {
+            installAsyncBuiltins();
+        }
     }
 
     /** Object with stable identity hashCode + reference-equality equals (0.16). */
@@ -500,6 +506,15 @@ public final class SemanticAnalyzer {
                         new ParameterSymbol("ptr", NativePtrType.VOID, SourceLocation.UNKNOWN),
                         new ParameterSymbol("offset", PrimitiveType.LONG, SourceLocation.UNKNOWN),
                         new ParameterSymbol("value", PrimitiveType.INT, SourceLocation.UNKNOWN)));
+        addFfiIntrinsic(nativeMemoryClass, "getPtr", NativePtrType.VOID,
+                List.of(
+                        new ParameterSymbol("ptr", NativePtrType.VOID, SourceLocation.UNKNOWN),
+                        new ParameterSymbol("offset", PrimitiveType.LONG, SourceLocation.UNKNOWN)));
+        addFfiIntrinsic(nativeMemoryClass, "putPtr", VoidType.INSTANCE,
+                List.of(
+                        new ParameterSymbol("ptr", NativePtrType.VOID, SourceLocation.UNKNOWN),
+                        new ParameterSymbol("offset", PrimitiveType.LONG, SourceLocation.UNKNOWN),
+                        new ParameterSymbol("value", NativePtrType.VOID, SourceLocation.UNKNOWN)));
         addFfiIntrinsic(nativeMemoryClass, "fromCString", stringClass.asType(),
                 List.of(new ParameterSymbol("ptr", NativePtrType.VOID, SourceLocation.UNKNOWN)));
 
@@ -510,6 +525,35 @@ public final class SemanticAnalyzer {
         installNetworkBuiltins();
         installBytesBuiltin();
         installThreadBuiltins();
+        installAsyncBuiltins();
+    }
+
+    private void installAsyncBuiltins() {
+        futureClass = new ClassSymbol("Future", SourceLocation.UNKNOWN, true);
+        classes.put("Future", futureClass);
+        futureClass.setSuperClass(objectClass);
+        futureClass.setTypeParameters(List.of(
+                new TypeParameterSymbol("T", futureClass, null, 0, SourceLocation.UNKNOWN)));
+        futureClass.addField(new FieldSymbol(
+                futureClass, "state", PrimitiveType.INT, 0, SourceLocation.UNKNOWN));
+        futureClass.addField(new FieldSymbol(
+                futureClass, "result", objectClass.asType(), 1, SourceLocation.UNKNOWN));
+        futureClass.addConstructor(new ConstructorSymbol(futureClass, List.of(), true, SourceLocation.UNKNOWN));
+
+        addFfiIntrinsic(futureClass, "completed", futureClass.asType(), List.of(
+                new ParameterSymbol("value", objectClass.asType(), SourceLocation.UNKNOWN)));
+        addFfiIntrinsic(futureClass, "isComplete", PrimitiveType.BOOLEAN, List.of(
+                new ParameterSymbol("future", futureClass.asType(), SourceLocation.UNKNOWN)));
+        addFfiIntrinsic(futureClass, "getCompleted", objectClass.asType(), List.of(
+                new ParameterSymbol("future", futureClass.asType(), SourceLocation.UNKNOWN)));
+        addFfiIntrinsic(futureClass, "awaitCooperative", VoidType.INSTANCE, List.of(
+                new ParameterSymbol("future", futureClass.asType(), SourceLocation.UNKNOWN),
+                new ParameterSymbol("frame", objectClass.asType(), SourceLocation.UNKNOWN),
+                new ParameterSymbol("resumeState", PrimitiveType.INT, SourceLocation.UNKNOWN),
+                new ParameterSymbol("resumeFn", objectClass.asType(), SourceLocation.UNKNOWN)));
+
+        futureClass.setLayout(ObjectLayoutBuilder.build(futureClass));
+        futureClass.setVtable(new io.jnative.vtable.VTable(futureClass, List.of()));
     }
 
     private void installCallableBuiltins() {
@@ -1226,7 +1270,30 @@ public final class SemanticAnalyzer {
                 JType pt = resolveTypeName(p.type(), p.isArray(), p.location());
                 params.add(new ParameterSymbol(p.name(), pt, p.location()));
             }
-            JType returnType = resolveTypeName(method.returnType(), method.returnsArray(), method.location());
+            JType logicalReturn = resolveTypeName(method.returnType(), method.returnsArray(), method.location());
+            JType returnType = logicalReturn;
+            if (method.isAsync()) {
+                if (method.returnType().kind() == TypeName.Kind.CLASS
+                        && "Future".equals(method.returnType().name())) {
+                    reporter.error(method.location(),
+                            "async method return type must not be Future<T>; use 'async T m()' instead");
+                } else if (logicalReturn instanceof VoidType) {
+                    reporter.error(method.location(), "async method must return a value (not void)");
+                } else if (isFutureType(logicalReturn, method.location())) {
+                    reporter.error(method.location(),
+                            "async method return type must not be Future<T>; use 'async T m()' instead");
+                } else if (!(logicalReturn instanceof ErrorType)) {
+                    ClassSymbol fc = resolveFutureClass(method.location());
+                    if (fc == null) {
+                        reporter.error(method.location(),
+                                "async/await requires Future (missing async runtime)");
+                    } else if (fc.isGeneric()) {
+                        returnType = new ParameterizedType(fc, List.of(logicalReturn));
+                    } else {
+                        returnType = fc.asType();
+                    }
+                }
+            }
 
             boolean isMain = method.name().equals("main")
                     && method.isStatic()
@@ -1245,6 +1312,10 @@ public final class SemanticAnalyzer {
                     symbol, method.name(), returnType, params,
                     method.isStatic(), isMain, method.isNative(), method.isAbstract(), mangled, method.location());
             ms.setTypeParameters(methodTypeParams);
+            if (method.isAsync()) {
+                ms.setAsync(true);
+                ms.setLogicalReturnType(logicalReturn);
+            }
             applyEffectContract(ms, method.effectContract());
 
             if (method.isNative()) {
@@ -1428,6 +1499,12 @@ public final class SemanticAnalyzer {
         }
         if (params.size() == 1 && params.getFirst().isReference() && ret instanceof VoidType) {
             return "jnative_invoke_void_ptr";
+        }
+        if (params.size() == 2
+                && params.get(0).isReference()
+                && params.get(1).isReference()
+                && ret instanceof VoidType) {
+            return "jnative_invoke_void_ptr_ptr";
         }
         if (params.size() == 1 && params.getFirst().isReference() && ret.isReference()) {
             return "jnative_invoke_ptr_ptr";
@@ -2048,7 +2125,9 @@ public final class SemanticAnalyzer {
             reporter.error(r.location(), "return outside method");
             return;
         } else {
-            expected = currentMethod.returnType();
+            expected = currentMethod.isAsync()
+                    ? currentMethod.logicalReturnType()
+                    : currentMethod.returnType();
         }
         if (r.value() == null) {
             if (!(expected instanceof VoidType)) {
@@ -2112,6 +2191,7 @@ public final class SemanticAnalyzer {
                 case InstanceOfExpression i -> typeOfInstanceOf(i);
                 case CastExpression c -> typeOfCast(c);
                 case GcCollectExpression ignored -> VoidType.INSTANCE;
+                case AwaitExpression a -> typeOfAwait(a);
                 case NativeNullExpression n -> {
                     provenances.put(n, PointerProvenance.NULL);
                     yield NativePtrType.VOID;
@@ -3086,7 +3166,8 @@ public final class SemanticAnalyzer {
     private boolean isConstructibleBuiltin(ClassSymbol symbol) {
         String name = symbol.name();
         if ("Thread".equals(name) || "Mutex".equals(name) || "Condition".equals(name)
-                || "AtomicInt".equals(name) || "AtomicLong".equals(name) || "AtomicBool".equals(name)) {
+                || "AtomicInt".equals(name) || "AtomicLong".equals(name) || "AtomicBool".equals(name)
+                || "Future".equals(name)) {
             return true;
         }
         return throwableClass != null && symbol.isSubtypeOf(throwableClass);
@@ -3507,10 +3588,62 @@ public final class SemanticAnalyzer {
                 .map(p -> new ParameterSymbol(p.name(), sub.apply(p.type()), p.location()))
                 .toList();
         JType ret = sub.apply(ms.returnType());
-        return new MethodSymbol(
+        MethodSymbol copy = new MethodSymbol(
                 ms.owner(), ms.name(), ret, params,
                 ms.isStatic(), ms.isMain(), ms.isNative(), ms.isAbstract(),
                 ms.mangledName(), ms.location());
+        copy.setAsync(ms.isAsync());
+        copy.setLogicalReturnType(sub.apply(ms.logicalReturnType()));
+        return copy;
+    }
+
+    private JType typeOfAwait(AwaitExpression a) {
+        if (currentMethod == null || !currentMethod.isAsync()) {
+            reporter.error(a.location(), "await is only allowed inside async methods");
+            return ErrorType.INSTANCE;
+        }
+        JType operandType = analyzeExpression(a.operand());
+        JType element = futureElementType(operandType, a.location());
+        if (element == null) {
+            reporter.error(a.location(), "await operand must be a Future<T>, got " + operandType);
+            return ErrorType.INSTANCE;
+        }
+        return element;
+    }
+
+    private static boolean isFutureType(JType type, SourceLocation loc) {
+        if (type instanceof ParameterizedType pt && "Future".equals(pt.name())) {
+            return true;
+        }
+        if (type instanceof ClassType ct && "Future".equals(ct.name())) {
+            return true;
+        }
+        return false;
+    }
+
+    private ClassSymbol resolveFutureClass(SourceLocation loc) {
+        if (futureClass != null) {
+            return futureClass;
+        }
+        ClassSymbol declared = classes.get("Future");
+        if (declared != null) {
+            return declared;
+        }
+        return null;
+    }
+
+    private JType futureElementType(JType type, SourceLocation loc) {
+        if (type instanceof ParameterizedType pt && "Future".equals(pt.name())) {
+            if (pt.typeArguments().isEmpty()) {
+                reporter.error(loc, "Future type argument missing");
+                return null;
+            }
+            return pt.typeArguments().getFirst();
+        }
+        if (type instanceof ClassType ct && "Future".equals(ct.name())) {
+            return objectClass.asType();
+        }
+        return null;
     }
 
     private JType resolveNativePtrType(TypeName typeName, SourceLocation loc) {

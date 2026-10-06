@@ -475,3 +475,23 @@ class JsonWriter {
         return "null";
     }
 }
+
+/** Facade over JsonParser / JsonWriter (0.22). */
+class Json {
+    static String stringify(JsonValue v) {
+        return JsonWriter.write(v);
+    }
+
+    static JsonValue parse(String text) {
+        return JsonParser.parse(text);
+    }
+}
+
+/**
+ * Explicit typed JSON codec — no reflection / no .class (0.22 phase-1).
+ */
+interface JsonCodec<T> {
+    JsonValue encode(T value);
+
+    T decode(JsonValue value);
+}

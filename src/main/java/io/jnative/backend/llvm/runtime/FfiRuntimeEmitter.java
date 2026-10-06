@@ -81,6 +81,20 @@ public final class FfiRuntimeEmitter {
                   ret void
                 }
 
+                define ptr @jnative_native_get_ptr(ptr %p, i64 %offset) {
+                entry:
+                  %addr = getelementptr i8, ptr %p, i64 %offset
+                  %v = load ptr, ptr %addr, align 8
+                  ret ptr %v
+                }
+
+                define void @jnative_native_put_ptr(ptr %p, i64 %offset, ptr %v) {
+                entry:
+                  %addr = getelementptr i8, ptr %p, i64 %offset
+                  store ptr %v, ptr %addr, align 8
+                  ret void
+                }
+
                 """);
     }
 }

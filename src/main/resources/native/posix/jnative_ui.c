@@ -135,6 +135,15 @@ __attribute__((weak)) void jnative_ui_platform_set_content(int32_t windowId, int
 __attribute__((weak)) void jnative_ui_platform_reparent(int32_t childId, int32_t parentId) {
     (void)childId; (void)parentId;
 }
+__attribute__((weak)) void jnative_ui_platform_set_menubar(int32_t windowId, int32_t menuBarId) {
+    (void)windowId; (void)menuBarId;
+}
+__attribute__((weak)) void jnative_ui_platform_close_window(int32_t windowId) {
+    (void)windowId;
+}
+__attribute__((weak)) void jnative_ui_platform_focus(int32_t id) {
+    (void)id;
+}
 __attribute__((weak)) int32_t jnative_ui_platform_dialog_message(
         int32_t windowId, int32_t type, const char *title, const char *message) {
     (void)windowId; (void)type; (void)title; (void)message;
@@ -368,6 +377,11 @@ void jnative_ui_set_enabled(int32_t id, int32_t enabled) {
     p->enabled = enabled != 0;
     if (g_platform_active && !g_headless) jnative_ui_platform_set_enabled(id, enabled);
 }
+void jnative_ui_focus(int32_t id) {
+    JnUiPeer *p = peer(id);
+    if (p == NULL) return;
+    if (g_platform_active && !g_headless) jnative_ui_platform_focus(id);
+}
 void jnative_ui_set_content(int32_t windowId, int32_t childId) {
     JnUiPeer *w = peer(windowId);
     JnUiPeer *c = peer(childId);
@@ -547,6 +561,40 @@ void jnative_ui_window_set_menubar(int32_t windowId, int32_t menuBarId) {
     JnUiPeer *m = peer(menuBarId);
     if (w == NULL || m == NULL) return;
     m->parent = windowId;
+    if (g_platform_active && !g_headless) {
+        jnative_ui_platform_set_menubar(windowId, menuBarId);
+    }
+}
+
+int32_t jnative_ui_peer_kind(int32_t id) {
+    JnUiPeer *p = peer(id);
+    return p == NULL ? 0 : p->kind;
+}
+
+const char *jnative_ui_peer_text(int32_t id) {
+    JnUiPeer *p = peer(id);
+    if (p == NULL) return "";
+    if (p->text != NULL) return p->text;
+    if (p->title != NULL) return p->title;
+    return "";
+}
+
+int32_t jnative_ui_menu_child_count(int32_t id) {
+    JnUiPeer *p = peer(id);
+    return p == NULL ? 0 : p->menu_child_count;
+}
+
+int32_t jnative_ui_menu_child_at(int32_t id, int32_t index) {
+    JnUiPeer *p = peer(id);
+    if (p == NULL || index < 0 || index >= p->menu_child_count) return 0;
+    return p->menu_children[index];
+}
+
+void jnative_ui_close_window(int32_t windowId) {
+    if (g_platform_active && !g_headless) {
+        jnative_ui_platform_close_window(windowId);
+    }
+    jnative_ui_destroy(windowId);
 }
 
 int32_t jnative_ui_dialog_message(int32_t windowId, int32_t type,

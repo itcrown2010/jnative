@@ -222,6 +222,19 @@ public final class IrPrinter {
                             + " id=" + c.callbackId();
             case IrInstruction.ReleaseNativeCallback r ->
                     "release_native_callback " + r.handle().name();
+            case IrInstruction.AsyncBegin b ->
+                    b.frame().name() + " = async_begin " + b.methodId() + " -> " + b.resultType();
+            case IrInstruction.Await a ->
+                    (a.dest() != null ? a.dest().name() + " = " : "")
+                            + "await " + a.future().name() + " state=" + a.resumeState()
+                            + " resume=" + a.resumeLabel();
+            case IrInstruction.AsyncSuspend s ->
+                    "async_suspend frame=" + s.frame().name() + " state=" + s.resumeState()
+                            + " future=" + s.future().name();
+            case IrInstruction.AsyncResume r -> "async_resume state=" + r.resumeState();
+            case IrInstruction.AsyncComplete c ->
+                    "async_complete " + c.value().name() + " -> " + c.resultType();
+            case IrInstruction.AsyncFail f -> "async_fail " + f.exception().name();
         };
     }
 

@@ -12,6 +12,9 @@
 #include <string.h>
 #include <time.h>
 #include <unistd.h>
+#if defined(_SC_NPROCESSORS_ONLN)
+#include <unistd.h>
+#endif
 
 struct JNThreadState {
     int64_t id;
@@ -732,4 +735,24 @@ void jn_thread_join_remaining(void) {
         }
         jn_thread_join_id(id);
     }
+}
+
+
+int32_t jnative_cpu_count(void) {
+    long n = sysconf(_SC_NPROCESSORS_ONLN);
+    if (n < 1) {
+        return 1;
+    }
+    if (n > 1024) {
+        return 1024;
+    }
+    return (int32_t)n;
+}
+
+int64_t jnative_web_mono_millis(void) {
+    struct timespec ts;
+    if (clock_gettime(CLOCK_MONOTONIC, &ts) != 0) {
+        return 0;
+    }
+    return (int64_t)ts.tv_sec * 1000 + (int64_t)ts.tv_nsec / 1000000;
 }

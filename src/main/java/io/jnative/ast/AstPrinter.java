@@ -41,7 +41,8 @@ public final class AstPrinter {
     private static void printMethod(MethodDeclaration method, StringBuilder sb, int indent) {
         indent(sb, indent)
                 .append(method.isPublic() ? "public " : "")
-                .append(method.isStatic() ? "static " : "");
+                .append(method.isStatic() ? "static " : "")
+                .append(method.isAsync() ? "async " : "");
         if (method.isConstructor()) {
             sb.append("ctor ");
         } else {
@@ -183,6 +184,7 @@ public final class AstPrinter {
             case InstanceOfExpression i -> "(" + printExpr(i.expression()) + " instanceof " + i.type() + ")";
             case CastExpression c -> "((" + c.type() + ") " + printExpr(c.expression()) + ")";
             case GcCollectExpression ignored -> "System.gc()";
+            case AwaitExpression a -> "await " + printExpr(a.operand());
             case NativeNullExpression ignored -> "NativePtr.NULL";
             case FieldAccessExpression f -> printExpr(f.receiver()) + "." + f.fieldName();
             case NullLiteralExpression ignored -> "null";

@@ -287,8 +287,9 @@ public final class Parser {
         boolean isNative = false;
         boolean isVolatile = false;
         boolean isAbstract = false;
+        boolean isAsync = false;
         boolean isDefault = false;
-        for (int i = 0; i < 8; i++) {
+        for (int i = 0; i < 9; i++) {
             if (!isStatic && match(TokenType.STATIC)) {
                 isStatic = true;
             } else if (!isNative && match(TokenType.NATIVE)) {
@@ -297,6 +298,8 @@ public final class Parser {
                 isVolatile = true;
             } else if (!isAbstract && match(TokenType.ABSTRACT)) {
                 isAbstract = true;
+            } else if (!isAsync && match(TokenType.ASYNC)) {
+                isAsync = true;
             } else if (!isDefault && match(TokenType.DEFAULT)) {
                 isDefault = true;
             } else {
@@ -327,6 +330,9 @@ public final class Parser {
             if (isAbstract) {
                 reporter.error(peek().location(), "constructors cannot be abstract");
             }
+            if (isAsync) {
+                reporter.error(peek().location(), "constructors cannot be async");
+            }
             if (!methodTypeParams.isEmpty()) {
                 reporter.error(peek().location(), "constructors cannot declare type parameters");
             }
@@ -334,7 +340,7 @@ public final class Parser {
             List<Parameter> params = parseParameterList();
             BlockStatement body = parseBlock();
             methods.add(new MethodDeclaration(
-                    true, false, false, true, false, List.of(), TypeName.ofVoid(name.location()), false,
+                    true, false, false, true, false, false, List.of(), TypeName.ofVoid(name.location()), false,
                     className, params, body, null, effectContract, name.location()));
             return;
         }
@@ -362,6 +368,17 @@ public final class Parser {
             if (isInterface && isStatic) {
                 reporter.error(name.location(), "static interface methods are not supported yet");
             }
+            if (isAsync) {
+                if (isNative) {
+                    reporter.error(name.location(), "async method cannot be native");
+                }
+                if (isAbstract || methodAbstract) {
+                    reporter.error(name.location(), "async method cannot be abstract");
+                }
+                if (isStatic && type.isVoid()) {
+                    reporter.error(name.location(), "async method must return a value (not void)");
+                }
+            }
             if (isNative) {
                 if (check(TokenType.LBRACE)) {
                     body = parseBlock();
@@ -387,7 +404,7 @@ public final class Parser {
                 body = parseBlock();
             }
             methods.add(new MethodDeclaration(
-                    true, isStatic, isNative, false, methodAbstract && !isNative,
+                    true, isStatic, isNative, false, methodAbstract && !isNative, isAsync,
                     methodTypeParams, type, isArray,
                     name.lexeme(), params, body, nativeAnnotation, effectContract, name.location()));
             return;
@@ -1110,6 +1127,10 @@ public final class Parser {
             Token op = previous();
             return new UnaryExpression(UnaryOp.PLUS, parseUnary(), op.location());
         }
+        if (match(TokenType.AWAIT)) {
+            Token op = previous();
+            return new AwaitExpression(parseUnary(), op.location());
+        }
         return parsePostfix();
     }
 
@@ -1117,7 +1138,7 @@ public final class Parser {
         Expression expr = parsePrimary();
         while (true) {
             if (match(TokenType.DOT)) {
-                Token name = consume(TokenType.IDENTIFIER, "expected member name after '.'");
+                Token name = consumeMemberNameAfterDot();
                 List<TypeName> typeArgs = List.of();
                 if (isMethodTypeArgsAhead()) {
                     typeArgs = parseMethodTypeArguments();
@@ -1559,6 +1580,17 @@ public final class Parser {
 
     private Token previous() {
         return tokens.get(current - 1);
+    }
+
+    /** Allow {@code .await(...)} on {@code Condition} despite {@code await} being a keyword. */
+    private Token consumeMemberNameAfterDot() {
+        if (check(TokenType.IDENTIFIER)) {
+            return advance();
+        }
+        if (match(TokenType.AWAIT)) {
+            return previous();
+        }
+        throw error(peek(), "expected member name after '.'");
     }
 
     private ParseException error(Token token, String message) {

@@ -719,3 +719,112 @@ class Collections {
     }
 
 }
+
+/** Blocking work queue + fixed workers (0.22). Avoids builtin Runnable class. */
+interface PoolTask {
+    void run();
+}
+
+interface Executor {
+    void execute(PoolTask task);
+}
+
+class ThreadPoolExecutor implements Executor {
+    ArrayDeque<PoolTask> queue;
+    Mutex lock;
+    Condition notEmpty;
+    int workerCount;
+    int running;
+    int shutdownFlag;
+    Thread[] workers;
+
+    ThreadPoolExecutor(int workers) {
+        queue = new ArrayDeque<PoolTask>();
+        lock = new Mutex();
+        notEmpty = new Condition();
+        workerCount = workers;
+        if (workerCount < 1) {
+            workerCount = 1;
+        }
+        running = 0;
+        shutdownFlag = 0;
+        this.workers = new Thread[workerCount];
+        int i = 0;
+        while (i < workerCount) {
+            ThreadPoolWorker w = new ThreadPoolWorker();
+            w.pool = this;
+            this.workers[i] = w;
+            w.start();
+            i = i + 1;
+        }
+    }
+
+    static ThreadPoolExecutor createDefault() {
+        int n = 4;
+        return new ThreadPoolExecutor(n);
+    }
+
+    public void execute(PoolTask task) {
+        if (task == null) {
+            return;
+        }
+        lock.lock();
+        if (shutdownFlag != 0) {
+            lock.unlock();
+            throw new RuntimeException("ThreadPoolExecutor is shut down");
+        }
+        queue.addLast(task);
+        notEmpty.signal();
+        lock.unlock();
+    }
+
+    void shutdown() {
+        lock.lock();
+        shutdownFlag = 1;
+        notEmpty.signalAll();
+        lock.unlock();
+    }
+
+    void join() {
+        int i = 0;
+        while (i < workerCount) {
+            workers[i].join();
+            i = i + 1;
+        }
+    }
+
+    PoolTask takeTask() {
+        lock.lock();
+        int waiting = 1;
+        while (waiting != 0) {
+            if (queue.size() > 0) {
+                PoolTask t = queue.removeFirst();
+                lock.unlock();
+                return t;
+            }
+            if (shutdownFlag != 0) {
+                lock.unlock();
+                return null;
+            }
+            notEmpty.await(lock);
+        }
+        lock.unlock();
+        return null;
+    }
+}
+
+class ThreadPoolWorker extends Thread {
+    ThreadPoolExecutor pool;
+
+    public void run() {
+        int alive = 1;
+        while (alive != 0) {
+            PoolTask t = pool.takeTask();
+            if (t == null) {
+                alive = 0;
+            } else {
+                t.run();
+            }
+        }
+    }
+}

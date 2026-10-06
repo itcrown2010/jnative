@@ -36,6 +36,7 @@ public final class CliArguments {
                 case "--emit-llvm" -> options.setEmitLlvm(true);
                 case "--emit-layout" -> options.setEmitLayout(true);
                 case "--emit-effects" -> options.setEmitEffects(true);
+                case "--emit-async" -> options.setEmitAsync(true);
                 case "--emit-generics" -> options.setEmitGenerics(true);
                 case "--explain-generics" -> options.setExplainGenerics(true);
                 case "--emit-ir-before-opt" -> options.setEmitIrBeforeOpt(true);
@@ -98,7 +99,7 @@ public final class CliArguments {
 
     public static String helpText() {
         return """
-                JNative 0.17 — experimental Java native compiler
+                JNative 0.23 — experimental Java native compiler
 
                 Usage:
                   jnative <source.java> [-o <output>] [-O0|-O1|-O2|-O3]
@@ -120,6 +121,7 @@ public final class CliArguments {
                   --emit-llvm            Print LLVM IR and stop
                   --emit-layout          Print NativeStruct layouts and stop
                   --emit-effects         Print inferred effect report and stop
+                  --emit-async           Print async/await lowering report and stop
                   --emit-generics        Print generic lowering report and stop
                   --explain-generics     Same as --emit-generics (verbose alias)
                   --opt-report           Print optimization counters

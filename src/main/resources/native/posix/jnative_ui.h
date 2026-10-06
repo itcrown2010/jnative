@@ -80,6 +80,7 @@ int32_t jnative_ui_create_panel(int32_t parentId);
 int32_t jnative_ui_create_control(int32_t kind, int32_t parentId, const char *text);
 
 void jnative_ui_destroy(int32_t id);
+void jnative_ui_close_window(int32_t windowId);
 void jnative_ui_show(int32_t id);
 void jnative_ui_hide(int32_t id);
 void jnative_ui_set_title(int32_t id, const char *title);
@@ -87,6 +88,7 @@ void jnative_ui_set_text(int32_t id, const char *text);
 void jnative_ui_set_bounds(int32_t id, int32_t x, int32_t y, int32_t w, int32_t h);
 void jnative_ui_set_visible(int32_t id, int32_t visible);
 void jnative_ui_set_enabled(int32_t id, int32_t enabled);
+void jnative_ui_focus(int32_t id);
 void jnative_ui_set_content(int32_t windowId, int32_t childId);
 /** Attach child native peer as subview of parent peer (panel/split/etc). */
 void jnative_ui_reparent(int32_t childId, int32_t parentId);
@@ -125,10 +127,15 @@ int32_t jnative_ui_menu_create_item(const char *text);
 int32_t jnative_ui_menu_create_separator(void);
 void jnative_ui_menu_add(int32_t parentMenuId, int32_t childId);
 void jnative_ui_window_set_menubar(int32_t windowId, int32_t menuBarId);
+/* Menu peer introspection for platform MenuBar install. */
+int32_t jnative_ui_peer_kind(int32_t id);
+const char *jnative_ui_peer_text(int32_t id);
+int32_t jnative_ui_menu_child_count(int32_t id);
+int32_t jnative_ui_menu_child_at(int32_t id, int32_t index);
 
 /* Dialogs (modal OS dialogs; headless uses programmed result). */
 int32_t jnative_ui_dialog_message(int32_t windowId, int32_t type, const char *title, const char *message);
-/* type: 0=info 1=confirm 2=error; returns 1=OK/Yes 0=Cancel/No */
+/* type: 0=info 1=confirm 2=error 3=saveAsk; returns 1=OK/Yes/Save 0=Cancel/No 2=Don't Save */
 char *jnative_ui_dialog_file_open(int32_t windowId, const char *filter);
 char *jnative_ui_dialog_file_save(int32_t windowId, const char *filter);
 char *jnative_ui_dialog_dir_open(int32_t windowId);
@@ -167,6 +174,9 @@ void jnative_ui_platform_set_visible(int32_t id, int32_t visible);
 void jnative_ui_platform_set_enabled(int32_t id, int32_t enabled);
 void jnative_ui_platform_set_content(int32_t windowId, int32_t childId);
 void jnative_ui_platform_reparent(int32_t childId, int32_t parentId);
+void jnative_ui_platform_set_menubar(int32_t windowId, int32_t menuBarId);
+void jnative_ui_platform_close_window(int32_t windowId);
+void jnative_ui_platform_focus(int32_t id);
 int32_t jnative_ui_platform_dialog_message(int32_t windowId, int32_t type,
                                            const char *title, const char *message);
 char *jnative_ui_platform_dialog_file(int32_t windowId, int32_t save, const char *filter);

@@ -25,7 +25,25 @@ public final class StdlibIncluder {
                 || sourceText.contains("HttpConnection")
                 || sourceText.contains("HttpUrl")
                 || sourceText.contains("HttpHeaders")
-                || sourceText.contains("HttpException");
+                || sourceText.contains("HttpException")
+                || needsWeb(sourceText);
+    }
+
+    public static boolean needsWeb(String sourceText) {
+        if (sourceText == null) {
+            return false;
+        }
+        return sourceText.contains("jnative.web")
+                || sourceText.contains("WebApp")
+                || sourceText.contains("WebContext")
+                || sourceText.contains("WebRequest")
+                || sourceText.contains("WebResponse")
+                || sourceText.contains("WebServer")
+                || sourceText.contains("WebConfig")
+                || sourceText.contains("WebMiddleware")
+                || sourceText.contains("WebHandler")
+                || sourceText.contains("AsyncWebHandler")
+                || sourceText.contains("WebException");
     }
 
     public static boolean needsUi(String sourceText) {
@@ -149,9 +167,66 @@ public final class StdlibIncluder {
         return sourceText.contains("JsonParser")
                 || sourceText.contains("JsonWriter")
                 || sourceText.contains("JsonObject")
+                || sourceText.contains("JsonCodec")
+                || sourceText.contains("Json.stringify")
+                || sourceText.contains("Json.parse")
+                || needsWeb(sourceText)
                 || sourceText.contains("jnative.json")
                 || sourceText.contains("StudioApplication")
                 || sourceText.contains("jnative.studio");
+    }
+
+    public static boolean needsDatabase(String sourceText) {
+        if (sourceText == null) {
+            return false;
+        }
+        return sourceText.contains("jnative.db")
+                || sourceText.contains("Database.connect")
+                || sourceText.contains("Database.connectWithConfig")
+                || sourceText.contains("DatabaseUrl")
+                || sourceText.contains("RowMapper")
+                || sourceText.contains("DbConnection")
+                || sourceText.contains("ConnectionPool")
+                || sourceText.contains("DatabaseDriver")
+                || sourceText.contains("DbByteBuffer")
+                || sourceText.contains("SQLiteConnection")
+                || sourceText.contains("SQLiteDriver")
+                || sourceText.contains("sqlite3_")
+                || sourceText.contains("Sqlite3Native")
+                || sourceText.contains("PostgreSQLDriver")
+                || sourceText.contains("PgConnection")
+                || sourceText.contains("PgMessageReader")
+                || sourceText.contains("DbSqliteBootstrap")
+                || sourceText.contains("Migrator")
+                || sourceText.contains("PgProtocolTestKit");
+    }
+
+    public static boolean needsAsync(String sourceText) {
+        if (sourceText == null) {
+            return false;
+        }
+        return sourceText.contains("jnative.async")
+                || sourceText.contains("EventLoop")
+                || sourceText.contains("EventLoopGroup")
+                || sourceText.contains("JnFuture")
+                || sourceText.contains("Future.")
+                || sourceText.contains("new Future(")
+                || sourceText.contains("Async.")
+                || sourceText.contains("AsyncMutex")
+                || sourceText.contains("AsyncSemaphore")
+                || sourceText.contains("AsyncQueue")
+                || sourceText.contains("AsyncTcpSocket")
+                || sourceText.contains("AsyncTcpServer")
+                || sourceText.contains("CancellationSource")
+                || sourceText.contains("TimeoutException")
+                || sourceText.contains("FutureBlocker")
+                || sourceText.contains(" async ")
+                || sourceText.contains(" async\n")
+                || sourceText.contains(" async(")
+                || sourceText.contains(" await ")
+                || sourceText.contains(" await\n")
+                || sourceText.contains(" await(")
+                || needsDatabase(sourceText);
     }
 
     public static boolean needsIo(String sourceText) {
@@ -165,12 +240,14 @@ public final class StdlibIncluder {
                 || sourceText.contains("ProcessBuilder")
                 || sourceText.contains("new Process(")
                 || sourceText.contains("new ProcessBuilder(")
-                || sourceText.contains("CancellationToken")
                 || sourceText.contains("Logger.")
                 || sourceText.contains("Desktop.")
                 || sourceText.contains("jnative.io")
+                || sourceText.contains("Env.")
+                || sourceText.contains("CpuInfo.")
                 || sourceText.contains("StudioApplication")
-                || sourceText.contains("jnative.studio");
+                || sourceText.contains("jnative.studio")
+                || needsWeb(sourceText);
     }
 
     public static boolean needsStudio(String sourceText) {
@@ -200,6 +277,13 @@ public final class StdlibIncluder {
     public static String prependHttpStdlib(String userSource) throws IOException {
         List<String> parts = new ArrayList<>();
         parts.add(load("stdlib/http/HttpLib.java"));
+        parts.add(userSource);
+        return String.join("\n\n", parts);
+    }
+
+    public static String prependWebStdlib(String userSource) throws IOException {
+        List<String> parts = new ArrayList<>();
+        parts.add(load("stdlib/web/WebLib.java"));
         parts.add(userSource);
         return String.join("\n\n", parts);
     }
@@ -246,6 +330,54 @@ public final class StdlibIncluder {
         return String.join("\n\n", parts);
     }
 
+    /** Inserts DbLib + SQLite (+ optional PostgreSQL) before user source. */
+    public static String insertDatabaseStdlib(String mergedSource) throws IOException {
+        if (mergedSource.contains("// JNative SQLite driver (0.24)")) {
+            return mergedSource;
+        }
+        String block = load("stdlib/db/DbLib.java")
+                + "\n\n" + load("stdlib/db/SqliteDriverLib.java")
+                + "\n\n" + load("stdlib/db/DbMigrateLib.java");
+        if (mergedSource.contains("Instant")
+                || mergedSource.contains("LocalDate")
+                || mergedSource.contains("UUID.random")
+                || mergedSource.contains("jnative.time")) {
+            block = block + "\n\n" + load("stdlib/time/TimeLib.java");
+        }
+        if (mergedSource.contains("DbPgBootstrap.register")
+                || mergedSource.contains("new PostgreSQLDriver")) {
+            block = block + "\n\n" + load("stdlib/db/PgDriverLib.java");
+        }
+        int userIdx = mergedSource.lastIndexOf("public class App");
+        if (userIdx > 0) {
+            return mergedSource.substring(0, userIdx) + block + "\n\n" + mergedSource.substring(userIdx);
+        }
+        return mergedSource + "\n\n" + block;
+    }
+
+    /** Inserts AsyncLib after CollectionsLib (Function/ArrayList required by AsyncLib). */
+    public static String insertAsyncStdlib(String mergedSource) throws IOException {
+        String async = load("stdlib/async/AsyncLib.java");
+        String collections = load("stdlib/collections/CollectionsLib.java");
+        String prefix = collections + "\n\n";
+        if (mergedSource.startsWith(prefix)) {
+            return prefix + async + "\n\n" + mergedSource.substring(prefix.length());
+        }
+        if (mergedSource.contains("class ArrayList") && mergedSource.contains("class ThreadPoolExecutor")) {
+            /* Collections already merged but prefix bytes differ — append async after collections marker. */
+            int cut = mergedSource.indexOf("class ThreadPoolWorker");
+            if (cut > 0) {
+                int end = mergedSource.indexOf("\n}", cut);
+                if (end > 0) {
+                    end = end + 2;
+                    return mergedSource.substring(0, end) + "\n\n" + async + "\n\n"
+                            + mergedSource.substring(end);
+                }
+            }
+        }
+        return prefix + async + "\n\n" + mergedSource;
+    }
+
     public static String prependStudioStdlib(String userSource) throws IOException {
         List<String> parts = new ArrayList<>();
         parts.add(load("stdlib/studio/StudioLib.java"));
@@ -261,9 +393,19 @@ public final class StdlibIncluder {
         boolean wantUi = needsUi(userSource) || wantGraphics || wantEditor || wantStudio;
         boolean wantJson = needsJson(userSource) || wantStudio;
         boolean wantIo = needsIo(userSource) || wantStudio;
+        boolean wantWeb = needsWeb(userSource);
+        boolean wantDatabase = needsDatabase(userSource);
+        boolean wantAsync = needsAsync(userSource) || wantWeb || wantDatabase;
         // Advanced UI / Graphics / Editor use ArrayList / Function from collections.
-        if (needsCollections(text) || wantUi || wantGraphics || wantEditor || wantJson || wantIo || wantStudio) {
+        if (needsCollections(text) || wantUi || wantGraphics || wantEditor || wantJson || wantIo || wantStudio
+                || wantAsync || wantDatabase) {
             text = prependCollectionsStdlib(text);
+        }
+        if (wantAsync) {
+            text = insertAsyncStdlib(text);
+        }
+        if (wantDatabase) {
+            text = insertDatabaseStdlib(text);
         }
         if (wantJson || needsJson(text)) {
             text = prependJsonStdlib(text);
@@ -285,8 +427,11 @@ public final class StdlibIncluder {
         if (wantStudio || needsStudio(text)) {
             text = prependStudioStdlib(text);
         }
-        if (needsHttp(text)) {
+        if (needsHttp(text) || wantWeb || needsWeb(text)) {
             text = prependHttpStdlib(text);
+        }
+        if (wantWeb || needsWeb(text)) {
+            text = prependWebStdlib(text);
         }
         return text;
     }

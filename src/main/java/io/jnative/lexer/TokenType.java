@@ -43,6 +43,8 @@ public enum TokenType {
     THROWS,
     NATIVE,
     VOLATILE,
+    ASYNC,
+    AWAIT,
     IMPORT,
     PACKAGE,
 
@@ -130,6 +132,8 @@ public enum TokenType {
         KEYWORDS.put("throws", THROWS);
         KEYWORDS.put("native", NATIVE);
         KEYWORDS.put("volatile", VOLATILE);
+        KEYWORDS.put("async", ASYNC);
+        KEYWORDS.put("await", AWAIT);
         KEYWORDS.put("import", IMPORT);
         KEYWORDS.put("package", PACKAGE);
     }

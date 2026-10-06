@@ -64,6 +64,10 @@ public final class IrGenerator {
     private final Deque<TryFrame> tryFrames = new ArrayDeque<>();
     /** Number of finally blocks currently being lowered (return-in-finally must not re-enter). */
     private int finallyDepth;
+    /** Resume-state id generator for await sites in the current async method. */
+    private int awaitStateCounter;
+    /** Async frame temp produced by {@link IrInstruction.AsyncBegin}. */
+    private IrValue asyncFrame;
 
     private record TryFrame(
             IrBasicBlock dispatchBlock,
@@ -606,6 +610,7 @@ public final class IrGenerator {
                 }
                 IrFunction function = new IrFunction(
                         ms.mangledName(), IrType.from(ms.returnType()), params, ms.isMain());
+                function.setAsync(ms.isAsync());
                 configureEffectFlags(function, ms);
                 module.addFunction(function);
                 functionsByMangled.put(ms.mangledName(), function);
@@ -839,6 +844,15 @@ public final class IrGenerator {
     private void lowerMethod(IrFunction function, MethodDeclaration method, MethodSymbol ms) {
         currentFunction = function;
         builder.beginFunction(function);
+        awaitStateCounter = 0;
+        asyncFrame = null;
+
+        if (ms.isAsync()) {
+            IrValue.Temp frame = builder.temp(IrType.PTR);
+            builder.emit(new IrInstruction.AsyncBegin(
+                    frame, ms.mangledName(), IrType.from(ms.logicalReturnType())));
+            asyncFrame = frame;
+        }
 
         if (!ms.isStatic()) {
             IrValue.Local thisLocal = builder.alloca("this", IrType.PTR);
@@ -853,13 +867,18 @@ public final class IrGenerator {
         lowerStatement(method.body());
 
         if (!builder.block().isTerminated()) {
-            if (function.returnType() == IrType.VOID) {
+            if (ms.isAsync()) {
+                IrValue def = defaultValue(IrType.from(ms.logicalReturnType()));
+                builder.emit(new IrInstruction.AsyncComplete(def, IrType.from(ms.logicalReturnType())));
+                builder.ret(new IrValue.Const(IrType.PTR, "null"));
+            } else if (function.returnType() == IrType.VOID) {
                 builder.retVoid();
             } else {
                 builder.ret(defaultValue(function.returnType()));
             }
         }
         currentFunction = null;
+        asyncFrame = null;
     }
 
     private void lowerStatement(Statement stmt) {
@@ -928,6 +947,15 @@ public final class IrGenerator {
                 builder.setReturnCompletion(castIfNeeded(value, builder.function().returnType()));
             }
             builder.branch(finallyTarget.finallyBlock());
+            return;
+        }
+        if (currentMethod != null && currentMethod.isAsync()) {
+            IrType logical = IrType.from(currentMethod.logicalReturnType());
+            IrValue value = r.value() == null
+                    ? defaultValue(logical)
+                    : castIfNeeded(lowerExpression(r.value()), logical);
+            builder.emit(new IrInstruction.AsyncComplete(value, logical));
+            builder.ret(new IrValue.Const(IrType.PTR, "null"));
             return;
         }
         if (r.value() == null) {
@@ -1207,6 +1235,7 @@ public final class IrGenerator {
                 builder.gcCollect();
                 yield new IrValue.Const(IrType.I32, 0);
             }
+            case AwaitExpression a -> lowerAwait(a);
             case LambdaExpression l -> lowerCallable(l);
             case MethodReferenceExpression r -> lowerCallable(r);
         };
@@ -1967,6 +1996,9 @@ public final class IrGenerator {
         if ("Condition".equals(ms.owner().name())) {
             return lowerConditionIntrinsic(ms, args);
         }
+        if ("Future".equals(ms.owner().name())) {
+            return lowerFutureIntrinsic(ms, args);
+        }
         if (ms.owner().name().startsWith("Atomic")) {
             return lowerAtomicIntrinsic(ms, args);
         }
@@ -1993,6 +2025,19 @@ public final class IrGenerator {
             case "putInt" -> {
                 builder.call(
                         "jnative_native_put_i32",
+                        IrType.VOID,
+                        List.of(args.get(0), castIfNeeded(args.get(1), IrType.I64), args.get(2)),
+                        false);
+                yield new IrValue.Const(IrType.I32, 0);
+            }
+            case "getPtr" -> builder.call(
+                    "jnative_native_get_ptr",
+                    IrType.NATIVE_PTR,
+                    List.of(args.get(0), castIfNeeded(args.get(1), IrType.I64)),
+                    false);
+            case "putPtr" -> {
+                builder.call(
+                        "jnative_native_put_ptr",
                         IrType.VOID,
                         List.of(args.get(0), castIfNeeded(args.get(1), IrType.I64), args.get(2)),
                         false);
@@ -2071,6 +2116,38 @@ public final class IrGenerator {
             }
             case "tryLock" -> builder.call("jnative_mutex_trylock", IrType.I1, List.of(args.get(0)), false);
             default -> throw new IllegalStateException("unknown Mutex intrinsic " + ms.name());
+        };
+    }
+
+    private IrValue lowerAwait(AwaitExpression a) {
+        if (asyncFrame == null) {
+            throw new IllegalStateException("await outside async method");
+        }
+        JType resultJType = typed.expressionTypes().get(a);
+        if (resultJType == null) {
+            resultJType = ErrorType.INSTANCE;
+        }
+        IrType resultType = IrType.from(resultJType);
+        IrValue future = lowerExpression(a.operand());
+        int state = ++awaitStateCounter;
+        IrBasicBlock resumeBlock = builder.newBlock("await.resume." + state);
+        IrValue.Temp dest = builder.temp(resultType);
+        builder.emit(new IrInstruction.Await(dest, future, state, resumeBlock.name(), resultType));
+        builder.setBlock(resumeBlock);
+        builder.emit(new IrInstruction.AsyncResume(state));
+        return dest;
+    }
+
+    private IrValue lowerFutureIntrinsic(MethodSymbol ms, List<IrValue> args) {
+        return switch (ms.name()) {
+            case "completed" -> builder.call("jnative_future_completed", IrType.PTR, List.of(args.get(0)), false);
+            case "isComplete" -> builder.call("jnative_future_isComplete", IrType.I1, List.of(args.get(0)), false);
+            case "getCompleted" -> builder.call("jnative_future_getResult", IrType.PTR, List.of(args.get(0)), false);
+            case "awaitCooperative" -> {
+                builder.call("jnative_async_awaitCooperative", IrType.VOID, args, true);
+                yield new IrValue.Const(IrType.I32, 0);
+            }
+            default -> throw new IllegalStateException("unknown Future intrinsic " + ms.name());
         };
     }
 

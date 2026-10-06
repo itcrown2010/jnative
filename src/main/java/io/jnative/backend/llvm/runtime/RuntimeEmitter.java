@@ -25,6 +25,7 @@ public final class RuntimeEmitter {
         new NetworkRuntimeEmitter(sb).emit();
         new ThreadRuntimeEmitter(sb).emit();
         new CallableRuntimeEmitter(sb).emit();
+        new AsyncRuntimeEmitter(sb).emit();
     }
 
     private void emitDeclarations() {

@@ -74,6 +74,17 @@ public final class CallableRuntimeEmitter {
                   ret i32 %r
                 }
 
+                define void @jnative_invoke_void_ptr_ptr(ptr %callable, ptr %arg0, ptr %arg1) {
+                entry:
+                  %codep = getelementptr i8, ptr %callable, i64 8
+                  %codei = load i64, ptr %codep, align 8
+                  %code = inttoptr i64 %codei to ptr
+                  %envp = getelementptr i8, ptr %callable, i64 16
+                  %env = load ptr, ptr %envp, align 8
+                  call void %code(ptr %env, ptr %arg0, ptr %arg1)
+                  ret void
+                }
+
                 define ptr @jnative_invoke_ptr_ptr(ptr %callable, ptr %arg0) {
                 entry:
                   %codep = getelementptr i8, ptr %callable, i64 8

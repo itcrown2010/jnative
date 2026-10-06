@@ -709,6 +709,18 @@ public final class LlvmIrGenerator {
             case IrInstruction.InvokeCallable i -> emitInvokeCallable(i);
             case IrInstruction.CreateNativeCallback c -> emitCreateNativeCallback(c);
             case IrInstruction.ReleaseNativeCallback r -> emitReleaseNativeCallback(r);
+            case IrInstruction.AsyncBegin ignored -> {
+            }
+            case IrInstruction.Await ignored -> {
+            }
+            case IrInstruction.AsyncSuspend ignored -> {
+            }
+            case IrInstruction.AsyncResume ignored -> {
+            }
+            case IrInstruction.AsyncComplete ignored -> {
+            }
+            case IrInstruction.AsyncFail ignored -> {
+            }
         }
     }
 
@@ -915,6 +927,7 @@ public final class LlvmIrGenerator {
             case "jnative_invoke_i32_i32" -> List.of(IrType.I32);
             case "jnative_invoke_i32_i32_i32" -> List.of(IrType.I32, IrType.I32);
             case "jnative_invoke_void_ptr" -> List.of(IrType.PTR);
+            case "jnative_invoke_void_ptr_ptr" -> List.of(IrType.PTR, IrType.PTR);
             case "jnative_invoke_ptr_ptr" -> List.of(IrType.PTR);
             case "jnative_invoke_i32_ptr_ptr" -> List.of(IrType.PTR, IrType.PTR);
             default -> List.of();
@@ -923,7 +936,7 @@ public final class LlvmIrGenerator {
 
     private static IrType invokeRuntimeReturnType(String invokeRuntime) {
         return switch (invokeRuntime) {
-            case "jnative_invoke_void", "jnative_invoke_void_ptr" -> IrType.VOID;
+            case "jnative_invoke_void", "jnative_invoke_void_ptr", "jnative_invoke_void_ptr_ptr" -> IrType.VOID;
             case "jnative_invoke_ptr_ptr" -> IrType.PTR;
             default -> IrType.I32;
         };

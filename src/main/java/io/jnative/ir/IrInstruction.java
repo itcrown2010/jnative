@@ -23,7 +23,9 @@ public sealed interface IrInstruction
         IrInstruction.AtomicLoad, IrInstruction.AtomicStore,
         IrInstruction.AtomicRmw, IrInstruction.CompareExchange,
         IrInstruction.MakeCallable, IrInstruction.InvokeCallable, IrInstruction.CreateNativeCallback,
-        IrInstruction.ReleaseNativeCallback {
+        IrInstruction.ReleaseNativeCallback,
+        IrInstruction.AsyncBegin, IrInstruction.Await, IrInstruction.AsyncSuspend,
+        IrInstruction.AsyncResume, IrInstruction.AsyncComplete, IrInstruction.AsyncFail {
 
     record Alloca(IrValue.Local dest) implements IrInstruction {
     }
@@ -366,5 +368,41 @@ public sealed interface IrInstruction
             int handleFieldIndex,
             int retainedFieldIndex
     ) implements IrInstruction {
+    }
+
+    /**
+     * Begin async method execution: allocate/register an {@code AsyncFrame} GC object.
+     * Lowered by {@link io.jnative.ir.AsyncLoweringPass} to {@code jnative_async_begin}.
+     */
+    record AsyncBegin(IrValue.Temp frame, String methodId, IrType resultType) implements IrInstruction {
+    }
+
+    /**
+     * Cooperative await on a {@code Future<T>}. Emits suspend/resume state machine in
+     * {@link io.jnative.ir.AsyncLoweringPass} (fast path when already complete).
+     */
+    record Await(
+            IrValue.Temp dest,
+            IrValue future,
+            int resumeState,
+            String resumeLabel,
+            IrType resultType
+    ) implements IrInstruction {
+    }
+
+    /** Save locals and yield until continuation re-enters at {@code resumeState}. */
+    record AsyncSuspend(IrValue frame, int resumeState, IrValue future) implements IrInstruction {
+    }
+
+    /** Marker at resume point after cooperative suspension (state {@code resumeState}). */
+    record AsyncResume(int resumeState) implements IrInstruction {
+    }
+
+    /** Complete async method with a logical result value → {@code Future.completed(value)}. */
+    record AsyncComplete(IrValue value, IrType resultType) implements IrInstruction {
+    }
+
+    /** Propagate failure across an await boundary (try/catch lowering). */
+    record AsyncFail(IrValue exception) implements IrInstruction {
     }
 }

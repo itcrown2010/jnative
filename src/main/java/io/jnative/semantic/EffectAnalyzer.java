@@ -1,6 +1,7 @@
 package io.jnative.semantic;
 
 import io.jnative.ast.*;
+import io.jnative.diagnostics.Diagnostic;
 import io.jnative.diagnostics.DiagnosticReporter;
 import io.jnative.diagnostics.SourceLocation;
 
@@ -43,6 +44,7 @@ public final class EffectAnalyzer {
         propagateFixedPoint();
         inferLambdaBindings();
         verifyContracts();
+        verifyAsyncDiagnostics();
         verifyOverrideContracts();
     }
 
@@ -136,6 +138,14 @@ public final class EffectAnalyzer {
                 default -> null;
             };
         }
+        if ("Future".equals(cls)) {
+            return switch (name) {
+                case "awaitCooperative" -> FunctionEffects.suspends();
+                case "completed" -> FunctionEffects.allocates();
+                case "isComplete", "getCompleted" -> FunctionEffects.none();
+                default -> null;
+            };
+        }
         if (cls.startsWith("Atomic")) {
             return FunctionEffects.none();
         }
@@ -197,6 +207,9 @@ public final class EffectAnalyzer {
     private FunctionEffects inferMethodBody(MethodDeclaration md, MethodSymbol ms, List<Object> contribs) {
         if (md.body() == null) {
             return FunctionEffects.none();
+        }
+        if (ms.isAsync()) {
+            contribs.add("async method");
         }
         return inferStatement(md.body(), ms, contribs);
     }
@@ -288,6 +301,11 @@ public final class EffectAnalyzer {
             case GcCollectExpression ignored -> {
                 e.with(FunctionEffects.SAFEPOINT);
                 contribs.add("System.gc()");
+            }
+            case AwaitExpression a -> {
+                e.with(FunctionEffects.SUSPENDS | FunctionEffects.SAFEPOINT);
+                contribs.add("await");
+                e.union(inferExpression(a.operand(), ms, contribs));
             }
             case LambdaExpression l -> inferCallableCreation(l, e, contribs, ms);
             case MethodReferenceExpression r -> inferCallableCreation(r, e, contribs, ms);
@@ -504,6 +522,117 @@ public final class EffectAnalyzer {
             }
             binding.setEffects(local);
         }
+    }
+
+    private void verifyAsyncDiagnostics() {
+        for (ClassDeclaration cls : unit.classes()) {
+            if (cls.nativeStruct()) {
+                continue;
+            }
+            ClassSymbol owner = typed.classes().get(cls.name());
+            if (owner == null) {
+                continue;
+            }
+            for (MethodDeclaration md : cls.methods()) {
+                if (md.isConstructor()) {
+                    continue;
+                }
+                MethodSymbol ms = owner.findDeclaredMethod(md.name()).orElse(null);
+                if (ms == null || !ms.isAsync()) {
+                    continue;
+                }
+                SourceLocation loc = md.location();
+                if (ms.contractNoGc() && containsAwait(md.body())) {
+                    reporter.error(loc,
+                            "@NoGC async method '" + ms.name()
+                                    + "' cannot use await (await requires safepoint/GC cooperation)");
+                }
+                if (ms.contractNoBlock() && ms.effectiveEffects().mayBlock()) {
+                    reporter.report(new Diagnostic(
+                            Diagnostic.Severity.WARNING,
+                            loc,
+                            "async method '" + ms.name()
+                                    + "' is @NoBlock but body may BLOCK; consider removing @NoBlock"));
+                }
+                if (ms.effectiveEffects().mayBlock() && ms.effectiveEffects().maySuspend()) {
+                    reporter.report(new Diagnostic(
+                            Diagnostic.Severity.WARNING,
+                            loc,
+                            "async method '" + ms.name()
+                                    + "' both SUSPENDS and BLOCKS; blocking calls inside async may stall the event loop"));
+                }
+            }
+        }
+    }
+
+    private static boolean containsAwait(Statement stmt) {
+        if (stmt == null) {
+            return false;
+        }
+        return switch (stmt) {
+            case BlockStatement b -> {
+                for (Statement s : b.statements()) {
+                    if (containsAwait(s)) {
+                        yield true;
+                    }
+                }
+                yield false;
+            }
+            case ExpressionStatement e -> containsAwaitExpr(e.expression());
+            case VariableDeclaration v ->
+                    v.initializer() != null && containsAwaitExpr(v.initializer());
+            case IfStatement i -> containsAwait(i.thenBranch())
+                    || (i.elseBranch() != null && containsAwait(i.elseBranch()));
+            case WhileStatement w -> containsAwait(w.body());
+            case ForStatement f -> (f.initializer() != null && containsAwait(f.initializer()))
+                    || (f.condition() != null && containsAwaitExpr(f.condition()))
+                    || containsAwait(f.body())
+                    || (f.update() != null && containsAwaitExpr(f.update()));
+            case ReturnStatement r -> r.value() != null && containsAwaitExpr(r.value());
+            case ThrowStatement t -> containsAwaitExpr(t.expression());
+            case TryStatement t -> containsAwait(t.tryBlock())
+                    || t.catches().stream().anyMatch(c -> containsAwait(c.body()))
+                    || (t.finallyBlock() != null && containsAwait(t.finallyBlock()));
+            default -> false;
+        };
+    }
+
+    private static boolean containsAwaitExpr(Expression expr) {
+        if (expr == null) {
+            return false;
+        }
+        return switch (expr) {
+            case AwaitExpression ignored -> true;
+            case BinaryExpression b ->
+                    containsAwaitExpr(b.left()) || containsAwaitExpr(b.right());
+            case UnaryExpression u -> containsAwaitExpr(u.operand());
+            case AssignmentExpression a ->
+                    containsAwaitExpr(a.target()) || containsAwaitExpr(a.value());
+            case MethodCallExpression m -> {
+                boolean r = m.receiver() != null && containsAwaitExpr(m.receiver());
+                for (Expression arg : m.arguments()) {
+                    r = r || containsAwaitExpr(arg);
+                }
+                yield r;
+            }
+            case PrintlnExpression p -> containsAwaitExpr(p.argument());
+            case GroupingExpression g -> containsAwaitExpr(g.expression());
+            case NewObjectExpression n -> {
+                boolean r = false;
+                for (Expression arg : n.arguments()) {
+                    r = r || containsAwaitExpr(arg);
+                }
+                yield r;
+            }
+            case FieldAccessExpression f -> containsAwaitExpr(f.receiver());
+            case NewArrayExpression n -> containsAwaitExpr(n.length());
+            case ArrayAccessExpression a ->
+                    containsAwaitExpr(a.array()) || containsAwaitExpr(a.index());
+            case InstanceOfExpression i -> containsAwaitExpr(i.expression());
+            case CastExpression c -> containsAwaitExpr(c.expression());
+            case LambdaExpression l -> l.expressionBody() != null && containsAwaitExpr(l.expressionBody());
+            default -> false;
+        };
     }
 
     private void verifyContracts() {

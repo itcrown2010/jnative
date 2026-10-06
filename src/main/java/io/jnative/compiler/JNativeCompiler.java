@@ -8,6 +8,8 @@ import io.jnative.backend.Toolchain;
 import io.jnative.backend.llvm.LlvmIrGenerator;
 import io.jnative.diagnostics.DiagnosticReporter;
 import io.jnative.diagnostics.SourceLocation;
+import io.jnative.ir.AsyncLoweringPass;
+import io.jnative.ir.AsyncReport;
 import io.jnative.ir.IrGenerator;
 import io.jnative.ir.IrModule;
 import io.jnative.ir.IrPrinter;
@@ -216,6 +218,16 @@ public final class JNativeCompiler {
         // IR
         IrModule ir = new IrGenerator().generate(typed);
 
+        if (options.emitAsync()) {
+            System.out.print(AsyncReport.emit(ir, typed));
+        }
+
+        new AsyncLoweringPass().run(ir, options);
+
+        if (options.emitAsync() && options.emitOnly()) {
+            return new CompileResult(true, ast, ir, null, null, reporter.diagnostics());
+        }
+
         if (options.emitIrBeforeOpt()) {
             System.out.print(IrPrinter.print(ir));
         }
@@ -268,6 +280,8 @@ public final class JNativeCompiler {
             String irText = IrPrinter.print(ir);
             boolean includeUi = irText.contains("jnative_ui_");
             boolean includeGraphics = irText.contains("jnative_gfx_");
+            boolean includePoll = irText.contains("jnative_poll_")
+                    || irText.contains("jnative_plat_set_nonblocking");
             boolean headless = options.headless()
                     || "headless".equalsIgnoreCase(options.uiBackend())
                     || "1".equals(System.getenv("JNATIVE_HEADLESS"));
@@ -278,7 +292,8 @@ public final class JNativeCompiler {
                             includeUi,
                             includeGraphics,
                             headless,
-                            options.uiBackend());
+                            options.uiBackend(),
+                            includePoll);
             java.util.List<Path> extraSources = new java.util.ArrayList<>(runtimeSources);
             extraSources.addAll(options.extraNativeSources());
 

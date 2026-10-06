@@ -12,6 +12,7 @@ public final class CompilerOptions {
     private boolean emitLlvm;
     private boolean emitLayout;
     private boolean emitEffects;
+    private boolean emitAsync;
     private boolean emitGenerics;
     private boolean explainGenerics;
     private int optLevel = 2;
@@ -86,6 +87,14 @@ public final class CompilerOptions {
 
     public void setEmitEffects(boolean emitEffects) {
         this.emitEffects = emitEffects;
+    }
+
+    public boolean emitAsync() {
+        return emitAsync;
+    }
+
+    public void setEmitAsync(boolean emitAsync) {
+        this.emitAsync = emitAsync;
     }
 
     public boolean emitGenerics() {
@@ -243,7 +252,7 @@ public final class CompilerOptions {
     }
 
     public boolean emitOnly() {
-        return emitAst || emitIr || emitLlvm || emitLayout || emitEffects || emitGenerics
+        return emitAst || emitIr || emitLlvm || emitLayout || emitEffects || emitAsync || emitGenerics
                 || explainGenerics || emitIrBeforeOpt || emitIrAfterOpt || optReport
                 || emitEscapeAnalysis;
     }

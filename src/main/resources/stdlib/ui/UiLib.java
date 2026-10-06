@@ -140,6 +140,9 @@ class UiNative {
     @Native(symbol = "jnative_ui_destroy")
     static native void destroy(int id);
 
+    @Native(symbol = "jnative_ui_close_window")
+    static native void closeWindow(int id);
+
     @Native(symbol = "jnative_ui_show")
     static native void show(int id);
 
@@ -160,6 +163,9 @@ class UiNative {
 
     @Native(symbol = "jnative_ui_set_enabled")
     static native void setEnabled(int id, int enabled);
+
+    @Native(symbol = "jnative_ui_focus")
+    static native void focus(int id);
 
     @Native(symbol = "jnative_ui_set_content")
     static native void setContent(int windowId, int childId);
@@ -894,6 +900,23 @@ class Component {
         if (nativeId > 0) {
             UiNative.setVisible(nativeId, visible);
         }
+        requestLayout();
+        /* Visibility changes must reflow parents (e.g. find bar in VBox). */
+        Component p = parent;
+        while (p != null) {
+            if (p instanceof Window) {
+                Window win = (Window) p;
+                if (win.content != null) {
+                    win.content.setBounds(0, 0, win.width, win.height);
+                    win.content.layout();
+                }
+                return;
+            }
+            if (p instanceof Container) {
+                ((Container) p).layout();
+            }
+            p = p.parent;
+        }
     }
 
     void setEnabled(boolean e) {
@@ -910,12 +933,28 @@ class Component {
 
     void setBounds(int nx, int ny, int nw, int nh) {
         ensureAlive("Component.setBounds");
+        int sizeChanged = 0;
+        if (nw != width || nh != height) {
+            sizeChanged = 1;
+        }
         x = nx;
         y = ny;
         width = nw;
         height = nh;
         if (nativeId > 0) {
             UiNative.setBounds(nativeId, x, y, width, height);
+        }
+        /* Relayout children after the native frame is final so Cocoa Y-flip
+           uses the correct superview height (toolbar buttons, etc.).
+           Cast explicitly — override dispatch of layout() is unreliable. */
+        if (sizeChanged != 0) {
+            if (this instanceof VBox) {
+                VBox vb = (VBox) this;
+                vb.layout();
+            } else if (this instanceof HBox) {
+                HBox hb = (HBox) this;
+                hb.layout();
+            }
         }
     }
 
@@ -946,6 +985,9 @@ class Component {
     void requestFocus() {
         ensureAlive("Component.requestFocus");
         focused = 1;
+        if (nativeId > 0) {
+            UiNative.focus(nativeId);
+        }
         fireFocus(1);
     }
 
@@ -1065,11 +1107,11 @@ class Component {
         if (disposed != 0) {
             return;
         }
-        int isDown = 0;
-        if (downType == 1) {
-            isDown = 1;
+        /* onKeyDown handlers only — ignore key-up (downType != 1). */
+        if (downType != 1) {
+            return;
         }
-        KeyEvent ev = new KeyEvent(this, keyCode, mods, isDown);
+        KeyEvent ev = new KeyEvent(this, keyCode, mods, 1);
         int n = keyHandlers.size();
         int i = 0;
         while (i < n) {
@@ -1283,21 +1325,54 @@ class VBox extends Container {
         if (availW < 0) {
             availW = 0;
         }
+        /* Stretch last visible child with substantial preferred height (editor),
+           not a thin status/toolbar bar. */
+        int stretchIndex = -1;
+        int j = childCount - 1;
+        while (j >= 0) {
+            if (children[j].visible != 0) {
+                if (children[j].preferredHeight() >= 80) {
+                    stretchIndex = j;
+                    j = -1;
+                } else if (stretchIndex < 0) {
+                    stretchIndex = j;
+                }
+            }
+            j = j - 1;
+        }
+        /* Commit this container frame before placing children (Cocoa Y-flip). */
+        if (nativeId > 0) {
+            UiNative.setBounds(nativeId, x, y, width, height);
+        }
         while (i < childCount) {
             Component c = children[i];
-            int pw = c.preferredWidth();
-            int ph = c.preferredHeight();
-            if (pw < availW) {
-                pw = availW;
-            }
-            /* Stretch last child to fill remaining height (window content). */
-            if (i == childCount - 1 && height > cy + ph + padding) {
-                ph = height - cy - padding;
-            }
-            c.setBounds(padding, cy, pw, ph);
-            cy = cy + ph + spacing;
-            if (pw > maxW) {
-                maxW = pw;
+            if (c.visible == 0) {
+                c.setBounds(padding, cy, 0, 0);
+            } else {
+                int pw = c.preferredWidth();
+                int ph = c.preferredHeight();
+                if (pw < availW) {
+                    pw = availW;
+                }
+                if (i == stretchIndex && height > cy + ph + padding) {
+                    int rest = 0;
+                    int k = i + 1;
+                    while (k < childCount) {
+                        if (children[k].visible != 0) {
+                            rest = rest + children[k].preferredHeight() + spacing;
+                        }
+                        k = k + 1;
+                    }
+                    int fill = height - cy - padding - rest;
+                    if (fill > ph) {
+                        ph = fill;
+                    }
+                }
+                c.setBounds(padding, cy, pw, ph);
+                cy = cy + ph + spacing;
+                if (pw > maxW) {
+                    maxW = pw;
+                }
             }
             i = i + 1;
         }
@@ -1329,23 +1404,43 @@ class HBox extends Container {
         int cx = padding;
         int maxH = 0;
         int i = 0;
+        Component c = null;
         while (i < childCount) {
-            Component c = children[i];
-            int pw = c.preferredWidth();
+            c = children[i];
             int ph = c.preferredHeight();
-            c.setBounds(cx, padding, pw, ph);
-            cx = cx + pw + spacing;
             if (ph > maxH) {
                 maxH = ph;
             }
             i = i + 1;
         }
-        width = cx + padding;
+        /* Measure first, apply this container's frame, then place children.
+           Cocoa Y-flip needs the superview size to already be final. */
+        int needW = padding;
+        i = 0;
+        while (i < childCount) {
+            needW = needW + children[i].preferredWidth() + spacing;
+            i = i + 1;
+        }
+        if (childCount > 0) {
+            needW = needW - spacing;
+        }
+        needW = needW + padding;
+        width = needW;
         height = maxH + padding * 2;
         prefWidth = width;
         prefHeight = height;
         if (nativeId > 0) {
             UiNative.setBounds(nativeId, x, y, width, height);
+        }
+        cx = padding;
+        i = 0;
+        while (i < childCount) {
+            c = children[i];
+            int pw = c.preferredWidth();
+            int ph2 = c.preferredHeight();
+            c.setBounds(cx, padding, pw, ph2);
+            cx = cx + pw + spacing;
+            i = i + 1;
         }
     }
 }
@@ -1649,13 +1744,44 @@ class Label extends Control {
 class Button extends Control {
     Button(String t) {
         text = t;
-        width = 120;
-        height = 32;
-        prefWidth = 120;
-        prefHeight = 32;
+        /* Slot size for layout; Cocoa keeps intrinsic bezel via fittingSize. */
+        prefHeight = 28;
+        height = 28;
+        prefWidth = buttonPrefWidth(t);
+        width = prefWidth;
         nativeId = UiNative.createButton(0, text);
         UiHandleRegistry.put(nativeId, this);
         UiNative.setText(nativeId, text);
+    }
+
+    /** Content-sized width — avoid identical oversized gray pills. */
+    static int buttonPrefWidth(String t) {
+        int n = 0;
+        if (t != null) {
+            n = t.length();
+        }
+        int w = 36 + n * 9;
+        if (w < 64) {
+            w = 64;
+        }
+        if (w > 220) {
+            w = 220;
+        }
+        return w;
+    }
+
+    void setText(String t) {
+        ensureAlive("Button.setText");
+        if (t == null) {
+            t = "";
+        }
+        text = t;
+        prefWidth = buttonPrefWidth(text);
+        width = prefWidth;
+        if (nativeId > 0) {
+            UiNative.setText(nativeId, text);
+        }
+        requestLayout();
     }
 }
 
@@ -2628,6 +2754,19 @@ class Dialogs {
         }
         UiNative.dialogMessage(wid, 2, "Error", message);
     }
+
+    /**
+     * Save / Don't Save / Cancel.
+     * @return 1 Save, 2 Don't Save, 0 Cancel
+     */
+    static int askSave(Window owner, String message) {
+        Application.checkUiThread("Dialogs.askSave");
+        int wid = 0;
+        if (owner != null) {
+            wid = owner.nativeId;
+        }
+        return UiNative.dialogMessage(wid, 3, "Save changes?", message);
+    }
 }
 
 class FileDialog {
@@ -2723,12 +2862,14 @@ class Window extends Component {
     String title;
     int shown;
     MenuBar menuBar;
+    int closeVeto;
 
     Window(String t, int w, int h) {
         title = t;
         width = w;
         height = h;
         shown = 0;
+        closeVeto = 0;
         nativeId = UiNative.createWindow(title, width, height);
         if (nativeId <= 0) {
             throw new UiNativeException("failed to create window");
@@ -2793,6 +2934,10 @@ class Window extends Component {
         fireClose();
     }
 
+    void vetoClose() {
+        closeVeto = 1;
+    }
+
     boolean isVisible() {
         return shown != 0;
     }
@@ -2806,14 +2951,25 @@ class Window extends Component {
         if (disposed != 0) {
             return;
         }
+        closeVeto = 0;
         if (closeListener != null) {
             closeListener.run();
+        }
+        if (closeVeto != 0) {
+            return;
         }
         if (content != null) {
             content.dispose();
             content = null;
         }
-        dispose();
+        int id = nativeId;
+        UiHandleRegistry.remove(id);
+        nativeId = 0;
+        disposed = 1;
+        shown = 0;
+        if (id > 0) {
+            UiNative.closeWindow(id);
+        }
         Application.onWindowClosed();
     }
 }
