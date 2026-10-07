@@ -239,14 +239,29 @@ public final class IrBuilder {
     }
 
     public IrValue virtualCall(IrValue receiver, int slot, IrType returnType, java.util.List<IrValue> args, String debugName) {
+        return virtualCall(receiver, slot, returnType, args, debugName, true);
+    }
+
+    public IrValue virtualCall(
+            IrValue receiver,
+            int slot,
+            IrType returnType,
+            java.util.List<IrValue> args,
+            String debugName,
+            boolean checkException
+    ) {
         if (returnType == IrType.VOID) {
             emit(new IrInstruction.VirtualCall(null, receiver, slot, returnType, args, debugName));
-            maybeCheckPending();
+            if (checkException) {
+                maybeCheckPending();
+            }
             return null;
         }
         IrValue.Temp t = temp(returnType);
         emit(new IrInstruction.VirtualCall(t, receiver, slot, returnType, args, debugName));
-        maybeCheckPending();
+        if (checkException) {
+            maybeCheckPending();
+        }
         if (returnType.isManagedPointer()) {
             return protectRef(t);
         }
@@ -261,16 +276,32 @@ public final class IrBuilder {
             java.util.List<IrValue> args,
             String debugName
     ) {
+        return interfaceCall(receiver, interfaceId, slot, returnType, args, debugName, true);
+    }
+
+    public IrValue interfaceCall(
+            IrValue receiver,
+            int interfaceId,
+            int slot,
+            IrType returnType,
+            java.util.List<IrValue> args,
+            String debugName,
+            boolean checkException
+    ) {
         if (returnType == IrType.VOID) {
             emit(new IrInstruction.InterfaceCall(
                     null, receiver, interfaceId, slot, returnType, args, debugName));
-            maybeCheckPending();
+            if (checkException) {
+                maybeCheckPending();
+            }
             return null;
         }
         IrValue.Temp t = temp(returnType);
         emit(new IrInstruction.InterfaceCall(
                 t, receiver, interfaceId, slot, returnType, args, debugName));
-        maybeCheckPending();
+        if (checkException) {
+            maybeCheckPending();
+        }
         if (returnType.isManagedPointer()) {
             return protectRef(t);
         }
@@ -540,6 +571,28 @@ public final class IrBuilder {
 
     public IrValue hasReturnCompletion() {
         return call("jnative_completion_has_return", IrType.I1, java.util.List.of(), false);
+    }
+
+    public void setBreakCompletion(int targetId) {
+        call("jnative_completion_set_break", IrType.VOID,
+                java.util.List.of(new IrValue.Const(IrType.I32, targetId)), false);
+    }
+
+    public void setContinueCompletion(int targetId) {
+        call("jnative_completion_set_continue", IrType.VOID,
+                java.util.List.of(new IrValue.Const(IrType.I32, targetId)), false);
+    }
+
+    public IrValue hasBreakCompletion() {
+        return call("jnative_completion_has_break", IrType.I1, java.util.List.of(), false);
+    }
+
+    public IrValue hasContinueCompletion() {
+        return call("jnative_completion_has_continue", IrType.I1, java.util.List.of(), false);
+    }
+
+    public IrValue takeAbruptTarget() {
+        return call("jnative_completion_take_target", IrType.I32, java.util.List.of(), false);
     }
 
     public void clearReturnCompletion() {

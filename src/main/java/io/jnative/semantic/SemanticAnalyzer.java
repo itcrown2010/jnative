@@ -47,6 +47,7 @@ public final class SemanticAnalyzer {
     private final Map<String, ClassMetadata> arrayMetadatas = new LinkedHashMap<>();
     private final Map<ConstructorSymbol, MethodDeclaration> constructorAst = new HashMap<>();
     private final Map<CatchClause, ClassSymbol> catchTypes = new HashMap<>();
+    private final Map<TryStatement, List<MethodCallExpression>> resourceCloseCalls = new HashMap<>();
 
     private Scope current;
     private ClassSymbol currentClass;
@@ -72,6 +73,8 @@ public final class SemanticAnalyzer {
     private ClassSymbol nativeCallbackHandleClass;
     private final Deque<Map<String, TypeParameterSymbol>> typeParamScopes = new ArrayDeque<>();
     private boolean instanceofContext;
+    /** Nested break/continue targets (loops today; switch may push later). */
+    private int breakTargetDepth;
 
     public SemanticAnalyzer(DiagnosticReporter reporter) {
         this.reporter = reporter;
@@ -87,6 +90,7 @@ public final class SemanticAnalyzer {
         arrayMetadatas.clear();
         constructorAst.clear();
         catchTypes.clear();
+        resourceCloseCalls.clear();
         nativeStructs.clear();
         provenances.clear();
         current = new Scope(null);
@@ -209,11 +213,13 @@ public final class SemanticAnalyzer {
             }
             currentClass = symbol;
             analyzeStaticFieldInitializers(symbol);
+            Map<String, Integer> overloadOrdinal = new HashMap<>();
             for (MethodDeclaration method : cls.methods()) {
                 if (method.isConstructor()) {
                     analyzeConstructor(symbol, method);
                 } else {
-                    analyzeMethod(symbol, method);
+                    int idx = overloadOrdinal.merge(method.name(), 1, Integer::sum) - 1;
+                    analyzeMethod(symbol, method, idx);
                 }
             }
         }
@@ -229,6 +235,7 @@ public final class SemanticAnalyzer {
                 Map.copyOf(callableBindings),
                 Map.copyOf(arrayMetadatas),
                 Map.copyOf(catchTypes),
+                Map.copyOf(resourceCloseCalls),
                 List.copyOf(nativeLibraries.keySet()),
                 targetAbi
         );
@@ -275,8 +282,8 @@ public final class SemanticAnalyzer {
     }
 
     private void installExceptionHierarchy() {
-        // Create hierarchy first (no layouts yet), then add Throwable.message, then build layouts
-        // top-down so subclasses inherit the message field size.
+        // Create hierarchy first (no layouts yet), then add Throwable.message + cause (both PTR),
+        // then build layouts top-down so subclasses inherit field sizes.
         throwableClass = new ClassSymbol("Throwable", SourceLocation.UNKNOWN, true);
         classes.put("Throwable", throwableClass);
         throwableClass.setSuperClass(objectClass);
@@ -294,11 +301,21 @@ public final class SemanticAnalyzer {
         FieldSymbol messageField = new FieldSymbol(
                 throwableClass, "message", stringClass.asType(), 0, SourceLocation.UNKNOWN);
         throwableClass.addField(messageField);
+        FieldSymbol causeField = new FieldSymbol(
+                throwableClass, "cause", throwableClass.asType(), 1, SourceLocation.UNKNOWN);
+        throwableClass.addField(causeField);
 
         ParameterSymbol msgParam = new ParameterSymbol("message", stringClass.asType(), SourceLocation.UNKNOWN);
         ConstructorSymbol throwableStringCtor = new ConstructorSymbol(
                 throwableClass, List.of(msgParam), false, SourceLocation.UNKNOWN);
         throwableClass.addConstructor(throwableStringCtor);
+        ParameterSymbol causeParam = new ParameterSymbol("cause", throwableClass.asType(), SourceLocation.UNKNOWN);
+        ConstructorSymbol throwableMsgCauseCtor = new ConstructorSymbol(
+                throwableClass, List.of(
+                        new ParameterSymbol("message", stringClass.asType(), SourceLocation.UNKNOWN),
+                        causeParam),
+                false, SourceLocation.UNKNOWN);
+        throwableClass.addConstructor(throwableMsgCauseCtor);
         ConstructorSymbol throwableDefault = throwableClass.constructors().getFirst();
         throwableDefault.setDelegatesTo(null);
 
@@ -307,6 +324,11 @@ public final class SemanticAnalyzer {
                 false, false, NameMangler.mangleMethod(throwableClass.name(), "getMessage", List.of(), false),
                 SourceLocation.UNKNOWN);
         throwableClass.addMethod(getMessage);
+        MethodSymbol getCause = new MethodSymbol(
+                throwableClass, "getCause", throwableClass.asType(), List.of(),
+                false, false, NameMangler.mangleMethod(throwableClass.name(), "getCause", List.of(), false),
+                SourceLocation.UNKNOWN);
+        throwableClass.addMethod(getCause);
 
         ConstructorSymbol exceptionString = addStringSuperCtor(exceptionClass);
         ConstructorSymbol runtimeString = addStringSuperCtor(runtimeExceptionClass);
@@ -332,6 +354,16 @@ public final class SemanticAnalyzer {
         unknownHostString.setDelegatesToSuper(true);
         socketTimeoutString.setDelegatesTo(socketString);
         socketTimeoutString.setDelegatesToSuper(true);
+
+        ConstructorSymbol exceptionMsgCause = addMessageCauseCtor(exceptionClass);
+        ConstructorSymbol runtimeMsgCause = addMessageCauseCtor(runtimeExceptionClass);
+        ConstructorSymbol ioMsgCause = addMessageCauseCtor(ioExceptionClass);
+        exceptionMsgCause.setDelegatesTo(throwableMsgCauseCtor);
+        exceptionMsgCause.setDelegatesToSuper(true);
+        runtimeMsgCause.setDelegatesTo(exceptionMsgCause);
+        runtimeMsgCause.setDelegatesToSuper(true);
+        ioMsgCause.setDelegatesTo(exceptionMsgCause);
+        ioMsgCause.setDelegatesToSuper(true);
         exceptionClass.constructors().getFirst().setDelegatesTo(throwableDefault);
         exceptionClass.constructors().getFirst().setDelegatesToSuper(true);
         runtimeExceptionClass.constructors().getFirst().setDelegatesTo(exceptionClass.constructors().getFirst());
@@ -364,7 +396,7 @@ public final class SemanticAnalyzer {
             leaves.add(leafClass);
         }
 
-        // Layouts must be built after message field exists, parents before children.
+        // Layouts must be built after message/cause fields exist, parents before children.
         for (ClassSymbol cls : List.of(
                 throwableClass, exceptionClass, runtimeExceptionClass, ioExceptionClass, fileNotFoundClass,
                 socketExceptionClass, connectExceptionClass, unknownHostClass, socketTimeoutClass)) {
@@ -388,6 +420,15 @@ public final class SemanticAnalyzer {
     private ConstructorSymbol addStringSuperCtor(ClassSymbol cls) {
         ParameterSymbol msgParam = new ParameterSymbol("message", stringClass.asType(), SourceLocation.UNKNOWN);
         ConstructorSymbol ctor = new ConstructorSymbol(cls, List.of(msgParam), false, SourceLocation.UNKNOWN);
+        cls.addConstructor(ctor);
+        return ctor;
+    }
+
+    private ConstructorSymbol addMessageCauseCtor(ClassSymbol cls) {
+        ParameterSymbol msgParam = new ParameterSymbol("message", stringClass.asType(), SourceLocation.UNKNOWN);
+        ParameterSymbol causeParam = new ParameterSymbol("cause", throwableClass.asType(), SourceLocation.UNKNOWN);
+        ConstructorSymbol ctor = new ConstructorSymbol(
+                cls, List.of(msgParam, causeParam), false, SourceLocation.UNKNOWN);
         cls.addConstructor(ctor);
         return ctor;
     }
@@ -449,6 +490,35 @@ public final class SemanticAnalyzer {
         addStringIntrinsic("trim", stringType, List.of());
         addStringIntrinsic("getBytes", byteArray, List.of());
         addStringIntrinsic("toLowerCase", stringType, List.of());
+        addStringIntrinsic("isEmpty", PrimitiveType.BOOLEAN, List.of());
+        addStringIntrinsic("contains", PrimitiveType.BOOLEAN, List.of(
+                new ParameterSymbol("needle", stringType, SourceLocation.UNKNOWN)));
+        addStringIntrinsic("lastIndexOf", PrimitiveType.INT, List.of(
+                new ParameterSymbol("needle", stringType, SourceLocation.UNKNOWN)));
+        addStringIntrinsic("lastIndexOfFrom", PrimitiveType.INT, List.of(
+                new ParameterSymbol("needle", stringType, SourceLocation.UNKNOWN),
+                new ParameterSymbol("from", PrimitiveType.INT, SourceLocation.UNKNOWN)));
+        addStringIntrinsic("compareTo", PrimitiveType.INT, List.of(
+                new ParameterSymbol("other", stringType, SourceLocation.UNKNOWN)));
+        addStringIntrinsic("toUpperCase", stringType, List.of());
+        addStringIntrinsic("replace", stringType, List.of(
+                new ParameterSymbol("target", stringType, SourceLocation.UNKNOWN),
+                new ParameterSymbol("replacement", stringType, SourceLocation.UNKNOWN)));
+        // Literal delimiter split (NOT Java regex). See docs/language-support.md / String contract.
+        addStringIntrinsic("split", new ArrayType(stringType), List.of(
+                new ParameterSymbol("delimiter", stringType, SourceLocation.UNKNOWN)));
+
+        MethodSymbol join = new MethodSymbol(
+                stringClass, "join", stringType,
+                List.of(
+                        new ParameterSymbol("delimiter", stringType, SourceLocation.UNKNOWN),
+                        new ParameterSymbol("elements", new ArrayType(stringType), SourceLocation.UNKNOWN)),
+                true, false, true,
+                NameMangler.mangleMethod("String", "join",
+                        List.of(stringType, new ArrayType(stringType)), false),
+                SourceLocation.UNKNOWN);
+        join.setFfiIntrinsic(true);
+        stringClass.addMethod(join);
 
         MethodSymbol fromBytes = new MethodSymbol(
                 stringClass, "fromBytes", stringType,
@@ -1766,12 +1836,21 @@ public final class SemanticAnalyzer {
         return null;
     }
 
-    private void analyzeMethod(ClassSymbol owner, MethodDeclaration method) {
-        Optional<MethodSymbol> opt = owner.findDeclaredMethod(method.name());
-        if (opt.isEmpty()) {
+    private void analyzeMethod(ClassSymbol owner, MethodDeclaration method, int overloadIndex) {
+        /*
+         * Match overload by declaration order within the same name.
+         * Do NOT re-resolve parameter types and findMethod(...) — for generics that
+         * creates fresh TypeVariables that fail equality with the registered ones,
+         * skipping body analysis (empty expressionTypes → IR NPE on new T[]).
+         */
+        List<MethodSymbol> overs = owner.findDeclaredMethods(method.name());
+        if (overs.isEmpty()) {
             return;
         }
-        currentMethod = opt.get();
+        MethodSymbol matched = overloadIndex < overs.size()
+                ? overs.get(overloadIndex)
+                : overs.get(0);
+        currentMethod = matched;
         currentConstructor = null;
         current = new Scope(null);
         pushTypeParamScope(owner.typeParameters());
@@ -1931,7 +2010,10 @@ public final class SemanticAnalyzer {
             case IfStatement i -> hasReturn(i.thenBranch())
                     && i.elseBranch() != null && hasReturn(i.elseBranch());
             case WhileStatement w -> hasReturn(w.body());
+            case DoWhileStatement d -> hasReturn(d.body());
             case ForStatement f -> hasReturn(f.body());
+            case BreakStatement ignored -> false;
+            case ContinueStatement ignored -> false;
             case TryStatement t -> hasReturn(t.tryBlock())
                     || t.catches().stream().anyMatch(c -> hasReturn(c.body()))
                     || (t.finallyBlock() != null && hasReturn(t.finallyBlock()));
@@ -1960,7 +2042,15 @@ public final class SemanticAnalyzer {
             }
             case WhileStatement w -> {
                 expectBoolean(analyzeExpression(w.condition()), w.condition().location(), "while condition");
+                breakTargetDepth++;
                 analyzeStatement(w.body());
+                breakTargetDepth--;
+            }
+            case DoWhileStatement d -> {
+                breakTargetDepth++;
+                analyzeStatement(d.body());
+                breakTargetDepth--;
+                expectBoolean(analyzeExpression(d.condition()), d.condition().location(), "do-while condition");
             }
             case ForStatement f -> {
                 Scope previous = current;
@@ -1975,8 +2065,22 @@ public final class SemanticAnalyzer {
                 if (f.update() != null) {
                     analyzeExpression(f.update());
                 }
+                breakTargetDepth++;
                 analyzeStatement(f.body());
+                breakTargetDepth--;
                 current = previous;
+            }
+            case BreakStatement b -> {
+                if (breakTargetDepth <= 0) {
+                    reporter.error(b.location(),
+                            "[JN1001] break outside loop or switch");
+                }
+            }
+            case ContinueStatement c -> {
+                if (breakTargetDepth <= 0) {
+                    reporter.error(c.location(),
+                            "[JN1002] continue outside loop");
+                }
             }
             case ReturnStatement r -> analyzeReturn(r);
             case ConstructorDelegationStatement d -> {
@@ -2003,7 +2107,30 @@ public final class SemanticAnalyzer {
     }
 
     private void analyzeTry(TryStatement t) {
+        Scope outer = current;
+        current = new Scope(outer);
+        List<MethodCallExpression> closes = new ArrayList<>();
+        for (VariableDeclaration resource : t.resources()) {
+            if (resource.initializer() == null) {
+                reporter.error(resource.location(),
+                        "try-with-resources variable must be initialized");
+            }
+            analyzeVariableDeclaration(resource);
+            checkResourceType(resource);
+            VariableExpression ve = new VariableExpression(resource.name(), resource.location());
+            analyzeExpression(ve);
+            MethodCallExpression closeCall = new MethodCallExpression(
+                    ve, "close", List.of(), resource.location());
+            analyzeExpression(closeCall);
+            // Reverse order so IR closes last-acquired first.
+            closes.add(0, closeCall);
+        }
+        if (!t.resources().isEmpty()) {
+            resourceCloseCalls.put(t, List.copyOf(closes));
+        }
         analyzeStatement(t.tryBlock());
+        current = outer;
+
         List<ClassSymbol> seen = new ArrayList<>();
         for (CatchClause c : t.catches()) {
             JType catchType = resolveTypeName(c.exceptionType(), false, c.location());
@@ -2034,6 +2161,61 @@ public final class SemanticAnalyzer {
         if (t.finallyBlock() != null) {
             analyzeStatement(t.finallyBlock());
         }
+    }
+
+    /**
+     * Resource types must implement {@code AutoCloseable} or declare a no-arg {@code void close()}.
+     */
+    private void checkResourceType(VariableDeclaration resource) {
+        JType type = resolveTypeName(resource.type(), resource.isArray(), resource.location());
+        if (type instanceof ErrorType) {
+            return;
+        }
+        InterfaceSymbol autoCloseable = interfaces.get("AutoCloseable");
+        if (type instanceof InterfaceType it) {
+            if (autoCloseable != null && it.interfaceSymbol().isSubtypeOf(autoCloseable)) {
+                return;
+            }
+            Optional<MethodSymbol> close = it.interfaceSymbol().findMethod("close");
+            if (close.isPresent() && close.get().parameterTypes().isEmpty()
+                    && close.get().returnType() instanceof VoidType) {
+                return;
+            }
+            reporter.error(resource.location(),
+                    "resource type must be AutoCloseable or declare void close()");
+            return;
+        }
+        if (type instanceof ClassType ct) {
+            ClassSymbol cls = ct.classSymbol();
+            if (autoCloseable != null && cls.implementsInterface(autoCloseable)) {
+                return;
+            }
+            Optional<MethodSymbol> close = cls.findMethod("close");
+            if (close.isPresent() && !close.get().isStatic()
+                    && close.get().parameterTypes().isEmpty()
+                    && close.get().returnType() instanceof VoidType) {
+                return;
+            }
+            reporter.error(resource.location(),
+                    "resource type must be AutoCloseable or declare void close()");
+            return;
+        }
+        if (type instanceof ParameterizedType pt && pt.raw() instanceof ClassSymbol cls) {
+            if (autoCloseable != null && cls.implementsInterface(autoCloseable)) {
+                return;
+            }
+            Optional<MethodSymbol> close = cls.findMethod("close");
+            if (close.isPresent() && !close.get().isStatic()
+                    && close.get().parameterTypes().isEmpty()
+                    && close.get().returnType() instanceof VoidType) {
+                return;
+            }
+            reporter.error(resource.location(),
+                    "resource type must be AutoCloseable or declare void close()");
+            return;
+        }
+        reporter.error(resource.location(),
+                "resource type must be AutoCloseable or declare void close()");
     }
 
     private void analyzeVariableDeclaration(VariableDeclaration v) {
@@ -2571,6 +2753,8 @@ public final class SemanticAnalyzer {
     /**
      * Pick the best overload for a call. When {@code allowStatic} is false, static methods are skipped.
      * Argument expressions are analyzed once for typing.
+     * When a single arity-compatible candidate exists, its parameter types are used as SAM
+     * expectations so lambdas like {@code onClick(() -> {})} type-check (UI stdlib).
      */
     private MethodSymbol resolveOverload(
             List<MethodSymbol> candidates,
@@ -2580,15 +2764,38 @@ public final class SemanticAnalyzer {
         if (candidates == null || candidates.isEmpty()) {
             return null;
         }
-        List<JType> argTypes = new ArrayList<>();
-        for (Expression arg : m.arguments()) {
-            argTypes.add(analyzeExpression(arg));
-        }
-        List<CallableResolver.Candidate> list = new ArrayList<>();
+        List<MethodSymbol> usable = new ArrayList<>();
         for (MethodSymbol ms : candidates) {
             if (!allowStatic && ms.isStatic()) {
                 continue;
             }
+            usable.add(ms);
+        }
+        if (usable.isEmpty()) {
+            return null;
+        }
+        int argc = m.arguments().size();
+        List<MethodSymbol> arityOk = new ArrayList<>();
+        for (MethodSymbol ms : usable) {
+            if (ms.parameterTypes().size() == argc) {
+                arityOk.add(ms);
+            }
+        }
+        if (arityOk.isEmpty()) {
+            arityOk.addAll(usable);
+        }
+        MethodSymbol hint = arityOk.size() == 1 ? arityOk.get(0) : null;
+        List<JType> argTypes = new ArrayList<>();
+        for (int i = 0; i < m.arguments().size(); i++) {
+            Expression arg = m.arguments().get(i);
+            JType expected = null;
+            if (hint != null && i < hint.parameterTypes().size()) {
+                expected = samExpectedType(hint.parameterTypes().get(i));
+            }
+            argTypes.add(analyzeExpression(arg, expected));
+        }
+        List<CallableResolver.Candidate> list = new ArrayList<>();
+        for (MethodSymbol ms : arityOk) {
             list.add(new CallableResolver.Candidate(ms.parameterTypes(), ms));
         }
         Object resolved = CallableResolver.resolve(list, argTypes);

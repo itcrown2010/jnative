@@ -15,6 +15,10 @@
 #if defined(_SC_NPROCESSORS_ONLN)
 #include <unistd.h>
 #endif
+#if defined(__APPLE__) || defined(__linux__)
+#include <dlfcn.h>
+#include <execinfo.h>
+#endif
 
 struct JNThreadState {
     int64_t id;
@@ -252,9 +256,10 @@ int jn_tls_ex_return_pending(void) {
 }
 
 void jn_tls_set_ex_return_pending(int v) {
+    /* Store abrupt-completion kind: 0=none, 1=return, 2=break, 3=continue. */
     JNThreadState *st = jn_thread_current();
     if (st) {
-        st->ex_return_pending = v ? 1 : 0;
+        st->ex_return_pending = v;
     }
 }
 
@@ -763,4 +768,100 @@ int64_t jnative_wall_millis(void) {
         return 0;
     }
     return (int64_t)ts.tv_sec * 1000 + (int64_t)ts.tv_nsec / 1000000;
+}
+
+int64_t jnative_mono_nanos(void) {
+    struct timespec ts;
+    if (clock_gettime(CLOCK_MONOTONIC, &ts) != 0) {
+        return 0;
+    }
+    return (int64_t)ts.tv_sec * 1000000000LL + (int64_t)ts.tv_nsec;
+}
+
+#define JN_EX_BT_MAX 64
+static _Thread_local void *jn_ex_bt[JN_EX_BT_MAX];
+static _Thread_local int jn_ex_bt_n = 0;
+
+void jn_ex_capture_stack(void) {
+#if defined(__APPLE__) || defined(__linux__)
+    jn_ex_bt_n = backtrace(jn_ex_bt, JN_EX_BT_MAX);
+#else
+    jn_ex_bt_n = 0;
+#endif
+}
+
+static int jn_ex_skip_frame(const char *name) {
+    if (!name) {
+        return 0;
+    }
+    return strstr(name, "jn_ex_") != NULL
+            || strstr(name, "jnative_exception_") != NULL
+            || strstr(name, "jnative_print_uncaught") != NULL
+            || strstr(name, "jnative_throw_") != NULL
+            || strstr(name, "jnative_throw_simple") != NULL;
+}
+
+/** Best-effort: _JN_Class_method[_types...] → Class.method */
+static void jn_ex_demangle_jn(const char *sym, char *out, size_t outsz) {
+    if (!sym || !out || outsz == 0) {
+        return;
+    }
+    const char *p = sym;
+    if (p[0] == '_') {
+        /* Darwin sometimes prefixes an extra underscore. */
+        if (strncmp(p, "__JN_", 5) == 0) {
+            p += 1;
+        }
+    }
+    if (strncmp(p, "_JN_", 4) != 0) {
+        snprintf(out, outsz, "%s", sym);
+        return;
+    }
+    p += 4;
+    const char *us = strchr(p, '_');
+    if (!us || us == p) {
+        snprintf(out, outsz, "%s", p);
+        return;
+    }
+    const char *method = us + 1;
+    const char *us2 = strchr(method, '_');
+    size_t clen = (size_t)(us - p);
+    size_t mlen = us2 ? (size_t)(us2 - method) : strlen(method);
+    if (clen == 0 || mlen == 0) {
+        snprintf(out, outsz, "%s", sym);
+        return;
+    }
+    snprintf(out, outsz, "%.*s.%.*s", (int)clen, p, (int)mlen, method);
+}
+
+void jn_ex_print_stack(void) {
+#if defined(__APPLE__) || defined(__linux__)
+    for (int i = 0; i < jn_ex_bt_n; i++) {
+        Dl_info info;
+        memset(&info, 0, sizeof(info));
+        const char *name = NULL;
+        if (dladdr(jn_ex_bt[i], &info) && info.dli_sname) {
+            name = info.dli_sname;
+        }
+        if (jn_ex_skip_frame(name)) {
+            continue;
+        }
+        if (name) {
+            char pretty[256];
+            jn_ex_demangle_jn(name, pretty, sizeof(pretty));
+            printf("    at %s\n", pretty);
+            continue;
+        }
+        char **syms = backtrace_symbols(&jn_ex_bt[i], 1);
+        if (syms && syms[0]) {
+            printf("    at %s\n", syms[0]);
+        } else {
+            printf("    at %p\n", jn_ex_bt[i]);
+        }
+        free(syms);
+    }
+#else
+    (void)jn_ex_bt;
+    (void)jn_ex_bt_n;
+#endif
 }

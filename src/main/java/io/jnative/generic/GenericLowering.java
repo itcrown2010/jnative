@@ -162,6 +162,7 @@ public final class GenericLowering {
                 typed.callableBindings(),
                 typed.arrayMetadatas(),
                 typed.catchTypes(),
+                typed.resourceCloseCalls(),
                 typed.nativeLibraries(),
                 typed.targetAbi());
     }
@@ -393,7 +394,22 @@ public final class GenericLowering {
             }
         } else if (stmt instanceof io.jnative.ast.WhileStatement w) {
             collectNewObjectsInStatement(w.body(), sub, classes, out);
+        } else if (stmt instanceof io.jnative.ast.DoWhileStatement d) {
+            collectNewObjectsInStatement(d.body(), sub, classes, out);
+            collectNewObjectsInExpression(d.condition(), sub, classes, out);
+        } else if (stmt instanceof io.jnative.ast.ForStatement f) {
+            if (f.initializer() != null) {
+                collectNewObjectsInStatement(f.initializer(), sub, classes, out);
+            }
+            if (f.condition() != null) {
+                collectNewObjectsInExpression(f.condition(), sub, classes, out);
+            }
+            collectNewObjectsInStatement(f.body(), sub, classes, out);
+            if (f.update() != null) {
+                collectNewObjectsInExpression(f.update(), sub, classes, out);
+            }
         }
+        // BreakStatement / ContinueStatement: no expressions
     }
 
     private void collectNewObjectsInExpression(

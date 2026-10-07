@@ -2,9 +2,13 @@ package io.jnative.backend.llvm.runtime;
 
 /**
  * Explicit exception propagation (0.6/0.9). State is thread-local via {@code jn_tls_ex_*}.
+ * Throwable layout: {@code { ClassMeta* @0, message* @8, cause* @16 }} (24 bytes).
  */
 public final class ExceptionRuntimeEmitter {
     private final StringBuilder sb;
+
+    /** Header + message + cause. */
+    private static final int THROWABLE_SIZE = 24;
 
     public ExceptionRuntimeEmitter(StringBuilder sb) {
         this.sb = sb;
@@ -20,6 +24,8 @@ public final class ExceptionRuntimeEmitter {
                 declare void @jn_tls_set_ex_return_pending(i32)
                 declare i64 @jn_tls_ex_return_value()
                 declare void @jn_tls_set_ex_return_value(i64)
+                declare void @jn_ex_capture_stack()
+                declare void @jn_ex_print_stack()
 
                 """);
         emitThrow();
@@ -42,6 +48,7 @@ public final class ExceptionRuntimeEmitter {
                   call void @jnative_throw_npe()
                   ret void
                 set:
+                  call void @jn_ex_capture_stack()
                   call void @jn_tls_set_ex_current(ptr %ex)
                   call void @jn_tls_set_ex_pending(i32 1)
                   call void @jn_tls_set_ex_return_pending(i32 0)
@@ -128,11 +135,12 @@ public final class ExceptionRuntimeEmitter {
                   %msgField = getelementptr i8, ptr %ex, i64 8
                   %msg = load ptr, ptr %msgField, align 8
                   %hasMsg = icmp ne ptr %msg, null
-                  br i1 %hasMsg, label %printMsg, label %done
+                  br i1 %hasMsg, label %printMsg, label %stack
                 printMsg:
                   call void @jnative_println_string(ptr %msg)
-                  br label %done
-                done:
+                  br label %stack
+                stack:
+                  call void @jn_ex_print_stack()
                   ret void
                 }
 
@@ -149,11 +157,11 @@ public final class ExceptionRuntimeEmitter {
                 }
 
                 """);
-        // prefix strings emitted in RuntimeEmitter already for uncaught.prefix; add worker below via append
         emitCString(".jn.uncaught.worker", "Uncaught exception in worker thread:");
     }
 
     private void emitCompletion() {
+        // Kind: 0=none, 1=return, 2=break, 3=continue. Target id for break/continue in return_value.
         sb.append("""
                 define void @jnative_completion_set_return_i64(i64 %v) {
                 entry:
@@ -169,10 +177,40 @@ public final class ExceptionRuntimeEmitter {
                   ret void
                 }
 
+                define void @jnative_completion_set_break(i32 %targetId) {
+                entry:
+                  %v = sext i32 %targetId to i64
+                  call void @jn_tls_set_ex_return_value(i64 %v)
+                  call void @jn_tls_set_ex_return_pending(i32 2)
+                  ret void
+                }
+
+                define void @jnative_completion_set_continue(i32 %targetId) {
+                entry:
+                  %v = sext i32 %targetId to i64
+                  call void @jn_tls_set_ex_return_value(i64 %v)
+                  call void @jn_tls_set_ex_return_pending(i32 3)
+                  ret void
+                }
+
                 define i1 @jnative_completion_has_return() {
                 entry:
                   %p = call i32 @jn_tls_ex_return_pending()
-                  %r = icmp ne i32 %p, 0
+                  %r = icmp eq i32 %p, 1
+                  ret i1 %r
+                }
+
+                define i1 @jnative_completion_has_break() {
+                entry:
+                  %p = call i32 @jn_tls_ex_return_pending()
+                  %r = icmp eq i32 %p, 2
+                  ret i1 %r
+                }
+
+                define i1 @jnative_completion_has_continue() {
+                entry:
+                  %p = call i32 @jn_tls_ex_return_pending()
+                  %r = icmp eq i32 %p, 3
                   ret i1 %r
                 }
 
@@ -188,6 +226,14 @@ public final class ExceptionRuntimeEmitter {
                   %v = call i64 @jnative_completion_take_return_i64()
                   %p = inttoptr i64 %v to ptr
                   ret ptr %p
+                }
+
+                define i32 @jnative_completion_take_target() {
+                entry:
+                  %v = call i64 @jn_tls_ex_return_value()
+                  call void @jn_tls_set_ex_return_pending(i32 0)
+                  %t = trunc i64 %v to i32
+                  ret i32 %t
                 }
 
                 define void @jnative_completion_clear() {
@@ -210,49 +256,23 @@ public final class ExceptionRuntimeEmitter {
                   ret void
                 }
 
-                define void @jnative_throw_npe() {
-                entry:
-                  call void @jnative_throw_simple(ptr @meta.NullPointerException, i64 16)
-                  ret void
-                }
-
-                define void @jnative_throw_aioobe() {
-                entry:
-                  call void @jnative_throw_simple(ptr @meta.ArrayIndexOutOfBoundsException, i64 16)
-                  ret void
-                }
-
-                define void @jnative_throw_negative_array_size() {
-                entry:
-                  call void @jnative_throw_simple(ptr @meta.NegativeArraySizeException, i64 16)
-                  ret void
-                }
-
-                define void @jnative_throw_class_cast() {
-                entry:
-                  call void @jnative_throw_simple(ptr @meta.ClassCastException, i64 16)
-                  ret void
-                }
-
-                define void @jnative_throw_arithmetic() {
-                entry:
-                  call void @jnative_throw_simple(ptr @meta.ArithmeticException, i64 16)
-                  ret void
-                }
-
-                define void @jnative_throw_illegal_monitor() {
-                entry:
-                  call void @jnative_throw_simple(ptr @meta.IllegalMonitorStateException, i64 16)
-                  ret void
-                }
-
-                define void @jnative_throw_illegal_state() {
-                entry:
-                  call void @jnative_throw_simple(ptr @meta.IllegalStateException, i64 16)
-                  ret void
-                }
-
                 """);
+        emitThrowSimple("jnative_throw_npe", "NullPointerException");
+        emitThrowSimple("jnative_throw_aioobe", "ArrayIndexOutOfBoundsException");
+        emitThrowSimple("jnative_throw_negative_array_size", "NegativeArraySizeException");
+        emitThrowSimple("jnative_throw_class_cast", "ClassCastException");
+        emitThrowSimple("jnative_throw_arithmetic", "ArithmeticException");
+        emitThrowSimple("jnative_throw_illegal_monitor", "IllegalMonitorStateException");
+        emitThrowSimple("jnative_throw_illegal_state", "IllegalStateException");
+    }
+
+    private void emitThrowSimple(String name, String meta) {
+        sb.append("define void @").append(name).append("() {\n");
+        sb.append("entry:\n");
+        sb.append("  call void @jnative_throw_simple(ptr @meta.").append(meta)
+                .append(", i64 ").append(THROWABLE_SIZE).append(")\n");
+        sb.append("  ret void\n");
+        sb.append("}\n\n");
     }
 
     private void emitCString(String name, String content) {

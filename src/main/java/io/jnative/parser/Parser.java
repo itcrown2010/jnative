@@ -902,8 +902,17 @@ public final class Parser {
             if (match(TokenType.WHILE)) {
                 return parseWhile();
             }
+            if (match(TokenType.DO)) {
+                return parseDoWhile();
+            }
             if (match(TokenType.FOR)) {
                 return parseFor();
+            }
+            if (match(TokenType.BREAK)) {
+                return parseBreak();
+            }
+            if (match(TokenType.CONTINUE)) {
+                return parseContinue();
             }
             if (match(TokenType.RETURN)) {
                 return parseReturn();
@@ -939,6 +948,10 @@ public final class Parser {
 
     private TryStatement parseTry() {
         Token start = previous();
+        List<VariableDeclaration> resources = List.of();
+        if (match(TokenType.LPAREN)) {
+            resources = parseTryResources();
+        }
         BlockStatement tryBlock = parseBlock();
         List<CatchClause> catches = new ArrayList<>();
         while (match(TokenType.CATCH)) {
@@ -953,10 +966,46 @@ public final class Parser {
         if (match(TokenType.FINALLY)) {
             finallyBlock = parseBlock();
         }
-        if (catches.isEmpty() && finallyBlock == null) {
-            throw new ParseException(start.location(), "try must have at least one catch or finally block");
+        if (resources.isEmpty() && catches.isEmpty() && finallyBlock == null) {
+            throw new ParseException(start.location(),
+                    "try must have resources, catch, or finally");
         }
-        return new TryStatement(tryBlock, catches, finallyBlock, start.location());
+        return new TryStatement(resources, tryBlock, catches, finallyBlock, start.location());
+    }
+
+    /** Parses {@code Type name = expr (; Type name = expr)* ;?} before the closing {@code )}. */
+    private List<VariableDeclaration> parseTryResources() {
+        List<VariableDeclaration> resources = new ArrayList<>();
+        if (check(TokenType.RPAREN)) {
+            consume(TokenType.RPAREN, "expected ')' after try resources");
+            return resources;
+        }
+        while (true) {
+            TypeName type = parseType();
+            boolean isArray = false;
+            if (match(TokenType.LBRACKET)) {
+                consume(TokenType.RBRACKET, "expected ']'");
+                isArray = true;
+            }
+            Token name = consume(TokenType.IDENTIFIER, "expected resource variable name");
+            if (!isArray && match(TokenType.LBRACKET)) {
+                consume(TokenType.RBRACKET, "expected ']'");
+                isArray = true;
+            }
+            consume(TokenType.ASSIGN, "try-with-resources variable must be initialized");
+            Expression init = parseExpression();
+            resources.add(new VariableDeclaration(
+                    type, isArray, name.lexeme(), init, name.location()));
+            if (match(TokenType.SEMICOLON)) {
+                if (check(TokenType.RPAREN)) {
+                    break;
+                }
+                continue;
+            }
+            break;
+        }
+        consume(TokenType.RPAREN, "expected ')' after try resources");
+        return resources;
     }
 
     private ThrowStatement parseThrow() {
@@ -1107,6 +1156,29 @@ public final class Parser {
         consume(TokenType.RPAREN, "expected ')' after while condition");
         Statement body = parseStatement();
         return new WhileStatement(condition, body, whileTok.location());
+    }
+
+    private DoWhileStatement parseDoWhile() {
+        Token doTok = previous();
+        Statement body = parseStatement();
+        consume(TokenType.WHILE, "expected 'while' after do body");
+        consume(TokenType.LPAREN, "expected '(' after while");
+        Expression condition = parseExpression();
+        consume(TokenType.RPAREN, "expected ')' after do-while condition");
+        consume(TokenType.SEMICOLON, "expected ';' after do-while");
+        return new DoWhileStatement(body, condition, doTok.location());
+    }
+
+    private BreakStatement parseBreak() {
+        Token tok = previous();
+        consume(TokenType.SEMICOLON, "expected ';' after break");
+        return new BreakStatement(tok.location());
+    }
+
+    private ContinueStatement parseContinue() {
+        Token tok = previous();
+        consume(TokenType.SEMICOLON, "expected ';' after continue");
+        return new ContinueStatement(tok.location());
     }
 
     private ForStatement parseFor() {

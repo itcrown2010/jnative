@@ -1,75 +1,63 @@
-# JNative Language Support
+# JNative Supported Language Profile
 
-JNative implements a **subset** of Java. It is **not** a Java SE implementation.
+**Profile:** Language Core 0.x (Round 1.1)  
+**Evidence basis:** compiler + native e2e on macOS arm64  
+**Maturity of this profile:** **L2** (implemented + unit/negative/native tests for declared features)
 
-## Supported
+This document defines what is **officially supported**. Features not listed as SUPPORTED must not be assumed present.
 
-### From 0.1–0.6
+| Feature | Status | Level | Notes |
+|---|---|---|---|
+| `byte` `short` `int` `long` `float` `double` `boolean` `char` | SUPPORTED | L2 | Happy + e2e coverage via existing suites |
+| `class` / `interface` / `abstract class` | SUPPORTED | L2 | |
+| inheritance / override | SUPPORTED | L2 | |
+| method overload | SUPPORTED | L2 | Fixed Round 1 (semantic + IR) |
+| constructor / `this` / `super` | SUPPORTED | L2 | |
+| `static` | SUPPORTED | L2 | |
+| `null` | SUPPORTED | L2 | |
+| arrays | SUPPORTED | L2 | |
+| generics (basic) | SUPPORTED | L2 | Primitive specialization exists for some collections |
+| lambda / method reference | SUPPORTED | L1–L2 | See callable e2e |
+| `if` / `if-else` | SUPPORTED | L2 | |
+| `while` | SUPPORTED | L2 | |
+| `do` / `while` | SUPPORTED | L2 | Round 1.1 |
+| `for` | SUPPORTED | L2 | |
+| `break` | SUPPORTED | L2 | Round 1.1; BreakTarget model (loop today; switch later) |
+| `continue` | SUPPORTED | L2 | Round 1.1; `for` continues to update |
+| `return` | SUPPORTED | L2 | |
+| `try` / `catch` / `finally` | SUPPORTED | L2 | |
+| `break`/`continue` × `finally` | SUPPORTED | L2 | Finally runs; abrupt completion kinds |
+| `throw` / exceptions | SUPPORTED | L2 | |
+| `enum` | NOT YET SUPPORTED | L0 | |
+| `switch` | NOT YET SUPPORTED | L0 | |
+| labeled break/continue | NOT YET SUPPORTED | L0 | |
+| try-with-resources | SUPPORTED | L2 | AutoCloseable or void close(); reverse-order cleanup |
+| `final` (fields/locals) | NOT YET SUPPORTED | L0 | Partial / unverified |
+| varargs | NOT YET SUPPORTED | L0 | |
+| bitwise `& \| ^ ~ << >> >>>` | NOT YET SUPPORTED | L0 | |
+| ternary `?:` (expr) | NOT YET SUPPORTED | L0 | `?` used in wildcards |
+| primitive casts `(int)` etc. | NOT YET SUPPORTED | L0 | |
+| enhanced for | NOT YET SUPPORTED | L0 | |
 
-Primitives, control flow, classes, inheritance, vtable, constructors, arrays, String, RTTI, precise GC, `System.gc()`, exceptions.
+## Control-flow model
 
-### From 0.7
+- Semantic validation uses **break-target depth** (loops today).
+- IR uses **LoopFrame / BreakTarget** with exit + continue blocks.
+- Abrupt completion through `finally` uses TLS completion kinds: `return=1`, `break=2`, `continue=3`.
+- LLVM lowering never pattern-matches AST `break`; it only emits CFG branches.
 
-- `@Native` / `static native` methods (C ABI / FFI)
-- `NativePtr`, `NativeMemory`
-- String → temporary CString for libc calls
-- Linker `-l` from `@Native(library=…)`
+## String contract (core)
 
-### From 0.8
+| API | Semantics |
+|---|---|
+| `length()` | UTF-8 **byte** count (not Unicode code points) |
+| `split(String delimiter)` | **Literal** delimiter (NOT Java regex) |
+| empty delimiter | returns single-element array `[this]` |
+| empty input `"".split(",")` | `[""]` |
+| consecutive / trailing empties | **kept** |
+| null delimiter | NPE |
+| `String.join(delim, String[])` | single-pass join; null element → `"null"` |
 
-- `@NativeStruct` + `NativeStructLayout` (ABI layout, no GC header)
-- Typed `NativePtr<T>` (compiler-recognized)
-- `@Stack` stack allocation for native structs
-- `Native.addressOf` / `Native.allocate<T>` / typed load-store
-- Escape rejection for stack pointers
-- `--emit-layout`, `--library-path`, `--link`
+## Collections core (1.0 minimum)
 
-### New in 0.8.1
-
-- Builtin `File` read/write/exists/size/delete (UTF-8 / binary)
-- `IOException` / `FileNotFoundException`
-- Real `main(String[] args)` from process argv
-- Examples: `Cat.java`, `Copy.java`
-
-### New in 0.8.2
-
-- Builtin `TcpSocket` / `TcpServer` (blocking TCP client/server)
-- DNS via hostname (`getaddrinfo`, IPv4+IPv6)
-- `SocketException` / `ConnectException` / `UnknownHostException` / `SocketTimeoutException`
-- `IllegalArgumentException` (e.g. invalid port at runtime)
-- Examples: `RawHttp.java`, `EchoServer.java`
-
-### New in 0.8.3
-
-- HTTP/1.1 client + server as **stdlib** (not intrinsics)
-- `String` helpers: indexOf, substring, startsWith/endsWith, equalsIgnoreCase, trim, getBytes, …
-- `Bytes` helpers; array fields / `T[]` return types
-- Examples: `HttpDownload.java`, `HttpHelloServer.java`
-
-### New in 0.9
-
-- Native OS threads (`extends Thread`, `start`/`join`/`sleep`/`currentThread`/`id`)
-- Thread-local exception state + per-thread shadow stacks
-- Multi-thread STW GC + safepoints (alloc / method entry / loop backedge)
-- `Mutex`, `Condition`, `volatile`, `AtomicInt`/`AtomicLong`/`AtomicBool`
-- Static fields (+ field initializers / clinit)
-
-## Interfaces (0.14)
-
-Supported: `interface` / `implements` / interface `extends`, abstract classes/methods, functional-interface lambdas, `instanceof`/cast to interfaces. See [interfaces.md](interfaces.md).
-
-## Not Supported (yet)
-
-- default interface methods, full generics, try-with-resources, multi-catch `A | B`
-- Full stack traces / suppressed exceptions
-- JNI, callbacks, function pointers, C++ ABI
-- Struct-by-value ABI, union, bitfields, packed structs
-- Managed stack objects, `@NoGC`
-- Full standard library / `synchronized` / reflection / virtual threads
-- HTTPS/TLS, UDP, WebSocket, async/event-loop networking
-- Method overloading, `break`/`continue`, collections framework
-- Concurrent/generational GC
-
-## Encoding note
-
-String payload is **UTF-8** (documented; runtime-isolated). Future: UTF-16.
+See Round 1.1 report matrix. Planned post-core: LinkedList, LinkedHashMap, LinkedHashSet, PriorityQueue.

@@ -168,6 +168,7 @@ public final class StdlibIncluder {
                 || sourceText.contains("HashMap")
                 || sourceText.contains("HashSet")
                 || sourceText.contains("ArrayDeque")
+                || sourceText.contains("StringBuilder")
                 || sourceText.contains("Iterable<")
                 || sourceText.contains("Iterator<")
                 || sourceText.contains("Comparator<")
@@ -175,10 +176,13 @@ public final class StdlibIncluder {
                 || sourceText.contains("Predicate<")
                 || sourceText.contains("Supplier<")
                 || sourceText.contains("Function<")
+                || sourceText.contains("AutoCloseable")
+                || sourceText.contains("try (")
                 || sourceText.contains("new ArrayList")
                 || sourceText.contains("new HashMap")
                 || sourceText.contains("new HashSet")
                 || sourceText.contains("new ArrayDeque")
+                || sourceText.contains("new StringBuilder")
                 || sourceText.contains("Collections.")
                 || sourceText.contains("Arrays.");
     }
@@ -246,6 +250,24 @@ public final class StdlibIncluder {
                 || sourceText.contains("jnative.json")
                 || sourceText.contains("StudioApplication")
                 || sourceText.contains("jnative.studio");
+    }
+
+    public static boolean needsTime(String sourceText) {
+        if (sourceText == null) {
+            return false;
+        }
+        return sourceText.contains("jnative.time")
+                || sourceText.contains("Instant.")
+                || sourceText.contains("new Instant(")
+                || sourceText.contains("Duration.")
+                || sourceText.contains("LocalDate.")
+                || sourceText.contains("LocalTime.")
+                || sourceText.contains("LocalDateTime.")
+                || sourceText.contains("ZoneId.")
+                || sourceText.contains("ZoneOffset.")
+                || sourceText.contains("ZonedDateTime.")
+                || sourceText.contains("DateTimeFormatter.")
+                || sourceText.contains("Clock.");
     }
 
     public static boolean needsDatabase(String sourceText) {
@@ -499,6 +521,20 @@ public final class StdlibIncluder {
         return String.join("\n\n", parts);
     }
 
+    /** Inserts TimeLib before primary public class when not already present. */
+    public static String insertTimeStdlib(String mergedSource) throws IOException {
+        if (mergedSource.contains("// JNative Time Core (Round 2)")
+                || mergedSource.contains("// JNative time subset")) {
+            return mergedSource;
+        }
+        String block = load("stdlib/time/TimeLib.java");
+        int userIdx = indexOfPrimaryPublicClass(mergedSource);
+        if (userIdx > 0) {
+            return mergedSource.substring(0, userIdx) + block + "\n\n" + mergedSource.substring(userIdx);
+        }
+        return block + "\n\n" + mergedSource;
+    }
+
     /** Inserts DbLib + SQLite (+ optional PostgreSQL) before user source. */
     public static String insertDatabaseStdlib(String mergedSource) throws IOException {
         if (mergedSource.contains("// JNative SQLite driver (0.24)")) {
@@ -507,12 +543,7 @@ public final class StdlibIncluder {
         String block = load("stdlib/db/DbLib.java")
                 + "\n\n" + load("stdlib/db/SqliteDriverLib.java")
                 + "\n\n" + load("stdlib/db/DbMigrateLib.java");
-        if (mergedSource.contains("Instant")
-                || mergedSource.contains("LocalDate")
-                || mergedSource.contains("UUID.random")
-                || mergedSource.contains("jnative.time")) {
-            block = block + "\n\n" + load("stdlib/time/TimeLib.java");
-        }
+        /* TimeLib is inserted separately via insertTimeStdlib / needsTime. */
         if (mergedSource.contains("DbPgBootstrap.register")
                 || mergedSource.contains("new PostgreSQLDriver")) {
             block = block + "\n\n" + load("stdlib/db/PgDriverLib.java");
@@ -567,11 +598,13 @@ public final class StdlibIncluder {
         boolean wantDatabase = needsDatabase(userSource);
         boolean wantCrypto = needsCrypto(userSource) || wantWeb || needsHttp(userSource) || needsHttp2(userSource);
         boolean wantRpc = needsRpc(userSource);
-        boolean wantAsync = needsAsync(userSource) || wantWeb || wantDatabase || wantCrypto || wantBrowser || wantRpc;
+        boolean wantTime = needsTime(userSource);
+        boolean wantAsync = needsAsync(userSource) || wantWeb || wantDatabase || wantCrypto || wantBrowser || wantRpc
+                || wantTime;
         boolean wantMath = needsMath(userSource);
         // Advanced UI / Graphics / Editor use ArrayList / Function from collections.
         if (needsCollections(text) || wantUi || wantGraphics || wantEditor || wantJson || wantIo || wantStudio
-                || wantAsync || wantDatabase || wantCrypto || wantRpc) {
+                || wantAsync || wantDatabase || wantCrypto || wantRpc || wantTime) {
             text = prependCollectionsStdlib(text);
         }
         if (wantMath || needsMath(text)) {
@@ -582,6 +615,9 @@ public final class StdlibIncluder {
         }
         if (wantDatabase) {
             text = insertDatabaseStdlib(text);
+        }
+        if (wantTime || needsTime(text)) {
+            text = insertTimeStdlib(text);
         }
         if (wantCrypto || needsCrypto(text)) {
             text = prependCryptoStdlib(text);

@@ -58,11 +58,12 @@ public final class EffectAnalyzer {
             if (owner == null) {
                 continue;
             }
+            java.util.Map<String, Integer> overloadOrdinal = new java.util.HashMap<>();
             for (MethodDeclaration md : cls.methods()) {
                 if (md.isConstructor()) {
                     continue;
                 }
-                MethodSymbol ms = owner.findDeclaredMethod(md.name()).orElse(null);
+                MethodSymbol ms = resolveDeclaredOverload(owner, md, overloadOrdinal);
                 if (ms == null || ms.isNative()) {
                     continue;
                 }
@@ -86,13 +87,31 @@ public final class EffectAnalyzer {
             if (owner == null) {
                 continue;
             }
+            java.util.Map<String, Integer> overloadOrdinal = new java.util.HashMap<>();
             for (MethodDeclaration md : cls.methods()) {
                 if (md.isConstructor()) {
                     continue;
                 }
-                owner.findDeclaredMethod(md.name()).ifPresent(ms -> methodAst.put(ms, md));
+                MethodSymbol ms = resolveDeclaredOverload(owner, md, overloadOrdinal);
+                if (ms != null) {
+                    methodAst.put(ms, md);
+                }
             }
         }
+    }
+
+    /** Pair AST method with MethodSymbol by declaration order within the same name. */
+    private static MethodSymbol resolveDeclaredOverload(
+            ClassSymbol owner,
+            MethodDeclaration md,
+            java.util.Map<String, Integer> overloadOrdinal
+    ) {
+        int idx = overloadOrdinal.merge(md.name(), 1, Integer::sum) - 1;
+        java.util.List<MethodSymbol> overs = owner.findDeclaredMethods(md.name());
+        if (idx < 0 || idx >= overs.size()) {
+            return null;
+        }
+        return overs.get(idx);
     }
 
     private void seedBuiltins() {
@@ -240,6 +259,13 @@ public final class EffectAnalyzer {
                 e.union(inferStatement(w.body(), ms, contribs));
                 yield e;
             }
+            case DoWhileStatement d -> {
+                FunctionEffects e = inferStatement(d.body(), ms, contribs);
+                e.union(inferExpression(d.condition(), ms, contribs));
+                yield e;
+            }
+            case BreakStatement ignored -> FunctionEffects.none();
+            case ContinueStatement ignored -> FunctionEffects.none();
             case ForStatement f -> {
                 FunctionEffects e = FunctionEffects.none();
                 if (f.initializer() != null) {
@@ -264,7 +290,13 @@ public final class EffectAnalyzer {
                 yield e;
             }
             case TryStatement t -> {
-                FunctionEffects e = inferStatement(t.tryBlock(), ms, contribs);
+                FunctionEffects e = FunctionEffects.none();
+                for (VariableDeclaration r : t.resources()) {
+                    if (r.initializer() != null) {
+                        e.union(inferExpression(r.initializer(), ms, contribs));
+                    }
+                }
+                e.union(inferStatement(t.tryBlock(), ms, contribs));
                 for (CatchClause c : t.catches()) {
                     e.union(inferStatement(c.body(), ms, contribs));
                 }
@@ -533,11 +565,12 @@ public final class EffectAnalyzer {
             if (owner == null) {
                 continue;
             }
+            java.util.Map<String, Integer> overloadOrdinal = new java.util.HashMap<>();
             for (MethodDeclaration md : cls.methods()) {
                 if (md.isConstructor()) {
                     continue;
                 }
-                MethodSymbol ms = owner.findDeclaredMethod(md.name()).orElse(null);
+                MethodSymbol ms = resolveDeclaredOverload(owner, md, overloadOrdinal);
                 if (ms == null || !ms.isAsync()) {
                     continue;
                 }
@@ -584,13 +617,18 @@ public final class EffectAnalyzer {
             case IfStatement i -> containsAwait(i.thenBranch())
                     || (i.elseBranch() != null && containsAwait(i.elseBranch()));
             case WhileStatement w -> containsAwait(w.body());
+            case DoWhileStatement d -> containsAwait(d.body()) || containsAwaitExpr(d.condition());
             case ForStatement f -> (f.initializer() != null && containsAwait(f.initializer()))
                     || (f.condition() != null && containsAwaitExpr(f.condition()))
                     || containsAwait(f.body())
                     || (f.update() != null && containsAwaitExpr(f.update()));
+            case BreakStatement ignored -> false;
+            case ContinueStatement ignored -> false;
             case ReturnStatement r -> r.value() != null && containsAwaitExpr(r.value());
             case ThrowStatement t -> containsAwaitExpr(t.expression());
-            case TryStatement t -> containsAwait(t.tryBlock())
+            case TryStatement t -> t.resources().stream()
+                    .anyMatch(r -> r.initializer() != null && containsAwaitExpr(r.initializer()))
+                    || containsAwait(t.tryBlock())
                     || t.catches().stream().anyMatch(c -> containsAwait(c.body()))
                     || (t.finallyBlock() != null && containsAwait(t.finallyBlock()));
             default -> false;
@@ -644,11 +682,12 @@ public final class EffectAnalyzer {
             if (owner == null) {
                 continue;
             }
+            java.util.Map<String, Integer> overloadOrdinal = new java.util.HashMap<>();
             for (MethodDeclaration md : cls.methods()) {
                 if (md.isConstructor()) {
                     continue;
                 }
-                MethodSymbol ms = owner.findDeclaredMethod(md.name()).orElse(null);
+                MethodSymbol ms = resolveDeclaredOverload(owner, md, overloadOrdinal);
                 if (ms == null) {
                     continue;
                 }

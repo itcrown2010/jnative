@@ -117,11 +117,21 @@ int32_t jnative_cpu_count(void);
 int64_t jnative_web_mono_millis(void);
 /** Wall-clock epoch milliseconds (UTC). Not monotonic. */
 int64_t jnative_wall_millis(void);
-/** Wall-clock epoch millis (UTC). Prefer over mono for Instant timestamps. */
-int64_t jnative_wall_millis(void);
+/** Monotonic nanoseconds (CLOCK_MONOTONIC). */
+int64_t jnative_mono_nanos(void);
+
+/** IANA zone offset minutes east of UTC at epoch_ms; INT32_MIN if unknown. */
+int32_t jnative_tz_offset_minutes_at(const char *zone_id, int64_t epoch_ms);
+/** 1 if zone_id is recognized by platform zoneinfo. */
+int32_t jnative_tz_exists(const char *zone_id);
 
 /* Join all self-started worker threads still registered (non-daemon). */
 void jn_thread_join_remaining(void);
+
+/** Capture backtrace into TLS for the current throw (best-effort). */
+void jn_ex_capture_stack(void);
+/** Print captured frames as "    at <symbol>" (demangles _JN_Class_method). */
+void jn_ex_print_stack(void);
 
 #ifdef __cplusplus
 }

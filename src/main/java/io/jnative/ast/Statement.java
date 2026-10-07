@@ -2,6 +2,8 @@ package io.jnative.ast;
 
 public sealed interface Statement extends AstNode
         permits BlockStatement, VariableDeclaration, ExpressionStatement,
-        IfStatement, WhileStatement, ForStatement, ReturnStatement, EmptyStatement,
+        IfStatement, WhileStatement, DoWhileStatement, ForStatement,
+        BreakStatement, ContinueStatement,
+        ReturnStatement, EmptyStatement,
         ConstructorDelegationStatement, TryStatement, ThrowStatement {
 }

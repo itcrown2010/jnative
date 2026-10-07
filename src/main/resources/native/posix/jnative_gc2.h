@@ -56,6 +56,15 @@ int64_t jn_gc2_debug_address(void *obj);
 /** Stable identity hash (survives moving GC). Lazy-assigned. */
 int32_t jn_gc2_identity_hash(void *obj);
 
+/**
+ * Walk young/old/large heaps and check each live object's ClassMeta* is non-null.
+ * Returns 1 if OK, 0 on failure (also prints to stderr). No-op success when GC2 disabled.
+ */
+int jn_gc2_verify_heap(void);
+
+/** Alias for tests via {@code @Native} (avoids clashing with LLVM declares). */
+int jn_gc_user_verify_heap(void);
+
 #ifdef __cplusplus
 }
 #endif

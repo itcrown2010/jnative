@@ -32,7 +32,7 @@ public final class FileRuntimeEmitter {
         sb.append("""
                 define void @jnative_throw_io_message(ptr %msg) {
                 entry:
-                  %obj = call ptr @jnative_alloc_zeroed(i64 16)
+                  %obj = call ptr @jnative_alloc_zeroed(i64 24)
                   store ptr @meta.IOException, ptr %obj, align 8
                   %mp = getelementptr i8, ptr %obj, i64 8
                   store ptr %msg, ptr %mp, align 8
@@ -42,7 +42,7 @@ public final class FileRuntimeEmitter {
 
                 define void @jnative_throw_file_not_found(ptr %msg) {
                 entry:
-                  %obj = call ptr @jnative_alloc_zeroed(i64 16)
+                  %obj = call ptr @jnative_alloc_zeroed(i64 24)
                   store ptr @meta.FileNotFoundException, ptr %obj, align 8
                   %mp = getelementptr i8, ptr %obj, i64 8
                   store ptr %msg, ptr %mp, align 8

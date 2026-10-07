@@ -205,6 +205,45 @@ class ExceptionEndToEndTest {
     }
 
     @Test
+    void uncaughtPrintsStackSymbols() throws Exception {
+        Assumptions.assumeTrue(Toolchain.detect().isPresent(), "clang not available");
+        NativeRun r = run("""
+                class MyException extends RuntimeException {
+                    MyException(String message) { super(message); }
+                }
+                public class Main {
+                    static void deep() { throw new MyException("stack"); }
+                    public static void main(String[] args) {
+                        deep();
+                    }
+                }
+                """, "UncaughtStack", Map.of());
+        assertTrue(r.compileSuccess, r.diagnostics);
+        assertNotEquals(0, r.exitCode);
+        String combined = r.stdout + r.stderr;
+        assertTrue(combined.contains("MyException"), combined);
+        assertTrue(combined.contains("stack"), combined);
+        assertTrue(
+                combined.contains("Main") || combined.contains("_JN_"),
+                "expected demangled or mangled frame, got:\n" + combined);
+        assertTrue(combined.contains("    at "), combined);
+    }
+
+    @Test
+    void causeChainGetCause() throws Exception {
+        assertStdout("""
+                public class Main {
+                    public static void main(String[] args) {
+                        RuntimeException inner = new RuntimeException("inner-cause");
+                        RuntimeException outer = new RuntimeException("outer", inner);
+                        Throwable c = outer.getCause();
+                        System.out.println(c.getMessage());
+                    }
+                }
+                """, "inner-cause\n");
+    }
+
+    @Test
     void coreAcceptance() throws Exception {
         assertStdout("""
                 class MyException extends RuntimeException {

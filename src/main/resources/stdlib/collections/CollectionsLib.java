@@ -7,6 +7,41 @@
 // ArrayList.contains / indexOf use == (identity for refs, value eq for primitives).
 // Null keys are unsupported in HashMap 0.16.
 
+/** Resource that can be used in try-with-resources. */
+interface AutoCloseable {
+    void close();
+}
+
+/**
+ * Debug-oriented open-resource counter (Round 2).
+ * Not a full OS handle registry — use for TWR / leak smoke tests.
+ */
+class ResourceTracker {
+    static int opens;
+    static int closes;
+
+    static void trackOpen(String kind) {
+        opens = opens + 1;
+    }
+
+    static void trackClose(String kind) {
+        closes = closes + 1;
+    }
+
+    static int openCount() {
+        int n = opens - closes;
+        if (n < 0) {
+            return 0;
+        }
+        return n;
+    }
+
+    static void reset() {
+        opens = 0;
+        closes = 0;
+    }
+}
+
 interface Iterable<T> {
     Iterator<T> iterator();
 }
@@ -50,6 +85,33 @@ interface Map<K, V> {
 interface Entry<K, V> {
     K getKey();
     V getValue();
+}
+
+/**
+ * Core Collections 1.0 Queue surface (does not extend Collection yet —
+ * primitive specialization + deep interface hierarchies are fragile).
+ */
+interface Queue<T> {
+    int size();
+    boolean isEmpty();
+    boolean offer(T value);
+    T poll();
+    T peek();
+}
+
+/** Core Collections 1.0 Deque surface. */
+interface Deque<T> {
+    int size();
+    boolean isEmpty();
+    void addFirst(T value);
+    void addLast(T value);
+    T removeFirst();
+    T removeLast();
+    T peekFirst();
+    T peekLast();
+    boolean offer(T value);
+    T poll();
+    T peek();
 }
 
 interface Comparator<T> {
@@ -516,9 +578,54 @@ class HashMap<K, V> implements Map<K, V> {
         this.size = 0;
         this.modCount = this.modCount + 1;
     }
+
+    /** Snapshot of occupied keys (iteration support for HashSet). */
+    public K[] keysArray() {
+        K[] out = new K[this.size];
+        int n = 0;
+        int cap = capacity();
+        int i = 0;
+        while (i < cap) {
+            if (this.states[i] == OCCUPIED) {
+                out[n] = this.keys[i];
+                n = n + 1;
+            }
+            i = i + 1;
+        }
+        return out;
+    }
 }
 
 class PresentMarker {
+}
+
+class ArrayIterator<T> implements Iterator<T> {
+    T[] data;
+    int index;
+    int end;
+
+    ArrayIterator(T[] data) {
+        this.data = data;
+        this.index = 0;
+        if (data == null) {
+            this.end = 0;
+        } else {
+            this.end = data.length;
+        }
+    }
+
+    public boolean hasNext() {
+        return this.index < this.end;
+    }
+
+    public T next() {
+        if (this.index >= this.end) {
+            throw new NoSuchElementException("ArrayIterator");
+        }
+        T value = this.data[this.index];
+        this.index = this.index + 1;
+        return value;
+    }
 }
 
 class HashSet<T> implements Set<T> {
@@ -563,11 +670,7 @@ class HashSet<T> implements Set<T> {
     }
 
     public Iterator<T> iterator() {
-        // 0.16: key-set iteration deferred; fail fast rather than return a partial view.
-        if (true) {
-            throw new IllegalStateException("HashSet.iterator not implemented in 0.16");
-        }
-        return null;
+        return new ArrayIterator<T>(this.map.keysArray());
     }
 }
 
@@ -622,6 +725,18 @@ class ArrayDeque<T> {
         this.size = this.size + 1;
     }
 
+    public void addFirst(T value) {
+        if (this.size == this.storage.length) {
+            grow();
+        }
+        this.head = this.head - 1;
+        if (this.head < 0) {
+            this.head = this.storage.length - 1;
+        }
+        this.storage[this.head] = value;
+        this.size = this.size + 1;
+    }
+
     public T removeFirst() {
         if (this.size == 0) {
             throw new NoSuchElementException("ArrayDeque");
@@ -636,11 +751,148 @@ class ArrayDeque<T> {
         return value;
     }
 
+    public T removeLast() {
+        if (this.size == 0) {
+            throw new NoSuchElementException("ArrayDeque");
+        }
+        this.tail = this.tail - 1;
+        if (this.tail < 0) {
+            this.tail = this.storage.length - 1;
+        }
+        T value = this.storage[this.tail];
+        this.storage[this.tail] = null;
+        this.size = this.size - 1;
+        return value;
+    }
+
     public T peekFirst() {
         if (this.size == 0) {
             return null;
         }
         return this.storage[this.head];
+    }
+
+    public T peekLast() {
+        if (this.size == 0) {
+            return null;
+        }
+        int idx = this.tail - 1;
+        if (idx < 0) {
+            idx = this.storage.length - 1;
+        }
+        return this.storage[idx];
+    }
+
+    /** Queue-compatible alias for addLast. */
+    public boolean offer(T value) {
+        addLast(value);
+        return true;
+    }
+}
+
+/**
+ * StringBuilder (Round 1): chunk list + join at toString.
+ * Avoids byte[] / primitive casts (not yet reliable). Chunking keeps append
+ * amortized better than naive data = data + s for many small appends.
+ */
+class StringBuilder {
+    ArrayList<String> parts;
+    int length;
+
+    StringBuilder() {
+        this.parts = new ArrayList<String>();
+        this.length = 0;
+    }
+
+    public StringBuilder append(String s) {
+        if (s == null) {
+            s = "null";
+        }
+        this.parts.add(s);
+        this.length = this.length + s.length();
+        return this;
+    }
+
+    public StringBuilder appendInt(int v) {
+        return append(String.valueOf(v));
+    }
+
+    public int length() {
+        return this.length;
+    }
+
+    public void setLength(int newLength) {
+        if (newLength < 0) {
+            throw new IndexOutOfBoundsException("StringBuilder.setLength");
+        }
+        if (newLength == 0) {
+            this.parts.clear();
+            this.length = 0;
+            return;
+        }
+        if (newLength >= this.length) {
+            return;
+        }
+        String all = toString();
+        this.parts.clear();
+        this.parts.add(all.substring(0, newLength));
+        this.length = newLength;
+    }
+
+    public StringBuilder reverse() {
+        String all = toString();
+        StringBuilder rev = new StringBuilder();
+        int i = all.length();
+        while (i > 0) {
+            rev.append(all.substring(i - 1, i));
+            i = i - 1;
+        }
+        this.parts.clear();
+        this.parts.add(rev.toString());
+        this.length = all.length();
+        return this;
+    }
+
+    public StringBuilder delete(int start, int end) {
+        String all = toString();
+        if (start < 0 || end > all.length() || start > end) {
+            throw new IndexOutOfBoundsException("StringBuilder.delete");
+        }
+        String left = all.substring(0, start);
+        String right = all.substringFrom(end);
+        this.parts.clear();
+        this.parts.add(left);
+        this.parts.add(right);
+        this.length = left.length() + right.length();
+        return this;
+    }
+
+    public StringBuilder insert(int offset, String s) {
+        String all = toString();
+        if (offset < 0 || offset > all.length()) {
+            throw new IndexOutOfBoundsException("StringBuilder.insert");
+        }
+        if (s == null) {
+            s = "null";
+        }
+        String left = all.substring(0, offset);
+        String right = all.substringFrom(offset);
+        this.parts.clear();
+        this.parts.add(left);
+        this.parts.add(s);
+        this.parts.add(right);
+        this.length = left.length() + s.length() + right.length();
+        return this;
+    }
+
+    public String toString() {
+        String out = "";
+        int i = 0;
+        while (i < this.parts.size()) {
+            out = out + this.parts.get(i);
+            i = i + 1;
+        }
+        return out;
     }
 }
 

@@ -3,6 +3,8 @@ package io.jnative.semantic;
 import io.jnative.ast.CatchClause;
 import io.jnative.ast.CompilationUnit;
 import io.jnative.ast.Expression;
+import io.jnative.ast.MethodCallExpression;
+import io.jnative.ast.TryStatement;
 import io.jnative.ffi.TargetAbi;
 
 import java.util.List;
@@ -21,6 +23,8 @@ public record TypedCompilationUnit(
         Map<Expression, CallableBinding> callableBindings,
         Map<String, ClassMetadata> arrayMetadatas,
         Map<CatchClause, ClassSymbol> catchTypes,
+        /** Synthetic {@code close()} calls for try-with-resources, already in reverse close order. */
+        Map<TryStatement, List<MethodCallExpression>> resourceCloseCalls,
         List<String> nativeLibraries,
         TargetAbi targetAbi
 ) {

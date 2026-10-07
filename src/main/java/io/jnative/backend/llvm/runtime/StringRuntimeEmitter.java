@@ -568,6 +568,406 @@ public final class StringRuntimeEmitter {
                   ret ptr %r
                 }
 
+                define i8 @jnative_ascii_upper(i8 %c) {
+                entry:
+                  %gea = icmp uge i8 %c, 97
+                  %lez = icmp ule i8 %c, 122
+                  %isl = and i1 %gea, %lez
+                  %sub = sub i8 %c, 32
+                  %r = select i1 %isl, i8 %sub, i8 %c
+                  ret i8 %r
+                }
+
+                define ptr @jnative_string_to_upper(ptr %s) {
+                entry:
+                  call void @jnative_null_check(ptr %s)
+                  %len = call i32 @jnative_string_length(ptr %s)
+                  %n64 = sext i32 %len to i64
+                  %buf = call ptr @malloc(i64 %n64)
+                  %src = getelementptr i8, ptr %s, i64 16
+                  br label %loop
+                loop:
+                  %i = phi i32 [ 0, %entry ], [ %inext, %body ]
+                  %done = icmp eq i32 %i, %len
+                  br i1 %done, label %done2, label %body
+                body:
+                  %i64 = sext i32 %i to i64
+                  %ps = getelementptr i8, ptr %src, i64 %i64
+                  %c = load i8, ptr %ps, align 1
+                  %cu = call i8 @jnative_ascii_upper(i8 %c)
+                  %pd = getelementptr i8, ptr %buf, i64 %i64
+                  store i8 %cu, ptr %pd, align 1
+                  %inext = add i32 %i, 1
+                  br label %loop
+                done2:
+                  %r = call ptr @jnative_string_from_literal(ptr %buf, i32 %len, ptr @meta.String)
+                  call void @free(ptr %buf)
+                  ret ptr %r
+                }
+
+                define i1 @jnative_string_is_empty(ptr %s) {
+                entry:
+                  %len = call i32 @jnative_string_length(ptr %s)
+                  %z = icmp eq i32 %len, 0
+                  ret i1 %z
+                }
+
+                define i1 @jnative_string_contains(ptr %s, ptr %needle) {
+                entry:
+                  %idx = call i32 @jnative_string_index_of(ptr %s, ptr %needle)
+                  %ok = icmp sge i32 %idx, 0
+                  ret i1 %ok
+                }
+
+                define i32 @jnative_string_last_index_of(ptr %s, ptr %needle) {
+                entry:
+                  call void @jnative_null_check(ptr %s)
+                  %slen = call i32 @jnative_string_length(ptr %s)
+                  %from = sub i32 %slen, 1
+                  %r = call i32 @jnative_string_last_index_of_from(ptr %s, ptr %needle, i32 %from)
+                  ret i32 %r
+                }
+
+                define i32 @jnative_string_last_index_of_from(ptr %s, ptr %needle, i32 %from) {
+                entry:
+                  call void @jnative_null_check(ptr %s)
+                  call void @jnative_null_check(ptr %needle)
+                  %slen = call i32 @jnative_string_length(ptr %s)
+                  %nlen = call i32 @jnative_string_length(ptr %needle)
+                  %empty = icmp eq i32 %nlen, 0
+                  br i1 %empty, label %emptyN, label %bounds
+                emptyN:
+                  %okF = icmp sle i32 %from, %slen
+                  %cap = select i1 %okF, i32 %from, i32 %slen
+                  %neg = icmp slt i32 %cap, 0
+                  %rs = select i1 %neg, i32 -1, i32 %cap
+                  ret i32 %rs
+                bounds:
+                  %limit = sub i32 %slen, %nlen
+                  %fromNeg = icmp slt i32 %from, 0
+                  br i1 %fromNeg, label %miss, label %startPick
+                startPick:
+                  %tooBig = icmp sgt i32 %from, %limit
+                  %start = select i1 %tooBig, i32 %limit, i32 %from
+                  %badLim = icmp slt i32 %limit, 0
+                  br i1 %badLim, label %miss, label %loop
+                loop:
+                  %i = phi i32 [ %start, %startPick ], [ %iprev, %next ]
+                  %match = call i1 @jnative_string_region_eq(ptr %s, i32 %i, ptr %needle)
+                  br i1 %match, label %hit, label %next
+                next:
+                  %iprev = sub i32 %i, 1
+                  %cont = icmp sge i32 %iprev, 0
+                  br i1 %cont, label %loop, label %miss
+                hit:
+                  ret i32 %i
+                miss:
+                  ret i32 -1
+                }
+
+                define i32 @jnative_string_compare_to(ptr %a, ptr %b) {
+                entry:
+                  call void @jnative_null_check(ptr %a)
+                  call void @jnative_null_check(ptr %b)
+                  %la = call i32 @jnative_string_length(ptr %a)
+                  %lb = call i32 @jnative_string_length(ptr %b)
+                  %da = getelementptr i8, ptr %a, i64 16
+                  %db = getelementptr i8, ptr %b, i64 16
+                  %minok = icmp sle i32 %la, %lb
+                  %n = select i1 %minok, i32 %la, i32 %lb
+                  br label %loop
+                loop:
+                  %i = phi i32 [ 0, %entry ], [ %inext, %body ]
+                  %done = icmp eq i32 %i, %n
+                  br i1 %done, label %byLen, label %body
+                body:
+                  %i64 = sext i32 %i to i64
+                  %pa = getelementptr i8, ptr %da, i64 %i64
+                  %pb = getelementptr i8, ptr %db, i64 %i64
+                  %ca = load i8, ptr %pa, align 1
+                  %cb = load i8, ptr %pb, align 1
+                  %za = zext i8 %ca to i32
+                  %zb = zext i8 %cb to i32
+                  %eq = icmp eq i32 %za, %zb
+                  %inext = add i32 %i, 1
+                  br i1 %eq, label %loop, label %diff
+                diff:
+                  %d = sub i32 %za, %zb
+                  ret i32 %d
+                byLen:
+                  %dl = sub i32 %la, %lb
+                  ret i32 %dl
+                }
+
+                ; Literal replace-all (not regex). Empty target → return original.
+                define ptr @jnative_string_replace(ptr %s, ptr %target, ptr %repl) {
+                entry:
+                  call void @jnative_null_check(ptr %s)
+                  call void @jnative_null_check(ptr %target)
+                  call void @jnative_null_check(ptr %repl)
+                  %tlen = call i32 @jnative_string_length(ptr %target)
+                  %empty = icmp eq i32 %tlen, 0
+                  br i1 %empty, label %orig, label %count
+                orig:
+                  ret ptr %s
+                count:
+                  %slen = call i32 @jnative_string_length(ptr %s)
+                  %rlen = call i32 @jnative_string_length(ptr %repl)
+                  br label %scan
+                scan:
+                  %i = phi i32 [ 0, %count ], [ %i2, %scannext ]
+                  %occ = phi i32 [ 0, %count ], [ %occ2, %scannext ]
+                  %lim = sub i32 %slen, %tlen
+                  %done = icmp sgt i32 %i, %lim
+                  br i1 %done, label %alloc, label %try
+                try:
+                  %m = call i1 @jnative_string_region_eq(ptr %s, i32 %i, ptr %target)
+                  br i1 %m, label %hit, label %miss
+                hit:
+                  %occ1 = add i32 %occ, 1
+                  %i1 = add i32 %i, %tlen
+                  br label %scannext
+                miss:
+                  %i1m = add i32 %i, 1
+                  br label %scannext
+                scannext:
+                  %i2 = phi i32 [ %i1, %hit ], [ %i1m, %miss ]
+                  %occ2 = phi i32 [ %occ1, %hit ], [ %occ, %miss ]
+                  br label %scan
+                alloc:
+                  %delta = sub i32 %rlen, %tlen
+                  %extra = mul i32 %occ, %delta
+                  %outLen = add i32 %slen, %extra
+                  %out64 = sext i32 %outLen to i64
+                  %buf = call ptr @malloc(i64 %out64)
+                  %src = getelementptr i8, ptr %s, i64 16
+                  %td = getelementptr i8, ptr %target, i64 16
+                  %rd = getelementptr i8, ptr %repl, i64 16
+                  br label %build
+                build:
+                  %si = phi i32 [ 0, %alloc ], [ %si2, %bnext ]
+                  %di = phi i32 [ 0, %alloc ], [ %di2, %bnext ]
+                  %doneB = icmp sge i32 %si, %slen
+                  br i1 %doneB, label %finish, label %btry
+                btry:
+                  %remain = sub i32 %slen, %si
+                  %can = icmp sge i32 %remain, %tlen
+                  br i1 %can, label %bmatch, label %bcopy1
+                bmatch:
+                  %bm = call i1 @jnative_string_region_eq(ptr %s, i32 %si, ptr %target)
+                  br i1 %bm, label %brepl, label %bcopy1
+                brepl:
+                  %r64 = sext i32 %rlen to i64
+                  %dp = getelementptr i8, ptr %buf, i32 %di
+                  call ptr @memcpy(ptr %dp, ptr %rd, i64 %r64)
+                  %siR = add i32 %si, %tlen
+                  %diR = add i32 %di, %rlen
+                  br label %bnext
+                bcopy1:
+                  %s64 = sext i32 %si to i64
+                  %sp = getelementptr i8, ptr %src, i64 %s64
+                  %c = load i8, ptr %sp, align 1
+                  %dp1 = getelementptr i8, ptr %buf, i32 %di
+                  store i8 %c, ptr %dp1, align 1
+                  %siC = add i32 %si, 1
+                  %diC = add i32 %di, 1
+                  br label %bnext
+                bnext:
+                  %si2 = phi i32 [ %siR, %brepl ], [ %siC, %bcopy1 ]
+                  %di2 = phi i32 [ %diR, %brepl ], [ %diC, %bcopy1 ]
+                  br label %build
+                finish:
+                  %r = call ptr @jnative_string_from_literal(ptr %buf, i32 %outLen, ptr @meta.String)
+                  call void @free(ptr %buf)
+                  ret ptr %r
+                }
+
+                ; Literal delimiter split (NOT Java regex).
+                ; Contract:
+                ;   - delimiter is literal UTF-8 bytes
+                ;   - empty delimiter → single-element [s]
+                ;   - empty input → [""]
+                ;   - consecutive delimiters keep empty parts
+                ;   - trailing empty parts kept
+                ;   - null s/delimiter → NPE
+                define ptr @jnative_string_split(ptr %s, ptr %delim) {
+                entry:
+                  call void @jnative_null_check(ptr %s)
+                  call void @jnative_null_check(ptr %delim)
+                  %dlen = call i32 @jnative_string_length(ptr %delim)
+                  %slen = call i32 @jnative_string_length(ptr %s)
+                  %dempty = icmp eq i32 %dlen, 0
+                  br i1 %dempty, label %single, label %count
+                single:
+                  %one = call ptr @jnative_array_alloc(i64 8, i32 1, ptr @meta.array.CString)
+                  %ep0 = call ptr @jnative_array_elem_ptr(ptr %one, i32 0, i64 8)
+                  store ptr %s, ptr %ep0, align 8
+                  ret ptr %one
+                count:
+                  br label %scan
+                scan:
+                  %i = phi i32 [ 0, %count ], [ %i2, %scannext ]
+                  %parts = phi i32 [ 1, %count ], [ %parts2, %scannext ]
+                  %lim = sub i32 %slen, %dlen
+                  %done = icmp sgt i32 %i, %lim
+                  br i1 %done, label %alloc, label %try
+                try:
+                  %m = call i1 @jnative_string_region_eq(ptr %s, i32 %i, ptr %delim)
+                  br i1 %m, label %hit, label %miss
+                hit:
+                  %parts1 = add i32 %parts, 1
+                  %i1 = add i32 %i, %dlen
+                  br label %scannext
+                miss:
+                  %i1m = add i32 %i, 1
+                  br label %scannext
+                scannext:
+                  %i2 = phi i32 [ %i1, %hit ], [ %i1m, %miss ]
+                  %parts2 = phi i32 [ %parts1, %hit ], [ %parts, %miss ]
+                  br label %scan
+                alloc:
+                  %arr = call ptr @jnative_array_alloc(i64 8, i32 %parts, ptr @meta.array.CString)
+                  br label %build
+                build:
+                  %si = phi i32 [ 0, %alloc ], [ %siN, %bcont ]
+                  %pi = phi i32 [ 0, %alloc ], [ %piN, %bcont ]
+                  %start = phi i32 [ 0, %alloc ], [ %startN, %bcont ]
+                  %filled = icmp sge i32 %pi, %parts
+                  br i1 %filled, label %doneB, label %bbody
+                bbody:
+                  %atEnd = icmp sge i32 %si, %slen
+                  br i1 %atEnd, label %emitTail, label %bcheck
+                bcheck:
+                  %remain = sub i32 %slen, %si
+                  %can = icmp sge i32 %remain, %dlen
+                  br i1 %can, label %bmatch, label %badv
+                bmatch:
+                  %bm = call i1 @jnative_string_region_eq(ptr %s, i32 %si, ptr %delim)
+                  br i1 %bm, label %bemit, label %badv
+                bemit:
+                  %piece = call ptr @jnative_string_substring(ptr %s, i32 %start, i32 %si)
+                  %ep = call ptr @jnative_array_elem_ptr(ptr %arr, i32 %pi, i64 8)
+                  store ptr %piece, ptr %ep, align 8
+                  %siR = add i32 %si, %dlen
+                  %piR = add i32 %pi, 1
+                  br label %bcont
+                badv:
+                  %siC = add i32 %si, 1
+                  br label %bcontKeep
+                bcontKeep:
+                  br label %bcont2
+                emitTail:
+                  %pieceT = call ptr @jnative_string_substring(ptr %s, i32 %start, i32 %slen)
+                  %epT = call ptr @jnative_array_elem_ptr(ptr %arr, i32 %pi, i64 8)
+                  store ptr %pieceT, ptr %epT, align 8
+                  br label %doneB
+                bcont2:
+                  br label %bcont
+                bcont:
+                  %siN = phi i32 [ %siR, %bemit ], [ %siC, %bcont2 ]
+                  %piN = phi i32 [ %piR, %bemit ], [ %pi, %bcont2 ]
+                  %startN = phi i32 [ %siR, %bemit ], [ %start, %bcont2 ]
+                  br label %build
+                doneB:
+                  ret ptr %arr
+                }
+
+                ; Single-pass join (StringBuilder-equivalent; no chained concat).
+                ; null delimiter or elements → NPE. null element → "null".
+                define ptr @jnative_string_join(ptr %delim, ptr %arr) {
+                entry:
+                  call void @jnative_null_check(ptr %delim)
+                  call void @jnative_null_check(ptr %arr)
+                  %n = call i32 @jnative_array_length(ptr %arr)
+                  %dlen = call i32 @jnative_string_length(ptr %delim)
+                  %zero = icmp eq i32 %n, 0
+                  br i1 %zero, label %empty, label %sum
+                empty:
+                  %e = call ptr @jnative_string_from_literal(ptr @.jn.emptystr, i32 0, ptr @meta.String)
+                  ret ptr %e
+                sum:
+                  br label %slenloop
+                slenloop:
+                  %i = phi i32 [ 0, %sum ], [ %i2, %slennext ]
+                  %acc = phi i32 [ 0, %sum ], [ %acc2, %slennext ]
+                  %done = icmp sge i32 %i, %n
+                  br i1 %done, label %allocJ, label %slenbody
+                slenbody:
+                  %ep = call ptr @jnative_array_elem_ptr(ptr %arr, i32 %i, i64 8)
+                  %el = load ptr, ptr %ep, align 8
+                  %isnull = icmp eq ptr %el, null
+                  br i1 %isnull, label %usenull, label %uselen
+                usenull:
+                  br label %addlen
+                uselen:
+                  %elLen = call i32 @jnative_string_length(ptr %el)
+                  br label %addlen
+                addlen:
+                  %elen = phi i32 [ 4, %usenull ], [ %elLen, %uselen ]
+                  %acc1 = add i32 %acc, %elen
+                  %notFirst = icmp sgt i32 %i, 0
+                  %extra = select i1 %notFirst, i32 %dlen, i32 0
+                  %acc2 = add i32 %acc1, %extra
+                  %i2 = add i32 %i, 1
+                  br label %slennext
+                slennext:
+                  br label %slenloop
+                allocJ:
+                  %acc64 = sext i32 %acc to i64
+                  %buf = call ptr @malloc(i64 %acc64)
+                  %dd = getelementptr i8, ptr %delim, i64 16
+                  br label %buildJ
+                buildJ:
+                  %ji = phi i32 [ 0, %allocJ ], [ %ji2, %jnext ]
+                  %di = phi i32 [ 0, %allocJ ], [ %di2, %jnext ]
+                  %jdone = icmp sge i32 %ji, %n
+                  br i1 %jdone, label %finishJ, label %jbody
+                jbody:
+                  %needDelim = icmp sgt i32 %ji, 0
+                  br i1 %needDelim, label %jdelim, label %jelem
+                jdelim:
+                  %d64 = sext i32 %dlen to i64
+                  %dp = getelementptr i8, ptr %buf, i32 %di
+                  call ptr @memcpy(ptr %dp, ptr %dd, i64 %d64)
+                  %diD = add i32 %di, %dlen
+                  br label %jelem2
+                jelem:
+                  br label %jelem2
+                jelem2:
+                  %diE = phi i32 [ %diD, %jdelim ], [ %di, %jelem ]
+                  %jep = call ptr @jnative_array_elem_ptr(ptr %arr, i32 %ji, i64 8)
+                  %jel = load ptr, ptr %jep, align 8
+                  %jnull = icmp eq ptr %jel, null
+                  br i1 %jnull, label %jwritenull, label %jwritestr
+                jwritenull:
+                  %np = getelementptr i8, ptr %buf, i32 %diE
+                  store i8 110, ptr %np, align 1
+                  %np1 = getelementptr i8, ptr %np, i64 1
+                  store i8 117, ptr %np1, align 1
+                  %np2 = getelementptr i8, ptr %np, i64 2
+                  store i8 108, ptr %np2, align 1
+                  %np3 = getelementptr i8, ptr %np, i64 3
+                  store i8 108, ptr %np3, align 1
+                  %diN = add i32 %diE, 4
+                  br label %jnext
+                jwritestr:
+                  %jl = call i32 @jnative_string_length(ptr %jel)
+                  %js = getelementptr i8, ptr %jel, i64 16
+                  %jl64 = sext i32 %jl to i64
+                  %jp = getelementptr i8, ptr %buf, i32 %diE
+                  call ptr @memcpy(ptr %jp, ptr %js, i64 %jl64)
+                  %diS = add i32 %diE, %jl
+                  br label %jnext
+                jnext:
+                  %di2 = phi i32 [ %diN, %jwritenull ], [ %diS, %jwritestr ]
+                  %ji2 = add i32 %ji, 1
+                  br label %buildJ
+                finishJ:
+                  %out = call ptr @jnative_string_from_literal(ptr %buf, i32 %acc, ptr @meta.String)
+                  call void @free(ptr %buf)
+                  ret ptr %out
+                }
+
                 """);
         emitCString(".jn.emptystr", "");
     }

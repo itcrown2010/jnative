@@ -503,6 +503,13 @@ class ExplorerWindow {
 
     void show() {
         window.show();
+        if (breadcrumb != null && model != null && model.current != null) {
+            breadcrumb.setPath(model.current.toString());
+        }
+        if (window.content != null) {
+            window.content.setBounds(0, 0, window.width, window.height);
+            window.content.layout();
+        }
     }
 
     void buildUi() {
@@ -582,9 +589,18 @@ class ExplorerWindow {
             ExplorerActions.deleteSelected();
         });
         deleteCmd.bindButton(deleteBtn);
+        toolbar.addSeparatorGap();
+        /* Path sits in the toolbar row (Finder-style) — avoids a second chrome
+           strip and the Y-gap that appeared between toolbar and breadcrumb. */
+        breadcrumb = new BreadcrumbBar();
+        breadcrumb.setOnNavigate(new ExplorerBreadcrumbNav());
+        breadcrumb.prefHeight = 26;
+        breadcrumb.height = 26;
+        breadcrumb.setPrefSize(420, 26);
+        toolbar.add(breadcrumb);
         toolbar.addFlexibleSpace();
         search = new SearchField();
-        search.setPlaceholder("Search current folder");
+        search.setPlaceholder("Search");
         search.setOnQueryChanged(() -> {
             ExplorerActions.scheduleSearch();
         });
@@ -603,12 +619,6 @@ class ExplorerWindow {
             ExplorerActions.navigateAddress();
         });
         CommandRegistry.remember(addrCmd);
-
-        breadcrumb = new BreadcrumbBar();
-        breadcrumb.setOnNavigate(new ExplorerBreadcrumbNav());
-        breadcrumb.setPrefSize(1100, 32);
-        breadcrumb.prefHeight = 32;
-        breadcrumb.height = 32;
 
         tree = new TreeView<NavNode>();
         tree.setRenderer(new NavRenderer());
@@ -637,12 +647,13 @@ class ExplorerWindow {
         });
 
         SplitPane split = new SplitPane(Orientation.HORIZONTAL);
-        split.setPrefSize(1100, 600);
-        split.setDividerPosition(0.20);
+        split.setPrefSize(800, 480);
+        split.prefHeight = 480;
+        split.setDividerPosition(0.22);
         split.setFirst(tree);
         split.setSecond(table);
-        tree.setPrefSize(220, 600);
-        table.setPrefSize(860, 600);
+        tree.setPrefSize(200, 480);
+        table.setPrefSize(600, 480);
 
         HBox statusBar = new HBox();
         statusBar.spacing = Theme.SPACE_3;
@@ -650,16 +661,27 @@ class ExplorerWindow {
         statusBar.prefHeight = Theme.STATUS_HEIGHT;
         statusBar.height = Theme.STATUS_HEIGHT;
         status = new Label("Ready");
-        status.setPrefSize(640, 20);
+        status.setPrefSize(520, 20);
         statusSize = new Label("");
-        statusSize.setPrefSize(180, 20);
+        statusSize.setPrefSize(160, 20);
         statusBar.add(status);
+        Label statusFlex = new Label("");
+        statusFlex.prefWidth = 0;
+        statusFlex.width = 0;
+        statusFlex.prefHeight = 1;
+        statusFlex.height = 1;
+        statusBar.add(statusFlex);
         statusBar.add(statusSize);
 
         root.add(toolbar);
-        root.add(breadcrumb);
         root.add(split);
         root.add(statusBar);
+        /* Incremental add() may temporarily stretch chrome; reset prefs. */
+        toolbar.prefHeight = Theme.TOOLBAR_HEIGHT;
+        toolbar.height = Theme.TOOLBAR_HEIGHT;
+        statusBar.prefHeight = Theme.STATUS_HEIGHT;
+        statusBar.height = Theme.STATUS_HEIGHT;
+        split.prefHeight = 480;
         window.setContent(root);
 
         window.onKeyDown(ev -> {

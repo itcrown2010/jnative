@@ -92,6 +92,7 @@ public final class NativeRuntimeSources {
             sources.add(copyResource("native/posix/jnative_socket.c", dir.resolve("jnative_socket.c")));
             copyResource("native/posix/jnative_mt.h", dir.resolve("jnative_mt.h"));
             sources.add(copyResource("native/posix/jnative_mt.c", dir.resolve("jnative_mt.c")));
+            sources.add(copyResource("native/posix/jnative_tz.c", dir.resolve("jnative_tz.c")));
             copyResource("native/posix/jnative_gc2.h", dir.resolve("jnative_gc2.h"));
             sources.add(copyResource("native/posix/jnative_gc2.c", dir.resolve("jnative_gc2.c")));
             sources.add(copyResource(

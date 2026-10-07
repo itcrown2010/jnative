@@ -50,7 +50,7 @@ public final class NetworkRuntimeEmitter {
                   %isHost = icmp eq i32 %code, 2
                   br i1 %isHost, label %host, label %chkTimeout
                 host:
-                  %oh = call ptr @jnative_alloc_zeroed(i64 16)
+                  %oh = call ptr @jnative_alloc_zeroed(i64 24)
                   store ptr @meta.UnknownHostException, ptr %oh, align 8
                   %mh = getelementptr i8, ptr %oh, i64 8
                   store ptr %msg, ptr %mh, align 8
@@ -60,7 +60,7 @@ public final class NetworkRuntimeEmitter {
                   %isTo = icmp eq i32 %code, 3
                   br i1 %isTo, label %timeout, label %chkConn
                 timeout:
-                  %ot = call ptr @jnative_alloc_zeroed(i64 16)
+                  %ot = call ptr @jnative_alloc_zeroed(i64 24)
                   store ptr @meta.SocketTimeoutException, ptr %ot, align 8
                   %mt = getelementptr i8, ptr %ot, i64 8
                   store ptr %msg, ptr %mt, align 8
@@ -70,7 +70,7 @@ public final class NetworkRuntimeEmitter {
                   %isConn = icmp eq i32 %code, 1
                   br i1 %isConn, label %conn, label %chkArg
                 conn:
-                  %oc = call ptr @jnative_alloc_zeroed(i64 16)
+                  %oc = call ptr @jnative_alloc_zeroed(i64 24)
                   store ptr @meta.ConnectException, ptr %oc, align 8
                   %mc = getelementptr i8, ptr %oc, i64 8
                   store ptr %msg, ptr %mc, align 8
@@ -80,14 +80,14 @@ public final class NetworkRuntimeEmitter {
                   %isArg = icmp eq i32 %code, 5
                   br i1 %isArg, label %arg, label %sock
                 arg:
-                  %oa = call ptr @jnative_alloc_zeroed(i64 16)
+                  %oa = call ptr @jnative_alloc_zeroed(i64 24)
                   store ptr @meta.IllegalArgumentException, ptr %oa, align 8
                   %ma = getelementptr i8, ptr %oa, i64 8
                   store ptr %msg, ptr %ma, align 8
                   call void @jnative_exception_throw(ptr %oa)
                   ret void
                 sock:
-                  %os = call ptr @jnative_alloc_zeroed(i64 16)
+                  %os = call ptr @jnative_alloc_zeroed(i64 24)
                   store ptr @meta.SocketException, ptr %os, align 8
                   %ms = getelementptr i8, ptr %os, i64 8
                   store ptr %msg, ptr %ms, align 8

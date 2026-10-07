@@ -1375,8 +1375,10 @@ class VBox extends Container {
         if (availW < 0) {
             availW = 0;
         }
-        /* Stretch last visible child with substantial preferred height (editor),
-           not a thin status/toolbar bar. */
+        /* Stretch only a child that asks for substantial height (split/editor).
+           Never fall back to stretching thin chrome — during incremental add()
+           the toolbar alone would be filled to the container height and leave
+           a permanent Y-flip gap once the real content is attached. */
         int stretchIndex = -1;
         int j = childCount - 1;
         while (j >= 0) {
@@ -1384,8 +1386,6 @@ class VBox extends Container {
                 if (children[j].preferredHeight() >= 80) {
                     stretchIndex = j;
                     j = -1;
-                } else if (stretchIndex < 0) {
-                    stretchIndex = j;
                 }
             }
             j = j - 1;
@@ -1469,8 +1469,6 @@ class HBox extends Container {
             }
             i = i + 1;
         }
-        /* Measure preferred size, but keep parent-allocated width/height when larger
-           so toolbars/status bars stretch with the window. */
         int needW = padding;
         i = 0;
         while (i < childCount) {
@@ -1482,33 +1480,100 @@ class HBox extends Container {
         }
         needW = needW + padding;
         int needH = maxH + padding * 2;
+        /* Preserve thin chrome heights (toolbar/breadcrumb/status) when children
+           are empty/shorter — but never lock in a parent-stretch leftover from
+           incremental Container.add (that created the huge top whitespace). */
+        if (needH < height && height > 0 && height <= 64) {
+            needH = height;
+        }
         prefWidth = needW;
         prefHeight = needH;
-        if (width < needW) {
+        /* Keep parent-allocated size when present to avoid Cocoa Y-flip gaps. */
+        int layoutW = width;
+        int layoutH = height;
+        int noParent = 0;
+        if (parent == null) {
+            noParent = 1;
+        }
+        if (layoutW < needW) {
+            if (noParent != 0) {
+                layoutW = needW;
+                width = needW;
+            }
+        }
+        if (layoutH < needH) {
+            if (noParent != 0) {
+                layoutH = needH;
+                height = needH;
+            }
+        }
+        if (layoutW < 1) {
+            layoutW = needW;
             width = needW;
         }
-        if (height < needH) {
+        if (layoutH < 1) {
+            layoutH = needH;
             height = needH;
         }
         if (nativeId > 0) {
-            UiNative.setBounds(nativeId, x, y, width, height);
+            UiNative.setBounds(nativeId, x, y, layoutW, layoutH);
         }
-        int availH = height - padding * 2;
+        int availH = layoutH - padding * 2;
         if (availH < 0) {
             availH = 0;
+        }
+        int flexCount = 0;
+        int fixedW = padding * 2;
+        i = 0;
+        while (i < childCount) {
+            c = children[i];
+            if (c.visible != 0) {
+                if (c.prefWidth == 0) {
+                    flexCount = flexCount + 1;
+                } else {
+                    fixedW = fixedW + c.preferredWidth();
+                }
+                if (i + 1 < childCount) {
+                    fixedW = fixedW + spacing;
+                }
+            }
+            i = i + 1;
+        }
+        int flexBudget = layoutW - fixedW;
+        if (flexBudget < 0) {
+            flexBudget = 0;
+        }
+        int flexEach = 0;
+        if (flexCount > 0) {
+            flexEach = flexBudget / flexCount;
         }
         cx = padding;
         i = 0;
         while (i < childCount) {
             c = children[i];
-            int pw = c.preferredWidth();
-            int ph2 = c.preferredHeight();
-            int yOff = padding;
-            if (ph2 < availH) {
-                yOff = padding + (availH - ph2) / 2;
+            if (c.visible == 0) {
+                c.setBounds(cx, padding, 0, 0);
+            } else {
+                int pw = c.preferredWidth();
+                if (c.prefWidth == 0) {
+                    pw = flexEach;
+                    if (pw < 0) {
+                        pw = 0;
+                    }
+                }
+                int ph2 = c.preferredHeight();
+                if (ph2 > availH) {
+                    if (availH > 0) {
+                        ph2 = availH;
+                    }
+                }
+                int yOff = padding;
+                if (ph2 < availH) {
+                    yOff = padding + (availH - ph2) / 2;
+                }
+                c.setBounds(cx, yOff, pw, ph2);
+                cx = cx + pw + spacing;
             }
-            c.setBounds(cx, yOff, pw, ph2);
-            cx = cx + pw + spacing;
             i = i + 1;
         }
     }
@@ -1859,14 +1924,22 @@ class Button extends Control {
         ensureAlive("Button.setChromeStyle");
         chromeStyle = style;
         if (style == 1) {
-            prefWidth = 34;
-            width = 34;
-            prefHeight = 32;
-            height = 32;
+            prefWidth = 30;
+            width = 30;
+            prefHeight = 28;
+            height = 28;
         } else if (style == 2) {
-            prefHeight = 24;
-            height = 24;
-            prefWidth = buttonPrefWidth(text);
+            /* Compact breadcrumb segment — avoid 64px min from push-button sizing. */
+            prefHeight = 22;
+            height = 22;
+            int n = 0;
+            if (text != null) {
+                n = text.length();
+            }
+            prefWidth = 12 + n * 8;
+            if (prefWidth < 18) {
+                prefWidth = 18;
+            }
             if (prefWidth > 160) {
                 prefWidth = 160;
             }
@@ -3209,7 +3282,7 @@ class Theme {
     static int SPACE_3 = 12;
     static int SPACE_4 = 16;
     static int SPACE_5 = 24;
-    static int TOOLBAR_HEIGHT = 44;
+    static int TOOLBAR_HEIGHT = 36;
     static int STATUS_HEIGHT = 24;
     static int SIDEBAR_ITEM_HEIGHT = 30;
     static int TABLE_ROW_HEIGHT = 28;
@@ -3337,15 +3410,18 @@ class Dpi {
 
 class Toolbar extends HBox {
     Toolbar() {
-        spacing = Theme.SPACE_2;
-        padding = Theme.SPACE_2;
+        spacing = Theme.SPACE_1;
+        padding = Theme.SPACE_1;
         prefHeight = Theme.TOOLBAR_HEIGHT;
         height = Theme.TOOLBAR_HEIGHT;
+        prefWidth = 400;
     }
 
     Button addToolButton(String label, Runnable action) {
         Button b = new Button(label);
         b.setChromeStyle(1);
+        b.prefHeight = 28;
+        b.height = 28;
         if (action != null) {
             b.onClick(action);
         }
@@ -3362,7 +3438,10 @@ class Toolbar extends HBox {
 
     void addFlexibleSpace() {
         Label flex = new Label("");
-        flex.setPrefSize(12, 24);
+        flex.prefWidth = 0;
+        flex.width = 0;
+        flex.prefHeight = 1;
+        flex.height = 1;
         add(flex);
     }
 }
@@ -3391,15 +3470,22 @@ class BreadcrumbBar extends HBox {
         crumbs = new HBox();
         crumbs.spacing = 2;
         crumbs.padding = 0;
+        crumbs.prefWidth = 40;
+        crumbs.width = 40;
+        crumbs.prefHeight = 22;
+        crumbs.height = 22;
         editor = new TextField("");
         editor.setPrefSize(480, 26);
         BreadcrumbBar.host = this;
         editor.onKeyDown(ev -> {
             BreadcrumbBar.onEditorKeyStatic(ev);
         });
+        /* Height before add — HBox.layout must not collapse chrome to padding. */
+        prefHeight = 26;
+        height = 26;
         add(crumbs);
-        prefHeight = 32;
-        height = 32;
+        prefHeight = 26;
+        height = 26;
     }
 
     void setOnNavigate(BreadcrumbNavigate nav) {
@@ -3479,13 +3565,34 @@ class BreadcrumbBar extends HBox {
         while (i < segments.size()) {
             if (i > 0) {
                 Label sep = new Label(">");
-                sep.setPrefSize(14, 22);
+                sep.setPrefSize(10, 20);
                 crumbs.add(sep);
             }
             addCrumbButton(segments.get(i), paths.get(i));
             i = i + 1;
         }
-        requestLayout();
+        /* Keep chrome height; HBox.layout alone can collapse empty bars. */
+        prefHeight = 26;
+        height = 26;
+        crumbs.prefHeight = 22;
+        crumbs.height = 22;
+        crumbs.layout();
+        /* Shrink wrap crumbs to content so segments stay packed left. */
+        if (crumbs.prefWidth > 0) {
+            crumbs.width = crumbs.prefWidth;
+        }
+        layout();
+    }
+
+    /** Relayout this bar inside its parent after path changes (safe post-show). */
+    void relayoutInParent() {
+        prefHeight = 26;
+        height = 26;
+        layout();
+        if (parent != null && parent instanceof Container) {
+            Container c = (Container) parent;
+            c.layout();
+        }
     }
 
     /** Click uses Component.lastClicked + userData (no lambda captures — IR-safe). */
@@ -3702,7 +3809,10 @@ class Command {
             return;
         }
         boundControls.add(b);
-        b.setText(label);
+        /* Toolbar chrome keeps glyph; overwriting with Copy truncates labels. */
+        if (b.chromeStyle != 1) {
+            b.setText(label);
+        }
         b.setUserData(id);
         CommandRegistry.remember(this);
         b.onClick(() -> {

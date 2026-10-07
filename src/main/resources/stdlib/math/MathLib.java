@@ -135,21 +135,11 @@ class Math {
     static native double hypot(double x, double y);
 
     /**
-     * Java-compatible Math.round(double): floor(x + 0.5) for finite values; returns long.
+     * Java-compatible Math.round(double) → long.
+     * Uses libm llround because JNative has no primitive cast (double→long) yet.
      */
-    static long round(double a) {
-        if (isNaN(a)) {
-            return 0L;
-        }
-        if (isInfinite(a)) {
-            long lim = 9223372036854775807L;
-            if (a > 0.0) {
-                return lim;
-            }
-            return 0L - lim - 1L;
-        }
-        return (long) floor(a + 0.5);
-    }
+    @Native(symbol = "llround")
+    static native long round(double a);
 
     static double toRadians(double deg) {
         return deg * 0.017453292519943295;
@@ -159,8 +149,21 @@ class Math {
         return rad * 57.29577951308232;
     }
 
+    /**
+     * Pure IEEE predicates — avoid libm isnan/isinf macros (no stable link symbol on Darwin).
+     * NaN is unordered: not &lt;, not &gt;, not == 0.
+     */
     static boolean isNaN(double a) {
-        return a != a;
+        if (a < 0.0) {
+            return false;
+        }
+        if (a > 0.0) {
+            return false;
+        }
+        if (a == 0.0) {
+            return false;
+        }
+        return true;
     }
 
     static boolean isInfinite(double a) {

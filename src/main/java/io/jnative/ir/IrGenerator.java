@@ -47,6 +47,7 @@ import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 
 /**
@@ -62,6 +63,10 @@ public final class IrGenerator {
     private IrFunction currentFunction;
     private final Map<String, IrFunction> functionsByMangled = new LinkedHashMap<>();
     private final Deque<TryFrame> tryFrames = new ArrayDeque<>();
+    /** Innermost loop (or future switch) break/continue targets. */
+    private final Deque<LoopFrame> loopFrames = new ArrayDeque<>();
+    /** Abrupt branch targets registered for break/continue × finally dispatch. */
+    private final List<IrBasicBlock> abruptTargets = new ArrayList<>();
     /** Number of finally blocks currently being lowered (return-in-finally must not re-enter). */
     private int finallyDepth;
     /** Resume-state id generator for await sites in the current async method. */
@@ -74,6 +79,19 @@ public final class IrGenerator {
             IrBasicBlock afterBlock,
             IrBasicBlock finallyBlock,
             List<CatchClause> catches
+    ) {
+    }
+
+    /**
+     * Control-flow target for break/continue. Architecture uses BreakTarget abstraction
+     * so switch can share break later without hard-coding "loop only forever".
+     */
+    private record LoopFrame(
+            IrBasicBlock breakTarget,
+            IrBasicBlock continueTarget,
+            int breakTargetId,
+            int continueTargetId,
+            int tryDepthAtEntry
     ) {
     }
 
@@ -452,6 +470,9 @@ public final class IrGenerator {
         if (throwable == null) {
             return;
         }
+        ClassLayout layout = throwable.layout();
+        int messageIdx = throwable.findField("message").map(f -> f.gepIndex()).orElse(1);
+        int causeIdx = throwable.findField("cause").map(f -> f.gepIndex()).orElse(2);
         for (ConstructorSymbol ctor : throwable.constructors()) {
             if (functionsByMangled.containsKey(ctor.mangledName())) {
                 continue;
@@ -460,31 +481,53 @@ public final class IrGenerator {
                 IrFunction function = new IrFunction(ctor.mangledName(), IrType.VOID,
                         List.of(new IrValue.Param("this", IrType.PTR)), false);
                 module.addFunction(function);
+                functionsByMangled.put(ctor.mangledName(), function);
                 builder.beginFunction(function);
                 builder.retVoid();
                 continue;
             }
-            if (ctor.parameters().size() != 1) {
-                continue;
+            int arity = ctor.parameters().size();
+            if (arity == 1) {
+                List<IrValue.Param> params = List.of(
+                        new IrValue.Param("this", IrType.PTR),
+                        new IrValue.Param("message", IrType.PTR));
+                IrFunction function = new IrFunction(ctor.mangledName(), IrType.VOID, params, false);
+                module.addFunction(function);
+                functionsByMangled.put(ctor.mangledName(), function);
+                builder.beginFunction(function);
+                IrValue.Local thisLocal = builder.alloca("this", IrType.PTR);
+                IrValue.Local msgLocal = builder.alloca("message", IrType.PTR);
+                builder.store(new IrValue.Param("this", IrType.PTR), thisLocal);
+                builder.store(new IrValue.Param("message", IrType.PTR), msgLocal);
+                builder.storeField(
+                        builder.load(thisLocal),
+                        throwable.name(),
+                        layout.llvmTypeName(),
+                        messageIdx,
+                        builder.load(msgLocal));
+                builder.retVoid();
+            } else if (arity == 2) {
+                List<IrValue.Param> params = List.of(
+                        new IrValue.Param("this", IrType.PTR),
+                        new IrValue.Param("message", IrType.PTR),
+                        new IrValue.Param("cause", IrType.PTR));
+                IrFunction function = new IrFunction(ctor.mangledName(), IrType.VOID, params, false);
+                module.addFunction(function);
+                functionsByMangled.put(ctor.mangledName(), function);
+                builder.beginFunction(function);
+                IrValue.Local thisLocal = builder.alloca("this", IrType.PTR);
+                IrValue.Local msgLocal = builder.alloca("message", IrType.PTR);
+                IrValue.Local causeLocal = builder.alloca("cause", IrType.PTR);
+                builder.store(new IrValue.Param("this", IrType.PTR), thisLocal);
+                builder.store(new IrValue.Param("message", IrType.PTR), msgLocal);
+                builder.store(new IrValue.Param("cause", IrType.PTR), causeLocal);
+                IrValue thisPtr = builder.load(thisLocal);
+                builder.storeField(
+                        thisPtr, throwable.name(), layout.llvmTypeName(), messageIdx, builder.load(msgLocal));
+                builder.storeField(
+                        thisPtr, throwable.name(), layout.llvmTypeName(), causeIdx, builder.load(causeLocal));
+                builder.retVoid();
             }
-            List<IrValue.Param> params = List.of(
-                    new IrValue.Param("this", IrType.PTR),
-                    new IrValue.Param("message", IrType.PTR));
-            IrFunction function = new IrFunction(ctor.mangledName(), IrType.VOID, params, false);
-            module.addFunction(function);
-            builder.beginFunction(function);
-            IrValue.Local thisLocal = builder.alloca("this", IrType.PTR);
-            IrValue.Local msgLocal = builder.alloca("message", IrType.PTR);
-            builder.store(new IrValue.Param("this", IrType.PTR), thisLocal);
-            builder.store(new IrValue.Param("message", IrType.PTR), msgLocal);
-            ClassLayout layout = throwable.layout();
-            builder.storeField(
-                    builder.load(thisLocal),
-                    throwable.name(),
-                    layout.llvmTypeName(),
-                    1,
-                    builder.load(msgLocal));
-            builder.retVoid();
         }
 
         throwable.findMethod("getMessage").ifPresent(ms -> {
@@ -498,14 +541,32 @@ public final class IrGenerator {
             builder.beginFunction(function);
             IrValue.Local thisLocal = builder.alloca("this", IrType.PTR);
             builder.store(new IrValue.Param("this", IrType.PTR), thisLocal);
-            ClassLayout layout = throwable.layout();
             IrValue msg = builder.loadField(
                     builder.load(thisLocal),
                     throwable.name(),
                     layout.llvmTypeName(),
-                    1,
+                    messageIdx,
                     IrType.PTR);
             builder.ret(msg);
+        });
+        throwable.findMethod("getCause").ifPresent(ms -> {
+            if (functionsByMangled.containsKey(ms.mangledName())) {
+                return;
+            }
+            IrFunction function = new IrFunction(
+                    ms.mangledName(), IrType.PTR, List.of(new IrValue.Param("this", IrType.PTR)), false);
+            module.addFunction(function);
+            functionsByMangled.put(ms.mangledName(), function);
+            builder.beginFunction(function);
+            IrValue.Local thisLocal = builder.alloca("this", IrType.PTR);
+            builder.store(new IrValue.Param("this", IrType.PTR), thisLocal);
+            IrValue cause = builder.loadField(
+                    builder.load(thisLocal),
+                    throwable.name(),
+                    layout.llvmTypeName(),
+                    causeIdx,
+                    IrType.PTR);
+            builder.ret(cause);
         });
     }
 
@@ -588,7 +649,8 @@ public final class IrGenerator {
                 functionsByMangled.put(ctor.mangledName(), function);
                 ctorAst.put(ctor, method);
             } else {
-                MethodSymbol ms = classSymbol.findMethod(method.name()).orElse(null);
+                /* Match overload by parameter types — findMethod(name) returns only the first. */
+                MethodSymbol ms = findMethodForAst(classSymbol, method);
                 if (ms == null) {
                     continue;
                 }
@@ -599,6 +661,10 @@ public final class IrGenerator {
                     if (ms.nativeFunction() != null) {
                         module.addNativeDeclaration(ms.nativeFunction());
                     }
+                    continue;
+                }
+                if (functionsByMangled.containsKey(ms.mangledName())) {
+                    methodAst.put(ms, method);
                     continue;
                 }
                 List<IrValue.Param> params = new ArrayList<>();
@@ -626,6 +692,39 @@ public final class IrGenerator {
             }
         }
         return null;
+    }
+
+    private MethodSymbol findMethodForAst(ClassSymbol owner, MethodDeclaration method) {
+        List<MethodSymbol> overs = owner.findDeclaredMethods(method.name());
+        if (overs.isEmpty()) {
+            return owner.findMethod(method.name()).orElse(null);
+        }
+        /* Common case: no overloads — same as legacy findMethod(name). */
+        if (overs.size() == 1) {
+            return overs.get(0);
+        }
+        List<JType> pts = new ArrayList<>();
+        for (Parameter p : method.parameters()) {
+            pts.add(resolveTypeNameInOwner(p.type(), p.isArray(), owner));
+        }
+        Optional<MethodSymbol> exact = owner.findMethod(method.name(), pts);
+        if (exact.isPresent()) {
+            return exact.get();
+        }
+        /* Specialized generics: AST type vars vs substituted params — match arity. */
+        List<MethodSymbol> arity = new ArrayList<>();
+        for (MethodSymbol m : overs) {
+            if (m.parameters().size() == method.parameters().size()) {
+                arity.add(m);
+            }
+        }
+        if (arity.size() == 1) {
+            return arity.get(0);
+        }
+        if (!arity.isEmpty()) {
+            return arity.get(0);
+        }
+        return overs.get(0);
     }
 
     private ConstructorSymbol findCtor(ClassSymbol owner, MethodDeclaration method) {
@@ -846,6 +945,8 @@ public final class IrGenerator {
         builder.beginFunction(function);
         awaitStateCounter = 0;
         asyncFrame = null;
+        abruptTargets.clear();
+        loopFrames.clear();
 
         if (ms.isAsync()) {
             IrValue.Temp frame = builder.temp(IrType.PTR);
@@ -920,7 +1021,10 @@ public final class IrGenerator {
             case ExpressionStatement e -> lowerExpression(e.expression());
             case IfStatement i -> lowerIf(i);
             case WhileStatement w -> lowerWhile(w);
+            case DoWhileStatement d -> lowerDoWhile(d);
             case ForStatement f -> lowerFor(f);
+            case BreakStatement ignored -> lowerBreak();
+            case ContinueStatement ignored -> lowerContinue();
             case ReturnStatement r -> lowerReturn(r);
             case ConstructorDelegationStatement ignored -> {
                 // handled in lowerConstructor
@@ -935,6 +1039,68 @@ public final class IrGenerator {
             }
             case TryStatement t -> lowerTry(t);
         }
+    }
+
+    private int registerAbruptTarget(IrBasicBlock block) {
+        int id = abruptTargets.size();
+        abruptTargets.add(block);
+        return id;
+    }
+
+    private void pushLoop(IrBasicBlock breakTarget, IrBasicBlock continueTarget) {
+        int breakId = registerAbruptTarget(breakTarget);
+        int continueId = registerAbruptTarget(continueTarget);
+        loopFrames.push(new LoopFrame(
+                breakTarget, continueTarget, breakId, continueId, tryFrames.size()));
+    }
+
+    private void lowerBreak() {
+        if (loopFrames.isEmpty()) {
+            throw new IllegalStateException("break without loop frame");
+        }
+        LoopFrame loop = loopFrames.peek();
+        TryFrame finallyTarget = innermostFinallyInsideLoop(loop);
+        if (finallyTarget != null) {
+            builder.setBreakCompletion(loop.breakTargetId());
+            builder.branch(finallyTarget.finallyBlock());
+            return;
+        }
+        builder.branch(loop.breakTarget());
+    }
+
+    private void lowerContinue() {
+        if (loopFrames.isEmpty()) {
+            throw new IllegalStateException("continue without loop frame");
+        }
+        LoopFrame loop = loopFrames.peek();
+        TryFrame finallyTarget = innermostFinallyInsideLoop(loop);
+        if (finallyTarget != null) {
+            builder.setContinueCompletion(loop.continueTargetId());
+            builder.branch(finallyTarget.finallyBlock());
+            return;
+        }
+        builder.branch(loop.continueTarget());
+    }
+
+    private TryFrame innermostFinallyInsideLoop(LoopFrame loop) {
+        int skip = finallyDepth;
+        TryFrame[] frames = tryFrames.toArray(new TryFrame[0]);
+        // frames[0] = innermost (deque head)
+        for (int i = 0; i < frames.length; i++) {
+            int depthFromOuter = frames.length - i;
+            if (depthFromOuter <= loop.tryDepthAtEntry()) {
+                break;
+            }
+            if (frames[i].finallyBlock() == null) {
+                continue;
+            }
+            if (skip > 0) {
+                skip--;
+                continue;
+            }
+            return frames[i];
+        }
+        return null;
     }
 
     private void lowerReturn(ReturnStatement r) {
@@ -984,9 +1150,17 @@ public final class IrGenerator {
     }
 
     private void lowerTry(TryStatement t) {
+        // Allocate / initialize try-with-resources locals before the protected region.
+        for (VariableDeclaration resource : t.resources()) {
+            lowerStatement(resource);
+        }
+        List<MethodCallExpression> resourceCloses =
+                typed.resourceCloseCalls().getOrDefault(t, List.of());
+        boolean needsCleanup = !resourceCloses.isEmpty() || t.finallyBlock() != null;
+
         IrBasicBlock afterBlock = builder.newBlock("try.after");
         IrBasicBlock dispatchBlock = builder.newBlock("try.dispatch");
-        IrBasicBlock finallyBlock = t.finallyBlock() != null ? builder.newBlock("try.finally") : null;
+        IrBasicBlock finallyBlock = needsCleanup ? builder.newBlock("try.finally") : null;
         TryFrame frame = new TryFrame(dispatchBlock, afterBlock, finallyBlock, t.catches());
         tryFrames.push(frame);
         builder.pushExceptionHandler(dispatchBlock);
@@ -1023,7 +1197,11 @@ public final class IrGenerator {
                 }
             }
             finallyDepth++;
-            lowerStatement(t.finallyBlock());
+            // Close resources first (reverse order), then run user finally.
+            emitResourceCleanup(resourceCloses);
+            if (t.finallyBlock() != null) {
+                lowerStatement(t.finallyBlock());
+            }
             finallyDepth--;
             if (!tryFrames.isEmpty()) {
                 TryFrame[] frames = tryFrames.toArray(new TryFrame[0]);
@@ -1045,6 +1223,113 @@ public final class IrGenerator {
         builder.setBlock(afterBlock);
         // Uncaught by this try: propagate to outer handler or unwind the function.
         builder.maybeCheckPendingPublic();
+    }
+
+    /**
+     * Closes try-with-resources in reverse acquisition order.
+     * If the body already threw, keep that exception and ignore close failures
+     * (suppressed exceptions not modeled yet).
+     */
+    private void emitResourceCleanup(List<MethodCallExpression> closes) {
+        if (closes.isEmpty() || builder.block().isTerminated()) {
+            return;
+        }
+        for (MethodCallExpression close : closes) {
+            if (builder.block().isTerminated()) {
+                return;
+            }
+            emitOneResourceClose(close);
+        }
+    }
+
+    private void emitOneResourceClose(MethodCallExpression close) {
+        IrValue wasPending = builder.call(
+                "jnative_exception_pending", IrType.I1, List.of(), false);
+        IrValue savedEx = builder.call(
+                "jnative_exception_peek", IrType.PTR, List.of(), false);
+
+        IrBasicBlock clearPending = builder.newBlock("twr.clear");
+        IrBasicBlock afterClear = builder.newBlock("twr.afterclear");
+        builder.condBranch(wasPending, clearPending, afterClear);
+        builder.setBlock(clearPending);
+        builder.clearException();
+        builder.branch(afterClear);
+        builder.setBlock(afterClear);
+
+        Expression receiverExpr = close.receiver();
+        IrValue receiver = lowerExpression(receiverExpr);
+        IrBasicBlock doClose = builder.newBlock("twr.close");
+        IrBasicBlock afterClose = builder.newBlock("twr.afterclose");
+        IrValue isNull = builder.compare(
+                IrInstruction.CmpOp.EQ, receiver, new IrValue.Const(IrType.PTR, "null"));
+        builder.condBranch(isNull, afterClose, doClose);
+
+        builder.setBlock(doClose);
+        lowerCallNoCheck(close, receiver);
+        builder.branch(afterClose);
+        builder.setBlock(afterClose);
+
+        // Prefer the body exception when both body and close threw.
+        IrBasicBlock restore = builder.newBlock("twr.restore");
+        IrBasicBlock keep = builder.newBlock("twr.keep");
+        IrBasicBlock done = builder.newBlock("twr.done");
+        builder.condBranch(wasPending, restore, keep);
+
+        builder.setBlock(restore);
+        // Ignore whatever close may have set; restore the original pending exception.
+        builder.call("jnative_exception_throw", IrType.VOID, List.of(savedEx), false);
+        builder.branch(done);
+
+        builder.setBlock(keep);
+        // Close exception (if any) stays pending for the finally epilogue / outer handler.
+        builder.branch(done);
+        builder.setBlock(done);
+    }
+
+    /** Emit a resolved {@code close()} call without pending-exception diversion. */
+    private void lowerCallNoCheck(MethodCallExpression m, IrValue receiver) {
+        Object resolved = typed.resolvedSymbols().get(m);
+        if (resolved instanceof InterfaceCallTarget ict) {
+            builder.interfaceCall(
+                    receiver,
+                    ict.interfaceSymbol().interfaceId(),
+                    ict.slot(),
+                    IrType.from(ict.returnType()),
+                    List.of(receiver),
+                    ict.interfaceSymbol().name() + "." + ict.interfaceMethod().name(),
+                    false);
+            return;
+        }
+        if (!(resolved instanceof MethodSymbol ms)) {
+            return;
+        }
+        List<IrValue> args = new ArrayList<>();
+        args.add(receiver);
+        if (ms.isVirtual() && ms.vtableSlot() != null) {
+            MethodSymbol slotMethod = ms;
+            while (slotMethod.overrides() != null) {
+                slotMethod = slotMethod.overrides();
+            }
+            int slot = slotMethod.vtableSlot() != null ? slotMethod.vtableSlot() : ms.vtableSlot();
+            builder.virtualCall(
+                    receiver,
+                    slot,
+                    IrType.from(ms.returnType()),
+                    args,
+                    ms.owner().name() + "." + ms.name(),
+                    false);
+            return;
+        }
+        if (ms.isNative() && ms.nativeFunction() != null) {
+            // Native close (e.g. File/socket helpers): reuse normal path without check via mangled call.
+            builder.call(ms.mangledName(), IrType.from(ms.returnType()), args, false);
+            return;
+        }
+        if (ms.isFfiIntrinsic()) {
+            lowerFfiIntrinsic(ms, args);
+            return;
+        }
+        builder.call(ms.mangledName(), IrType.from(ms.returnType()), args, false);
     }
 
     private void branchToFinallyOrAfter(IrBasicBlock finallyBlock, IrBasicBlock afterBlock) {
@@ -1091,7 +1376,11 @@ public final class IrGenerator {
         builder.setBlock(checkReturn);
         IrValue hasReturn = builder.hasReturnCompletion();
         IrBasicBlock resume = builder.newBlock("finally.resume");
-        builder.condBranch(hasReturn, resume, frame.afterBlock());
+        // Only emit break/continue arms when this function registered loop targets.
+        IrBasicBlock noReturn = abruptTargets.isEmpty()
+                ? frame.afterBlock()
+                : builder.newBlock("finally.breakcheck");
+        builder.condBranch(hasReturn, resume, noReturn);
 
         builder.setBlock(resume);
         IrBasicBlock outerFinally = findOuterFinallyBlock(frame);
@@ -1105,6 +1394,90 @@ public final class IrGenerator {
                 builder.ret(castIfNeeded(builder.takeReturnCompletion(retType), retType));
             }
         }
+
+        if (abruptTargets.isEmpty()) {
+            return;
+        }
+
+        IrBasicBlock checkBreak = noReturn;
+        builder.setBlock(checkBreak);
+        IrValue hasBreak = builder.hasBreakCompletion();
+        IrBasicBlock doBreak = builder.newBlock("finally.dobreak");
+        IrBasicBlock checkContinue = builder.newBlock("finally.contcheck");
+        builder.condBranch(hasBreak, doBreak, checkContinue);
+
+        builder.setBlock(doBreak);
+        IrBasicBlock outerBreakFinally = findOuterFinallyForLoopAbrupt(frame);
+        if (outerBreakFinally != null) {
+            builder.branch(outerBreakFinally);
+        } else {
+            emitAbruptTargetDispatch();
+        }
+
+        builder.setBlock(checkContinue);
+        IrValue hasContinue = builder.hasContinueCompletion();
+        IrBasicBlock doContinue = builder.newBlock("finally.docontinue");
+        IrBasicBlock fallthrough = builder.newBlock("finally.fallthrough");
+        builder.condBranch(hasContinue, doContinue, fallthrough);
+
+        builder.setBlock(doContinue);
+        IrBasicBlock outerContFinally = findOuterFinallyForLoopAbrupt(frame);
+        if (outerContFinally != null) {
+            builder.branch(outerContFinally);
+        } else {
+            emitAbruptTargetDispatch();
+        }
+
+        builder.setBlock(fallthrough);
+        builder.branch(frame.afterBlock());
+    }
+
+    private IrBasicBlock findOuterFinallyForLoopAbrupt(TryFrame current) {
+        if (loopFrames.isEmpty()) {
+            return null;
+        }
+        LoopFrame loop = loopFrames.peek();
+        TryFrame[] frames = tryFrames.toArray(new TryFrame[0]);
+        int i = 0;
+        for (; i < frames.length; i++) {
+            if (frames[i] == current) {
+                break;
+            }
+        }
+        for (int j = i + 1; j < frames.length; j++) {
+            if ((frames.length - j) <= loop.tryDepthAtEntry()) {
+                return null;
+            }
+            if (frames[j].finallyBlock() != null) {
+                return frames[j].finallyBlock();
+            }
+        }
+        return null;
+    }
+
+    /** Lower break/continue target id (IR CFG branch — LLVM never sees `break`). */
+    private void emitAbruptTargetDispatch() {
+        IrValue targetId = builder.takeAbruptTarget();
+        emitAbruptDispatchChain(targetId, 0);
+    }
+
+    private void emitAbruptDispatchChain(IrValue targetId, int index) {
+        if (index >= abruptTargets.size()) {
+            builder.branch(abruptTargets.get(0));
+            return;
+        }
+        if (index == abruptTargets.size() - 1) {
+            builder.branch(abruptTargets.get(index));
+            return;
+        }
+        IrBasicBlock match = builder.newBlock("abrupt.match." + index);
+        IrBasicBlock next = builder.newBlock("abrupt.next." + index);
+        IrValue eq = builder.compare(IrInstruction.CmpOp.EQ, targetId, new IrValue.Const(IrType.I32, index));
+        builder.condBranch(eq, match, next);
+        builder.setBlock(match);
+        builder.branch(abruptTargets.get(index));
+        builder.setBlock(next);
+        emitAbruptDispatchChain(targetId, index + 1);
     }
 
     private IrBasicBlock findOuterFinallyBlock(TryFrame current) {
@@ -1161,6 +1534,7 @@ public final class IrGenerator {
         IrBasicBlock condBlock = builder.newBlock("while.cond");
         IrBasicBlock bodyBlock = builder.newBlock("while.body");
         IrBasicBlock endBlock = builder.newBlock("while.end");
+        pushLoop(endBlock, condBlock);
         builder.branch(condBlock);
         builder.setBlock(condBlock);
         IrValue cond = lowerExpression(w.condition());
@@ -1173,6 +1547,28 @@ public final class IrGenerator {
             }
             builder.branch(condBlock);
         }
+        loopFrames.pop();
+        builder.setBlock(endBlock);
+    }
+
+    private void lowerDoWhile(DoWhileStatement d) {
+        IrBasicBlock bodyBlock = builder.newBlock("dowhile.body");
+        IrBasicBlock condBlock = builder.newBlock("dowhile.cond");
+        IrBasicBlock endBlock = builder.newBlock("dowhile.end");
+        pushLoop(endBlock, condBlock);
+        builder.branch(bodyBlock);
+        builder.setBlock(bodyBlock);
+        lowerStatement(d.body());
+        if (!builder.block().isTerminated()) {
+            builder.branch(condBlock);
+        }
+        builder.setBlock(condBlock);
+        IrValue cond = lowerExpression(d.condition());
+        if (currentFunction == null || !currentFunction.omitSafepoints()) {
+            builder.safepointPoll();
+        }
+        builder.condBranch(cond, bodyBlock, endBlock);
+        loopFrames.pop();
         builder.setBlock(endBlock);
     }
 
@@ -1184,6 +1580,7 @@ public final class IrGenerator {
         IrBasicBlock bodyBlock = builder.newBlock("for.body");
         IrBasicBlock updateBlock = builder.newBlock("for.update");
         IrBasicBlock endBlock = builder.newBlock("for.end");
+        pushLoop(endBlock, updateBlock);
         builder.branch(condBlock);
         builder.setBlock(condBlock);
         if (f.condition() != null) {
@@ -1206,6 +1603,7 @@ public final class IrGenerator {
             }
             builder.branch(condBlock);
         }
+        loopFrames.pop();
         builder.setBlock(endBlock);
     }
 
@@ -1864,14 +2262,17 @@ public final class IrGenerator {
         }
 
         ClassSymbol ownerClass = ms.classOwner();
-        if (ownerClass != null && ownerClass.name().equals("Throwable")
-                && ms.name().equals("getMessage") && receiver != null) {
+        if (ownerClass != null && ownerClass.name().equals("Throwable") && receiver != null
+                && (ms.name().equals("getMessage") || ms.name().equals("getCause"))) {
             ClassLayout layout = ownerClass.layout();
+            int idx = ms.name().equals("getCause")
+                    ? ownerClass.findField("cause").map(f -> f.gepIndex()).orElse(2)
+                    : ownerClass.findField("message").map(f -> f.gepIndex()).orElse(1);
             return builder.loadField(
                     receiver,
                     ownerClass.name(),
                     layout.llvmTypeName(),
-                    1,
+                    idx,
                     IrType.PTR);
         }
 
@@ -1893,6 +2294,14 @@ public final class IrGenerator {
                 case "trim" -> builder.call("jnative_string_trim", IrType.PTR, List.of(receiver));
                 case "getBytes" -> builder.call("jnative_string_get_bytes", IrType.PTR, List.of(receiver));
                 case "toLowerCase" -> builder.call("jnative_string_to_lower", IrType.PTR, List.of(receiver));
+                case "isEmpty" -> builder.call("jnative_string_is_empty", IrType.I1, List.of(receiver));
+                case "contains" -> builder.call("jnative_string_contains", IrType.I1, args);
+                case "lastIndexOf" -> builder.call("jnative_string_last_index_of", IrType.I32, args);
+                case "lastIndexOfFrom" -> builder.call("jnative_string_last_index_of_from", IrType.I32, args);
+                case "compareTo" -> builder.call("jnative_string_compare_to", IrType.I32, args);
+                case "toUpperCase" -> builder.call("jnative_string_to_upper", IrType.PTR, List.of(receiver));
+                case "replace" -> builder.call("jnative_string_replace", IrType.PTR, args);
+                case "split" -> builder.call("jnative_string_split", IrType.PTR, args);
                 default -> builder.call(ms.mangledName(), IrType.from(ms.returnType()), args);
             };
         }
@@ -2011,6 +2420,9 @@ public final class IrGenerator {
                     return builder.call("jnative_string_value_of_i64", IrType.PTR, List.of(args.get(0)), false);
                 }
                 return builder.call("jnative_string_value_of_i32", IrType.PTR, List.of(args.get(0)), false);
+            }
+            if ("join".equals(ms.name())) {
+                return builder.call("jnative_string_join", IrType.PTR, args, false);
             }
         }
         return switch (ms.name()) {

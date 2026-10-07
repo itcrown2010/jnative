@@ -35,6 +35,8 @@ public final class CompilerOptions {
     private boolean emitRpc;
     private boolean emitRpcSchema;
     private boolean runAfterBuild;
+    /** When set, {@code jnative run} exports {@code JNATIVE_GC_STRESS} (e.g. {@code 1}, {@code all}, {@code minor}). */
+    private String gcStress;
     private Path generatedDir;
     private boolean deterministic;
     private boolean explainMeta;
@@ -121,6 +123,14 @@ public final class CompilerOptions {
 
     public void setRunAfterBuild(boolean runAfterBuild) {
         this.runAfterBuild = runAfterBuild;
+    }
+
+    public String gcStress() {
+        return gcStress;
+    }
+
+    public void setGcStress(String gcStress) {
+        this.gcStress = gcStress;
     }
 
     public boolean isWasmBrowserTarget() {

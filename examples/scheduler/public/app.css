@@ -312,6 +312,12 @@ button.danger { background: #fff; color: var(--danger); border-color: #fecaca; }
   font-weight: 600;
   padding: 14px 16px;
 }
+.toast.toast-error {
+  background: #b91c1c;
+  font-weight: 600;
+  padding: 14px 16px;
+  max-width: 420px;
+}
 
 @media (max-width: 1024px) {
   .main { grid-template-columns: 1fr; }

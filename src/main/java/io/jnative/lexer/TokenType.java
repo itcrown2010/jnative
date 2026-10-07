@@ -25,7 +25,10 @@ public enum TokenType {
     IF,
     ELSE,
     WHILE,
+    DO,
     FOR,
+    BREAK,
+    CONTINUE,
     RETURN,
     TRUE,
     FALSE,
@@ -114,7 +117,10 @@ public enum TokenType {
         KEYWORDS.put("if", IF);
         KEYWORDS.put("else", ELSE);
         KEYWORDS.put("while", WHILE);
+        KEYWORDS.put("do", DO);
         KEYWORDS.put("for", FOR);
+        KEYWORDS.put("break", BREAK);
+        KEYWORDS.put("continue", CONTINUE);
         KEYWORDS.put("return", RETURN);
         KEYWORDS.put("true", TRUE);
         KEYWORDS.put("false", FALSE);

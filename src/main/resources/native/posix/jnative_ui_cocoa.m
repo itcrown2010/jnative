@@ -1101,7 +1101,11 @@ void jnative_ui_platform_set_content(int32_t windowId, int32_t childId) {
         }
         NSRect bounds = [cv bounds];
         [(NSView *)child setFrame:bounds];
-        [(NSView *)child setAutoresizingMask:(NSViewWidthSizable | NSViewHeightSizable)];
+        /* Width-only autoresize. HeightSizable stretches the root view when the
+           window realizes without re-running JNative layout, so children keep
+           Y-flipped frames from the old superview height and leave a white gap
+           under the toolbar/breadcrumb. Height is always applied via setBounds. */
+        [(NSView *)child setAutoresizingMask:NSViewWidthSizable];
     }
 }
 
@@ -1286,17 +1290,18 @@ void jnative_ui_platform_table_set_columns(int32_t peerId, const char *titles_ts
             initWithIdentifier:[NSString stringWithFormat:@"%lu", (unsigned long)i]];
         [col setTitle:title];
         if (i == 0) {
-            [col setWidth:300.0];
+            [col setWidth:280.0];
             [col setMinWidth:140.0];
         } else if (i == 1) {
-            [col setWidth:110.0];
-            [col setMinWidth:70.0];
+            /* Date Modified — room for "YYYY-MM-DD HH:MM" without ellipsis. */
+            [col setWidth:168.0];
+            [col setMinWidth:140.0];
         } else if (i == 2) {
             [col setWidth:90.0];
             [col setMinWidth:60.0];
         } else {
-            [col setWidth:150.0];
-            [col setMinWidth:100.0];
+            [col setWidth:120.0];
+            [col setMinWidth:80.0];
         }
         [tv addTableColumn:col];
     }

@@ -80,6 +80,7 @@ public final class CliArguments {
                 }
                 case "build" -> { /* jnative build --target ... */ }
                 case "run" -> options.setRunAfterBuild(true);
+                case "--gc-stress" -> options.setGcStress("1");
                 case "--library-path", "-L" -> {
                     if (i + 1 >= args.length) {
                         throw new IllegalArgumentException("missing path after " + arg);
@@ -103,6 +104,11 @@ public final class CliArguments {
                     }
                     if (arg.startsWith("--target=")) {
                         options.setTarget(arg.substring("--target=".length()));
+                        continue;
+                    }
+                    if (arg.startsWith("--gc-stress=")) {
+                        String v = arg.substring("--gc-stress=".length());
+                        options.setGcStress(v == null || v.isBlank() ? "1" : v);
                         continue;
                     }
                     if (arg.startsWith("-O") && arg.length() == 3 && Character.isDigit(arg.charAt(2))) {

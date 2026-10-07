@@ -89,6 +89,8 @@ public final class Toolchain {
         cmd.add(output.toAbsolutePath().toString());
         cmd.add("-Wno-override-module");
         cmd.add("-pthread");
+        /* Export symbols for backtrace/dladdr demangling of _JN_* frames. */
+        cmd.add("-rdynamic");
         return cmd;
     }
 }

@@ -138,6 +138,61 @@ class CollectionsEndToEndTest {
     }
 
     @Test
+    void arrayDequeBothEnds() throws Exception {
+        assertEquals("0\n3\n", run("""
+                public class Main {
+                    public static void main(String[] args) {
+                        ArrayDeque<int> q = new ArrayDeque<int>();
+                        q.addLast(1);
+                        q.addLast(2);
+                        q.addFirst(0);
+                        q.addLast(3);
+                        System.out.println(q.removeFirst());
+                        System.out.println(q.removeLast());
+                    }
+                }
+                """, "Deque2", Map.of(), 0));
+    }
+
+    @Test
+    void hashSetIterator() throws Exception {
+        assertEquals("2\n", run("""
+                public class Main {
+                    public static void main(String[] args) {
+                        HashSet<String> set = new HashSet<String>();
+                        set.add("A");
+                        set.add("B");
+                        set.add("A");
+                        int n = 0;
+                        Iterator<String> it = set.iterator();
+                        while (it.hasNext()) {
+                            String s = it.next();
+                            n = n + 1;
+                        }
+                        System.out.println(n);
+                    }
+                }
+                """, "HsIt", Map.of(), 0));
+    }
+
+    @Test
+    void hashMapCollisionResize() throws Exception {
+        assertEquals("100\n", run("""
+                public class Main {
+                    public static void main(String[] args) {
+                        HashMap<String, int> map = new HashMap<String, int>();
+                        int i = 0;
+                        while (i < 100) {
+                            map.put("k" + String.valueOf(i), i);
+                            i = i + 1;
+                        }
+                        System.out.println(map.size());
+                    }
+                }
+                """, "HmResize", Map.of(), 0));
+    }
+
+    @Test
     void genericContainsAlgorithm() throws Exception {
         assertEquals("1\n", run("""
                 public class Main {
@@ -229,6 +284,59 @@ class CollectionsEndToEndTest {
                     }
                 }
                 """, "StrHash", Map.of(), 0));
+    }
+
+    @Test
+    void collectionsNativeE2E_O0() throws Exception {
+        assertEquals("JNATIVE_COLLECTIONS_PASS\n", run(collectionsProgram(), "ColAll0", Map.of(), 0));
+    }
+
+    @Test
+    void collectionsNativeE2E_O2() throws Exception {
+        assertEquals("JNATIVE_COLLECTIONS_PASS\n", run(collectionsProgram(), "ColAll2", Map.of(), 2));
+    }
+
+    @Test
+    void collectionsNativeE2E_O3() throws Exception {
+        assertEquals("JNATIVE_COLLECTIONS_PASS\n", run(collectionsProgram(), "ColAll3", Map.of(), 3));
+    }
+
+    private static String collectionsProgram() {
+        return """
+                public class Main {
+                    public static void main(String[] args) {
+                        ArrayList<String> list = new ArrayList<String>();
+                        list.add("a");
+                        list.add("b");
+                        HashMap<String, int> map = new HashMap<String, int>();
+                        map.put("k", 7);
+                        HashSet<String> set = new HashSet<String>();
+                        set.add("x");
+                        set.add("x");
+                        ArrayDeque<String> dq = new ArrayDeque<String>();
+                        dq.addLast("1");
+                        dq.addFirst("0");
+                        dq.offer("2");
+                        int ok = 0;
+                        if (list.size() == 2) {
+                            if (map.get("k") == 7) {
+                                if (set.size() == 1) {
+                                    if (dq.removeFirst().equals("0")) {
+                                        if (dq.removeFirst().equals("1")) {
+                                            if (dq.removeLast().equals("2")) {
+                                                ok = 1;
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        if (ok == 1) {
+                            System.out.println("JNATIVE_COLLECTIONS_PASS");
+                        }
+                    }
+                }
+                """;
     }
 
     private String run(String source, String name, Map<String, String> env, int opt) throws Exception {

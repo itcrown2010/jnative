@@ -98,6 +98,10 @@ public final class AstPrinter {
                 indent(sb, indent).append("While ").append(printExpr(w.condition())).append('\n');
                 printStmt(w.body(), sb, indent + 1);
             }
+            case DoWhileStatement d -> {
+                indent(sb, indent).append("DoWhile ").append(printExpr(d.condition())).append('\n');
+                printStmt(d.body(), sb, indent + 1);
+            }
             case ForStatement f -> {
                 indent(sb, indent).append("For\n");
                 if (f.initializer() != null) {
@@ -111,6 +115,8 @@ public final class AstPrinter {
                 }
                 printStmt(f.body(), sb, indent + 1);
             }
+            case BreakStatement ignored -> indent(sb, indent).append("Break\n");
+            case ContinueStatement ignored -> indent(sb, indent).append("Continue\n");
             case ReturnStatement r -> {
                 indent(sb, indent).append("Return");
                 if (r.value() != null) {
@@ -128,6 +134,15 @@ public final class AstPrinter {
                     indent(sb, indent).append("Throw ").append(printExpr(t.expression())).append('\n');
             case TryStatement t -> {
                 indent(sb, indent).append("Try\n");
+                for (VariableDeclaration r : t.resources()) {
+                    indent(sb, indent + 1).append("Resource ").append(r.type())
+                            .append(r.isArray() ? "[]" : "")
+                            .append(' ').append(r.name());
+                    if (r.initializer() != null) {
+                        sb.append(" = ").append(printExpr(r.initializer()));
+                    }
+                    sb.append('\n');
+                }
                 printStmt(t.tryBlock(), sb, indent + 1);
                 for (CatchClause c : t.catches()) {
                     indent(sb, indent + 1).append("Catch ").append(c.exceptionType())

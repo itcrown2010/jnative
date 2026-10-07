@@ -47,6 +47,7 @@ public final class GcRuntimeEmitter {
                 declare void @jn_gc2_write_barrier(ptr, ptr)
                 declare void @jn_gc2_set_static_root_visitor(ptr)
                 declare i32 @jn_gc2_identity_hash(ptr)
+                declare i32 @jn_gc2_verify_heap()
 
                 @jn.gc.heap_head = global ptr null, align 8
                 @jn.gc.allocated_bytes = global i64 0, align 8
@@ -584,6 +585,41 @@ public final class GcRuntimeEmitter {
                 entry:
                   call void @jn_safepoint_poll()
                   ret void
+                }
+
+                ; Walk heap and check ClassMeta* non-null (GC2 native; mark-sweep via linked list).
+                define i32 @jnative_gc_verify_heap() {
+                entry:
+                  call void @jnative_gc_ensure_init()
+                  %gc2 = call i32 @jn_gc2_enabled()
+                  %use2 = icmp ne i32 %gc2, 0
+                  br i1 %use2, label %gc2path, label %legacy
+                gc2path:
+                  %r2 = call i32 @jn_gc2_verify_heap()
+                  ret i32 %r2
+                legacy:
+                  call void @jn_heap_lock()
+                  %head = load ptr, ptr @jn.gc.heap_head, align 8
+                  br label %loop
+                loop:
+                  %cur = phi ptr [ %head, %legacy ], [ %next, %cont ]
+                  %done = icmp eq ptr %cur, null
+                  br i1 %done, label %ok, label %check
+                check:
+                  %obj = call ptr @jnative_gc_header_to_object(ptr %cur)
+                  %meta = load ptr, ptr %obj, align 8
+                  %bad = icmp eq ptr %meta, null
+                  br i1 %bad, label %fail, label %cont
+                cont:
+                  %np = getelementptr %jn.GcHeader, ptr %cur, i32 0, i32 0
+                  %next = load ptr, ptr %np, align 8
+                  br label %loop
+                fail:
+                  call void @jn_heap_unlock()
+                  ret i32 0
+                ok:
+                  call void @jn_heap_unlock()
+                  ret i32 1
                 }
 
                 """);

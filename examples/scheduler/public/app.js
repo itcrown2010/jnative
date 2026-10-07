@@ -22,9 +22,12 @@
 
   const $ = (id) => document.getElementById(id);
 
+  const asArray = (v) => (Array.isArray(v) ? v : []);
+
   const api = async (method, path, body, signal) => {
     const headers = { "Content-Type": "application/json" };
     if (state.csrf) headers["X-CSRF-Token"] = state.csrf;
+    const t0 = performance.now();
     const res = await fetch(path, {
       method,
       headers,
@@ -35,10 +38,20 @@
     const text = await res.text();
     let data = null;
     try { data = text ? JSON.parse(text) : null; } catch (_) { data = { message: text }; }
+    const ms = Math.round(performance.now() - t0);
     if (!res.ok) {
-      const err = new Error((data && data.message) || res.statusText || "Request failed");
+      const msg = (data && data.message) || res.statusText || "Request failed";
+      const rid = data && data.requestId;
+      console.error(`[api] ${method} ${path} → ${res.status} ${ms}ms`, data);
+      const err = new Error(rid ? `${msg} [${rid}]` : msg);
       err.code = data && data.code;
+      err.requestId = rid;
+      err.status = res.status;
+      err.path = path;
       throw err;
+    }
+    if (path.indexOf("/api/stream") < 0) {
+      console.debug(`[api] ${method} ${path} → ${res.status} ${ms}ms`);
     }
     return data;
   };
@@ -126,7 +139,7 @@
   }
 
   function visibleEvents() {
-    return state.events.filter((e) => state.visibleCalIds.has(Number(e.calendarId)));
+    return asArray(state.events).filter((e) => state.visibleCalIds.has(Number(e.calendarId)));
   }
 
   function sortDayEvents(list) {
@@ -144,7 +157,7 @@
     return sortDayEvents(visibleEvents().filter((e) => e.startTime < dayEnd && e.endTime > dayStart));
   }
 
-  async function refreshAll() {
+  async function refreshAll(opts) {
     state.loading = true;
     $("status").textContent = "";
     $("status").classList.add("loading");
@@ -156,7 +169,7 @@
         api("GET", `/api/calendar/eventsBetween?from=${range.from}&to=${range.to}`),
         api("GET", "/api/tasks/listTasks"),
       ]);
-      state.calendars = cals || [];
+      state.calendars = asArray(cals);
       const known = new Set(state.calendars.map((c) => Number(c.id)));
       state.visibleCalIds.forEach((id) => { if (!known.has(id)) state.visibleCalIds.delete(id); });
       if (!state._visInitialized) {
@@ -169,19 +182,24 @@
         });
       }
       state._seenCalIds = known;
-      state.events = events || [];
-      state.tasks = tasks || [];
+      state.events = asArray(events);
+      state.tasks = asArray(tasks);
       render();
       $("status").textContent = `${visibleEvents().length} events · ${state.tasks.length} tasks`;
     } catch (err) {
-      $("status").textContent = "";
+      console.error("[refreshAll]", err);
+      $("status").textContent = err.message || "Load failed";
       $("calendarView").innerHTML = `<div class="empty-error">
         <p>Unable to load events</p>
+        <p class="error">${escapeHtml(err.message || "Load failed")}</p>
         <button type="button" class="primary" id="btnRetry">Retry</button>
       </div>`;
       const retry = $("btnRetry");
       if (retry) retry.addEventListener("click", () => refreshAll());
-      toast(err.message || "Load failed");
+      /* Background stream refresh failures should not flash a toast. */
+      if (!opts || !opts.silent) {
+        toast(err.message || "Load failed", { error: true });
+      }
     } finally {
       state.loading = false;
       $("status").classList.remove("loading");
@@ -226,7 +244,7 @@
     const now = Date.now();
     const today0 = startOfDay(new Date()).getTime();
     const today1 = today0 + 86400000;
-    return state.tasks.filter((t) => {
+    return asArray(state.tasks).filter((t) => {
       const done = t.status === "DONE";
       if (state.taskFilter === "completed") return done;
       if (done) return false;
@@ -617,10 +635,14 @@
     const el = $("toast");
     el.textContent = msg;
     el.classList.toggle("toast-reminder", !!(opts && opts.reminder));
+    el.classList.toggle("toast-error", !!(opts && opts.error));
     el.classList.remove("hidden");
     clearTimeout(toast._t);
-    const ms = (opts && opts.reminder) ? 8000 : 3200;
+    let ms = 3200;
+    if (opts && opts.reminder) ms = 8000;
+    if (opts && opts.error) ms = 10000;
     toast._t = setTimeout(() => el.classList.add("hidden"), ms);
+    if (opts && opts.error) console.error("[toast]", msg);
   }
 
   function ensureNotifyPermission() {
@@ -674,7 +696,7 @@
           if (ev.type === "REMINDER") {
             showReminder(ev.data || {});
           } else if (ev.type !== "HEARTBEAT") {
-            await refreshAll();
+            await refreshAll({ silent: true });
           }
         }
       } catch (_) { /* ignore */ }

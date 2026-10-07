@@ -11,6 +11,7 @@ import jnative.json.*;
  */
 public class SchedulerServer {
     public static void main(String[] args) {
+        SchLog.init();
         Sch.loop = new EventLoop();
         SchDb.setup(Sch.loop);
         Sch.sessions = new InMemorySessionStore();
@@ -26,10 +27,12 @@ public class SchedulerServer {
         app.bindEventLoop(Sch.loop);
         app.use(Cors.defaults());
         app.use(WebMiddleware.logger());
+        app.use(new SchAccessLog());
         app.staticFiles("/", "examples/scheduler/public");
 
         app.get("/health", new HealthHandler());
         app.get("/ready", new ReadyHandler());
+        app.get("/api/debug/logs", new DebugLogsHandler());
 
         app.futurePost("/api/auth/login", new LoginHandler(Sch.loop));
         app.futurePost("/api/auth/logout", new LogoutHandler(Sch.loop));
@@ -52,8 +55,10 @@ public class SchedulerServer {
         /* Reminders: EventLoop timer + async DB (no FutureBlocker on the loop, no off-loop SQLite). */
         ReminderScheduler.start();
 
+        SchLog.info("listening http://127.0.0.1:18400 (logs: /api/debug/logs)");
         System.out.println("JNative Scheduler on http://127.0.0.1:18400");
         System.out.println("Demo: demo@jnative.dev / demo1234");
+        System.out.println("Logs: GET /api/debug/logs (after login) or stdout");
         app.listenWithLoop(18400);
     }
 }
@@ -69,6 +74,122 @@ class Sch {
     static ArrayList<Object> hubLog;
     static HashSet<String> firedReminders;
     static long requestSeq;
+}
+
+class SchLog {
+    static String path;
+    static ArrayList<Object> ring;
+    static int ringMax;
+
+    static void init() {
+        path = "build/scheduler/scheduler.log";
+        ring = new ArrayList<Object>();
+        ringMax = 500;
+        info("==== scheduler boot ====");
+        info("detailed log: stdout + in-memory ring; dump via GET /api/debug/logs");
+    }
+
+    static String ts() {
+        return CryptoParse.longToString(AsyncClockNative.wallMillis());
+    }
+
+    static void write(String level, String msg) {
+        String line = ts() + " " + level + " " + msg;
+        System.out.println(line);
+        if (ring != null) {
+            ring.add(line);
+            while (ring.size() > ringMax) {
+                ring.removeAt(0);
+            }
+        }
+    }
+
+    static void info(String msg) {
+        write("INFO ", msg);
+    }
+
+    static void warn(String msg) {
+        write("WARN ", msg);
+    }
+
+    static void error(String msg) {
+        write("ERROR", msg);
+    }
+
+    static String dumpJson() {
+        String out = "{\"lines\":[";
+        int i = 0;
+        if (ring != null) {
+            while (i < ring.size()) {
+                if (i > 0) {
+                    out = out + ",";
+                }
+                out = out + "\"" + SchJson.esc((String) ring.get(i)) + "\"";
+                i = i + 1;
+            }
+        }
+        return out + "]}";
+    }
+}
+
+class SchAccessLog implements Middleware {
+    public void handle(WebContext ctx, Next next) {
+        long t0 = AsyncClockNative.wallMillis();
+        String path = ctx.path();
+        int isApi = 0;
+        int quiet = 0;
+        try {
+            if (path != null && path.length() >= 4) {
+                String head = path.substring(0, 4);
+                if (head.equals("/api")) {
+                    isApi = 1;
+                }
+            }
+            if (path != null && path.equals("/api/stream")) {
+                quiet = 1;
+            }
+            if (isApi != 0 && quiet == 0) {
+                String csrfHdr = "0";
+                String csrfGot = ctx.getHeader("X-CSRF-Token");
+                if (csrfGot != null && csrfGot.length() > 0) {
+                    csrfHdr = "1";
+                }
+                String extra = "";
+                if (ctx.query("from") != null) {
+                    extra = extra + " from=" + ctx.query("from");
+                }
+                if (ctx.query("to") != null) {
+                    extra = extra + " to=" + ctx.query("to");
+                }
+                if (ctx.query("q") != null) {
+                    extra = extra + " q=" + ctx.query("q");
+                }
+                SchLog.info("REQ " + ctx.method() + " " + path + " csrfHdr=" + csrfHdr + extra);
+            }
+        } catch (Exception ex) {
+            SchLog.warn("access-log pre failed");
+        }
+        next.run();
+        try {
+            long ms = AsyncClockNative.wallMillis() - t0;
+            int status = 0;
+            if (ctx.response != null) {
+                status = ctx.response.statusCode;
+            }
+            if (status >= 400 || (isApi != 0 && quiet == 0)) {
+                String line = "RES " + ctx.method() + " " + path
+                        + " status=" + String.valueOf(status)
+                        + " ms=" + CryptoParse.longToString(ms);
+                if (status >= 400) {
+                    SchLog.error(line);
+                } else {
+                    SchLog.info(line);
+                }
+            }
+        } catch (Exception ex) {
+            SchLog.warn("access-log post failed");
+        }
+    }
 }
 
 class SchDb {
@@ -376,6 +497,17 @@ class SchAuth {
     }
 
     static void err(WebContext ctx, int status, String code, String message, String requestId) {
+        String qpart = "";
+        if (ctx.request != null && ctx.request.rawQuery != null && ctx.request.rawQuery.length() > 0) {
+            qpart = "?" + ctx.request.rawQuery;
+        }
+        SchLog.error("API_ERR status=" + String.valueOf(status)
+                + " code=" + code
+                + " msg=" + message
+                + " rid=" + requestId
+                + " method=" + ctx.method()
+                + " path=" + ctx.path() + qpart
+                + " uid=" + CryptoParse.longToString(requireUserId(ctx)));
         JsonObject o = new JsonObject();
         o.putString("code", code);
         o.putString("message", message);
@@ -387,6 +519,17 @@ class SchAuth {
 class HealthHandler implements WebHandler {
     public void handle(WebContext ctx) {
         ctx.jsonString("{\"ok\":true,\"service\":\"scheduler\"}");
+    }
+}
+
+class DebugLogsHandler implements WebHandler {
+    public void handle(WebContext ctx) {
+        long uid = SchAuth.requireUserId(ctx);
+        if (uid <= 0) {
+            SchAuth.err(ctx, 401, "AUTH_REQUIRED", "login required", SchAuth.nextRequestId());
+            return;
+        }
+        ctx.jsonString(SchLog.dumpJson());
     }
 }
 
@@ -478,6 +621,7 @@ class LoginHandler implements AsyncWebHandler {
             return JnFuture.completed(loop, null);
         }
         ArrayList<Object> p = new ArrayList<Object>();
+        SchLog.info("login attempt rid=" + rid + " email=" + req.email);
         p.add(req.email);
         JnFuture q = Sch.db.queryOne(
                 "SELECT id, email, display_name, password_hash, timezone FROM users WHERE email=?",
@@ -488,6 +632,7 @@ class LoginHandler implements AsyncWebHandler {
             SchAuth.err(ctx, 401, "AUTH_REQUIRED", "invalid email or password", rid);
             return JnFuture.completed(loop, null);
         }
+        SchLog.info("login ok rid=" + rid + " uid=" + CryptoParse.longToString(user.id));
         Session session = SchAuth.load(ctx);
         session.rotateId();
         session.setString("userId", CryptoParse.longToString(user.id));
@@ -641,6 +786,8 @@ class EventsBetweenHandler implements AsyncWebHandler {
             SchAuth.err(ctx, 400, "VALIDATION_ERROR", "from and to required", rid);
             return JnFuture.completed(loop, null);
         }
+        SchLog.info("eventsBetween rid=" + rid + " uid=" + CryptoParse.longToString(uid)
+                + " from=" + CryptoParse.longToString(fromMs) + " to=" + CryptoParse.longToString(toMs));
         ArrayList<Object> p = new ArrayList<Object>();
         p.add(CryptoParse.longToString(uid));
         p.add(CryptoParse.longToString(toMs));
@@ -686,6 +833,9 @@ class EventsBetweenHandler implements AsyncWebHandler {
             }
             i = i + 1;
         }
+        SchLog.info("eventsBetween rid=" + rid + " base=" + String.valueOf(rows.size())
+                + " recurBase=" + String.valueOf(rows2.size())
+                + " expanded=" + String.valueOf(expanded.size()));
         ctx.jsonString(SchJson.events(expanded));
         return JnFuture.completed(loop, null);
     }
@@ -726,7 +876,7 @@ class CreateEventHandler implements AsyncWebHandler {
             return JnFuture.completed(loop, null);
         }
         if (SchCsrf.ok(ctx) == 0) {
-            SchAuth.err(ctx, 403, "FORBIDDEN", "csrf", rid);
+            SchAuth.err(ctx, 403, "FORBIDDEN", "csrf rejected", rid);
             return JnFuture.completed(loop, null);
         }
         CreateEventRequest req = SchJson.parseCreateEvent(ctx.bodyString());
@@ -740,6 +890,10 @@ class CreateEventHandler implements AsyncWebHandler {
             return JnFuture.completed(loop, null);
         }
         EventDto created = EventRepo.create(req);
+        SchLog.info("createEvent rid=" + rid + " id=" + CryptoParse.longToString(created.id)
+                + " title=" + created.title
+                + " start=" + CryptoParse.longToString(created.startTime)
+                + " cal=" + CryptoParse.longToString(created.calendarId));
         SchAuth.publish("EVENT_CREATED", SchJson.event(created));
         ctx.status(201).jsonString(SchJson.event(created));
         return JnFuture.completed(loop, null);
@@ -761,7 +915,7 @@ class UpdateEventHandler implements AsyncWebHandler {
             return JnFuture.completed(loop, null);
         }
         if (SchCsrf.ok(ctx) == 0) {
-            SchAuth.err(ctx, 403, "FORBIDDEN", "csrf", rid);
+            SchAuth.err(ctx, 403, "FORBIDDEN", "csrf rejected", rid);
             return JnFuture.completed(loop, null);
         }
         JsonObject body = Json.parse(ctx.bodyString()).asObject();
@@ -802,7 +956,7 @@ class DeleteEventHandler implements AsyncWebHandler {
             return JnFuture.completed(loop, null);
         }
         if (SchCsrf.ok(ctx) == 0) {
-            SchAuth.err(ctx, 403, "FORBIDDEN", "csrf", rid);
+            SchAuth.err(ctx, 403, "FORBIDDEN", "csrf rejected", rid);
             return JnFuture.completed(loop, null);
         }
         JsonObject body = Json.parse(ctx.bodyString()).asObject();
@@ -812,6 +966,7 @@ class DeleteEventHandler implements AsyncWebHandler {
             return JnFuture.completed(loop, null);
         }
         EventRepo.delete(id);
+        SchLog.info("deleteEvent rid=" + rid + " id=" + CryptoParse.longToString(id));
         SchAuth.publish("EVENT_DELETED", "{\"id\":" + id + "}");
         ctx.jsonString("{\"ok\":true}");
         return JnFuture.completed(loop, null);
@@ -1278,7 +1433,9 @@ class ReminderScan {
                         + ",\"minutesBefore\":" + String.valueOf(due.minutesBefore)
                         + ",\"startTime\":" + CryptoParse.longToString(due.startTime) + "}";
                 SchAuth.publish("REMINDER", data);
-                System.out.println("REMINDER fired: " + due.title + " (" + String.valueOf(due.minutesBefore) + "m)");
+                SchLog.info("REMINDER fired eventId=" + CryptoParse.longToString(due.eventId)
+                        + " title=" + due.title
+                        + " minutesBefore=" + String.valueOf(due.minutesBefore));
             }
             i = i + 1;
         }

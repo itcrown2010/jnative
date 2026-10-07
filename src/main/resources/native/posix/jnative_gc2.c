@@ -830,6 +830,54 @@ static void *alloc_young(uint64_t payload) {
     return alloc_old_or_large(payload, GEN_OLD);
 }
 
+static int verify_object_meta(void *obj) {
+    if (obj == NULL) {
+        return 1;
+    }
+    ClassMeta *meta = *(ClassMeta **)obj;
+    if (meta == NULL) {
+        fprintf(stderr, "JNative GC VERIFY: null ClassMeta at object %p\n", obj);
+        return 0;
+    }
+    return 1;
+}
+
+int jn_gc2_verify_heap(void) {
+    jn_gc2_init();
+    if (!g_enabled) {
+        return 1;
+    }
+    /* Young eden */
+    for (uint8_t *q = g_from; q != NULL && q < g_eden_high; ) {
+        GcHeader *hh = (GcHeader *)q;
+        if (hh->size < JN_GC_HEADER_SIZE) {
+            fprintf(stderr, "JNative GC VERIFY: corrupt young header size at %p\n", (void *)q);
+            return 0;
+        }
+        if (!(hh->meta & FLAG_FILLER)) {
+            if (!verify_object_meta(obj_of(hh))) {
+                return 0;
+            }
+        }
+        q += (size_t)hh->size;
+    }
+    for (GcHeader *oh = g_old_head; oh != NULL; oh = (GcHeader *)oh->link) {
+        if (!verify_object_meta(obj_of(oh))) {
+            return 0;
+        }
+    }
+    for (GcHeader *oh = g_large_head; oh != NULL; oh = (GcHeader *)oh->link) {
+        if (!verify_object_meta(obj_of(oh))) {
+            return 0;
+        }
+    }
+    return 1;
+}
+
+int jn_gc_user_verify_heap(void) {
+    return jn_gc2_verify_heap();
+}
+
 void *jn_gc2_alloc(uint64_t payload) {
     jn_gc2_init();
     if (!g_enabled) {

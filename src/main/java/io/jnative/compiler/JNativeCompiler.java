@@ -495,6 +495,14 @@ public final class JNativeCompiler {
                                 + (linkResult.output().isBlank() ? "" : "\n" + linkResult.output()));
                 return new CompileResult(false, ast, ir, llvmIr, null, reporter.diagnostics());
             }
+            if (options.runAfterBuild()) {
+                int code = runNativeExecutable(output, options);
+                if (code != 0) {
+                    reporter.error(SourceLocation.UNKNOWN,
+                            "native process exited with code " + code);
+                    return new CompileResult(false, ast, ir, llvmIr, output, reporter.diagnostics());
+                }
+            }
             return new CompileResult(true, ast, ir, llvmIr, output, reporter.diagnostics());
         } catch (IOException e) {
             reporter.error(SourceLocation.UNKNOWN, "I/O error: " + e.getMessage());
@@ -580,6 +588,26 @@ public final class JNativeCompiler {
             base = base.substring(0, dot);
         }
         return source.getParent().resolve(platform.executableName(base));
+    }
+
+    /**
+     * Run a linked native binary. When {@link CompilerOptions#gcStress()} is set,
+     * exports {@code JNATIVE_GC_STRESS} for the child process (runtime already reads getenv).
+     */
+    private static int runNativeExecutable(Path output, CompilerOptions options) {
+        try {
+            ProcessBuilder pb = new ProcessBuilder(output.toAbsolutePath().toString());
+            pb.inheritIO();
+            String stress = options.gcStress();
+            if (stress != null && !stress.isBlank()) {
+                pb.environment().put("JNATIVE_GC_STRESS", stress);
+            }
+            Process process = pb.start();
+            return process.waitFor();
+        } catch (Exception e) {
+            System.err.println("failed to run " + output + ": " + e.getMessage());
+            return 1;
+        }
     }
 
     /** Serve dist/ for `jnative run --target wasm32-browser`. */
