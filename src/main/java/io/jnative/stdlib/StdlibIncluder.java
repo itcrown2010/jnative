@@ -288,6 +288,11 @@ public final class StdlibIncluder {
                 || sourceText.contains("FsPath.of")
                 || sourceText.contains("Files.")
                 || sourceText.contains("FsNative.")
+                || sourceText.contains("FileInfo")
+                || sourceText.contains("FileSystem.")
+                || sourceText.contains("SystemPaths.")
+                || sourceText.contains("WatchService")
+                || sourceText.contains("FileSize.")
                 || sourceText.contains("ProcessBuilder")
                 || sourceText.contains("new Process(")
                 || sourceText.contains("new ProcessBuilder(")
@@ -492,7 +497,7 @@ public final class StdlibIncluder {
                 || mergedSource.contains("new PostgreSQLDriver")) {
             block = block + "\n\n" + load("stdlib/db/PgDriverLib.java");
         }
-        int userIdx = mergedSource.lastIndexOf("public class App");
+        int userIdx = indexOfPrimaryPublicClass(mergedSource);
         if (userIdx > 0) {
             return mergedSource.substring(0, userIdx) + block + "\n\n" + mergedSource.substring(userIdx);
         }
@@ -623,5 +628,18 @@ public final class StdlibIncluder {
             }
             return new String(in.readAllBytes(), StandardCharsets.UTF_8);
         }
+    }
+
+    /** Prefer `public class App`, else last top-level `public class` in the user unit. */
+    static int indexOfPrimaryPublicClass(String mergedSource) {
+        if (mergedSource == null) {
+            return -1;
+        }
+        int app = mergedSource.lastIndexOf("public class App");
+        if (app > 0) {
+            return app;
+        }
+        int idx = mergedSource.lastIndexOf("public class ");
+        return idx;
     }
 }

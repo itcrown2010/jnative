@@ -102,6 +102,10 @@ void jnative_ui_set_progress(int32_t id, double progress);
 double jnative_ui_get_progress(int32_t id);
 void jnative_ui_set_item_count(int32_t id, int32_t count);
 int32_t jnative_ui_get_item_count(int32_t id);
+const char *jnative_ui_item_text(int32_t id, int32_t index);
+int32_t jnative_ui_item_parent(int32_t id, int32_t index);
+void jnative_ui_table_set_columns(int32_t id, const char *titles_tsv);
+const char *jnative_ui_table_columns(int32_t id);
 void jnative_ui_set_selected_index(int32_t id, int32_t index);
 int32_t jnative_ui_get_selected_index(int32_t id);
 void jnative_ui_set_visible_rows(int32_t id, int32_t rows);
@@ -180,6 +184,8 @@ void jnative_ui_platform_focus(int32_t id);
 int32_t jnative_ui_platform_dialog_message(int32_t windowId, int32_t type,
                                            const char *title, const char *message);
 char *jnative_ui_platform_dialog_file(int32_t windowId, int32_t save, const char *filter);
+void jnative_ui_platform_items_changed(int32_t id);
+void jnative_ui_platform_table_set_columns(int32_t id, const char *titles_tsv);
 
 /* Headless / test helpers */
 void jnative_ui_headless_click(int32_t id);

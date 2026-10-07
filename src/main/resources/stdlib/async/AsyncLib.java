@@ -4,6 +4,9 @@
 class AsyncClockNative {
     @Native(symbol = "jnative_web_mono_millis")
     static native long monoMillis();
+
+    @Native(symbol = "jnative_wall_millis")
+    static native long wallMillis();
 }
 
 class AsyncCpuNative {

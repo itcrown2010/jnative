@@ -1,0 +1,86 @@
+-- JNative Scheduler schema (SQLite dialect; TIMESTAMP as INTEGER epoch millis UTC)
+
+CREATE TABLE IF NOT EXISTS users (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  email TEXT NOT NULL UNIQUE,
+  display_name TEXT NOT NULL,
+  password_hash TEXT NOT NULL,
+  timezone TEXT NOT NULL DEFAULT 'Asia/Shanghai',
+  created_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS sessions (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id INTEGER NOT NULL,
+  token_hash TEXT NOT NULL UNIQUE,
+  csrf_token TEXT NOT NULL,
+  expires_at INTEGER NOT NULL,
+  created_at INTEGER NOT NULL,
+  FOREIGN KEY (user_id) REFERENCES users(id)
+);
+
+CREATE TABLE IF NOT EXISTS calendars (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  owner_id INTEGER NOT NULL,
+  name TEXT NOT NULL,
+  description TEXT NOT NULL DEFAULT '',
+  color TEXT NOT NULL DEFAULT '#3B82F6',
+  is_default INTEGER NOT NULL DEFAULT 0,
+  created_at INTEGER NOT NULL,
+  FOREIGN KEY (owner_id) REFERENCES users(id)
+);
+
+CREATE TABLE IF NOT EXISTS events (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  calendar_id INTEGER NOT NULL,
+  title TEXT NOT NULL,
+  description TEXT NOT NULL DEFAULT '',
+  location TEXT NOT NULL DEFAULT '',
+  start_time INTEGER NOT NULL,
+  end_time INTEGER NOT NULL,
+  all_day INTEGER NOT NULL DEFAULT 0,
+  timezone TEXT NOT NULL DEFAULT 'UTC',
+  recurrence_rule TEXT NOT NULL DEFAULT '',
+  status TEXT NOT NULL DEFAULT 'CONFIRMED',
+  created_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL,
+  FOREIGN KEY (calendar_id) REFERENCES calendars(id)
+);
+
+CREATE TABLE IF NOT EXISTS event_participants (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  event_id INTEGER NOT NULL,
+  email TEXT NOT NULL,
+  role TEXT NOT NULL DEFAULT 'ATTENDEE',
+  FOREIGN KEY (event_id) REFERENCES events(id)
+);
+
+CREATE TABLE IF NOT EXISTS reminders (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  event_id INTEGER NOT NULL,
+  type TEXT NOT NULL DEFAULT 'IN_APP',
+  minutes_before INTEGER NOT NULL DEFAULT 10,
+  FOREIGN KEY (event_id) REFERENCES events(id)
+);
+
+CREATE TABLE IF NOT EXISTS tasks (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id INTEGER NOT NULL,
+  title TEXT NOT NULL,
+  description TEXT NOT NULL DEFAULT '',
+  due_at INTEGER,
+  priority TEXT NOT NULL DEFAULT 'NORMAL',
+  status TEXT NOT NULL DEFAULT 'OPEN',
+  created_at INTEGER NOT NULL,
+  completed_at INTEGER,
+  FOREIGN KEY (user_id) REFERENCES users(id)
+);
+
+CREATE TABLE IF NOT EXISTS tags (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id INTEGER NOT NULL,
+  name TEXT NOT NULL,
+  color TEXT NOT NULL DEFAULT '#6B7280',
+  FOREIGN KEY (user_id) REFERENCES users(id)
+);

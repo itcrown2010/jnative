@@ -13,3 +13,7 @@ IfElse
 Loop
 Methods
 *.exe
+
+# JNative incremental/project caches
+.jnative/
+**/.jnative/

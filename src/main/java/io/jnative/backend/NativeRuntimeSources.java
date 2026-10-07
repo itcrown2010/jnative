@@ -83,8 +83,11 @@ public final class NativeRuntimeSources {
         Files.createDirectories(dir);
         List<Path> sources = new ArrayList<>();
         copyResource("native/posix/jnative_socket.h", dir.resolve("jnative_socket.h"));
+        // Filesystem ABI (Explorer / Desktop) — posix + Windows Win32 W APIs.
+        copyResource("native/posix/jnative_fs.h", dir.resolve("jnative_fs.h"));
         if (platform == Platform.WINDOWS_X86_64) {
             sources.add(copyResource("native/windows/jnative_socket.c", dir.resolve("jnative_socket.c")));
+            sources.add(copyResource("native/windows/jnative_fs.c", dir.resolve("jnative_fs.c")));
         } else {
             sources.add(copyResource("native/posix/jnative_socket.c", dir.resolve("jnative_socket.c")));
             copyResource("native/posix/jnative_mt.h", dir.resolve("jnative_mt.h"));
@@ -93,7 +96,6 @@ public final class NativeRuntimeSources {
             sources.add(copyResource("native/posix/jnative_gc2.c", dir.resolve("jnative_gc2.c")));
             sources.add(copyResource(
                     "native/posix/jnative_crypto.c", dir.resolve("jnative_crypto.c")));
-            copyResource("native/posix/jnative_fs.h", dir.resolve("jnative_fs.h"));
             sources.add(copyResource("native/posix/jnative_fs.c", dir.resolve("jnative_fs.c")));
             copyResource("native/posix/jnative_proc.h", dir.resolve("jnative_proc.h"));
             sources.add(copyResource("native/posix/jnative_proc.c", dir.resolve("jnative_proc.c")));

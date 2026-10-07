@@ -336,6 +336,18 @@ void jnative_ui_set_item_count(int32_t id, int32_t count) {
 int32_t jnative_ui_get_item_count(int32_t id) {
     return (id > 0 && id < JN_UI_MAX) ? g_item_count[id] : 0;
 }
+const char *jnative_ui_item_text(int32_t id, int32_t index) {
+    (void)id; (void)index; return "";
+}
+int32_t jnative_ui_item_parent(int32_t id, int32_t index) {
+    (void)id; (void)index; return -1;
+}
+void jnative_ui_table_set_columns(int32_t id, const char *titles_tsv) {
+    (void)id; (void)titles_tsv;
+}
+const char *jnative_ui_table_columns(int32_t id) {
+    (void)id; return "";
+}
 void jnative_ui_set_selected_index(int32_t id, int32_t index) {
     if (id > 0 && id < JN_UI_MAX) g_selected_index[id] = index;
 }

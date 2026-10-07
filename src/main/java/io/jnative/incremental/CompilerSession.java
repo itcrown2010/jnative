@@ -313,8 +313,9 @@ public final class CompilerSession {
             }
         }
 
+        Path compileSource = materializeModuleCompileUnit(target, main);
         CompilerOptions options = new CompilerOptions();
-        options.setSourceFile(main);
+        options.setSourceFile(compileSource);
         options.setOutputFile(staging);
         options.setOptLevel(optLevel);
         options.setTarget(target.isBrowser() ? "wasm32-browser" : "native");
@@ -468,6 +469,73 @@ public final class CompilerSession {
             }
         }
         return false;
+    }
+
+    /**
+     * Multi-module projects share DTOs via dependsOn. The compiler still takes a single
+     * source file, so we materialize a temporary compilation unit that concatenates
+     * dependency + same-module sources (main last).
+     */
+    private Path materializeModuleCompileUnit(BuildTargetSpec target, Path main) throws IOException {
+        Module m = project.module(target.module());
+        if (m == null) {
+            return main;
+        }
+        List<Path> roots = new ArrayList<>();
+        for (String d : m.dependsOn()) {
+            Module dep = project.module(d);
+            if (dep != null) {
+                for (String root : dep.sourceRoots()) {
+                    roots.add(projectRoot.resolve(root));
+                }
+            }
+        }
+        for (String root : m.sourceRoots()) {
+            roots.add(projectRoot.resolve(root));
+        }
+        List<Path> files = new ArrayList<>();
+        LinkedHashSet<Path> seen = new LinkedHashSet<>();
+        for (Path root : roots) {
+            if (!Files.isDirectory(root)) {
+                continue;
+            }
+            try (Stream<Path> walk = Files.walk(root, 4)) {
+                walk.filter(Files::isRegularFile)
+                        .filter(p -> p.getFileName().toString().endsWith(".java"))
+                        .sorted()
+                        .forEach(p -> {
+                            Path abs = p.toAbsolutePath().normalize();
+                            if (seen.add(abs)) {
+                                files.add(abs);
+                            }
+                        });
+            }
+        }
+        if (files.size() <= 1) {
+            return main;
+        }
+        Path mainAbs = main.toAbsolutePath().normalize();
+        StringBuilder sb = new StringBuilder();
+        for (Path p : files) {
+            if (p.equals(mainAbs)) {
+                continue;
+            }
+            String text = Files.readString(p, StandardCharsets.UTF_8);
+            if (target.isBrowser() && text.contains("@Rpc")) {
+                continue;
+            }
+            sb.append(text);
+            if (!text.endsWith("\n")) {
+                sb.append('\n');
+            }
+            sb.append('\n');
+        }
+        sb.append(Files.readString(mainAbs, StandardCharsets.UTF_8));
+        Path dir = projectRoot.resolve(project.buildDir()).resolve("units");
+        Files.createDirectories(dir);
+        Path unit = dir.resolve(target.name() + "-unit.java");
+        Files.writeString(unit, sb.toString(), StandardCharsets.UTF_8);
+        return unit;
     }
 
     private Path findMainSource(BuildTargetSpec target) throws IOException {

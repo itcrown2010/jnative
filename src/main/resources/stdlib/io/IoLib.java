@@ -10,6 +10,9 @@ class FsNative {
     @Native(symbol = "jnative_fs_is_file")
     static native int isFile(String path);
 
+    @Native(symbol = "jnative_fs_is_hidden")
+    static native int isHidden(String path);
+
     @Native(symbol = "jnative_fs_create_directories")
     static native int createDirectories(String path);
 
@@ -19,14 +22,47 @@ class FsNative {
     @Native(symbol = "jnative_fs_rename")
     static native int rename(String from, String to);
 
+    @Native(symbol = "jnative_fs_copy_file")
+    static native int copyFile(String from, String to);
+
+    @Native(symbol = "jnative_fs_file_size")
+    static native long fileSize(String path);
+
+    @Native(symbol = "jnative_fs_mtime_ms")
+    static native long mtimeMs(String path);
+
     @Native(symbol = "jnative_fs_list")
     static native NativePtr list(String path);
+
+    @Native(symbol = "jnative_fs_list_info")
+    static native NativePtr listInfo(String path);
+
+    @Native(symbol = "jnative_fs_roots")
+    static native NativePtr roots();
+
+    @Native(symbol = "jnative_fs_known_folder")
+    static native NativePtr knownFolder(String id);
+
+    @Native(symbol = "jnative_fs_open")
+    static native int open(String path);
+
+    @Native(symbol = "jnative_fs_trash")
+    static native int trash(String path);
 
     @Native(symbol = "jnative_fs_free")
     static native void free(NativePtr p);
 
     @Native(symbol = "jnative_fs_config_dir")
     static native NativePtr configDir(String appName);
+
+    @Native(symbol = "jnative_fs_watch_open")
+    static native long watchOpen(String path);
+
+    @Native(symbol = "jnative_fs_watch_poll")
+    static native int watchPoll(long handle);
+
+    @Native(symbol = "jnative_fs_watch_close")
+    static native void watchClose(long handle);
 }
 
 class ProcNative {
@@ -62,6 +98,35 @@ class FsPath {
 
     static FsPath of(String t) {
         return new FsPath(t);
+    }
+
+    /** Spec alias for Explorer / Path.of API. */
+    String name() {
+        return getName();
+    }
+
+    FsPath parent() {
+        return getParent();
+    }
+
+    FsPath absolute() {
+        if (isAbsolute()) {
+            return this;
+        }
+        String cwd = Env.getOr("PWD", ".");
+        return FsPath.of(cwd).resolve(text).normalize();
+    }
+
+    boolean exists() {
+        return Files.exists(this);
+    }
+
+    boolean isDirectory() {
+        return Files.isDirectory(this);
+    }
+
+    boolean isFile() {
+        return Files.isFile(this);
     }
 
     String getName() {
@@ -109,7 +174,35 @@ class FsPath {
     }
 
     FsPath normalize() {
-        return new FsPath(text);
+        if (text == null || text.length() == 0) {
+            return new FsPath(".");
+        }
+        // Collapse // and trailing separator (keep root / or C:\).
+        String s = text;
+        int changed = 1;
+        while (changed != 0) {
+            changed = 0;
+            int i = 0;
+            while (i + 1 < s.length()) {
+                int a = s.charAt(i);
+                int b = s.charAt(i + 1);
+                if ((a == 47 && b == 47) || (a == 92 && b == 92)) {
+                    s = s.substring(0, i) + s.substring(i + 1, s.length());
+                    changed = 1;
+                } else {
+                    i = i + 1;
+                }
+            }
+        }
+        if (s.length() > 1) {
+            int last = s.charAt(s.length() - 1);
+            if (last == 47 || last == 92) {
+                if (!(s.length() == 3 && s.charAt(1) == 58)) {
+                    s = s.substring(0, s.length() - 1);
+                }
+            }
+        }
+        return new FsPath(s);
     }
 
     boolean isAbsolute() {
@@ -211,6 +304,371 @@ class Files {
         String s = NativeMemory.fromCString(p);
         FsNative.free(p);
         return FsPath.of(s);
+    }
+
+    static boolean createDirectory(FsPath path) {
+        return createDirectories(path);
+    }
+
+    static long size(FsPath path) {
+        return FsNative.fileSize(path.toString());
+    }
+
+    static long lastModified(FsPath path) {
+        return FsNative.mtimeMs(path.toString());
+    }
+
+    static boolean isHidden(FsPath path) {
+        return FsNative.isHidden(path.toString()) != 0;
+    }
+
+    /** Structured directory listing (Explorer). */
+    static ArrayList<FileInfo> listInfo(FsPath path) {
+        ArrayList<FileInfo> out = new ArrayList<FileInfo>();
+        NativePtr p = FsNative.listInfo(path.toString());
+        if (p == NativePtr.NULL) {
+            return out;
+        }
+        String blob = NativeMemory.fromCString(p);
+        FsNative.free(p);
+        if (blob == null) {
+            return out;
+        }
+        int i = 0;
+        int start = 0;
+        while (i <= blob.length()) {
+            if (i == blob.length() || blob.charAt(i) == 10) {
+                if (i > start) {
+                    FileInfo fi = FileInfo.parseLine(path, blob.substring(start, i));
+                    if (fi != null) {
+                        out.add(fi);
+                    }
+                }
+                start = i + 1;
+            }
+            i = i + 1;
+        }
+        return out;
+    }
+
+    static boolean copy(FsPath from, FsPath to) {
+        if (isDirectory(from)) {
+            return copyDirectoryRecursive(from, to, new HashMap<String, String>());
+        }
+        return FsNative.copyFile(from.toString(), to.toString()) != 0;
+    }
+
+    static boolean copyDirectoryRecursive(FsPath from, FsPath to, HashMap<String, String> seen) {
+        String key = from.normalize().toString();
+        if (seen.containsKey(key)) {
+            return true;
+        }
+        seen.put(key, "1");
+        if (!createDirectories(to)) {
+            if (!exists(to)) {
+                return false;
+            }
+        }
+        ArrayList<FileInfo> kids = listInfo(from);
+        int i = 0;
+        while (i < kids.size()) {
+            FileInfo fi = kids.get(i);
+            FsPath childFrom = from.resolve(fi.name);
+            FsPath childTo = to.resolve(fi.name);
+            if (fi.isDirectory != 0) {
+                if (!copyDirectoryRecursive(childFrom, childTo, seen)) {
+                    return false;
+                }
+            } else {
+                if (FsNative.copyFile(childFrom.toString(), childTo.toString()) == 0) {
+                    return false;
+                }
+            }
+            i = i + 1;
+        }
+        return true;
+    }
+}
+
+/** File metadata for Explorer / Files.listInfo. */
+class FileInfo {
+    String name;
+    FsPath path;
+    String type;
+    long size;
+    long createdTime;
+    long modifiedTime;
+    int attributes;
+    int isDirectory;
+    int isHidden;
+    int isReadOnly;
+
+    FileInfo() {
+        name = "";
+        path = FsPath.of(".");
+        type = "File";
+        size = 0;
+        createdTime = 0;
+        modifiedTime = 0;
+        attributes = 0;
+        isDirectory = 0;
+        isHidden = 0;
+        isReadOnly = 0;
+    }
+
+    static FileInfo parseLine(FsPath parent, String line) {
+        if (line == null || line.length() == 0) {
+            return null;
+        }
+        ArrayList<String> cols = IoUtil.splitTab(line);
+        if (cols.size() < 5) {
+            return null;
+        }
+        FileInfo fi = new FileInfo();
+        fi.name = cols.get(0);
+        fi.path = parent.resolve(fi.name);
+        fi.isDirectory = IoUtil.parseInt(cols.get(1));
+        fi.size = IoUtil.parseLong(cols.get(2));
+        fi.modifiedTime = IoUtil.parseLong(cols.get(3));
+        fi.createdTime = fi.modifiedTime;
+        fi.isHidden = IoUtil.parseInt(cols.get(4));
+        if (fi.isDirectory != 0) {
+            fi.type = "Folder";
+            fi.size = 0;
+        } else {
+            fi.type = FileTypes.ofName(fi.name);
+        }
+        return fi;
+    }
+}
+
+class FileTypes {
+    static String ofName(String name) {
+        int dot = -1;
+        int i = 0;
+        while (i < name.length()) {
+            if (name.charAt(i) == 46) {
+                dot = i;
+            }
+            i = i + 1;
+        }
+        if (dot < 0 || dot == name.length() - 1) {
+            return "File";
+        }
+        String ext = name.substring(dot + 1, name.length());
+        if (ext.equals("txt")) { return "Text"; }
+        if (ext.equals("pdf")) { return "PDF"; }
+        if (ext.equals("png") || ext.equals("jpg") || ext.equals("jpeg") || ext.equals("gif")) {
+            return "Image";
+        }
+        if (ext.equals("java")) { return "Java"; }
+        if (ext.equals("exe") || ext.equals("dll")) { return "Application"; }
+        return ext + " File";
+    }
+}
+
+class FileSize {
+    static String format(long bytes) {
+        if (bytes < 0) {
+            return "";
+        }
+        if (bytes < 1024) {
+            return ("" + bytes) + " B";
+        }
+        if (bytes < 1024 * 1024) {
+            long kb10 = (bytes * 10) / 1024;
+            return ("" + (kb10 / 10)) + "." + ("" + (kb10 % 10)) + " KB";
+        }
+        if (bytes < 1024L * 1024L * 1024L) {
+            long mb10 = (bytes * 10) / (1024 * 1024);
+            return ("" + (mb10 / 10)) + "." + ("" + (mb10 % 10)) + " MB";
+        }
+        long gb10 = (bytes * 10) / (1024L * 1024L * 1024L);
+        return ("" + (gb10 / 10)) + "." + ("" + (gb10 % 10)) + " GB";
+    }
+}
+
+class DriveInfo {
+    String name;
+    FsPath root;
+    String type;
+    long totalSpace;
+    long freeSpace;
+
+    DriveInfo(String n, FsPath r) {
+        name = n;
+        root = r;
+        type = "Local Disk";
+        totalSpace = 0;
+        freeSpace = 0;
+    }
+}
+
+class FileSystem {
+    static ArrayList<FsPath> roots() {
+        ArrayList<FsPath> out = new ArrayList<FsPath>();
+        NativePtr p = FsNative.roots();
+        if (p == NativePtr.NULL) {
+            out.add(FsPath.of("/"));
+            return out;
+        }
+        String blob = NativeMemory.fromCString(p);
+        FsNative.free(p);
+        if (blob == null) {
+            out.add(FsPath.of("/"));
+            return out;
+        }
+        int i = 0;
+        int start = 0;
+        while (i <= blob.length()) {
+            if (i == blob.length() || blob.charAt(i) == 10) {
+                if (i > start) {
+                    out.add(FsPath.of(blob.substring(start, i)));
+                }
+                start = i + 1;
+            }
+            i = i + 1;
+        }
+        return out;
+    }
+
+    static ArrayList<DriveInfo> drives() {
+        ArrayList<DriveInfo> out = new ArrayList<DriveInfo>();
+        ArrayList<FsPath> rs = roots();
+        int i = 0;
+        while (i < rs.size()) {
+            FsPath r = rs.get(i);
+            String label = r.toString();
+            out.add(new DriveInfo("Local Disk (" + label + ")", r));
+            i = i + 1;
+        }
+        return out;
+    }
+}
+
+class SystemPaths {
+    static FsPath known(String id) {
+        NativePtr p = FsNative.knownFolder(id);
+        if (p == NativePtr.NULL) {
+            return FsPath.of(".");
+        }
+        String s = NativeMemory.fromCString(p);
+        FsNative.free(p);
+        return FsPath.of(s);
+    }
+
+    static FsPath home() {
+        return known("home");
+    }
+
+    static FsPath desktop() {
+        return known("desktop");
+    }
+
+    static FsPath documents() {
+        return known("documents");
+    }
+
+    static FsPath downloads() {
+        return known("downloads");
+    }
+
+    static FsPath pictures() {
+        return known("pictures");
+    }
+}
+
+/** WatchService — platform backend (kqueue/inotify/ReadDirectoryChangesW) + poll. */
+class WatchService {
+    long handle;
+    FsPath path;
+    int closed;
+
+    WatchService(FsPath dir) {
+        path = dir;
+        handle = FsNative.watchOpen(dir.toString());
+        closed = 0;
+    }
+
+    static WatchService open(FsPath dir) {
+        return new WatchService(dir);
+    }
+
+    boolean poll() {
+        if (closed != 0 || handle == 0) {
+            return false;
+        }
+        return FsNative.watchPoll(handle) != 0;
+    }
+
+    void close() {
+        if (closed == 0 && handle != 0) {
+            FsNative.watchClose(handle);
+            handle = 0;
+            closed = 1;
+        }
+    }
+}
+
+class IoUtil {
+    static ArrayList<String> splitTab(String line) {
+        ArrayList<String> out = new ArrayList<String>();
+        int i = 0;
+        int start = 0;
+        while (i <= line.length()) {
+            if (i == line.length() || line.charAt(i) == 9) {
+                out.add(line.substring(start, i));
+                start = i + 1;
+            }
+            i = i + 1;
+        }
+        return out;
+    }
+
+    static long parseLong(String s) {
+        if (s == null || s.length() == 0) {
+            return 0;
+        }
+        long v = 0;
+        int i = 0;
+        int sign = 1;
+        if (s.charAt(0) == 45) {
+            sign = -1;
+            i = 1;
+        }
+        while (i < s.length()) {
+            int c = s.charAt(i);
+            if (c < 48 || c > 57) {
+                return v * sign;
+            }
+            v = v * 10 + (c - 48);
+            i = i + 1;
+        }
+        return v * sign;
+    }
+
+    static int parseInt(String s) {
+        if (s == null || s.length() == 0) {
+            return 0;
+        }
+        int i = 0;
+        int sign = 1;
+        if (s.charAt(0) == 45) {
+            sign = -1;
+            i = 1;
+        }
+        int v = 0;
+        int cont = 1;
+        while (i < s.length() && cont != 0) {
+            int c = s.charAt(i);
+            if (c >= 48 && c <= 57) {
+                v = v * 10 + (c - 48);
+                i = i + 1;
+            } else {
+                cont = 0;
+            }
+        }
+        return v * sign;
     }
 }
 
@@ -339,40 +797,32 @@ class Process {
     }
 }
 
-class IoUtil {
-    static int parseInt(String s) {
-        if (s == null || s.length() == 0) {
-            return 0;
-        }
-        int i = 0;
-        int sign = 1;
-        if (s.charAt(0) == 45) {
-            sign = -1;
-            i = 1;
-        }
-        int v = 0;
-        int cont = 1;
-        while (i < s.length() && cont != 0) {
-            int c = s.charAt(i);
-            if (c >= 48 && c <= 57) {
-                v = v * 10 + (c - 48);
-                i = i + 1;
-            } else {
-                cont = 0;
-            }
-        }
-        return v * sign;
-    }
-}
-
 class Desktop {
-    static void openDirectory(String path) {
-        ProcessBuilder pb = new ProcessBuilder("/usr/bin/open");
-        pb.argument(path);
-        Process p = pb.start();
-        if (p != null) {
-            p.waitFor();
+    /** Open file or directory with the OS default application. */
+    static boolean open(String path) {
+        if (path == null) {
+            return false;
         }
+        return FsNative.open(path) != 0;
+    }
+
+    static boolean openPath(FsPath path) {
+        if (path == null) {
+            return false;
+        }
+        return open(path.toString());
+    }
+
+    /** Move to Recycle Bin / Trash (not permanent delete). */
+    static boolean moveToTrash(FsPath path) {
+        if (path == null) {
+            return false;
+        }
+        return FsNative.trash(path.toString()) != 0;
+    }
+
+    static void openDirectory(String path) {
+        open(path);
     }
 
     static void revealFile(String path) {
@@ -386,12 +836,7 @@ class Desktop {
     }
 
     static void openUrl(String url) {
-        ProcessBuilder pb = new ProcessBuilder("/usr/bin/open");
-        pb.argument(url);
-        Process p = pb.start();
-        if (p != null) {
-            p.waitFor();
-        }
+        open(url);
     }
 }
 

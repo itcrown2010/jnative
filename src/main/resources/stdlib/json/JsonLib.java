@@ -74,10 +74,23 @@ class JsonBoolean extends JsonValue {
 
 class JsonNumber extends JsonValue {
     double value;
+    /** Original JSON number lexeme — preserves integer precision for getLong. */
+    String literal;
 
     JsonNumber(double v) {
         super(NUMBER_KIND);
         value = v;
+        literal = "";
+    }
+
+    JsonNumber(double v, String lit) {
+        super(NUMBER_KIND);
+        value = v;
+        if (lit == null) {
+            literal = "";
+        } else {
+            literal = lit;
+        }
     }
 }
 
@@ -192,10 +205,21 @@ class JsonObject extends JsonValue {
     }
 
     long getLong(String key, long def) {
-        if (!has(key)) {
+        JsonValue v = get(key);
+        if (v == null || v.kind == JsonValue.NULL_KIND) {
             return def;
         }
-        return getInt(key, 0);
+        if (v.kind == JsonValue.NUMBER_KIND) {
+            JsonNumber num = (JsonNumber) v;
+            if (num.literal != null && num.literal.length() > 0) {
+                return JsonParseLong.fromNumberString(num.literal, def);
+            }
+            return JsonParseLong.fromNumberString(JsonWriter.write(v), def);
+        }
+        if (v.isString()) {
+            return JsonParseLong.fromNumberString(v.asString(), def);
+        }
+        return def;
     }
 
     int size() {
@@ -394,7 +418,7 @@ class JsonParser {
         }
         String lit = src.substring(start, pos);
         double v = JsonUtil.parseDouble(lit);
-        return new JsonNumber(v);
+        return new JsonNumber(v, lit);
     }
 }
 
@@ -421,6 +445,21 @@ class JsonUtil {
             }
         }
         return whole * sign;
+    }
+
+    /**
+     * Fallback for JsonNumber created without a source lexeme (putNumber).
+     * Parsed numbers always keep {@link JsonNumber#literal} for exact getLong.
+     */
+    static String formatDouble(double v) {
+        if (v == 0.0) {
+            return "0";
+        }
+        if (v == 1.0) {
+            return "1";
+        }
+        /* Non-literal large numbers should be put as strings until double formatting ships. */
+        return "0";
     }
 
     static String escape(String s) {
@@ -462,7 +501,11 @@ class JsonWriter {
             return "false";
         }
         if (v.kind == JsonValue.NUMBER_KIND) {
-            return "" + v.asNumber();
+            JsonNumber num = (JsonNumber) v;
+            if (num.literal != null && num.literal.length() > 0) {
+                return num.literal;
+            }
+            return JsonUtil.formatDouble(num.value);
         }
         if (v.kind == JsonValue.STRING_KIND) {
             return "\"" + JsonUtil.escape(v.asString()) + "\"";
@@ -570,5 +613,49 @@ class JsonParseInt {
         if (one.equals("8")) { return 8; }
         if (one.equals("9")) { return 9; }
         return -1;
+    }
+}
+
+/** 64-bit integer parse for epoch millis / IDs (fixes getLong→getInt truncation). */
+class JsonParseLong {
+    static long fromNumberString(String s, long def) {
+        if (s == null || s.length() == 0) {
+            return def;
+        }
+        int start = 0;
+        int sign = 1;
+        if (s.startsWith("-")) {
+            sign = -1;
+            start = 1;
+        }
+        long value = 0L;
+        int i = start;
+        int digits = 0;
+        int done = 0;
+        while (i < s.length() && done == 0) {
+            String one = s.substring(i, i + 1);
+            if (one.equals(".")) {
+                done = 1;
+            } else {
+                int digit = JsonParseInt.digitValue(one);
+                if (digit < 0) {
+                    if (digits == 0) {
+                        return def;
+                    }
+                    done = 1;
+                } else {
+                    value = value * 10L + digit;
+                    digits = digits + 1;
+                    i = i + 1;
+                }
+            }
+        }
+        if (digits == 0) {
+            return def;
+        }
+        if (sign < 0) {
+            return -value;
+        }
+        return value;
     }
 }

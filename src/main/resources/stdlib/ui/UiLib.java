@@ -221,6 +221,9 @@ class UiNative {
     @Native(symbol = "jnative_ui_list_add_item")
     static native void listAddItem(int id, String text);
 
+    @Native(symbol = "jnative_ui_table_set_columns")
+    static native void tableSetColumns(int id, String titlesTsv);
+
     @Native(symbol = "jnative_ui_tree_clear")
     static native void treeClear(int id);
 
@@ -750,6 +753,11 @@ class Application {
                     Window w = (Window) c;
                     w.fireClose();
                 }
+            } else if (eventCode == 3) {
+                if (c instanceof Window) {
+                    Window w = (Window) c;
+                    w.onNativeResize(UiNative.eventArg0(), UiNative.eventArg1());
+                }
             } else if (eventCode == 4) {
                 c.fireChange();
             } else if (eventCode == 6) {
@@ -954,6 +962,15 @@ class Component {
             } else if (this instanceof HBox) {
                 HBox hb = (HBox) this;
                 hb.layout();
+            } else if (this instanceof SplitPane) {
+                SplitPane sp = (SplitPane) this;
+                sp.layout();
+            } else if (this instanceof GridPane) {
+                GridPane gp = (GridPane) this;
+                gp.layout();
+            } else if (this instanceof TabPane) {
+                TabPane tp = (TabPane) this;
+                tp.layout();
             }
         }
     }
@@ -1354,7 +1371,7 @@ class VBox extends Container {
                 if (pw < availW) {
                     pw = availW;
                 }
-                if (i == stretchIndex && height > cy + ph + padding) {
+                if (i == stretchIndex) {
                     int rest = 0;
                     int k = i + 1;
                     while (k < childCount) {
@@ -1367,6 +1384,9 @@ class VBox extends Container {
                     if (fill > ph) {
                         ph = fill;
                     }
+                    if (ph < 80) {
+                        ph = 80;
+                    }
                 }
                 c.setBounds(padding, cy, pw, ph);
                 cy = cy + ph + spacing;
@@ -1378,14 +1398,17 @@ class VBox extends Container {
         }
         int needW = maxW + padding * 2;
         int needH = cy + padding;
+        prefWidth = needW;
+        prefHeight = needH;
         if (width < needW) {
             width = needW;
         }
-        if (height < needH) {
+        /* When a child was stretched to fill, keep the parent-assigned height.
+           Growing the VBox after children were Y-flipped against the old height
+           leaves gaps above the status bar / below the toolbar. */
+        if (stretchIndex < 0 && height < needH) {
             height = needH;
         }
-        prefWidth = needW;
-        prefHeight = needH;
         if (nativeId > 0) {
             UiNative.setBounds(nativeId, x, y, width, height);
         }
@@ -1413,8 +1436,8 @@ class HBox extends Container {
             }
             i = i + 1;
         }
-        /* Measure first, apply this container's frame, then place children.
-           Cocoa Y-flip needs the superview size to already be final. */
+        /* Measure preferred size, but keep parent-allocated width/height when larger
+           so toolbars/status bars stretch with the window. */
         int needW = padding;
         i = 0;
         while (i < childCount) {
@@ -1425,12 +1448,21 @@ class HBox extends Container {
             needW = needW - spacing;
         }
         needW = needW + padding;
-        width = needW;
-        height = maxH + padding * 2;
-        prefWidth = width;
-        prefHeight = height;
+        int needH = maxH + padding * 2;
+        prefWidth = needW;
+        prefHeight = needH;
+        if (width < needW) {
+            width = needW;
+        }
+        if (height < needH) {
+            height = needH;
+        }
         if (nativeId > 0) {
             UiNative.setBounds(nativeId, x, y, width, height);
+        }
+        int availH = height - padding * 2;
+        if (availH < 0) {
+            availH = 0;
         }
         cx = padding;
         i = 0;
@@ -1438,7 +1470,11 @@ class HBox extends Container {
             c = children[i];
             int pw = c.preferredWidth();
             int ph2 = c.preferredHeight();
-            c.setBounds(cx, padding, pw, ph2);
+            int yOff = padding;
+            if (ph2 < availH) {
+                yOff = padding + (availH - ph2) / 2;
+            }
+            c.setBounds(cx, yOff, pw, ph2);
             cx = cx + pw + spacing;
             i = i + 1;
         }
@@ -1698,11 +1734,20 @@ class SplitPane extends Container {
         layoutDirty = 0;
         UiMetrics.layoutPasses = UiMetrics.layoutPasses + 1;
         int pct = UiNative.getValueI32(nativeId);
-        if (pct <= 0) {
+        if (pct < 5) {
             pct = 50;
+        }
+        if (pct > 95) {
+            pct = 95;
         }
         if (orientation == Orientation.HORIZONTAL) {
             int leftW = width * pct / 100;
+            if (leftW < 80) {
+                leftW = 80;
+            }
+            if (leftW > width - 120) {
+                leftW = width - 120;
+            }
             if (first != null) {
                 first.setBounds(0, 0, leftW - 2, height);
                 first.layout();
@@ -2122,18 +2167,14 @@ class ListView<T> extends Control {
         if (m != null) {
             n = m.size();
         }
-        UiNative.setItemCount(nativeId, n);
         UiNative.listClear(nativeId);
-        int show = n;
-        if (show > visibleRows) {
-            show = visibleRows;
-        }
         int i = 0;
-        while (i < show) {
+        while (i < n) {
             T v = model.get(i);
             UiNative.listAddItem(nativeId, renderItem(v));
             i = i + 1;
         }
+        UiNative.setItemCount(nativeId, n);
     }
 
     void setRenderer(CellRenderer<T> r) {
@@ -2229,6 +2270,7 @@ class TableColumn<T, R> implements ColumnRenderer<T> {
         if (value == null) {
             return "";
         }
+        /* Use ColumnRenderer for typed String cells (Function path is limited). */
         return "?";
     }
 
@@ -2302,6 +2344,29 @@ class TableView<T> extends Control {
     void addColumn(ColumnRenderer<T> col) {
         ensureAlive("TableView.addColumn");
         columns.add(col);
+        syncColumnsNative();
+    }
+
+    void syncColumnsNative() {
+        if (nativeId <= 0) {
+            return;
+        }
+        String titles = "";
+        int i = 0;
+        while (i < columns.size()) {
+            if (i > 0) {
+                titles = titles + "\t";
+            }
+            String t = columns.get(i).getTitle();
+            if (t == null) {
+                t = "";
+            }
+            titles = titles + t;
+            i = i + 1;
+        }
+        if (titles.length() > 0) {
+            UiNative.tableSetColumns(nativeId, titles);
+        }
     }
 
     void setItems(ArrayList<T> items) {
@@ -2312,11 +2377,45 @@ class TableView<T> extends Control {
         ensureAlive("TableView.setModel");
         model = m;
         rebuildIndex();
-        int n = 0;
-        if (m != null) {
-            n = m.size();
+        syncRowsNative();
+    }
+
+    void syncRowsNative() {
+        if (nativeId <= 0) {
+            return;
+        }
+        UiNative.listClear(nativeId);
+        int n = sortedIndex.size();
+        int i = 0;
+        while (i < n) {
+            int modelIndex = sortedIndex.get(i);
+            UiNative.listAddItem(nativeId, renderRowTsv(modelIndex));
+            i = i + 1;
         }
         UiNative.setItemCount(nativeId, n);
+    }
+
+    String renderRowTsv(int modelIndex) {
+        if (model == null || modelIndex < 0 || modelIndex >= model.size()) {
+            return "";
+        }
+        if (columns.size() == 0) {
+            return "?";
+        }
+        String row = "";
+        int c = 0;
+        while (c < columns.size()) {
+            if (c > 0) {
+                row = row + "\t";
+            }
+            String cell = cellText(modelIndex, c);
+            if (cell == null) {
+                cell = "";
+            }
+            row = row + cell;
+            c = c + 1;
+        }
+        return row;
     }
 
     void rebuildIndex() {
@@ -2374,6 +2473,7 @@ class TableView<T> extends Control {
             sortedIndex.set(j + 1, key);
             i = i + 1;
         }
+        syncRowsNative();
     }
 
     String cellText(int modelIndex, int colIndex) {
@@ -2391,7 +2491,7 @@ class TableView<T> extends Control {
         T item = model.get(modelIndex);
         selection.select(modelIndex, item);
         UiNative.setSelectedIndex(nativeId, viewIndex);
-        fireSelect(modelIndex);
+        fireSelect(viewIndex);
     }
 
     void onSelectionChanged(EventHandler<SelectionEvent<T>> handler) {
@@ -2400,13 +2500,17 @@ class TableView<T> extends Control {
         }
     }
 
-    void fireSelect(int index) {
+    void fireSelect(int viewIndex) {
         T item = null;
-        if (model != null && index >= 0 && index < model.size()) {
-            item = model.get(index);
-            selection.select(index, item);
+        int modelIndex = viewIndex;
+        if (viewIndex >= 0 && viewIndex < sortedIndex.size()) {
+            modelIndex = sortedIndex.get(viewIndex);
+            if (model != null && modelIndex >= 0 && modelIndex < model.size()) {
+                item = model.get(modelIndex);
+                selection.select(modelIndex, item);
+            }
         }
-        SelectionEvent<T> ev = new SelectionEvent<T>(this, index, item);
+        SelectionEvent<T> ev = new SelectionEvent<T>(this, modelIndex, item);
         int i = 0;
         while (i < selectionHandlers.size()) {
             selectionHandlers.get(i).handle(ev);
@@ -2767,6 +2871,19 @@ class Dialogs {
         }
         return UiNative.dialogMessage(wid, 3, "Save changes?", message);
     }
+
+    /**
+     * Simple prompt foundation — confirms suggested value (full text dialog TBD).
+     * Returns null if cancelled.
+     */
+    static String prompt(Window owner, String title, String suggested) {
+        Application.checkUiThread("Dialogs.prompt");
+        String msg = title + "\n\nSuggested: " + suggested + "\n\nOK = use suggested name";
+        if (!confirm(owner, msg)) {
+            return null;
+        }
+        return suggested;
+    }
 }
 
 class FileDialog {
@@ -2895,6 +3012,19 @@ class Window extends Component {
         }
     }
 
+    void onNativeResize(int w, int h) {
+        /* Ignore transient zero/tiny sizes during window realization. */
+        if (w < 200 || h < 120) {
+            return;
+        }
+        width = w;
+        height = h;
+        if (content != null) {
+            content.setBounds(0, 0, width, height);
+            content.layout();
+        }
+    }
+
     void setContent(Component component) {
         ensureAlive("Window.setContent");
         content = component;
@@ -2919,6 +3049,7 @@ class Window extends Component {
         shown = 1;
         UiNative.show(nativeId);
         if (content != null) {
+            content.setBounds(0, 0, width, height);
             content.layout();
         }
     }

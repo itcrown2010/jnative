@@ -47,6 +47,15 @@ static JnUiMenuTarget *g_menu_target = nil;
     /* Managed side decides; call jnative_ui_close_window to actually close. */
     return NO;
 }
+- (void)windowDidResize:(NSNotification *)notification {
+    (void)notification;
+    if (self.jnHandleId <= 0) {
+        return;
+    }
+    NSSize sz = self.contentView.bounds.size;
+    jnative_ui_emit_event_ex(self.jnHandleId, JN_UI_EVENT_RESIZE,
+                             (int32_t)(sz.width + 0.5), (int32_t)(sz.height + 0.5), 0, 0);
+}
 @end
 
 @interface JnUiButton : NSButton
@@ -58,6 +67,383 @@ static JnUiMenuTarget *g_menu_target = nil;
     jnative_ui_emit_event(self.jnHandleId, JN_UI_EVENT_CLICK);
 }
 @end
+
+/** Bridges C peer item arrays into AppKit table/outline views. */
+@interface JnTableBridge : NSObject <NSTableViewDataSource, NSTableViewDelegate,
+                                     NSOutlineViewDataSource, NSOutlineViewDelegate>
+@property(nonatomic, assign) int32_t peerId;
+@end
+
+static JnTableBridge *g_table_bridges[JN_UI_MAX];
+
+static NSString *jn_ns_from_utf8(const char *text) {
+    if (text == NULL) {
+        return @"";
+    }
+    NSString *s = [NSString stringWithUTF8String:text];
+    return s != nil ? s : @"";
+}
+
+static NSString *jn_tsv_field(const char *row, NSInteger col) {
+    NSString *s = jn_ns_from_utf8(row);
+    if (col <= 0) {
+        NSRange tab = [s rangeOfString:@"\t"];
+        if (tab.location == NSNotFound) {
+            return s;
+        }
+        return [s substringToIndex:tab.location];
+    }
+    NSArray<NSString *> *parts = [s componentsSeparatedByString:@"\t"];
+    if (col >= (NSInteger)parts.count) {
+        return @"";
+    }
+    return parts[(NSUInteger)col];
+}
+
+static NSTableView *jn_table_view(int32_t peerId) {
+    if (peerId <= 0 || peerId >= JN_UI_MAX) {
+        return nil;
+    }
+    id obj = g_peers[peerId];
+    if (![obj isKindOfClass:[NSScrollView class]]) {
+        return nil;
+    }
+    id doc = [(NSScrollView *)obj documentView];
+    if ([doc isKindOfClass:[NSTableView class]]) {
+        return (NSTableView *)doc;
+    }
+    return nil;
+}
+
+static void jn_size_scroll_document(NSScrollView *scroll) {
+    if (scroll == nil) {
+        return;
+    }
+    NSView *doc = [scroll documentView];
+    if (doc == nil) {
+        return;
+    }
+    NSSize content = [scroll contentSize];
+    if (content.width < 1.0) {
+        content.width = scroll.bounds.size.width;
+    }
+    if ([doc isKindOfClass:[NSTableView class]]) {
+        NSTableView *tv = (NSTableView *)doc;
+        /* Width follows the clip view; height must stay row-intrinsic.
+           Stretching the table frame vertically desyncs text from zebra stripes. */
+        CGFloat rowPitch = tv.rowHeight + tv.intercellSpacing.height;
+        if (rowPitch < 1.0) {
+            rowPitch = 32.0;
+        }
+        CGFloat headerH = 0.0;
+        if (tv.headerView != nil) {
+            headerH = NSHeight(tv.headerView.frame);
+        }
+        CGFloat rowsH = (CGFloat)tv.numberOfRows * rowPitch;
+        if (rowsH < 1.0) {
+            rowsH = rowPitch;
+        }
+        [tv setFrame:NSMakeRect(0, 0, content.width, rowsH + headerH)];
+        if (tv.tableColumns.count > 0) {
+            [tv sizeLastColumnToFit];
+        }
+    } else {
+        CGFloat h = content.height;
+        if (h < 1.0) {
+            h = scroll.bounds.size.height;
+        }
+        [doc setFrame:NSMakeRect(0, 0, content.width, h)];
+    }
+}
+
+static NSImage *jn_symbol(NSString *name, NSString *fallback) {
+    if (@available(macOS 11.0, *)) {
+        NSImage *img = [NSImage imageWithSystemSymbolName:name accessibilityDescription:nil];
+        if (img != nil) {
+            NSImageSymbolConfiguration *cfg =
+                [NSImageSymbolConfiguration configurationWithPointSize:14.0
+                                                                weight:NSFontWeightMedium
+                                                                 scale:NSImageSymbolScaleMedium];
+            NSImage *configured = [img imageWithSymbolConfiguration:cfg];
+            if (configured != nil) {
+                img = configured;
+            }
+            [img setTemplate:YES];
+            return img;
+        }
+    }
+    if (fallback != nil) {
+        NSImage *named = [NSImage imageNamed:fallback];
+        if (named != nil) {
+            return named;
+        }
+    }
+    return [NSImage imageNamed:NSImageNameFolder];
+}
+
+static NSImage *jn_icon_for_kind(NSString *kind, BOOL isGroup) {
+    if (isGroup) {
+        return jn_symbol(@"internaldrive", NSImageNameComputer);
+    }
+    NSString *k = kind == nil ? @"" : [kind lowercaseString];
+    if ([k isEqualToString:@"folder"] || [k hasPrefix:@"folder"]) {
+        return jn_symbol(@"folder.fill", NSImageNameFolder);
+    }
+    if ([k containsString:@"image"] || [k containsString:@"png"] || [k containsString:@"jpg"]
+            || [k containsString:@"jpeg"] || [k containsString:@"gif"] || [k containsString:@"heic"]) {
+        return jn_symbol(@"photo", NSImageNameFolder);
+    }
+    if ([k containsString:@"pdf"]) {
+        return jn_symbol(@"doc.richtext", NSImageNameFolder);
+    }
+    if ([k containsString:@"zip"] || [k containsString:@"archive"]) {
+        return jn_symbol(@"doc.zipper", NSImageNameFolder);
+    }
+    if ([k containsString:@"text"] || [k containsString:@"code"] || [k hasSuffix:@" source"]) {
+        return jn_symbol(@"doc.text", NSImageNameFolder);
+    }
+    return jn_symbol(@"doc", NSImageNameFolder);
+}
+
+static NSTableCellView *jn_make_cell(NSString *ident, BOOL withIcon) {
+    NSTableCellView *cell = [[NSTableCellView alloc] initWithFrame:NSMakeRect(0, 0, 280, 32)];
+    cell.identifier = ident;
+    NSTextField *tf = [NSTextField labelWithString:@""];
+    [tf setDrawsBackground:NO];
+    [tf setBordered:NO];
+    [tf setEditable:NO];
+    [tf setLineBreakMode:NSLineBreakByTruncatingTail];
+    [tf setFont:[NSFont systemFontOfSize:13.0]];
+    [tf setBackgroundColor:[NSColor clearColor]];
+    if (withIcon) {
+        NSImageView *iv = [[NSImageView alloc] initWithFrame:NSMakeRect(4, 6, 20, 20)];
+        [iv setImageScaling:NSImageScaleProportionallyUpOrDown];
+        [iv setContentTintColor:[NSColor secondaryLabelColor]];
+        [iv setAutoresizingMask:NSViewMaxXMargin | NSViewMinYMargin | NSViewMaxYMargin];
+        [tf setFrame:NSMakeRect(30, 5, 240, 22)];
+        [tf setAutoresizingMask:NSViewWidthSizable | NSViewMinYMargin | NSViewMaxYMargin];
+        cell.imageView = iv;
+        [cell addSubview:iv];
+    } else {
+        [tf setFrame:NSMakeRect(6, 5, 240, 22)];
+        [tf setAutoresizingMask:NSViewWidthSizable | NSViewMinYMargin | NSViewMaxYMargin];
+        [tf setTextColor:[NSColor secondaryLabelColor]];
+    }
+    cell.textField = tf;
+    [cell addSubview:tf];
+    return cell;
+}
+
+@implementation JnTableBridge
+- (NSInteger)numberOfRowsInTableView:(NSTableView *)tableView {
+    (void)tableView;
+    return (NSInteger)jnative_ui_get_item_count(self.peerId);
+}
+
+- (id)tableView:(NSTableView *)tableView
+        objectValueForTableColumn:(NSTableColumn *)tableColumn
+                              row:(NSInteger)row {
+    (void)tableView;
+    const char *text = jnative_ui_item_text(self.peerId, (int32_t)row);
+    NSInteger col = 0;
+    if (tableColumn != nil && tableColumn.identifier != nil) {
+        col = [tableColumn.identifier integerValue];
+    }
+    return jn_tsv_field(text, col);
+}
+
+- (NSView *)tableView:(NSTableView *)tableView
+    viewForTableColumn:(NSTableColumn *)tableColumn
+                  row:(NSInteger)row {
+    NSInteger col = 0;
+    if (tableColumn != nil && tableColumn.identifier != nil) {
+        col = [tableColumn.identifier integerValue];
+    }
+    const char *raw = jnative_ui_item_text(self.peerId, (int32_t)row);
+    NSString *value = jn_tsv_field(raw, col);
+    NSString *kind = jn_tsv_field(raw, 1);
+    NSString *ident = (col == 0) ? @"jn.name" : @"jn.meta";
+    NSTableCellView *cell = [tableView makeViewWithIdentifier:ident owner:nil];
+    if (cell == nil) {
+        cell = jn_make_cell(ident, col == 0);
+    }
+    cell.textField.stringValue = value;
+    if (col == 0) {
+        cell.imageView.image = jn_icon_for_kind(kind, NO);
+        cell.textField.textColor = [NSColor labelColor];
+        cell.textField.font = [NSFont systemFontOfSize:13.0];
+    } else {
+        cell.imageView.image = nil;
+        cell.textField.textColor = [NSColor secondaryLabelColor];
+        cell.textField.font = [NSFont systemFontOfSize:12.0];
+    }
+    return cell;
+}
+
+- (void)tableViewSelectionDidChange:(NSNotification *)notification {
+    NSTableView *tv = notification.object;
+    if (![tv isKindOfClass:[NSTableView class]]) {
+        return;
+    }
+    NSInteger row = tv.selectedRow;
+    if (row < 0) {
+        return;
+    }
+    jnative_ui_set_selected_index(self.peerId, (int32_t)row);
+    jnative_ui_emit_event_ex(self.peerId, JN_UI_EVENT_SELECT, (int32_t)row, 0, 0, 0);
+}
+
+/** Activate row (Finder-style double-click). Defer ACTION so reload/open
+    is not nested inside AppKit's double-click delivery (avoids crash). */
+- (void)jnDoubleActivate:(id)sender {
+    if (![sender isKindOfClass:[NSTableView class]]) {
+        return;
+    }
+    NSTableView *tv = (NSTableView *)sender;
+    NSInteger row = tv.clickedRow;
+    if (row < 0) {
+        row = tv.selectedRow;
+    }
+    if (row < 0) {
+        return;
+    }
+    int32_t peerId = self.peerId;
+    int32_t idx = (int32_t)row;
+    if ([tv isKindOfClass:[NSOutlineView class]]) {
+        id item = [(NSOutlineView *)tv itemAtRow:row];
+        if (item == nil) {
+            return;
+        }
+        idx = (int32_t)[item intValue];
+    }
+    jnative_ui_set_selected_index(peerId, idx);
+    jnative_ui_emit_event_ex(peerId, JN_UI_EVENT_SELECT, idx, 0, 0, 0);
+    dispatch_async(dispatch_get_main_queue(), ^{
+        jnative_ui_emit_event(peerId, JN_UI_EVENT_ACTION);
+    });
+}
+
+- (NSInteger)outlineView:(NSOutlineView *)outlineView numberOfChildrenOfItem:(id)item {
+    (void)outlineView;
+    int32_t parent = (item == nil) ? -1 : (int32_t)[item intValue];
+    int32_t n = jnative_ui_get_item_count(self.peerId);
+    NSInteger count = 0;
+    for (int32_t i = 0; i < n; i++) {
+        if (jnative_ui_item_parent(self.peerId, i) == parent) {
+            count++;
+        }
+    }
+    return count;
+}
+
+- (id)outlineView:(NSOutlineView *)outlineView child:(NSInteger)index ofItem:(id)item {
+    (void)outlineView;
+    int32_t parent = (item == nil) ? -1 : (int32_t)[item intValue];
+    int32_t n = jnative_ui_get_item_count(self.peerId);
+    NSInteger seen = 0;
+    for (int32_t i = 0; i < n; i++) {
+        if (jnative_ui_item_parent(self.peerId, i) == parent) {
+            if (seen == index) {
+                return @(i);
+            }
+            seen++;
+        }
+    }
+    return nil;
+}
+
+- (BOOL)outlineView:(NSOutlineView *)outlineView isItemExpandable:(id)item {
+    return [self outlineView:outlineView numberOfChildrenOfItem:item] > 0;
+}
+
+- (id)outlineView:(NSOutlineView *)outlineView
+        objectValueForTableColumn:(NSTableColumn *)tableColumn
+                           byItem:(id)item {
+    (void)outlineView;
+    (void)tableColumn;
+    if (item == nil) {
+        return @"";
+    }
+    int32_t idx = (int32_t)[item intValue];
+    return jn_ns_from_utf8(jnative_ui_item_text(self.peerId, idx));
+}
+
+- (NSView *)outlineView:(NSOutlineView *)outlineView
+     viewForTableColumn:(NSTableColumn *)tableColumn
+                   item:(id)item {
+    (void)tableColumn;
+    if (item == nil) {
+        return nil;
+    }
+    int32_t idx = (int32_t)[item intValue];
+    NSString *label = jn_ns_from_utf8(jnative_ui_item_text(self.peerId, idx));
+    BOOL group = [self outlineView:outlineView isItemExpandable:item];
+    NSString *ident = group ? @"jn.nav.group" : @"jn.nav.leaf";
+    NSTableCellView *cell = [outlineView makeViewWithIdentifier:ident owner:nil];
+    if (cell == nil) {
+        cell = jn_make_cell(ident, YES);
+    }
+    cell.textField.stringValue = label;
+    cell.textField.textColor = [NSColor labelColor];
+    if (group) {
+        cell.textField.font = [NSFont boldSystemFontOfSize:12.0];
+        cell.imageView.image = jn_symbol(@"folder.fill", NSImageNameFolder);
+        NSString *lower = [label lowercaseString];
+        if ([lower containsString:@"computer"] || [lower containsString:@"this pc"]) {
+            cell.imageView.image = jn_symbol(@"desktopcomputer", NSImageNameComputer);
+        } else if ([lower containsString:@"quick"]) {
+            cell.imageView.image = jn_symbol(@"star.fill", NSImageNameFolder);
+        }
+    } else {
+        cell.textField.font = [NSFont systemFontOfSize:13.0];
+        cell.imageView.image = jn_symbol(@"folder", NSImageNameFolder);
+        NSString *lower = [label lowercaseString];
+        if ([lower containsString:@"desktop"]) {
+            cell.imageView.image = jn_symbol(@"menubar.dock.rectangle", NSImageNameFolder);
+        } else if ([lower containsString:@"download"]) {
+            cell.imageView.image = jn_symbol(@"arrow.down.circle", NSImageNameFolder);
+        } else if ([lower containsString:@"document"]) {
+            cell.imageView.image = jn_symbol(@"doc.text", NSImageNameFolder);
+        } else if ([lower containsString:@"picture"] || [lower containsString:@"photo"]) {
+            cell.imageView.image = jn_symbol(@"photo", NSImageNameFolder);
+        } else if ([lower containsString:@"home"]) {
+            cell.imageView.image = jn_symbol(@"house", NSImageNameFolder);
+        }
+    }
+    return cell;
+}
+
+- (void)outlineViewSelectionDidChange:(NSNotification *)notification {
+    NSOutlineView *ov = notification.object;
+    if (![ov isKindOfClass:[NSOutlineView class]]) {
+        return;
+    }
+    NSInteger row = ov.selectedRow;
+    if (row < 0) {
+        return;
+    }
+    id item = [ov itemAtRow:row];
+    if (item == nil) {
+        return;
+    }
+    int32_t idx = (int32_t)[item intValue];
+    jnative_ui_set_selected_index(self.peerId, idx);
+    jnative_ui_emit_event_ex(self.peerId, JN_UI_EVENT_SELECT, idx, 0, 0, 0);
+}
+@end
+
+static JnTableBridge *jn_bridge_for(int32_t peerId) {
+    if (peerId <= 0 || peerId >= JN_UI_MAX) {
+        return nil;
+    }
+    JnTableBridge *b = g_table_bridges[peerId];
+    if (b == nil) {
+        b = [JnTableBridge new];
+        b.peerId = peerId;
+        g_table_bridges[peerId] = b;
+    }
+    return b;
+}
 
 @interface JnCanvasView : NSView
 @property(nonatomic, assign) int32_t jnHandleId;
@@ -426,13 +812,34 @@ int32_t jnative_ui_platform_create_control(int32_t peerId, int32_t kind, int32_t
         return 1;
     }
     if (kind == JN_UI_KIND_LISTVIEW || kind == JN_UI_KIND_TABLEVIEW) {
-        NSScrollView *scroll = [[NSScrollView alloc] initWithFrame:NSMakeRect(20, 20, 240, 200)];
-        NSTableView *table = [[NSTableView alloc] initWithFrame:scroll.bounds];
-        NSTableColumn *col = [[NSTableColumn alloc] initWithIdentifier:@"c0"];
-        [col setTitle:@"Item"];
-        [table addTableColumn:col];
-        [scroll setDocumentView:table];
+        NSScrollView *scroll = [[NSScrollView alloc] initWithFrame:NSMakeRect(0, 0, 240, 200)];
         [scroll setHasVerticalScroller:YES];
+        [scroll setHasHorizontalScroller:NO];
+        [scroll setAutohidesScrollers:YES];
+        [scroll setBorderType:NSNoBorder];
+        [scroll setDrawsBackground:YES];
+        [scroll setBackgroundColor:[NSColor controlBackgroundColor]];
+        NSTableView *table = [[NSTableView alloc] initWithFrame:scroll.bounds];
+        [table setHeaderView:[[NSTableHeaderView alloc] init]];
+        [table setUsesAlternatingRowBackgroundColors:YES];
+        [table setColumnAutoresizingStyle:NSTableViewLastColumnOnlyAutoresizingStyle];
+        [table setRowHeight:32.0];
+        [table setIntercellSpacing:NSMakeSize(8.0, 3.0)];
+        [table setGridStyleMask:NSTableViewGridNone];
+        if (@available(macOS 11.0, *)) {
+            [table setStyle:NSTableViewStyleInset];
+        }
+        NSTableColumn *col = [[NSTableColumn alloc] initWithIdentifier:@"0"];
+        [col setTitle:(kind == JN_UI_KIND_TABLEVIEW) ? @"Name" : @"Item"];
+        [col setWidth:280];
+        [col setMinWidth:120];
+        [table addTableColumn:col];
+        JnTableBridge *bridge = jn_bridge_for(peerId);
+        [table setDataSource:bridge];
+        [table setDelegate:bridge];
+        [table setTarget:bridge];
+        [table setDoubleAction:@selector(jnDoubleActivate:)];
+        [scroll setDocumentView:table];
         if (parentView != nil) {
             [parentView addSubview:scroll];
         }
@@ -440,14 +847,33 @@ int32_t jnative_ui_platform_create_control(int32_t peerId, int32_t kind, int32_t
         return 1;
     }
     if (kind == JN_UI_KIND_TREEVIEW) {
-        NSScrollView *scroll = [[NSScrollView alloc] initWithFrame:NSMakeRect(20, 20, 240, 200)];
+        NSScrollView *scroll = [[NSScrollView alloc] initWithFrame:NSMakeRect(0, 0, 240, 200)];
+        [scroll setHasVerticalScroller:YES];
+        [scroll setAutohidesScrollers:YES];
+        [scroll setBorderType:NSNoBorder];
+        [scroll setDrawsBackground:YES];
+        [scroll setBackgroundColor:[NSColor controlBackgroundColor]];
         NSOutlineView *outline = [[NSOutlineView alloc] initWithFrame:scroll.bounds];
-        NSTableColumn *col = [[NSTableColumn alloc] initWithIdentifier:@"c0"];
-        [col setTitle:@"Node"];
+        [outline setHeaderView:nil];
+        [outline setUsesAlternatingRowBackgroundColors:NO];
+        [outline setRowHeight:30.0];
+        [outline setIndentationPerLevel:15.0];
+        [outline setIntercellSpacing:NSMakeSize(6.0, 4.0)];
+        [outline setSelectionHighlightStyle:NSTableViewSelectionHighlightStyleSourceList];
+        if (@available(macOS 11.0, *)) {
+            [outline setStyle:NSTableViewStyleSourceList];
+        }
+        NSTableColumn *col = [[NSTableColumn alloc] initWithIdentifier:@"0"];
+        [col setTitle:@""];
+        [col setWidth:220];
         [outline addTableColumn:col];
         [outline setOutlineTableColumn:col];
+        JnTableBridge *bridge = jn_bridge_for(peerId);
+        [outline setDataSource:bridge];
+        [outline setDelegate:bridge];
+        [outline setTarget:bridge];
+        [outline setDoubleAction:@selector(jnDoubleActivate:)];
         [scroll setDocumentView:outline];
-        [scroll setHasVerticalScroller:YES];
         if (parentView != nil) {
             [parentView addSubview:scroll];
         }
@@ -529,6 +955,7 @@ void jnative_ui_platform_destroy(int32_t peerId) {
     }
     id obj = g_peers[peerId];
     g_peers[peerId] = nil;
+    g_table_bridges[peerId] = nil;
     if ([obj isKindOfClass:[NSWindow class]]) {
         [(NSWindow *)obj close];
     } else if ([obj isKindOfClass:[NSView class]]) {
@@ -598,6 +1025,9 @@ void jnative_ui_platform_set_bounds(int32_t handleId, int32_t x, int32_t y, int3
             yCocoa = superView.bounds.size.height - useY - useH;
         }
         [view setFrame:NSMakeRect(useX, yCocoa, useW, useH)];
+        if ([view isKindOfClass:[NSScrollView class]]) {
+            jn_size_scroll_document((NSScrollView *)view);
+        }
     } else if ([obj isKindOfClass:[NSWindow class]]) {
         NSRect f = [(NSWindow *)obj frame];
         f.size.width = w;
@@ -788,6 +1218,87 @@ void jnative_ui_platform_timer_disarm(int32_t timerId) {
     if (old != nil) {
         [old invalidate];
         [g_cocoa_timers removeObjectForKey:key];
+    }
+}
+
+void jnative_ui_platform_table_set_columns(int32_t peerId, const char *titles_tsv) {
+    if (!g_cocoa_active) {
+        return;
+    }
+    NSTableView *tv = jn_table_view(peerId);
+    if (tv == nil || [tv isKindOfClass:[NSOutlineView class]]) {
+        return;
+    }
+    NSString *titles = jn_ns_from_utf8(titles_tsv);
+    NSArray<NSString *> *parts = [titles componentsSeparatedByString:@"\t"];
+    if (parts.count == 0) {
+        return;
+    }
+    while (tv.tableColumns.count > 0) {
+        [tv removeTableColumn:tv.tableColumns[0]];
+    }
+    for (NSUInteger i = 0; i < parts.count; i++) {
+        NSString *title = parts[i];
+        if (title.length == 0) {
+            title = [NSString stringWithFormat:@"Col%lu", (unsigned long)i];
+        }
+        NSTableColumn *col = [[NSTableColumn alloc]
+            initWithIdentifier:[NSString stringWithFormat:@"%lu", (unsigned long)i]];
+        [col setTitle:title];
+        if (i == 0) {
+            [col setWidth:300.0];
+            [col setMinWidth:140.0];
+        } else if (i == 1) {
+            [col setWidth:110.0];
+            [col setMinWidth:70.0];
+        } else if (i == 2) {
+            [col setWidth:90.0];
+            [col setMinWidth:60.0];
+        } else {
+            [col setWidth:150.0];
+            [col setMinWidth:100.0];
+        }
+        [tv addTableColumn:col];
+    }
+    [tv sizeLastColumnToFit];
+}
+
+void jnative_ui_platform_items_changed(int32_t peerId) {
+    if (!g_cocoa_active) {
+        return;
+    }
+    id obj = (peerId > 0 && peerId < JN_UI_MAX) ? g_peers[peerId] : nil;
+    if ([obj isKindOfClass:[NSComboBox class]]) {
+        NSComboBox *box = (NSComboBox *)obj;
+        [box removeAllItems];
+        int32_t n = jnative_ui_get_item_count(peerId);
+        for (int32_t i = 0; i < n; i++) {
+            [box addItemWithObjectValue:jn_ns_from_utf8(jnative_ui_item_text(peerId, i))];
+        }
+        return;
+    }
+    NSTableView *tv = jn_table_view(peerId);
+    if (tv == nil) {
+        return;
+    }
+    if ([tv isKindOfClass:[NSOutlineView class]]) {
+        NSOutlineView *ov = (NSOutlineView *)tv;
+        [ov reloadData];
+        int32_t n = jnative_ui_get_item_count(peerId);
+        for (int32_t i = 0; i < n; i++) {
+            if (jnative_ui_tree_is_expanded(peerId, i)) {
+                id item = @(i);
+                if ([ov isExpandable:item]) {
+                    [ov expandItem:item expandChildren:NO];
+                }
+            }
+        }
+    } else {
+        [tv reloadData];
+    }
+    id scroll = g_peers[peerId];
+    if ([scroll isKindOfClass:[NSScrollView class]]) {
+        jn_size_scroll_document((NSScrollView *)scroll);
     }
 }
 

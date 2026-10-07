@@ -756,3 +756,11 @@ int64_t jnative_web_mono_millis(void) {
     }
     return (int64_t)ts.tv_sec * 1000 + (int64_t)ts.tv_nsec / 1000000;
 }
+
+int64_t jnative_wall_millis(void) {
+    struct timespec ts;
+    if (clock_gettime(CLOCK_REALTIME, &ts) != 0) {
+        return 0;
+    }
+    return (int64_t)ts.tv_sec * 1000 + (int64_t)ts.tv_nsec / 1000000;
+}

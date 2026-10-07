@@ -15,7 +15,7 @@
 #endif
 
 #ifndef JN_UI_ITEM_MAX
-#define JN_UI_ITEM_MAX 256
+#define JN_UI_ITEM_MAX 4096
 #endif
 
 typedef struct {
@@ -36,6 +36,7 @@ typedef struct {
     double divider;
     char *text;
     char *title;
+    char *column_titles;
     char *items[JN_UI_ITEM_MAX];
     int32_t item_parents[JN_UI_ITEM_MAX];
     int32_t item_expanded[JN_UI_ITEM_MAX];
@@ -153,6 +154,13 @@ __attribute__((weak)) char *jnative_ui_platform_dialog_file(
         int32_t windowId, int32_t save, const char *filter) {
     (void)windowId; (void)save; (void)filter;
     return NULL;
+}
+__attribute__((weak)) void jnative_ui_platform_items_changed(int32_t id) {
+    (void)id;
+}
+__attribute__((weak)) void jnative_ui_platform_table_set_columns(
+        int32_t id, const char *titles_tsv) {
+    (void)id; (void)titles_tsv;
 }
 
 static char *jn_ui_strdup(const char *s) {
@@ -322,8 +330,10 @@ void jnative_ui_destroy(int32_t id) {
         p->disposed = 1;
         free(p->text);
         free(p->title);
+        free(p->column_titles);
         p->text = NULL;
         p->title = NULL;
+        p->column_titles = NULL;
         for (int i = 0; i < JN_UI_ITEM_MAX; i++) {
             free(p->items[i]);
             p->items[i] = NULL;
@@ -432,10 +442,39 @@ void jnative_ui_set_item_count(int32_t id, int32_t count) {
     if (p == NULL) return;
     if (count < 0) count = 0;
     p->item_count = count;
+    if (g_platform_active && !g_headless) {
+        jnative_ui_platform_items_changed(id);
+    }
 }
 int32_t jnative_ui_get_item_count(int32_t id) {
     JnUiPeer *p = peer(id);
     return p == NULL ? 0 : p->item_count;
+}
+const char *jnative_ui_item_text(int32_t id, int32_t index) {
+    JnUiPeer *p = peer(id);
+    if (p == NULL || index < 0 || index >= p->item_count) return "";
+    if (p->items[index] == NULL) return "";
+    return p->items[index];
+}
+int32_t jnative_ui_item_parent(int32_t id, int32_t index) {
+    JnUiPeer *p = peer(id);
+    if (p == NULL || index < 0 || index >= p->item_count) return -1;
+    return p->item_parents[index];
+}
+void jnative_ui_table_set_columns(int32_t id, const char *titles_tsv) {
+    JnUiPeer *p = peer(id);
+    if (p == NULL) return;
+    free(p->column_titles);
+    p->column_titles = jn_ui_strdup(titles_tsv);
+    if (g_platform_active && !g_headless) {
+        jnative_ui_platform_table_set_columns(id, p->column_titles);
+        jnative_ui_platform_items_changed(id);
+    }
+}
+const char *jnative_ui_table_columns(int32_t id) {
+    JnUiPeer *p = peer(id);
+    if (p == NULL || p->column_titles == NULL) return "";
+    return p->column_titles;
 }
 void jnative_ui_set_selected_index(int32_t id, int32_t index) {
     JnUiPeer *p = peer(id);
@@ -470,6 +509,9 @@ void jnative_ui_combo_clear(int32_t id) {
     JnUiPeer *p = peer(id);
     if (p == NULL) return;
     clear_items(p);
+    if (g_platform_active && !g_headless) {
+        jnative_ui_platform_items_changed(id);
+    }
 }
 void jnative_ui_combo_add_item(int32_t id, const char *text) {
     JnUiPeer *p = peer(id);
