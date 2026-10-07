@@ -164,8 +164,45 @@ public final class ManifestFile {
         if (pkg.containsKey("type")) {
             m.setPackageType(unquote(pkg.get("type")));
         }
+        if (pkg.containsKey("processor")) {
+            m.setProcessor(Boolean.parseBoolean(unquote(pkg.get("processor"))));
+        }
         if (pkg.containsKey("requires")) {
             m.requires().addAll(TargetCapability.parseAll(parseStringArray(pkg.get("requires"))));
+        }
+        Map<String, String> processorSec = section(text, "processor");
+        if (!processorSec.isEmpty()) {
+            m.setProcessor(true);
+            if (processorSec.containsKey("entry")) {
+                m.setProcessorEntry(unquote(processorSec.get("entry")));
+            }
+            if (processorSec.containsKey("min_api") || processorSec.containsKey("compilerApi")) {
+                String v = processorSec.getOrDefault("min_api",
+                        processorSec.getOrDefault("compilerApi", "1"));
+                try {
+                    m.setMinProcessorApi(Integer.parseInt(unquote(v)));
+                } catch (NumberFormatException ignored) {
+                    m.setMinProcessorApi(1);
+                }
+            }
+            if (processorSec.containsKey("max_api")) {
+                try {
+                    m.setMaxProcessorApi(Integer.parseInt(unquote(processorSec.get("max_api"))));
+                } catch (NumberFormatException ignored) {
+                    m.setMaxProcessorApi(0);
+                }
+            }
+        }
+        Map<String, String> nativeSec = section(text, "native");
+        if (nativeSec.containsKey("library")) {
+            String lib = unquote(nativeSec.get("library"));
+            List<String> platforms = nativeSec.containsKey("platforms")
+                    ? parseStringArray(nativeSec.get("platforms"))
+                    : List.of("native");
+            for (String platform : platforms) {
+                m.nativeLibraries().add(new PackageManifest.NativeLibrarySpec(
+                        lib, unquote(platform), lib, ""));
+            }
         }
         m.dependencies().addAll(parseDepSection(section(text, "dependencies"), false, ""));
         m.devDependencies().addAll(parseDepSection(section(text, "dev-dependencies"), true, ""));

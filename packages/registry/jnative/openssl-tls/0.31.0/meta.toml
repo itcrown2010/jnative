@@ -1,0 +1,7 @@
+[package]
+name = "openssl-tls"
+namespace = "jnative"
+version = "0.31.0"
+min_compiler = "0.31"
+type = "native"
+requires = ["NATIVE_FFI", "TLS_NATIVE", "RAW_SOCKET"]

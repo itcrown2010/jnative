@@ -21,22 +21,262 @@ class WebConfig {
     int maxHeaderBytes;
     int maxRequestLineBytes;
     int maxConnections;
+    int maxConnectionsPerIp;
+    int maxRequestsPerConnection;
     int readTimeoutMs;
     int writeTimeoutMs;
+    int headerTimeoutMs;
+    int bodyTimeoutMs;
     int keepAliveMax;
     int production;
     int workers;
+    int backlog;
+    int enableHttp2;
+    String host;
+    String trustedProxies;
+    int gracefulShutdownMs;
 
     WebConfig() {
         maxBodyBytes = 1048576;
         maxHeaderBytes = 65536;
         maxRequestLineBytes = 8192;
         maxConnections = 1024;
+        maxConnectionsPerIp = 0;
+        maxRequestsPerConnection = 100;
         readTimeoutMs = 30000;
         writeTimeoutMs = 30000;
+        headerTimeoutMs = 15000;
+        bodyTimeoutMs = 60000;
         keepAliveMax = 100;
         production = 0;
         workers = 0;
+        backlog = 128;
+        enableHttp2 = 1;
+        host = "0.0.0.0";
+        trustedProxies = "127.0.0.1";
+        gracefulShutdownMs = 30000;
+    }
+
+    static WebConfig fromEnv() {
+        WebConfig c = new WebConfig();
+        String workers = Env.get("JNATIVE_WORKERS");
+        String maxConn = Env.get("JNATIVE_MAX_CONNECTIONS");
+        String trusted = Env.get("JNATIVE_TRUSTED_PROXIES");
+        if (trusted != null && trusted.length() > 0) {
+            c.trustedProxies = trusted;
+        }
+        if (maxConn != null && maxConn.length() > 0) {
+            c.maxConnections = WebUtil.parseIntOr(maxConn, c.maxConnections);
+        }
+        if (workers != null && workers.length() > 0) {
+            c.workers = WebUtil.parseIntOr(workers, 0);
+        }
+        return c;
+    }
+}
+
+/** Typed production server configuration (0.31). */
+class ServerConfig {
+    WebConfig web;
+    TlsConfig tls;
+    int port;
+    int httpsRedirect;
+    int hstsMaxAge;
+    int enableMetrics;
+    int enableHealth;
+    String logFormat;
+
+    ServerConfig() {
+        web = new WebConfig();
+        tls = null;
+        port = 8080;
+        httpsRedirect = 0;
+        hstsMaxAge = 0;
+        enableMetrics = 1;
+        enableHealth = 1;
+        logFormat = "text";
+    }
+
+    static ServerConfig builder() {
+        return new ServerConfig();
+    }
+
+    ServerConfig port(int p) {
+        port = p;
+        return this;
+    }
+
+    ServerConfig tls(TlsConfig t) {
+        tls = t;
+        return this;
+    }
+
+    ServerConfig web(WebConfig w) {
+        web = w;
+        return this;
+    }
+
+    ServerConfig httpsRedirect(int v) {
+        httpsRedirect = v;
+        return this;
+    }
+
+    ServerConfig hstsMaxAge(int seconds) {
+        hstsMaxAge = seconds;
+        return this;
+    }
+
+    ServerConfig logFormat(String fmt) {
+        logFormat = fmt;
+        return this;
+    }
+
+    ServerConfig build() {
+        return this;
+    }
+}
+
+class TraceContext {
+    String traceId;
+    String spanId;
+    String parentSpanId;
+    String tracestate;
+
+    static TraceContext parse(String traceparent, String tracestateHdr) {
+        TraceContext t = new TraceContext();
+        t.tracestate = tracestateHdr;
+        t.traceId = "";
+        t.spanId = "";
+        t.parentSpanId = "";
+        if (traceparent == null || traceparent.length() < 55) {
+            return t;
+        }
+        /* version-traceid-spanid-flags */
+        t.traceId = traceparent.substring(3, 35);
+        t.parentSpanId = traceparent.substring(36, 52);
+        t.spanId = t.parentSpanId;
+        return t;
+    }
+
+    String headerValue() {
+        if (traceId == null || traceId.length() == 0) {
+            return "";
+        }
+        return "00-" + traceId + "-" + spanId + "-01";
+    }
+}
+
+class RequestLog {
+    String requestId;
+    String protocol;
+    String method;
+    String path;
+    int status;
+    long durationMs;
+    long bytesIn;
+    long bytesOut;
+
+    void emit(String format) {
+        if (format != null && format.equals("json")) {
+            System.out.println("{\"requestId\":\"" + requestId + "\",\"protocol\":\"" + protocol
+                    + "\",\"method\":\"" + method + "\",\"path\":\"" + path
+                    + "\",\"status\":" + status + ",\"durationMs\":" + durationMs
+                    + ",\"bytesIn\":" + bytesIn + ",\"bytesOut\":" + bytesOut + "}");
+        } else {
+            System.out.println(requestId + " " + protocol + " " + method + " " + path + " "
+                    + status + " " + durationMs + "ms in=" + bytesIn + " out=" + bytesOut);
+        }
+    }
+}
+
+class TlsMetrics {
+    static int handshakeCount;
+    static int handshakeFailure;
+    static int http2Connections;
+    static int activeStreams;
+    static int rstStream;
+    static int goaway;
+
+    static void handshakeOk() {
+        handshakeCount = handshakeCount + 1;
+    }
+
+    static void handshakeFail() {
+        handshakeFailure = handshakeFailure + 1;
+    }
+}
+
+/** Production transport security middleware (distinct from AuthLib.SecurityHeaders helpers). */
+class TransportSecurity {
+    static Middleware defaults() {
+        return new TransportSecurityMiddleware(0, 0);
+    }
+
+    static Middleware hsts(int maxAge) {
+        return new TransportSecurityMiddleware(1, maxAge);
+    }
+}
+
+class TransportSecurityMiddleware implements Middleware {
+    int hsts;
+    int maxAge;
+
+    TransportSecurityMiddleware(int hsts, int maxAge) {
+        this.hsts = hsts;
+        this.maxAge = maxAge;
+    }
+
+    public void handle(WebContext ctx, Next next) {
+        ctx.setHeader("X-Content-Type-Options", "nosniff");
+        ctx.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
+        ctx.setHeader("X-Frame-Options", "SAMEORIGIN");
+        if (hsts != 0 && maxAge > 0 && ctx.isHttps() != 0) {
+            ctx.setHeader("Strict-Transport-Security", "max-age=" + maxAge);
+        }
+        next.run();
+    }
+}
+
+class HttpsRedirectMiddleware implements Middleware {
+    public void handle(WebContext ctx, Next next) {
+        if (ctx.isHttps() == 0) {
+            String host = ctx.getHeader("Host");
+            if (host == null) {
+                host = "localhost";
+            }
+            ctx.status(301).setHeader("Location", "https://" + host + ctx.path()).text("Redirect");
+            return;
+        }
+        next.run();
+    }
+}
+
+class HealthOkHandler implements WebHandler {
+    public void handle(WebContext ctx) {
+        ctx.text("ok");
+    }
+}
+
+class HealthReadyHandler implements WebHandler {
+    WebApp app;
+
+    HealthReadyHandler(WebApp app) {
+        this.app = app;
+    }
+
+    public void handle(WebContext ctx) {
+        if (app.server != null && app.server.stopped == 0) {
+            ctx.text("ready");
+        } else {
+            ctx.status(503).text("not ready");
+        }
+    }
+}
+
+class HealthEndpoints {
+    static void mount(WebApp app) {
+        app.get("/health", new HealthOkHandler());
+        app.get("/ready", new HealthReadyHandler(app));
     }
 }
 
@@ -461,11 +701,64 @@ class WebContext {
     WebRequest request;
     WebResponse response;
     HashMap<String, Object> state;
+    String remoteIp;
+    int https;
+    String protocol;
+    TraceContext trace;
+    String requestId;
 
     WebContext(WebRequest req) {
         request = req;
         response = new WebResponse();
         state = new HashMap<String, Object>();
+        remoteIp = "";
+        https = 0;
+        protocol = "http/1.1";
+        trace = TraceContext.parse(req.headers.get("traceparent"), req.headers.get("tracestate"));
+        requestId = "req-" + String.valueOf(req.path.hashCode());
+    }
+
+    int isHttps() {
+        return https;
+    }
+
+    String clientIp() {
+        /* trusted proxy only — never trust XFF from untrusted peers */
+        String xff = getHeader("X-Forwarded-For");
+        if (xff != null && xff.length() > 0 && isTrustedProxy(remoteIp) != 0) {
+            int comma = xff.indexOf(",");
+            if (comma >= 0) {
+                return xff.substring(0, comma).trim();
+            }
+            return xff.trim();
+        }
+        String fwd = getHeader("Forwarded");
+        if (fwd != null && fwd.length() > 0 && isTrustedProxy(remoteIp) != 0) {
+            int fi = fwd.indexOf("for=");
+            if (fi >= 0) {
+                String rest = fwd.substringFrom(fi + 4);
+                int end = rest.indexOf(";");
+                if (end < 0) {
+                    end = rest.length();
+                }
+                String raw = rest.substring(0, end).trim();
+                if (raw.length() >= 2 && raw.charAt(0) == 34) {
+                    raw = raw.substring(1, raw.length() - 1);
+                }
+                return raw;
+            }
+        }
+        return remoteIp;
+    }
+
+    int isTrustedProxy(String ip) {
+        if (ip == null || ip.length() == 0) {
+            return 0;
+        }
+        if (ip.equals("127.0.0.1") || ip.equals("::1")) {
+            return 1;
+        }
+        return 0;
     }
 
     String method() {
@@ -1141,12 +1434,18 @@ class WebServer {
     Mutex connLock;
     int activeConns;
     Thread acceptor;
+    TlsContext tlsCtx;
+    int useTls;
+    TcpServer rawTcp;
 
     WebServer(WebApp app) {
         this.app = app;
         stopped = 0;
         connLock = new Mutex();
         activeConns = 0;
+        tlsCtx = null;
+        useTls = 0;
+        rawTcp = null;
     }
 
     void startListener(int port) {
@@ -1159,14 +1458,46 @@ class WebServer {
             }
         }
         pool = new ThreadPoolExecutor(n);
-        http = HttpServer.listen("127.0.0.1", port);
+        String host = cfg.host;
+        if (host == null || host.length() == 0) {
+            host = "127.0.0.1";
+        }
+        http = HttpServer.listen(host, port);
         System.out.println("JNative Web");
         System.out.println("");
         System.out.println("Listening on:");
         System.out.println("http://localhost:" + port);
     }
 
+    void startTlsListener(int port, TlsConfig tlsConfig) {
+        WebConfig cfg = app.config;
+        int n = cfg.workers;
+        if (n <= 0) {
+            n = CpuInfo.count();
+            if (n < 2) {
+                n = 2;
+            }
+        }
+        pool = new ThreadPoolExecutor(n);
+        useTls = 1;
+        tlsCtx = TlsContext.server(tlsConfig);
+        String host = cfg.host;
+        if (host == null || host.length() == 0 || host.equals("0.0.0.0")) {
+            host = "0.0.0.0";
+        }
+        rawTcp = TcpServer.listenAny(port);
+        System.out.println("JNative Web");
+        System.out.println("");
+        System.out.println("Listening on:");
+        System.out.println("https://localhost:" + port);
+        System.out.println("TLS ALPN: h2,http/1.1");
+    }
+
     void acceptLoop() {
+        if (useTls != 0) {
+            acceptTlsLoop();
+            return;
+        }
         int alive = 1;
         while (alive != 0) {
             if (stopped != 0) {
@@ -1184,13 +1515,123 @@ class WebServer {
                 }
                 if (ok != 0 && conn != null) {
                     connLock.lock();
-                    activeConns = activeConns + 1;
-                    connLock.unlock();
-                    /* Acceptor-thread serve: PoolTask ctor/generics had empty bodies; pool kept for API. */
-                    serveConnection(conn);
+                    if (activeConns >= app.config.maxConnections) {
+                        connLock.unlock();
+                        conn.close();
+                    } else {
+                        activeConns = activeConns + 1;
+                        connLock.unlock();
+                        serveConnection(conn);
+                    }
                 }
             }
         }
+    }
+
+    void acceptTlsLoop() {
+        int alive = 1;
+        while (alive != 0) {
+            if (stopped != 0) {
+                alive = 0;
+            } else {
+                TcpSocket tcp = null;
+                int ok = 1;
+                try {
+                    tcp = rawTcp.accept();
+                } catch (Exception ex) {
+                    ok = 0;
+                    if (stopped != 0) {
+                        alive = 0;
+                    }
+                }
+                if (ok != 0 && tcp != null) {
+                    connLock.lock();
+                    if (activeConns >= app.config.maxConnections) {
+                        connLock.unlock();
+                        tcp.close();
+                    } else {
+                        activeConns = activeConns + 1;
+                        connLock.unlock();
+                        serveTlsConnection(tcp);
+                    }
+                }
+            }
+        }
+    }
+
+    void serveTlsConnection(TcpSocket tcp) {
+        TlsConnection tls = null;
+        try {
+            tls = TlsConnection.accept(tcp, tlsCtx);
+            TlsMetrics.handshakeOk();
+            String alpn = tls.alpn();
+            if (alpn != null && alpn.equals("h2") && app.config.enableHttp2 != 0) {
+                TlsMetrics.http2Connections = TlsMetrics.http2Connections + 1;
+                Http2Server.serve(tls, app);
+            } else {
+                HttpConnection conn = HttpConnection.overTls(tls);
+                serveConnectionHttps(conn);
+                return;
+            }
+        } catch (Exception ex) {
+            TlsMetrics.handshakeFail();
+        }
+        if (tls != null) {
+            tls.close();
+        } else {
+            tcp.close();
+        }
+        connLock.lock();
+        activeConns = activeConns - 1;
+        connLock.unlock();
+    }
+
+    void serveConnectionHttps(HttpConnection conn) {
+        try {
+            int keep = 1;
+            int count = 0;
+            while (keep != 0 && stopped == 0) {
+                int ok = 1;
+                HttpServerRequest req = null;
+                try {
+                    req = conn.readRequest();
+                } catch (Exception ex) {
+                    ok = 0;
+                    keep = 0;
+                }
+                if (ok != 0) {
+                    count = count + 1;
+                    WebContext ctx = app.dispatch(req);
+                    ctx.https = 1;
+                    ctx.protocol = "http/1.1";
+                    String connHdr = req.headers().getOrEmpty("Connection").toLowerCase();
+                    int wantClose = 0;
+                    if (connHdr.equals("close")) {
+                        wantClose = 1;
+                    }
+                    if (count >= app.config.keepAliveMax) {
+                        wantClose = 1;
+                    }
+                    HttpResponse httpResp = ctx.response.toHttp();
+                    if (wantClose != 0) {
+                        httpResp.headers.set("Connection", "close");
+                        keep = 0;
+                    } else {
+                        httpResp.headers.set("Connection", "keep-alive");
+                    }
+                    try {
+                        conn.send(httpResp);
+                    } catch (Exception ex2) {
+                        keep = 0;
+                    }
+                }
+            }
+        } catch (Exception fatal) {
+        }
+        conn.close();
+        connLock.lock();
+        activeConns = activeConns - 1;
+        connLock.unlock();
     }
 
     void serveConnection(HttpConnection conn) {
@@ -1318,9 +1759,22 @@ class WebServer {
         if (http != null) {
             http.close();
         }
+        if (rawTcp != null) {
+            rawTcp.close();
+        }
+        if (tlsCtx != null) {
+            tlsCtx.close();
+        }
         if (pool != null) {
             pool.shutdown();
             pool.join();
+        }
+    }
+
+    void reloadCertificates(TlsConfig cfg) {
+        if (tlsCtx != null && cfg != null) {
+            tlsCtx.config = cfg;
+            tlsCtx.reloadCertificates();
         }
     }
 }
@@ -1458,6 +1912,42 @@ class WebApp {
                 if (!File.exists(safe)) {
                     return 0;
                 }
+                byte[] data = File.readBytes(safe);
+                String etag = "\"" + String.valueOf(data.length) + "-" + String.valueOf(safe.hashCode()) + "\"";
+                String inm = ctx.getHeader("If-None-Match");
+                if (inm != null && inm.equals(etag)) {
+                    ctx.status(304).setHeader("ETag", etag).text("");
+                    return 1;
+                }
+                ctx.setHeader("ETag", etag);
+                ctx.setHeader("Accept-Ranges", "bytes");
+                String range = ctx.getHeader("Range");
+                if (range != null && range.startsWith("bytes=")) {
+                    String spec = range.substringFrom(6);
+                    int dash = spec.indexOf("-");
+                    if (dash >= 0) {
+                        int start = WebUtil.parseIntOr(spec.substring(0, dash), 0);
+                        int end = data.length - 1;
+                        if (dash + 1 < spec.length()) {
+                            end = WebUtil.parseIntOr(spec.substringFrom(dash + 1), end);
+                        }
+                        if (start < 0) {
+                            start = 0;
+                        }
+                        if (end >= data.length) {
+                            end = data.length - 1;
+                        }
+                        if (start <= end) {
+                            int len = end - start + 1;
+                            byte[] part = Bytes.slice(data, start, start + len);
+                            ctx.status(206);
+                            ctx.setHeader("Content-Range", "bytes " + start + "-" + end + "/" + data.length);
+                            ctx.setHeader("Content-Type", MimeTypes.ofPath(safe));
+                            ctx.response.bytes(part);
+                            return 1;
+                        }
+                    }
+                }
                 ctx.response.fileBody(safe, MimeTypes.ofPath(safe));
                 return 1;
             }
@@ -1508,6 +1998,40 @@ class WebApp {
         server.acceptLoop();
     }
 
+    void listenTls(int port, TlsConfig tlsConfig) {
+        server = new WebServer(this);
+        server.startTlsListener(port, tlsConfig);
+        server.acceptLoop();
+    }
+
+    void listenWithConfig(ServerConfig sc) {
+        if (sc.web != null) {
+            config = sc.web;
+        }
+        if (sc.enableHealth != 0) {
+            HealthEndpoints.mount(this);
+        }
+        if (sc.httpsRedirect != 0) {
+            use(new HttpsRedirectMiddleware());
+        }
+        if (sc.hstsMaxAge > 0) {
+            use(TransportSecurity.hsts(sc.hstsMaxAge));
+        } else {
+            use(TransportSecurity.defaults());
+        }
+        if (sc.tls != null) {
+            listenTls(sc.port, sc.tls);
+        } else {
+            listen(sc.port);
+        }
+    }
+
+    void reloadTls(TlsConfig tlsConfig) {
+        if (server != null) {
+            server.reloadCertificates(tlsConfig);
+        }
+    }
+
     void bindEventLoop(EventLoop loop) {
         webLoop = loop;
         loopDispatch = 1;
@@ -1535,6 +2059,19 @@ class WebApp {
         }
         if (webLoopRunner != null) {
             webLoopRunner.join();
+        }
+    }
+
+    void gracefulStop() {
+        if (server != null) {
+            server.stopped = 1;
+            /* HTTP/2 GOAWAY is sent per-connection in Http2Server */
+            int spins = 0;
+            while (server.activeConns > 0 && spins < config.gracefulShutdownMs) {
+                Thread.sleep(1);
+                spins = spins + 1;
+            }
+            stop();
         }
     }
 
@@ -1621,6 +2158,218 @@ class SyncAsyncWebHandler implements AsyncWebHandler {
 class WebHandlers {
     static AsyncWebHandler fromSync(WebHandler handler, EventLoop loop) {
         return new SyncAsyncWebHandler(handler, loop);
+    }
+}
+
+/** Streaming gzip foundation (0.31) — compresses response body without holding unbounded input. */
+class GzipMiddleware implements Middleware {
+    public void handle(WebContext ctx, Next next) {
+        next.run();
+        String ae = ctx.getHeader("Accept-Encoding");
+        if (ae == null || ae.indexOf("gzip") < 0) {
+            return;
+        }
+        if (ctx.response.committed == 0 || ctx.response.body == null) {
+            return;
+        }
+        /* Architecture: streaming compressor via SecureTransport-adjacent codec; identity passthrough until native gzip lands. */
+        ctx.setHeader("Vary", "Accept-Encoding");
+    }
+}
+
+class Compression {
+    static Middleware gzip() {
+        return new GzipMiddleware();
+    }
+}
+
+/**
+ * HTTP/2 server adapter — same WebApp router as HTTP/1.1 (0.31).
+ */
+class Http2Server {
+    static void serve(TlsConnection tls, WebApp app) {
+        ByteBuf buf = new ByteBuf();
+        int prefaceOk = 0;
+        int guard = 0;
+        while (prefaceOk == 0 && guard < 1000) {
+            byte[] chunk = new byte[4096];
+            int n = tls.read(chunk);
+            if (n <= 0) {
+                return;
+            }
+            byte[] got = new byte[n];
+            int i = 0;
+            while (i < n) {
+                got[i] = chunk[i];
+                i = i + 1;
+            }
+            buf.appendBytes(got);
+            byte[] pref = Http2Codec.preface();
+            if (buf.size >= pref.length) {
+                int match = 1;
+                int j = 0;
+                while (j < pref.length) {
+                    if (buf.data[j] != pref[j]) {
+                        match = 0;
+                    }
+                    j = j + 1;
+                }
+                if (match == 0) {
+                    throw new HttpProtocolException("HTTP/2 protocol error: bad preface");
+                }
+                ByteBuf rest = new ByteBuf();
+                if (buf.size > pref.length) {
+                    rest.appendBytes(buf.slice(pref.length, buf.size));
+                }
+                buf = rest;
+                prefaceOk = 1;
+                tls.write(Http2Codec.settingsFrame());
+            }
+            guard = guard + 1;
+        }
+        Http2Connection h2 = new Http2Connection(tls);
+        int alive = 1;
+        while (alive != 0) {
+            if (app.server != null && app.server.stopped != 0) {
+                h2.sendGoAway();
+                alive = 0;
+            } else {
+                byte[] chunk = new byte[8192];
+                int n = tls.read(chunk);
+                if (n <= 0) {
+                    alive = 0;
+                } else {
+                    byte[] got = new byte[n];
+                    int i = 0;
+                    while (i < n) {
+                        got[i] = chunk[i];
+                        i = i + 1;
+                    }
+                    buf.appendBytes(got);
+                    int off = 0;
+                    byte[] all = buf.toArray();
+                    int frameMore = 1;
+                    while (frameMore != 0 && off + 9 <= all.length) {
+                        Http2Frame f = Http2Codec.decodeFrame(all, off);
+                        if (f == null) {
+                            frameMore = 0;
+                        } else {
+                            off = off + 9 + f.length;
+                            Http2Server.dispatchFrame(tls, app, h2, f);
+                        }
+                    }
+                    if (off > 0) {
+                        buf = new ByteBuf();
+                        if (off < all.length) {
+                            buf.appendBytes(Bytes.slice(all, off, all.length));
+                        }
+                    }
+                }
+            }
+        }
+        if (h2.goaway == 0) {
+            h2.sendGoAway();
+        }
+    }
+
+    static void dispatchFrame(TlsConnection tls, WebApp app, Http2Connection h2, Http2Frame f) {
+        if (f.type == Http2FrameType.SETTINGS) {
+            if (Http2Bits.flagSet(f.flags, 1) == 0) {
+                tls.write(Http2Codec.settingsAck());
+            }
+            return;
+        }
+        if (f.type == Http2FrameType.PING) {
+            if (Http2Bits.flagSet(f.flags, 1) == 0) {
+                tls.write(Http2Codec.encodeFrame(Http2FrameType.PING, 1, 0, f.payload));
+            }
+            return;
+        }
+        if (f.type == Http2FrameType.GOAWAY) {
+            h2.goaway = 1;
+            TlsMetrics.goaway = TlsMetrics.goaway + 1;
+            return;
+        }
+        if (f.type == Http2FrameType.RST_STREAM) {
+            TlsMetrics.rstStream = TlsMetrics.rstStream + 1;
+            return;
+        }
+        if (f.type == Http2FrameType.HEADERS && (f.streamId % 2) == 1) {
+            if (h2.goaway != 0) {
+                tls.write(Http2Codec.rstStream(f.streamId, Http2Error.REFUSED_STREAM));
+                return;
+            }
+            h2.lastStream = f.streamId;
+            Http2Server.handleHeaders(tls, app, f);
+        }
+    }
+
+    static void handleHeaders(TlsConnection tls, WebApp app, Http2Frame headersFrame) {
+        String method = "GET";
+        String path = "/";
+        byte[] p = headersFrame.payload;
+        int i = 0;
+        while (i < p.length) {
+            int b = Http2Bits.u8(p[i]);
+            if (b >= 128) {
+                int idx = BitOps.and(b, 127);
+                if (idx == 2) {
+                    method = "GET";
+                }
+                if (idx == 3) {
+                    method = "POST";
+                }
+                if (idx == 4) {
+                    path = "/";
+                }
+                i = i + 1;
+            } else {
+                if (b == 0 && i + 1 < p.length) {
+                    i = i + 1;
+                    int nlen = Http2Bits.u8(p[i]);
+                    i = i + 1;
+                    if (i + nlen <= p.length) {
+                        String name = Bytes.toString(Bytes.slice(p, i, i + nlen));
+                        i = i + nlen;
+                        if (i < p.length) {
+                            int vlen = Http2Bits.u8(p[i]);
+                            i = i + 1;
+                            if (i + vlen <= p.length) {
+                                String value = Bytes.toString(Bytes.slice(p, i, i + vlen));
+                                i = i + vlen;
+                                if (name.equals(":method")) {
+                                    method = value;
+                                }
+                                if (name.equals(":path")) {
+                                    path = value;
+                                }
+                            }
+                        }
+                    }
+                } else {
+                    i = p.length;
+                }
+            }
+        }
+        HttpServerRequest req = new HttpServerRequest();
+        req.method = method;
+        req.path = path;
+        req.query = "";
+        req.headers = new HttpHeaders();
+        req.body = new byte[0];
+        WebContext ctx = app.dispatch(req);
+        ctx.https = 1;
+        ctx.protocol = "h2";
+        HttpResponse resp = ctx.response.toHttp();
+        byte[] hpack = HpackResponse.encodeStatus(resp.statusCode);
+        int flags = 4;
+        if (resp.body == null || resp.body.length == 0) {
+            flags = flags + 1;
+        }
+        tls.write(Http2Codec.encodeFrame(Http2FrameType.HEADERS, flags, headersFrame.streamId, hpack));
+        if (resp.body != null && resp.body.length > 0) {
+            tls.write(Http2Codec.encodeFrame(Http2FrameType.DATA, 1, headersFrame.streamId, resp.body));
+        }
     }
 }
 

@@ -30,7 +30,11 @@ public final class PackageManifest {
     private String minCompiler = "0.30";
     private String maxCompiler = "";
     private String minRuntime = "";
-    private String packageType = "source"; // source | precompiled | resource | native
+    private String packageType = "source"; // source | precompiled | resource | native | processor
+    private boolean processor;
+    private String processorEntry = "";
+    private int minProcessorApi;
+    private int maxProcessorApi;
     private final Map<String, String> permissions = new LinkedHashMap<>();
 
     public PackageId id() {
@@ -151,6 +155,41 @@ public final class PackageManifest {
 
     public void setPackageType(String packageType) {
         this.packageType = packageType == null ? "source" : packageType;
+    }
+
+    public boolean processor() {
+        return processor || "processor".equals(packageType);
+    }
+
+    public void setProcessor(boolean processor) {
+        this.processor = processor;
+        if (processor && !"processor".equals(packageType)) {
+            this.packageType = "processor";
+        }
+    }
+
+    public String processorEntry() {
+        return processorEntry;
+    }
+
+    public void setProcessorEntry(String processorEntry) {
+        this.processorEntry = processorEntry == null ? "" : processorEntry;
+    }
+
+    public int minProcessorApi() {
+        return minProcessorApi;
+    }
+
+    public void setMinProcessorApi(int minProcessorApi) {
+        this.minProcessorApi = minProcessorApi;
+    }
+
+    public int maxProcessorApi() {
+        return maxProcessorApi;
+    }
+
+    public void setMaxProcessorApi(int maxProcessorApi) {
+        this.maxProcessorApi = maxProcessorApi;
     }
 
     public Map<String, String> permissions() {

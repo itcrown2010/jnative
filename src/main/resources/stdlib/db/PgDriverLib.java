@@ -1,4 +1,5 @@
 // JNative PostgreSQL wire protocol driver (0.24) — AsyncTcpSocket, extended query, MD5 auth.
+// 0.31: TLS reserved via SecureTransport / TlsConnection (sslmode=require foundation).
 
 class PgType {
     static int BOOL = 16;
@@ -568,6 +569,7 @@ class PgConnectSupplier implements BlockingSupplier {
         Object tcpObj = FutureBlocker.blockingGet(
                 AsyncTcpSocket.connect(loop, parsed.host, parsed.port));
         AsyncTcpSocket tcp = PgCast.asTcpSocket(tcpObj);
+        /* 0.31 SecureTransport reuse point: when sslmode=require, wrap tcp with TlsConnection before PgSocket. */
         PgSocket sock = new PgSocket(loop, tcp);
         PgConnection inner = new PgConnection(loop, sock, parsed.user, parsed.password, parsed.database);
         FutureBlocker.blockingWait(inner.handshake());

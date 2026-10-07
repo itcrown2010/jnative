@@ -137,10 +137,11 @@ public final class JNativeCompiler {
             return fail(reporter);
         }
 
+        String userSource;
         String sourceText;
         try {
-            sourceText = Files.readString(source, StandardCharsets.UTF_8);
-            sourceText = io.jnative.stdlib.StdlibIncluder.prependStdlibs(sourceText);
+            userSource = Files.readString(source, StandardCharsets.UTF_8);
+            sourceText = io.jnative.stdlib.StdlibIncluder.prependStdlibs(userSource);
         } catch (IOException e) {
             reporter.error(new SourceLocation(source.toString(), 0, 0),
                     "failed to read source: " + e.getMessage());
@@ -166,6 +167,58 @@ public final class JNativeCompiler {
         CompilationUnit ast = parser.parse(fileName);
         if (reporter.hasErrors()) {
             return new CompileResult(false, ast, null, null, null, reporter.diagnostics());
+        }
+
+        // ---- Meta / Annotation Processing (0.32) ----
+        Path generatedDir = options.generatedDir();
+        if (generatedDir == null) {
+            Path parent = source.getParent();
+            generatedDir = (parent == null ? Path.of(".") : parent).resolve(".jnative/generated");
+        }
+        boolean deterministic = options.deterministic();
+        io.jnative.processor.ProcessorScheduler metaScheduler = new io.jnative.processor.ProcessorScheduler(
+                io.jnative.processor.ProcessorRegistry.builtin(),
+                generatedDir,
+                deterministic,
+                io.jnative.processor.ProcessorScheduler.DEFAULT_TIMEOUT_MS,
+                java.util.Map.of());
+        io.jnative.processor.ProcessorScheduler.Result metaResult =
+                metaScheduler.run(ast, options.target() == null ? "native" : options.target(), reporter);
+        if (reporter.hasErrors()) {
+            return new CompileResult(false, ast, null, null, null, reporter.diagnostics());
+        }
+        if (options.explainMeta() && !metaResult.explain().isEmpty()) {
+            for (String line : metaResult.explain()) {
+                System.out.println(line);
+            }
+        }
+        // Merge into user source (not stdlib-expanded text), then re-select stdlibs for generated refs.
+        if (!metaResult.artifacts().isEmpty() && !userSource.contains("BEGIN GENERATED META")) {
+            String mergedUser = io.jnative.processor.ProcessorScheduler.mergeGeneratedSources(
+                    userSource, metaResult.artifacts());
+            try {
+                sourceText = io.jnative.stdlib.StdlibIncluder.prependStdlibs(mergedUser);
+            } catch (IOException e) {
+                reporter.error(SourceLocation.UNKNOWN,
+                        "failed to reload stdlib after metaprogramming: " + e.getMessage());
+                return fail(reporter);
+            }
+            reporter = new DiagnosticReporter();
+            lexer = new Lexer(sourceText, fileName);
+            tokens = lexer.tokenize();
+            for (Token token : tokens) {
+                if (token.type() == TokenType.ERROR) {
+                    reporter.error(token.location(), token.lexeme());
+                }
+            }
+            if (reporter.hasErrors()) {
+                return fail(reporter);
+            }
+            parser = new Parser(tokens, reporter);
+            ast = parser.parse(fileName);
+            if (reporter.hasErrors()) {
+                return new CompileResult(false, ast, null, null, null, reporter.diagnostics());
+            }
         }
 
         // ---- RPC (0.28): analyze @Rpc interfaces → generate dispatcher/client source ----
@@ -365,6 +418,9 @@ public final class JNativeCompiler {
             boolean includeCrypto = irText.contains("jnative_secure_random")
                     || irText.contains("jnative_bit_and")
                     || irText.contains("jnative_crypto");
+            boolean includeTls = irText.contains("jnative_tls_")
+                    || irText.contains("TlsConnection")
+                    || irText.contains("TlsContext");
             boolean headless = options.headless()
                     || "headless".equalsIgnoreCase(options.uiBackend())
                     || "1".equals(System.getenv("JNATIVE_HEADLESS"));
@@ -376,7 +432,8 @@ public final class JNativeCompiler {
                             includeGraphics,
                             headless,
                             options.uiBackend(),
-                            includePoll);
+                            includePoll,
+                            includeTls);
             java.util.List<Path> extraSources = new java.util.ArrayList<>(runtimeSources);
             extraSources.addAll(options.extraNativeSources());
 
@@ -385,7 +442,11 @@ public final class JNativeCompiler {
             libs.addAll(options.linkLibraries());
             /* @Native(library="jnative_crypto") symbols are in the linked object, not a .dylib */
             libs.remove("jnative_crypto");
+            libs.remove("jnative_tls");
             java.util.List<String> linkFlags = new java.util.ArrayList<>(options.extraLinkFlags());
+            if (includeTls) {
+                addOpenSslLinkFlags(linkFlags, libs, toolchain.get().platform());
+            }
             if (includeGraphics || includeUi) {
                 libs.add("z");
                 linkFlags.add("-lm");
@@ -445,6 +506,53 @@ public final class JNativeCompiler {
                 } catch (IOException ignored) {
                     // best effort
                 }
+            }
+        }
+    }
+
+    private static void addOpenSslLinkFlags(
+            java.util.List<String> linkFlags,
+            java.util.Set<String> libs,
+            Platform platform
+    ) {
+        String root = System.getenv("OPENSSL_ROOT_DIR");
+        if (root == null || root.isBlank()) {
+            root = System.getenv("OPENSSL_DIR");
+        }
+        java.util.List<String> candidates = new java.util.ArrayList<>();
+        if (root != null && !root.isBlank()) {
+            candidates.add(root);
+        }
+        candidates.add("/opt/homebrew/opt/openssl@3");
+        candidates.add("/opt/homebrew/opt/openssl");
+        candidates.add("/usr/local/opt/openssl@3");
+        candidates.add("/usr/local/opt/openssl");
+        candidates.add("/usr");
+        String chosen = null;
+        for (String c : candidates) {
+            java.nio.file.Path inc = java.nio.file.Path.of(c, "include", "openssl", "ssl.h");
+            if (java.nio.file.Files.isRegularFile(inc)
+                    || java.nio.file.Files.isRegularFile(java.nio.file.Path.of(c, "include", "ssl.h"))) {
+                chosen = c;
+                break;
+            }
+        }
+        if (chosen != null) {
+            java.nio.file.Path include = java.nio.file.Path.of(chosen, "include");
+            java.nio.file.Path libDir = java.nio.file.Path.of(chosen, "lib");
+            if (java.nio.file.Files.isDirectory(include)) {
+                linkFlags.add("-I" + include.toAbsolutePath().normalize());
+            }
+            if (java.nio.file.Files.isDirectory(libDir)) {
+                linkFlags.add("-L" + libDir.toAbsolutePath().normalize());
+            }
+        }
+        libs.add("ssl");
+        libs.add("crypto");
+        if (platform == Platform.MACOS_ARM64 || platform == Platform.MACOS_X86_64) {
+            // rpath for Homebrew dylibs when not using system openssl
+            if (chosen != null && chosen.contains("homebrew")) {
+                linkFlags.add("-Wl,-rpath," + java.nio.file.Path.of(chosen, "lib").toAbsolutePath());
             }
         }
     }

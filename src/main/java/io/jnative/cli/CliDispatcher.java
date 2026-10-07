@@ -38,6 +38,10 @@ public final class CliDispatcher {
             case "clean" -> runClean(args);
             case "cache" -> runCache(args);
             case "explain-build" -> runExplainBuild(args);
+            case "cert" -> CertCli.dispatch(args);
+            case "serve" -> ServeCli.dispatch(args);
+            case "processors" -> ProcessorsCli.dispatch(args);
+            case "generated" -> ProcessorsCli.generated(args);
             case "add", "remove", "update", "deps", "search", "info",
                  "publish", "audit", "licenses" -> PackageCli.dispatch(args);
             case "-h", "--help", "help" -> {
@@ -277,23 +281,20 @@ public final class CliDispatcher {
 
     public static String helpText() {
         return """
-                JNative 0.30 — Package Manager / Incremental Build / Dev Server
+                JNative 0.32 — Compile-Time Metaprogramming / Annotation Processing
 
                 Usage:
-                  jnative add <pkg> [constraint]   jnative remove <pkg>
-                  jnative update [pkg]             jnative deps [--why pkg] [--graph]
-                  jnative deps explain <pkg>       jnative search <query>
-                  jnative info <pkg>               jnative licenses
-                  jnative publish [--dry-run]      jnative audit
-                  jnative build [--project DIR] [--explain] [--offline] [--release] [-Odev]
-                  jnative dev [--project DIR]
-                  jnative clean | cache stats|clean
-                  jnative <source.java> [-o out] [-O0..-O3|-Odev]
+                  jnative processors [list|explain <Type>]
+                  jnative generated <SymbolOrPath>
+                  jnative build [--project DIR] [--explain] [--deterministic] [--offline] [--release]
+                  jnative add|remove|update|deps|search|info|publish|audit|licenses
+                  jnative cert|serve|dev|clean|cache
+                  jnative <source.java> [-o out] [-O0..-O3] [--explain-meta] [--deterministic]
                   jnative --version | --help
 
-                Packages:
-                  Manifest jnative.toml · Lockfile jnative.lock · Cache .jnative/pkg-cache
-                  Resolver is a library (CLI/Studio/build share one implementation).
+                Metaprogramming (0.32):
+                  Stable Meta API · AnnotationProcessor · .jnative/generated · ZERO runtime reflection
+                  Metaprogramming LLVM intrinsics: NONE
                 """;
     }
 }

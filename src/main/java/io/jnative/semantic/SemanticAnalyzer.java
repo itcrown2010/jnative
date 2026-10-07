@@ -804,6 +804,8 @@ public final class SemanticAnalyzer {
                 new ParameterSymbol("ms", PrimitiveType.INT, SourceLocation.UNKNOWN)));
         addInstanceFfiIntrinsic(tcpSocket, "setWriteTimeout", VoidType.INSTANCE, List.of(
                 new ParameterSymbol("ms", PrimitiveType.INT, SourceLocation.UNKNOWN)));
+        // Low-level fd for TLS wrap only (0.31 SecureTransport). Not for application use.
+        addInstanceFfiIntrinsic(tcpSocket, "nativeFd", PrimitiveType.LONG, List.of());
 
         addFfiIntrinsic(tcpServer, "listen", serverType, List.of(
                 new ParameterSymbol("host", stringType, SourceLocation.UNKNOWN),

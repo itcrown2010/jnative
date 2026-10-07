@@ -23,6 +23,7 @@ public final class Parser {
     private final Set<String> knownClassNames = new HashSet<>();
     private final Map<String, List<MarkerAnnotation>> typeAnnotations = new LinkedHashMap<>();
     private final Map<String, List<MarkerAnnotation>> methodAnnotations = new LinkedHashMap<>();
+    private final Map<String, List<MarkerAnnotation>> fieldAnnotations = new LinkedHashMap<>();
 
     public Parser(List<Token> tokens, DiagnosticReporter reporter) {
         this.tokens = tokens;
@@ -35,6 +36,7 @@ public final class Parser {
         current = 0;
         typeAnnotations.clear();
         methodAnnotations.clear();
+        fieldAnnotations.clear();
 
         List<ClassDeclaration> classes = new ArrayList<>();
         var loc = peek().location();
@@ -51,7 +53,13 @@ public final class Parser {
             reporter.error(e.location(), e.getMessage());
             synchronize();
         }
-        return new CompilationUnit(fileName, classes, Map.copyOf(typeAnnotations), Map.copyOf(methodAnnotations), loc);
+        return new CompilationUnit(
+                fileName,
+                classes,
+                Map.copyOf(typeAnnotations),
+                Map.copyOf(methodAnnotations),
+                Map.copyOf(fieldAnnotations),
+                loc);
     }
 
     private void skipUntilSemicolon() {
@@ -447,6 +455,9 @@ public final class Parser {
         consume(TokenType.SEMICOLON, "expected ';' after field declaration");
         fields.add(new FieldDeclaration(
                 type, isArray, name.lexeme(), isStatic, isVolatile, initializer, name.location()));
+        if (!pendingMemberAnns.isEmpty()) {
+            fieldAnnotations.put(className + "." + name.lexeme(), List.copyOf(pendingMemberAnns));
+        }
     }
 
     /**
@@ -484,7 +495,40 @@ public final class Parser {
                 || annName.equals("Valid")
                 || annName.equals("RpcError")
                 || annName.equals("RpcGet")
-                || annName.equals("MaxRequestBytes");
+                || annName.equals("MaxRequestBytes")
+                || isMetaMarkerName(annName);
+    }
+
+    /** 0.32 compile-time metaprogramming annotations (COMPILE_TIME retention). */
+    private static boolean isMetaMarkerName(String annName) {
+        return annName.equals("Json")
+                || annName.equals("GenerateJson")
+                || annName.equals("JsonField")
+                || annName.equals("Validated")
+                || annName.equals("NotBlank")
+                || annName.equals("Min")
+                || annName.equals("Max")
+                || annName.equals("Config")
+                || annName.equals("Default")
+                || annName.equals("Command")
+                || annName.equals("Option")
+                || annName.equals("Service")
+                || annName.equals("Inject")
+                || annName.equals("Singleton")
+                || annName.equals("RequestScoped")
+                || annName.equals("Transient")
+                || annName.equals("Entity")
+                || annName.equals("Id")
+                || annName.equals("Repository")
+                || annName.equals("Query")
+                || annName.equals("Controller")
+                || annName.equals("Get")
+                || annName.equals("Post")
+                || annName.equals("Put")
+                || annName.equals("Delete")
+                || annName.equals("Patch")
+                || annName.equals("Target")
+                || annName.equals("Retention");
     }
 
     private ParsedAnnotation parseAnnotation() {
@@ -560,7 +604,7 @@ public final class Parser {
             }
             return new ParsedAnnotation(annName, null, null, null, at.location());
         }
-        if (isRpcMarkerName(annName)) {
+        if (isRpcMarkerName(annName) || isMetaMarkerName(annName)) {
             MarkerAnnotation marker = parseRpcMarker(annName, at);
             return new ParsedAnnotation(annName, null, null, marker, at.location());
         }

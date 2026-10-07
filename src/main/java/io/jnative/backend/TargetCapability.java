@@ -13,13 +13,17 @@ public enum TargetCapability {
     BROWSER_DOM,
     JS_INTEROP,
     DATABASE,
-    DESKTOP_UI;
+    DESKTOP_UI,
+    TLS_NATIVE,
+    HTTP2_NATIVE,
+    BROWSER_FETCH;
 
     public static Set<TargetCapability> forNative() {
-        return EnumSet.of(NATIVE_FFI, FILESYSTEM, RAW_SOCKET, PROCESS, THREADS, DATABASE, DESKTOP_UI);
+        return EnumSet.of(NATIVE_FFI, FILESYSTEM, RAW_SOCKET, PROCESS, THREADS, DATABASE, DESKTOP_UI,
+                TLS_NATIVE, HTTP2_NATIVE);
     }
 
     public static Set<TargetCapability> forWasmBrowser() {
-        return EnumSet.of(BROWSER_DOM, JS_INTEROP);
+        return EnumSet.of(BROWSER_DOM, JS_INTEROP, BROWSER_FETCH);
     }
 }

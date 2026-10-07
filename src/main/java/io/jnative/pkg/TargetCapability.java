@@ -11,8 +11,11 @@ public enum TargetCapability {
     RAW_SOCKET,
     THREADS,
     NATIVE_FFI,
+    TLS_NATIVE,
+    HTTP2_NATIVE,
     BROWSER_DOM,
     JS_INTEROP,
+    BROWSER_FETCH,
     JAVA_BRIDGE;
 
     public static Set<TargetCapability> forTriple(String triple) {
@@ -21,6 +24,7 @@ public enum TargetCapability {
         if (t.contains("wasm") || t.contains("browser")) {
             set.add(BROWSER_DOM);
             set.add(JS_INTEROP);
+            set.add(BROWSER_FETCH);
             set.add(THREADS);
             return set;
         }
@@ -28,7 +32,8 @@ public enum TargetCapability {
         set.add(RAW_SOCKET);
         set.add(THREADS);
         set.add(NATIVE_FFI);
-        set.add(JAVA_BRIDGE);
+        set.add(TLS_NATIVE);
+        set.add(HTTP2_NATIVE);
         return set;
     }
 

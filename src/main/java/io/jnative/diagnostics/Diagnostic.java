@@ -12,6 +12,14 @@ public record Diagnostic(Severity severity, SourceLocation location, String mess
         return new Diagnostic(Severity.ERROR, location, message);
     }
 
+    public static Diagnostic warning(SourceLocation location, String message) {
+        return new Diagnostic(Severity.WARNING, location, message);
+    }
+
+    public static Diagnostic note(SourceLocation location, String message) {
+        return new Diagnostic(Severity.NOTE, location, message);
+    }
+
     @Override
     public String toString() {
         String sev = switch (severity) {

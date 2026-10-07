@@ -40,6 +40,8 @@ public final class StdlibIncluder {
                 || sourceText.contains("WebResponse")
                 || sourceText.contains("WebServer")
                 || sourceText.contains("WebConfig")
+                || sourceText.contains("ServerConfig")
+                || sourceText.contains("listenTls")
                 || sourceText.contains("WebMiddleware")
                 || sourceText.contains("WebHandler")
                 || sourceText.contains("AsyncWebHandler")
@@ -323,6 +325,42 @@ public final class StdlibIncluder {
                 || sourceText.contains("ProjectSearchService");
     }
 
+    public static boolean needsTls(String sourceText) {
+        if (sourceText == null) {
+            return false;
+        }
+        return sourceText.contains("TlsConnection")
+                || sourceText.contains("listenTls")
+                || sourceText.contains("TlsConfig")
+                || sourceText.contains("TlsContext")
+                || sourceText.contains("jnative.tls");
+    }
+
+    public static boolean needsHttp2(String sourceText) {
+        if (sourceText == null) {
+            return false;
+        }
+        return sourceText.contains("Http2Client")
+                || sourceText.contains("Http2Connection")
+                || sourceText.contains("Http2Codec")
+                || sourceText.contains("HpackEncoder")
+                || sourceText.contains("jnative.http2");
+    }
+
+    public static String prependTlsStdlib(String userSource) throws IOException {
+        if (userSource.contains("// JNative TLS stdlib (0.31)")) {
+            return userSource;
+        }
+        return load("stdlib/tls/TlsLib.java") + "\n\n" + userSource;
+    }
+
+    public static String prependHttp2Stdlib(String userSource) throws IOException {
+        if (userSource.contains("// JNative HTTP/2 (0.31)")) {
+            return userSource;
+        }
+        return load("stdlib/http/Http2Lib.java") + "\n\n" + userSource;
+    }
+
     public static String prependHttpStdlib(String userSource) throws IOException {
         List<String> parts = new ArrayList<>();
         parts.add(load("stdlib/http/HttpLib.java"));
@@ -497,12 +535,12 @@ public final class StdlibIncluder {
         boolean wantEditor = needsEditor(userSource) || wantStudio;
         boolean wantGraphics = needsGraphics(userSource) || wantEditor;
         boolean wantUi = needsUi(userSource) || wantGraphics || wantEditor || wantStudio;
-        boolean wantJson = needsJson(userSource) || wantStudio;
-        boolean wantIo = needsIo(userSource) || wantStudio;
         boolean wantWeb = needsWeb(userSource);
+        boolean wantJson = needsJson(userSource) || wantStudio || wantWeb;
+        boolean wantIo = needsIo(userSource) || wantStudio || wantWeb;
         boolean wantBrowser = needsBrowser(userSource);
         boolean wantDatabase = needsDatabase(userSource);
-        boolean wantCrypto = needsCrypto(userSource) || wantWeb;
+        boolean wantCrypto = needsCrypto(userSource) || wantWeb || needsHttp(userSource) || needsHttp2(userSource);
         boolean wantRpc = needsRpc(userSource);
         boolean wantAsync = needsAsync(userSource) || wantWeb || wantDatabase || wantCrypto || wantBrowser || wantRpc;
         // Advanced UI / Graphics / Editor use ArrayList / Function from collections.
@@ -539,8 +577,18 @@ public final class StdlibIncluder {
         if (wantStudio || needsStudio(text)) {
             text = prependStudioStdlib(text);
         }
-        if (needsHttp(text) || wantWeb || needsWeb(text) || wantRpc) {
+        /* HttpClient HTTPS→ALPN h2 needs Http2Lib; HTTPS needs TlsLib. Prepend order → Tls, Http, Http2. */
+        boolean wantHttpStack = needsHttp(text) || needsHttp2(text) || wantWeb || needsWeb(text) || wantRpc;
+        boolean wantHttp2Stack = needsHttp2(text) || wantHttpStack;
+        boolean wantTlsStack = needsTls(text) || wantHttpStack;
+        if (wantHttp2Stack) {
+            text = prependHttp2Stdlib(text);
+        }
+        if (wantHttpStack) {
             text = prependHttpStdlib(text);
+        }
+        if (wantTlsStack) {
+            text = prependTlsStdlib(text);
         }
         if (wantWeb || needsWeb(text) || wantRpc) {
             text = prependWebStdlib(text);

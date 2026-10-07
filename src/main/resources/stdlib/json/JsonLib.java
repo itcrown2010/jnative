@@ -176,6 +176,28 @@ class JsonObject extends JsonValue {
         return def;
     }
 
+    /** Narrowing helper for generated codecs — no reflection. */
+    int getInt(String key, int def) {
+        JsonValue v = get(key);
+        if (v == null) {
+            return def;
+        }
+        if (v.kind == JsonValue.NUMBER_KIND) {
+            return JsonParseInt.fromNumberString(JsonWriter.write(v), def);
+        }
+        if (v.isString()) {
+            return JsonParseInt.fromNumberString(v.asString(), def);
+        }
+        return def;
+    }
+
+    long getLong(String key, long def) {
+        if (!has(key)) {
+            return def;
+        }
+        return getInt(key, 0);
+    }
+
     int size() {
         return keys.size();
     }
@@ -494,4 +516,59 @@ interface JsonCodec<T> {
     JsonValue encode(T value);
 
     T decode(JsonValue value);
+}
+
+/** Minimal decimal/integer parse for generated JSON codecs (0.32). */
+class JsonParseInt {
+    static int fromNumberString(String s, int def) {
+        if (s == null || s.length() == 0) {
+            return def;
+        }
+        int start = 0;
+        int sign = 1;
+        if (s.startsWith("-")) {
+            sign = -1;
+            start = 1;
+        }
+        int value = 0;
+        int i = start;
+        int digits = 0;
+        int done = 0;
+        while (i < s.length() && done == 0) {
+            String one = s.substring(i, i + 1);
+            if (one.equals(".")) {
+                done = 1;
+            } else {
+                int digit = digitValue(one);
+                if (digit < 0) {
+                    if (digits == 0) {
+                        return def;
+                    }
+                    done = 1;
+                } else {
+                    value = value * 10 + digit;
+                    digits = digits + 1;
+                    i = i + 1;
+                }
+            }
+        }
+        if (digits == 0) {
+            return def;
+        }
+        return value * sign;
+    }
+
+    static int digitValue(String one) {
+        if (one.equals("0")) { return 0; }
+        if (one.equals("1")) { return 1; }
+        if (one.equals("2")) { return 2; }
+        if (one.equals("3")) { return 3; }
+        if (one.equals("4")) { return 4; }
+        if (one.equals("5")) { return 5; }
+        if (one.equals("6")) { return 6; }
+        if (one.equals("7")) { return 7; }
+        if (one.equals("8")) { return 8; }
+        if (one.equals("9")) { return 9; }
+        return -1;
+    }
 }

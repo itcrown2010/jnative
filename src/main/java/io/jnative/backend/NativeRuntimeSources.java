@@ -64,6 +64,22 @@ public final class NativeRuntimeSources {
             String uiBackend,
             boolean includePoll
     ) throws IOException {
+        return materializeAll(dir, platform, includeUi, includeGraphics, headless, uiBackend, includePoll, false);
+    }
+
+    /**
+     * @param includeTls whether to link OpenSSL-backed jnative_tls runtime (0.31)
+     */
+    public static List<Path> materializeAll(
+            Path dir,
+            Platform platform,
+            boolean includeUi,
+            boolean includeGraphics,
+            boolean headless,
+            String uiBackend,
+            boolean includePoll,
+            boolean includeTls
+    ) throws IOException {
         Files.createDirectories(dir);
         List<Path> sources = new ArrayList<>();
         copyResource("native/posix/jnative_socket.h", dir.resolve("jnative_socket.h"));
@@ -81,6 +97,11 @@ public final class NativeRuntimeSources {
             sources.add(copyResource("native/posix/jnative_fs.c", dir.resolve("jnative_fs.c")));
             copyResource("native/posix/jnative_proc.h", dir.resolve("jnative_proc.h"));
             sources.add(copyResource("native/posix/jnative_proc.c", dir.resolve("jnative_proc.c")));
+        }
+
+        if (includeTls && platform != Platform.WINDOWS_X86_64) {
+            copyResource("native/posix/jnative_tls.h", dir.resolve("jnative_tls.h"));
+            sources.add(copyResource("native/posix/jnative_tls.c", dir.resolve("jnative_tls.c")));
         }
 
         if (includePoll) {

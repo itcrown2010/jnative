@@ -35,6 +35,9 @@ public final class CompilerOptions {
     private boolean emitRpc;
     private boolean emitRpcSchema;
     private boolean runAfterBuild;
+    private Path generatedDir;
+    private boolean deterministic;
+    private boolean explainMeta;
     private final List<Path> libraryPaths = new ArrayList<>();
     private final List<String> linkLibraries = new ArrayList<>();
     private final List<Path> extraNativeSources = new ArrayList<>();
@@ -86,6 +89,30 @@ public final class CompilerOptions {
 
     public void setEmitRpcSchema(boolean emitRpcSchema) {
         this.emitRpcSchema = emitRpcSchema;
+    }
+
+    public Path generatedDir() {
+        return generatedDir;
+    }
+
+    public void setGeneratedDir(Path generatedDir) {
+        this.generatedDir = generatedDir;
+    }
+
+    public boolean deterministic() {
+        return deterministic;
+    }
+
+    public void setDeterministic(boolean deterministic) {
+        this.deterministic = deterministic;
+    }
+
+    public boolean explainMeta() {
+        return explainMeta;
+    }
+
+    public void setExplainMeta(boolean explainMeta) {
+        this.explainMeta = explainMeta;
     }
 
     public boolean runAfterBuild() {

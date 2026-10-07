@@ -1,0 +1,196 @@
+package io.jnative.processor;
+
+import io.jnative.diagnostics.DiagnosticReporter;
+import io.jnative.diagnostics.SourceLocation;
+import io.jnative.meta.ProgramModel;
+
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.LinkedHashMap;
+import java.util.Map;
+import java.util.Set;
+
+public final class ProcessingContext {
+    private final ProgramModel program;
+    private final RoundEnvironment roundEnv;
+    private final CodeGenerator codeGenerator;
+    private final DiagnosticReporter reporter;
+    private final String targetTriple;
+    private final boolean deterministic;
+    private final Set<ProcessorPermission> granted;
+    private final Map<String, String> options;
+    private final String processorName;
+    /** path → previous input fingerprint from generated-index (incremental). */
+    private final Map<String, String> previousFingerprints;
+    private final Path generatedRoot;
+
+    public ProcessingContext(
+            ProgramModel program,
+            RoundEnvironment roundEnv,
+            CodeGenerator codeGenerator,
+            DiagnosticReporter reporter,
+            String targetTriple,
+            boolean deterministic,
+            Set<ProcessorPermission> granted,
+            Map<String, String> options,
+            String processorName
+    ) {
+        this(program, roundEnv, codeGenerator, reporter, targetTriple, deterministic,
+                granted, options, processorName, Map.of(), null);
+    }
+
+    public ProcessingContext(
+            ProgramModel program,
+            RoundEnvironment roundEnv,
+            CodeGenerator codeGenerator,
+            DiagnosticReporter reporter,
+            String targetTriple,
+            boolean deterministic,
+            Set<ProcessorPermission> granted,
+            Map<String, String> options,
+            String processorName,
+            Map<String, String> previousFingerprints,
+            Path generatedRoot
+    ) {
+        this.program = program;
+        this.roundEnv = roundEnv;
+        this.codeGenerator = codeGenerator;
+        this.reporter = reporter;
+        this.targetTriple = targetTriple;
+        this.deterministic = deterministic;
+        this.granted = granted;
+        this.options = options == null ? Map.of() : Map.copyOf(new LinkedHashMap<>(options));
+        this.processorName = processorName;
+        this.previousFingerprints = previousFingerprints == null
+                ? Map.of()
+                : Map.copyOf(previousFingerprints);
+        this.generatedRoot = generatedRoot;
+    }
+
+    /** True when prior build produced this path with the same input fingerprint and file exists. */
+    public boolean isUnchanged(String relativePath, String inputFingerprint) {
+        if (relativePath == null || inputFingerprint == null || inputFingerprint.isEmpty()) {
+            return false;
+        }
+        String prev = previousFingerprints.get(relativePath.replace('\\', '/'));
+        if (!inputFingerprint.equals(prev)) {
+            return false;
+        }
+        if (generatedRoot == null) {
+            return false;
+        }
+        return Files.isRegularFile(generatedRoot.resolve(relativePath));
+    }
+
+    /**
+     * Reuse a previously generated file (ISOLATING warm path). Returns false if missing.
+     */
+    public boolean reuseGenerated(
+            GeneratedArtifact.Kind kind,
+            String relativePath,
+            String originSource,
+            String originSymbol,
+            String inputFingerprint
+    ) {
+        if (!isUnchanged(relativePath, inputFingerprint) || generatedRoot == null) {
+            return false;
+        }
+        try {
+            String body = Files.readString(generatedRoot.resolve(relativePath), StandardCharsets.UTF_8);
+            // Strip prior header comments so headerComment() is not duplicated on rewrite.
+            String content = stripGeneratedHeader(body);
+            if (kind == GeneratedArtifact.Kind.SOURCE) {
+                codeGenerator.createSourceFile(
+                        relativePath, content, originSource, originSymbol, inputFingerprint);
+            } else if (kind == GeneratedArtifact.Kind.METADATA) {
+                codeGenerator.createMetadata(
+                        relativePath, content, originSource, originSymbol, inputFingerprint);
+            } else {
+                codeGenerator.createResource(
+                        relativePath, content, originSource, originSymbol, inputFingerprint);
+            }
+            return true;
+        } catch (IOException e) {
+            return false;
+        }
+    }
+
+    private static String stripGeneratedHeader(String body) {
+        if (body == null) {
+            return "";
+        }
+        StringBuilder sb = new StringBuilder();
+        boolean inHeader = true;
+        for (String line : body.split("\n", -1)) {
+            if (inHeader && (line.startsWith("// generated by:")
+                    || line.startsWith("// origin:")
+                    || line.startsWith("// fingerprint:")
+                    || line.startsWith("// Metaprogramming LLVM"))) {
+                continue;
+            }
+            inHeader = false;
+            if (sb.length() > 0) {
+                sb.append('\n');
+            }
+            sb.append(line);
+        }
+        return sb.toString();
+    }
+
+    public Map<String, String> previousFingerprints() {
+        return previousFingerprints;
+    }
+
+    public ProgramModel program() {
+        return program;
+    }
+
+    public RoundEnvironment roundEnv() {
+        return roundEnv;
+    }
+
+    public CodeGenerator codeGenerator() {
+        return codeGenerator;
+    }
+
+    public DiagnosticReporter reporter() {
+        return reporter;
+    }
+
+    public String targetTriple() {
+        return targetTriple;
+    }
+
+    public boolean deterministic() {
+        return deterministic;
+    }
+
+    public Map<String, String> options() {
+        return options;
+    }
+
+    public boolean hasPermission(ProcessorPermission p) {
+        return granted.contains(p);
+    }
+
+    public void checkPermission(ProcessorPermission p) {
+        if (!granted.contains(p)) {
+            throw new ProcessorPermissionException(
+                    "processor " + processorName + " denied permission " + p);
+        }
+    }
+
+    public void error(SourceLocation loc, String message) {
+        reporter.error(loc == null ? SourceLocation.UNKNOWN : loc, "[JN-META] " + message);
+    }
+
+    public void warning(SourceLocation loc, String message) {
+        reporter.warning(loc == null ? SourceLocation.UNKNOWN : loc, "[JN-META] " + message);
+    }
+
+    public void info(SourceLocation loc, String message) {
+        reporter.info(loc == null ? SourceLocation.UNKNOWN : loc, "[JN-META] " + message);
+    }
+}

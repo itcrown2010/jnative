@@ -41,10 +41,7 @@ class HttpUrl {
             throw new InvalidUrlException("missing scheme: " + url);
         }
         u.scheme = url.substring(0, schemeEnd).toLowerCase();
-        if (!u.scheme.equals("http")) {
-            if (u.scheme.equals("https")) {
-                throw new UnsupportedSchemeException("https not supported yet");
-            }
+        if (!u.scheme.equals("http") && !u.scheme.equals("https")) {
             throw new UnsupportedSchemeException("unsupported scheme: " + u.scheme);
         }
         int authStart = schemeEnd + 3;
@@ -73,7 +70,11 @@ class HttpUrl {
                 u.port = HttpUtil.parsePositiveInt(url.substring(i, portEnd));
                 i = portEnd;
             } else {
-                u.port = 80;
+                if (u.scheme.equals("https")) {
+                    u.port = 443;
+                } else {
+                    u.port = 80;
+                }
             }
             pathStart = i;
         } else {
@@ -93,7 +94,11 @@ class HttpUrl {
                 u.port = HttpUtil.parsePositiveInt(hostPort.substringFrom(colon + 1));
             } else {
                 u.host = hostPort;
-                u.port = 80;
+                if (u.scheme.equals("https")) {
+                    u.port = 443;
+                } else {
+                    u.port = 80;
+                }
             }
             if (u.host.length() == 0) {
                 throw new InvalidUrlException("empty host: " + url);
@@ -502,6 +507,96 @@ class HttpResponse {
     }
 }
 
+/** Connection pool key: scheme|host|port|alpn|insecure */
+class HttpPoolKey {
+    String scheme;
+    String host;
+    int port;
+    String alpn;
+    int insecure;
+
+    static HttpPoolKey of(HttpUrl url, TlsConfig cfg) {
+        HttpPoolKey k = new HttpPoolKey();
+        k.scheme = url.scheme;
+        k.host = url.host;
+        k.port = url.port;
+        k.alpn = "";
+        k.insecure = 0;
+        if (cfg != null) {
+            k.alpn = cfg.alpn;
+            k.insecure = cfg.insecureSkipVerify;
+        }
+        return k;
+    }
+
+    String id() {
+        return scheme + "|" + host + "|" + port + "|" + alpn + "|" + insecure;
+    }
+}
+
+class HttpPooledConn {
+    String key;
+    TcpSocket tcp;
+    TlsConnection tls;
+    long lastUsedMs;
+    int http2;
+}
+
+class HttpConnectionPool {
+    static HttpConnectionPool SHARED;
+    HttpPooledConn[] slots;
+    int count;
+    int maxPerHost;
+    int maxTotal;
+    int idleTimeoutMs;
+
+    static HttpConnectionPool shared() {
+        if (SHARED == null) {
+            SHARED = new HttpConnectionPool();
+            SHARED.slots = new HttpPooledConn[64];
+            SHARED.count = 0;
+            SHARED.maxPerHost = 8;
+            SHARED.maxTotal = 64;
+            SHARED.idleTimeoutMs = 60000;
+        }
+        return SHARED;
+    }
+
+    HttpPooledConn take(String key) {
+        int i = 0;
+        while (i < count) {
+            HttpPooledConn c = slots[i];
+            if (c != null && c.key.equals(key)) {
+                slots[i] = slots[count - 1];
+                slots[count - 1] = null;
+                count = count - 1;
+                return c;
+            }
+            i = i + 1;
+        }
+        return null;
+    }
+
+    void release(HttpPooledConn c) {
+        if (c == null) {
+            return;
+        }
+        if (count >= maxTotal) {
+            if (c.tls != null) {
+                c.tls.close();
+            } else {
+                if (c.tcp != null) {
+                    c.tcp.close();
+                }
+            }
+            return;
+        }
+        c.lastUsedMs = 0;
+        slots[count] = c;
+        count = count + 1;
+    }
+}
+
 class HttpClient {
     static int maxHeaderSize() {
         return 65536;
@@ -515,6 +610,10 @@ class HttpClient {
         return 5;
     }
 
+    static int connectTimeoutMs = 10000;
+    static int requestTimeoutMs = 30000;
+    static int tlsHandshakeTimeoutMs = 10000;
+
     static HttpResponse get(String url) {
         HttpRequest req = HttpRequest.create("GET", url);
         return HttpClient.send(req);
@@ -526,6 +625,9 @@ class HttpClient {
 
     static HttpResponse sendRedirects(HttpRequest request, int redirectCount) {
         HttpUrl url = HttpUrl.parse(request.url);
+        if (url.scheme.equals("https")) {
+            return HttpClient.sendHttpsRedirects(request, redirectCount);
+        }
         TcpSocket socket = TcpSocket.connect(url.host, url.port);
         try {
             byte[] wire = HttpClient.serializeRequest(request, url);
@@ -576,6 +678,157 @@ class HttpClient {
         }
     }
 
+    static HttpResponse sendHttpsRedirects(HttpRequest request, int redirectCount) {
+        HttpUrl url = HttpUrl.parse(request.url);
+        TlsConfig tlsCfg = TlsConfig.builder().alpn("h2,http/1.1").serverName(url.host).build();
+        HttpPoolKey pk = HttpPoolKey.of(url, tlsCfg);
+        HttpConnectionPool pool = HttpConnectionPool.shared();
+        HttpPooledConn pooled = pool.take(pk.id());
+        TlsConnection tls = null;
+        int fresh = 0;
+        if (pooled != null && pooled.tls != null) {
+            tls = pooled.tls;
+        } else {
+            tls = TlsConnection.connect(url.host, url.port, tlsCfg);
+            fresh = 1;
+        }
+        try {
+            String alpn = tls.alpn();
+            if (alpn != null && alpn.equals("h2")) {
+                /* Fresh TLS required for preface; multiplex reuse is Http2Connection's job. */
+                if (fresh == 0) {
+                    tls.close();
+                    tls = TlsConnection.connect(url.host, url.port, tlsCfg);
+                    fresh = 1;
+                }
+                HttpResponse h2 = Http2Client.request(tls, request, url);
+                tls.close();
+                if (HttpClient.isRedirect(h2.statusCode) && redirectCount < HttpClient.maxRedirects()) {
+                    String loc = h2.headers.get("Location");
+                    if (loc != null && loc.length() > 0) {
+                        String nextUrl = HttpClient.resolveRedirect(request.url, loc);
+                        HttpRequest next = HttpRequest.create(request.method, nextUrl);
+                        next.bodyBytes(request.body);
+                        return HttpClient.sendRedirects(next, redirectCount + 1);
+                    }
+                }
+                return h2;
+            }
+            if (!request.headers.contains("Connection")) {
+                request.headers.set("Connection", "keep-alive");
+            }
+            byte[] wire = HttpClient.serializeRequest(request, url);
+            tls.write(wire);
+            HttpResponse response = HttpClient.readResponseTls(tls, request.method);
+            String connHdr = response.headers.getOrEmpty("Connection").toLowerCase();
+            if (connHdr.equals("close")) {
+                tls.close();
+            } else {
+                HttpPooledConn back = new HttpPooledConn();
+                back.key = pk.id();
+                back.tls = tls;
+                back.http2 = 0;
+                pool.release(back);
+            }
+            if (HttpClient.isRedirect(response.statusCode) && redirectCount < HttpClient.maxRedirects()) {
+                String loc = response.headers.get("Location");
+                if (loc == null || loc.length() == 0) {
+                    throw new HttpProtocolException("redirect without Location");
+                }
+                String nextUrl = HttpClient.resolveRedirect(request.url, loc);
+                HttpRequest next = HttpRequest.create(request.method, nextUrl);
+                next.bodyBytes(request.body);
+                return HttpClient.sendRedirects(next, redirectCount + 1);
+            }
+            return response;
+        } catch (HttpException he) {
+            tls.close();
+            throw he;
+        } catch (IOException ioe) {
+            tls.close();
+            throw ioe;
+        }
+    }
+
+    static HttpResponse readResponseTls(TlsConnection tls, String method) {
+        ByteBuf buf = new ByteBuf();
+        int headerEnd = -1;
+        while (headerEnd < 0) {
+            byte[] chunk = new byte[4096];
+            int n = tls.read(chunk);
+            if (n <= 0) {
+                throw new HttpProtocolException("connection closed before headers");
+            }
+            byte[] got = new byte[n];
+            int i = 0;
+            while (i < n) {
+                got[i] = chunk[i];
+                i = i + 1;
+            }
+            buf.appendBytes(got);
+            if (buf.size > HttpClient.maxHeaderSize()) {
+                throw new HttpProtocolException("headers too large");
+            }
+            headerEnd = buf.indexOfCrlfCrlf();
+        }
+        String headerText = Bytes.toString(buf.slice(0, headerEnd));
+        byte[] remainder = buf.slice(headerEnd + 4, buf.size);
+        HttpResponse response = HttpClient.parseStatusAndHeaders(headerText);
+        if (method.equals("HEAD") || HttpUtil.isNoBodyStatus(response.statusCode)) {
+            response.body = new byte[0];
+            return response;
+        }
+        response.body = HttpClient.readBodyTls(tls, response.headers, remainder);
+        return response;
+    }
+
+    static byte[] readBodyTls(TlsConnection tls, HttpHeaders headers, byte[] prelude) {
+        String cl = headers.get("Content-Length");
+        if (cl != null) {
+            int len = HttpUtil.parsePositiveInt(cl);
+            ByteBuf out = new ByteBuf();
+            out.appendBytes(prelude);
+            int reading = 1;
+            while (reading != 0 && out.size < len) {
+                byte[] chunk = new byte[4096];
+                int n = tls.read(chunk);
+                if (n <= 0) {
+                    reading = 0;
+                } else {
+                    byte[] got = new byte[n];
+                    int i = 0;
+                    while (i < n) {
+                        got[i] = chunk[i];
+                        i = i + 1;
+                    }
+                    out.appendBytes(got);
+                }
+            }
+            return out.toArray();
+        }
+        ByteBuf out = new ByteBuf();
+        out.appendBytes(prelude);
+        int guard = 0;
+        int reading2 = 1;
+        while (reading2 != 0 && guard < 100000) {
+            byte[] chunk = new byte[4096];
+            int n = tls.read(chunk);
+            if (n <= 0) {
+                reading2 = 0;
+            } else {
+                byte[] got = new byte[n];
+                int i = 0;
+                while (i < n) {
+                    got[i] = chunk[i];
+                    i = i + 1;
+                }
+                out.appendBytes(got);
+            }
+            guard = guard + 1;
+        }
+        return out.toArray();
+    }
+
     static boolean isRedirect(int code) {
         return code == 301 || code == 302 || code == 303 || code == 307 || code == 308;
     }
@@ -593,13 +846,13 @@ class HttpClient {
                 path = location.substring(0, qi);
                 q = location.substringFrom(qi + 1);
             }
-            String out = "http://" + base.hostHeader() + path;
+            String out = base.scheme + "://" + base.hostHeader() + path;
             if (q.length() > 0) {
                 out = out + "?" + q;
             }
             return out;
         }
-        return "http://" + base.hostHeader() + "/" + location;
+        return base.scheme + "://" + base.hostHeader() + "/" + location;
     }
 
     static byte[] serializeRequest(HttpRequest request, HttpUrl url) {
@@ -777,6 +1030,33 @@ class HttpClient {
         return out;
     }
 
+    static byte[] readExactTls(TlsConnection tls, byte[] prelude, int len) {
+        byte[] out = new byte[len];
+        int got = 0;
+        if (prelude.length > 0) {
+            int n = prelude.length;
+            if (n > len) {
+                n = len;
+            }
+            Bytes.copy(prelude, 0, out, 0, n);
+            got = n;
+        }
+        while (got < len) {
+            byte[] chunk = new byte[8192];
+            int n = tls.read(chunk);
+            if (n <= 0) {
+                throw new HttpProtocolException("truncated body");
+            }
+            int copy = n;
+            if (got + copy > len) {
+                copy = len - got;
+            }
+            Bytes.copy(chunk, 0, out, got, copy);
+            got = got + copy;
+        }
+        return out;
+    }
+
     static byte[] readChunked(TcpSocket socket, byte[] prelude) {
         ByteBuf src = new ByteBuf();
         src.appendBytes(prelude);
@@ -890,16 +1170,53 @@ class HttpServerRequest {
 
 class HttpConnection {
     TcpSocket socket;
+    TlsConnection tls;
+    int useTls;
 
     HttpConnection(TcpSocket socket) {
         this.socket = socket;
+        this.tls = null;
+        this.useTls = 0;
+    }
+
+    static HttpConnection overTls(TlsConnection tlsConn) {
+        HttpConnection c = new HttpConnection(tlsConn.tcp);
+        c.tls = tlsConn;
+        c.useTls = 1;
+        return c;
+    }
+
+    byte[] readChunk(int max) {
+        if (useTls != 0) {
+            byte[] chunk = new byte[max];
+            int n = tls.read(chunk);
+            if (n <= 0) {
+                return new byte[0];
+            }
+            byte[] got = new byte[n];
+            int i = 0;
+            while (i < n) {
+                got[i] = chunk[i];
+                i = i + 1;
+            }
+            return got;
+        }
+        return socket.readBytes(max);
+    }
+
+    void writeBytes(byte[] data) {
+        if (useTls != 0) {
+            tls.write(data);
+        } else {
+            socket.write(data);
+        }
     }
 
     HttpServerRequest readRequest() {
         ByteBuf buf = new ByteBuf();
         int headerEnd = -1;
         while (headerEnd < 0) {
-            byte[] chunk = socket.readBytes(4096);
+            byte[] chunk = readChunk(4096);
             if (chunk.length == 0) {
                 throw new HttpProtocolException("connection closed before request headers");
             }
@@ -922,7 +1239,11 @@ class HttpConnection {
             if (len > HttpClient.maxBodySize()) {
                 throw new HttpProtocolException("request body too large");
             }
-            req.body = HttpClient.readExact(socket, remainder, len);
+            if (useTls != 0) {
+                req.body = HttpClient.readExactTls(tls, remainder, len);
+            } else {
+                req.body = HttpClient.readExact(socket, remainder, len);
+            }
         } else {
             req.body = new byte[0];
         }
@@ -1004,11 +1325,17 @@ class HttpConnection {
         }
         buf.appendBytes(HttpUtil.crlf());
         buf.appendBytes(response.body);
-        socket.write(buf.toArray());
+        writeBytes(buf.toArray());
     }
 
     void close() {
-        socket.close();
+        if (useTls != 0 && tls != null) {
+            tls.close();
+        } else {
+            if (socket != null) {
+                socket.close();
+            }
+        }
     }
 }
 

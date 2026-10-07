@@ -301,19 +301,17 @@ class HttpEndToEndTest {
     }
 
     @Test
-    void unsupportedHttps() throws Exception {
+    void httpsSchemeSupported() throws Exception {
+        // 0.31: https is a first-class scheme (TLS via SecureTransport).
         assertStdout("""
                 public class Main {
                     public static void main(String[] args) {
-                        try {
-                            HttpClient.get("https://example.com/");
-                            System.out.println("ok");
-                        } catch (UnsupportedSchemeException e) {
-                            System.out.println("https");
-                        }
+                        HttpUrl u = HttpUrl.parse("https://example.com/x");
+                        System.out.println(u.scheme);
+                        System.out.println(u.port);
                     }
                 }
-                """, "https\n");
+                """, "https\n443\n");
     }
 
     @Test

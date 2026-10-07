@@ -14,6 +14,14 @@ public final class DiagnosticReporter {
         diagnostics.add(Diagnostic.error(location, message));
     }
 
+    public void warning(SourceLocation location, String message) {
+        diagnostics.add(Diagnostic.warning(location, message));
+    }
+
+    public void info(SourceLocation location, String message) {
+        diagnostics.add(Diagnostic.note(location, message));
+    }
+
     public void report(Diagnostic diagnostic) {
         diagnostics.add(diagnostic);
     }

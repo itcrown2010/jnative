@@ -1,0 +1,12 @@
+[package]
+name = "openssl-tls"
+namespace = "jnative"
+version = "0.31.0"
+description = "OpenSSL TLS backend metadata for JNative SecureTransport (0.31)"
+license = "Apache-2.0"
+type = "native"
+requires = ["NATIVE_FFI", "TLS_NATIVE", "RAW_SOCKET"]
+
+[native]
+library = "ssl"
+platforms = ["macos-arm64", "macos-x86_64", "linux-x86_64", "linux-arm64", "windows-x86_64"]

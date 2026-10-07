@@ -2288,6 +2288,8 @@ public final class IrGenerator {
                             List.of(args.get(0), args.get(1)), true);
                     yield new IrValue.Const(IrType.I32, 0);
                 }
+                case "nativeFd" -> builder.call(
+                        "jnative_net_require_handle", IrType.I64, List.of(args.get(0)), true);
                 default -> throw new IllegalStateException("unknown TcpSocket intrinsic " + name);
             };
         }

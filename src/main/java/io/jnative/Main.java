@@ -6,7 +6,7 @@ import io.jnative.cli.CliDispatcher;
  * JNative CLI entry point.
  */
 public final class Main {
-    public static final String VERSION = "0.30";
+    public static final String VERSION = "0.32";
 
     private Main() {
     }

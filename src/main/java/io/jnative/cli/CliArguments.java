@@ -70,6 +70,14 @@ public final class CliArguments {
                 case "--emit-js-glue" -> options.setEmitJsGlue(true);
                 case "--emit-rpc" -> options.setEmitRpc(true);
                 case "--emit-rpc-schema" -> options.setEmitRpcSchema(true);
+                case "--deterministic" -> options.setDeterministic(true);
+                case "--explain-meta" -> options.setExplainMeta(true);
+                case "--generated-dir" -> {
+                    if (i + 1 >= args.length) {
+                        throw new IllegalArgumentException("missing path after --generated-dir");
+                    }
+                    options.setGeneratedDir(Path.of(args[++i]));
+                }
                 case "build" -> { /* jnative build --target ... */ }
                 case "run" -> options.setRunAfterBuild(true);
                 case "--library-path", "-L" -> {

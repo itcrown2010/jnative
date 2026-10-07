@@ -1,0 +1,15 @@
+[package]
+name = "json-processor"
+namespace = "jnative"
+version = "0.32.0"
+description = "Compile-time JSON codec AnnotationProcessor for JNative Meta API"
+license = "Apache-2.0"
+type = "processor"
+processor = true
+min_compiler = "0.32"
+requires = []
+
+[processor]
+entry = "io.jnative.processor.builtin.JsonProcessor"
+min_api = 1
+max_api = 1

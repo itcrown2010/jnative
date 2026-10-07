@@ -1,0 +1,14 @@
+package io.jnative.processor;
+
+public final class ProcessorCrashException extends RuntimeException {
+    private final String processorName;
+
+    public ProcessorCrashException(String processorName, Throwable cause) {
+        super(cause == null ? "unknown" : cause.getMessage(), cause);
+        this.processorName = processorName;
+    }
+
+    public String processorName() {
+        return processorName;
+    }
+}

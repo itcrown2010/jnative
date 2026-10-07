@@ -10,9 +10,20 @@ public record CompilationUnit(
         List<ClassDeclaration> classes,
         Map<String, List<MarkerAnnotation>> typeAnnotations,
         Map<String, List<MarkerAnnotation>> methodAnnotations,
+        Map<String, List<MarkerAnnotation>> fieldAnnotations,
         SourceLocation location
 ) implements AstNode {
     public CompilationUnit(String fileName, List<ClassDeclaration> classes, SourceLocation location) {
-        this(fileName, classes, Map.of(), Map.of(), location);
+        this(fileName, classes, Map.of(), Map.of(), Map.of(), location);
+    }
+
+    public CompilationUnit(
+            String fileName,
+            List<ClassDeclaration> classes,
+            Map<String, List<MarkerAnnotation>> typeAnnotations,
+            Map<String, List<MarkerAnnotation>> methodAnnotations,
+            SourceLocation location
+    ) {
+        this(fileName, classes, typeAnnotations, methodAnnotations, Map.of(), location);
     }
 }
