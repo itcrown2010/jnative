@@ -107,6 +107,7 @@ class CreateEventRequest {
 }
 
 class UpdateEventRequest {
+    long calendarId;
     String title;
     String description;
     String location;
@@ -119,6 +120,7 @@ class UpdateEventRequest {
     int minutesBefore;
 
     UpdateEventRequest() {
+        calendarId = 0;
         title = "";
         description = "";
         location = "";

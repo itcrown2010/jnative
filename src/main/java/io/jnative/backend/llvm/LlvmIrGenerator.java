@@ -35,6 +35,8 @@ public final class LlvmIrGenerator {
 
     private final StringBuilder sb = new StringBuilder();
     private final Map<String, String> valueNames = new HashMap<>();
+    /** Temps loaded from PTR allocas → their root slots (reload on each operand use). */
+    private final Map<IrValue.Temp, IrValue.Local> gcRootTemps = new LinkedHashMap<>();
     private int scratchId;
     private boolean needsRuntime;
     private boolean needsCallbackTable;
@@ -139,7 +141,7 @@ public final class LlvmIrGenerator {
         for (IrModule.StaticField sf : module.staticFields()) {
             sb.append('@').append(sf.globalName()).append(" = global ")
                     .append(sf.type().llvm()).append(' ')
-                    .append(sf.type() == IrType.PTR || sf.type() == IrType.NATIVE_PTR ? "null" : "0")
+                    .append(zeroInitializer(sf.type()))
                     .append(", align ").append(alignOf(sf.type())).append('\n');
         }
         if (!module.staticFields().isEmpty()) {
@@ -226,6 +228,18 @@ public final class LlvmIrGenerator {
                 || inst instanceof IrInstruction.CreateNativeCallback
                 || inst instanceof IrInstruction.ReleaseNativeCallback
                 || (inst instanceof IrInstruction.Call c && c.function().startsWith("jnative_"));
+    }
+
+    /**
+     * Operand for a PTR temp that lives in a shadow-stack slot: always reload.
+     * Moving GC updates the alloca; SSA values from earlier loads would be stale
+     * after any safepoint, including across basic blocks.
+     */
+    private String reloadGcRootOperand(IrValue.Temp t) {
+        IrValue.Local slot = gcRootTemps.get(t);
+        String fresh = scratch();
+        line("  " + fresh + " = load volatile ptr, ptr " + llvmName(slot) + ", align 8");
+        return fresh;
     }
 
     private void emitNativeDeclare(io.jnative.ffi.NativeFunction nf) {
@@ -467,6 +481,7 @@ public final class LlvmIrGenerator {
         valueNames.clear();
         scratchId = 0;
         entryEmittedStackObjects.clear();
+        gcRootTemps.clear();
         sb.append("define ").append(f.returnType().llvm()).append(" @").append(f.name()).append('(');
         for (int i = 0; i < f.params().size(); i++) {
             if (i > 0) {
@@ -585,9 +600,16 @@ public final class LlvmIrGenerator {
             case IrInstruction.Alloca a ->
                     line("  " + llvmName(a.dest()) + " = alloca " + a.dest().type().llvm() + ", align "
                             + alignOf(a.dest().type()));
-            case IrInstruction.Load l ->
+            case IrInstruction.Load l -> {
+                if (l.dest().type().isManagedPointer()) {
+                    gcRootTemps.put(l.dest(), l.source());
+                    line("  " + llvmName(l.dest()) + " = load volatile ptr, ptr "
+                            + llvmName(l.source()) + ", align 8");
+                } else {
                     line("  " + llvmName(l.dest()) + " = load " + l.dest().type().llvm() + ", ptr "
                             + llvmName(l.source()) + ", align " + alignOf(l.dest().type()));
+                }
+            }
             case IrInstruction.Store s ->
                     line("  store " + s.value().type().llvm() + " " + llvmOperand(s.value())
                             + ", ptr " + llvmName(s.dest()) + ", align " + alignOf(s.dest().type()));
@@ -1386,11 +1408,24 @@ public final class LlvmIrGenerator {
         if (value instanceof IrValue.GlobalString g) {
             return "@" + g.symbol();
         }
+        if (value instanceof IrValue.Temp t && gcRootTemps.containsKey(t)) {
+            return reloadGcRootOperand(t);
+        }
         return llvmName(value);
     }
 
     private static String sanitize(String name) {
         return name.replace('.', '_').replace('-', '_');
+    }
+
+    /** LLVM zeroinitializer token appropriate for the given IR type. */
+    private static String zeroInitializer(IrType type) {
+        return switch (type) {
+            case PTR, NATIVE_PTR -> "null";
+            case FLOAT, DOUBLE -> "0.0";
+            case I1, I8, I16, I32, I64 -> "0";
+            case VOID -> "0";
+        };
     }
 
     private static int alignOf(IrType type) {

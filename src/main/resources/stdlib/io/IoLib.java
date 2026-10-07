@@ -905,6 +905,166 @@ class CpuInfo {
     }
 }
 
+/** Host OS hint for platform-adaptive chrome (not a substitute for target triples). */
+class HostPlatform {
+    static int MAC = 1;
+    static int WINDOWS = 2;
+    static int LINUX = 3;
+
+    static int current() {
+        String os = Env.get("OS");
+        if (os != null) {
+            if (os.indexOf("Windows") >= 0 || os.indexOf("windows") >= 0) {
+                return WINDOWS;
+            }
+        }
+        FsPath sysLib = new FsPath("/System/Library");
+        if (Files.exists(sysLib)) {
+            return MAC;
+        }
+        return LINUX;
+    }
+
+    static int isMac() {
+        if (current() == MAC) {
+            return 1;
+        }
+        return 0;
+    }
+}
+
+/**
+ * Simple user preferences store under {@link Files#configDir}.
+ * Format: key=value lines (UTF-8). Parallel key/value lists (no HashMap iteration).
+ */
+class UserPreferencesStore {
+    String appName;
+    ArrayList<String> keys;
+    ArrayList<String> values;
+    int loaded;
+
+    UserPreferencesStore(String app) {
+        appName = app;
+        keys = new ArrayList<String>();
+        values = new ArrayList<String>();
+        loaded = 0;
+    }
+
+    FsPath filePath() {
+        FsPath dir = Files.configDir(appName);
+        Files.createDirectories(dir);
+        return dir.resolve("preferences.txt");
+    }
+
+    void ensureLoaded() {
+        if (loaded != 0) {
+            return;
+        }
+        loaded = 1;
+        FsPath f = filePath();
+        if (!Files.exists(f)) {
+            return;
+        }
+        String text = Files.readString(f);
+        if (text == null) {
+            return;
+        }
+        int start = 0;
+        while (start < text.length()) {
+            int nl = text.indexOfFrom("\n", start);
+            int end = nl;
+            if (end < 0) {
+                end = text.length();
+            }
+            String line = text.substring(start, end);
+            int eq = line.indexOf("=");
+            if (eq > 0) {
+                keys.add(line.substring(0, eq));
+                values.add(line.substringFrom(eq + 1));
+            }
+            if (nl < 0) {
+                start = text.length();
+            } else {
+                start = nl + 1;
+            }
+        }
+    }
+
+    int indexOfKey(String key) {
+        int i = 0;
+        while (i < keys.size()) {
+            if (key.equals(keys.get(i))) {
+                return i;
+            }
+            i = i + 1;
+        }
+        return -1;
+    }
+
+    String get(String key, String def) {
+        ensureLoaded();
+        int i = indexOfKey(key);
+        if (i < 0) {
+            return def;
+        }
+        return values.get(i);
+    }
+
+    int getInt(String key, int def) {
+        String v = get(key, "");
+        if (v == null || v.length() == 0) {
+            return def;
+        }
+        int n = 0;
+        int i = 0;
+        int sign = 1;
+        if (v.charAt(0) == 45) {
+            sign = -1;
+            i = 1;
+        }
+        int ok = 0;
+        while (i < v.length()) {
+            int c = v.charAt(i);
+            if (c < 48 || c > 57) {
+                return def;
+            }
+            n = n * 10 + (c - 48);
+            ok = 1;
+            i = i + 1;
+        }
+        if (ok == 0) {
+            return def;
+        }
+        return n * sign;
+    }
+
+    void put(String key, String value) {
+        ensureLoaded();
+        int i = indexOfKey(key);
+        if (i < 0) {
+            keys.add(key);
+            values.add(value);
+        } else {
+            values.set(i, value);
+        }
+    }
+
+    void putInt(String key, int value) {
+        put(key, "" + value);
+    }
+
+    void save() {
+        ensureLoaded();
+        String out = "";
+        int i = 0;
+        while (i < keys.size()) {
+            out = out + keys.get(i) + "=" + values.get(i) + "\n";
+            i = i + 1;
+        }
+        Files.writeString(filePath(), out);
+    }
+}
+
 class Logger {
     static int DEBUG = 0;
     static int INFO = 1;

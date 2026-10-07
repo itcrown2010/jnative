@@ -245,10 +245,10 @@ class StudioCommand {
     }
 }
 
-class CommandRegistry {
+class StudioCommandRegistry {
     ArrayList<StudioCommand> commands;
 
-    CommandRegistry() {
+    StudioCommandRegistry() {
         commands = new ArrayList<StudioCommand>();
         commands.add(new StudioCommand("File.OpenProject", "Open Project"));
         commands.add(new StudioCommand("File.Save", "Save"));
@@ -394,7 +394,7 @@ class StudioApplication {
     ArrayList<StudioDiagnostic> problems;
     int buildState;
     StudioSettings settings;
-    CommandRegistry commands;
+    StudioCommandRegistry commands;
     WorkspaceIndex index;
     RunConfiguration runConfig;
     Process runningProcess;
@@ -409,7 +409,7 @@ class StudioApplication {
         problems = new ArrayList<StudioDiagnostic>();
         buildState = BuildState.IDLE;
         settings = StudioSettings.load();
-        commands = new CommandRegistry();
+        commands = new StudioCommandRegistry();
         index = new WorkspaceIndex();
         runConfig = new RunConfiguration();
         runningProcess = null;

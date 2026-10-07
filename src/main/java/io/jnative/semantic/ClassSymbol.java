@@ -20,7 +20,8 @@ public final class ClassSymbol implements ReferenceTypeSymbol {
     private final String name;
     private final SourceLocation location;
     private final Map<String, FieldSymbol> declaredFields = new LinkedHashMap<>();
-    private final Map<String, MethodSymbol> methodsByName = new LinkedHashMap<>();
+    /** Overload sets keyed by simple method name (parameter arity/types distinguish members). */
+    private final Map<String, List<MethodSymbol>> methodsByName = new LinkedHashMap<>();
     private final List<MethodSymbol> declaredMethods = new ArrayList<>();
     private final List<ConstructorSymbol> constructors = new ArrayList<>();
     private final List<InterfaceSymbol> implementedInterfaces = new ArrayList<>();
@@ -243,18 +244,25 @@ public final class ClassSymbol implements ReferenceTypeSymbol {
     }
 
     public boolean addMethod(MethodSymbol method) {
-        if (methodsByName.containsKey(method.name())) {
-            return false;
+        List<MethodSymbol> overloads = methodsByName.computeIfAbsent(method.name(), k -> new ArrayList<>());
+        for (MethodSymbol existing : overloads) {
+            if (existing.sameParameterSignatureAs(method)) {
+                return false;
+            }
         }
-        methodsByName.put(method.name(), method);
+        overloads.add(method);
         declaredMethods.add(method);
         return true;
     }
 
+    /**
+     * First overload with this name in the inheritance chain (legacy single-match helpers).
+     * Prefer {@link #findMethods(String)} + {@link CallableResolver} for calls.
+     */
     public Optional<MethodSymbol> findMethod(String methodName) {
-        MethodSymbol local = methodsByName.get(methodName);
-        if (local != null) {
-            return Optional.of(local);
+        List<MethodSymbol> local = methodsByName.get(methodName);
+        if (local != null && !local.isEmpty()) {
+            return Optional.of(local.get(0));
         }
         if (superClass != null) {
             return superClass.findMethod(methodName);
@@ -262,8 +270,52 @@ public final class ClassSymbol implements ReferenceTypeSymbol {
         return Optional.empty();
     }
 
+    public Optional<MethodSymbol> findMethod(String methodName, List<JType> parameterTypes) {
+        for (MethodSymbol m : findMethods(methodName)) {
+            if (m.sameParameterTypes(parameterTypes)) {
+                return Optional.of(m);
+            }
+        }
+        return Optional.empty();
+    }
+
+    public List<MethodSymbol> findMethods(String methodName) {
+        List<MethodSymbol> out = new ArrayList<>();
+        List<MethodSymbol> local = methodsByName.get(methodName);
+        if (local != null) {
+            out.addAll(local);
+        }
+        if (superClass != null) {
+            for (MethodSymbol parent : superClass.findMethods(methodName)) {
+                boolean hidden = false;
+                for (MethodSymbol child : out) {
+                    if (child.sameParameterSignatureAs(parent)) {
+                        hidden = true;
+                        break;
+                    }
+                }
+                if (!hidden) {
+                    out.add(parent);
+                }
+            }
+        }
+        return out;
+    }
+
     public Optional<MethodSymbol> findDeclaredMethod(String methodName) {
-        return Optional.ofNullable(methodsByName.get(methodName));
+        List<MethodSymbol> local = methodsByName.get(methodName);
+        if (local == null || local.isEmpty()) {
+            return Optional.empty();
+        }
+        return Optional.of(local.get(0));
+    }
+
+    public List<MethodSymbol> findDeclaredMethods(String methodName) {
+        List<MethodSymbol> local = methodsByName.get(methodName);
+        if (local == null) {
+            return List.of();
+        }
+        return List.copyOf(local);
     }
 
     public List<MethodSymbol> methods() {

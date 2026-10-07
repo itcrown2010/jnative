@@ -205,6 +205,36 @@ static NSImage *jn_icon_for_kind(NSString *kind, BOOL isGroup) {
     return jn_symbol(@"doc", NSImageNameFolder);
 }
 
+/** Prefer OS file icon (NSWorkspace); fall back to kind heuristic. */
+static NSImage *jn_icon_for_row(NSString *path, NSString *kind, NSSize logical) {
+    if (path != nil && path.length > 0) {
+        NSImage *img = [[NSWorkspace sharedWorkspace] iconForFile:path];
+        if (img != nil) {
+            [img setSize:logical];
+            return img;
+        }
+    }
+    NSImage *fallback = jn_icon_for_kind(kind, NO);
+    if (fallback != nil) {
+        [fallback setSize:logical];
+    }
+    return fallback;
+}
+
+static NSInteger jn_tsv_field_count(NSString *raw) {
+    if (raw == nil || raw.length == 0) {
+        return 0;
+    }
+    NSInteger n = 1;
+    NSUInteger i;
+    for (i = 0; i < raw.length; i++) {
+        if ([raw characterAtIndex:i] == '\t') {
+            n++;
+        }
+    }
+    return n;
+}
+
 static NSTableCellView *jn_make_cell(NSString *ident, BOOL withIcon) {
     NSTableCellView *cell = [[NSTableCellView alloc] initWithFrame:NSMakeRect(0, 0, 280, 32)];
     cell.identifier = ident;
@@ -260,8 +290,16 @@ static NSTableCellView *jn_make_cell(NSString *ident, BOOL withIcon) {
         col = [tableColumn.identifier integerValue];
     }
     const char *raw = jnative_ui_item_text(self.peerId, (int32_t)row);
+    NSString *rawS = jn_ns_from_utf8(raw);
     NSString *value = jn_tsv_field(raw, col);
     NSString *kind = jn_tsv_field(raw, 1);
+    /* Optional trailing path field after visible columns for NSWorkspace icons. */
+    NSString *iconPath = nil;
+    NSInteger fields = jn_tsv_field_count(rawS);
+    NSInteger colCount = (NSInteger)[[tableView tableColumns] count];
+    if (fields > colCount) {
+        iconPath = jn_tsv_field(raw, (int32_t)(fields - 1));
+    }
     NSString *ident = (col == 0) ? @"jn.name" : @"jn.meta";
     NSTableCellView *cell = [tableView makeViewWithIdentifier:ident owner:nil];
     if (cell == nil) {
@@ -269,7 +307,8 @@ static NSTableCellView *jn_make_cell(NSString *ident, BOOL withIcon) {
     }
     cell.textField.stringValue = value;
     if (col == 0) {
-        cell.imageView.image = jn_icon_for_kind(kind, NO);
+        cell.imageView.image = jn_icon_for_row(iconPath, kind, NSMakeSize(16, 16));
+        [cell.imageView setContentTintColor:nil];
         cell.textField.textColor = [NSColor labelColor];
         cell.textField.font = [NSFont systemFontOfSize:13.0];
     } else {
@@ -818,16 +857,17 @@ int32_t jnative_ui_platform_create_control(int32_t peerId, int32_t kind, int32_t
         [scroll setAutohidesScrollers:YES];
         [scroll setBorderType:NSNoBorder];
         [scroll setDrawsBackground:YES];
-        [scroll setBackgroundColor:[NSColor controlBackgroundColor]];
+        [scroll setBackgroundColor:[NSColor textBackgroundColor]];
         NSTableView *table = [[NSTableView alloc] initWithFrame:scroll.bounds];
         [table setHeaderView:[[NSTableHeaderView alloc] init]];
         [table setUsesAlternatingRowBackgroundColors:YES];
         [table setColumnAutoresizingStyle:NSTableViewLastColumnOnlyAutoresizingStyle];
-        [table setRowHeight:32.0];
-        [table setIntercellSpacing:NSMakeSize(8.0, 3.0)];
+        [table setRowHeight:28.0];
+        [table setIntercellSpacing:NSMakeSize(6.0, 1.0)];
         [table setGridStyleMask:NSTableViewGridNone];
+        /* Plain/full-width — Inset style looked like gray card rows (demo-ish). */
         if (@available(macOS 11.0, *)) {
-            [table setStyle:NSTableViewStyleInset];
+            [table setStyle:NSTableViewStylePlain];
         }
         NSTableColumn *col = [[NSTableColumn alloc] initWithIdentifier:@"0"];
         [col setTitle:(kind == JN_UI_KIND_TABLEVIEW) ? @"Name" : @"Item"];
@@ -1323,4 +1363,135 @@ char *jnative_ui_platform_clipboard_get(void) {
     }
     const char *utf8 = s.UTF8String;
     return utf8 ? strdup(utf8) : NULL;
+}
+
+int32_t jnative_ui_platform_family(void) {
+    return 1;
+}
+
+int32_t jnative_ui_platform_get_scale_percent(int32_t windowId) {
+    if (!g_cocoa_active) {
+        return 100;
+    }
+    id obj = nil;
+    if (windowId > 0 && windowId < JN_UI_MAX) {
+        obj = g_peers[windowId];
+    }
+    NSWindow *win = nil;
+    if ([obj isKindOfClass:[NSWindow class]]) {
+        win = (NSWindow *)obj;
+    } else if ([obj isKindOfClass:[NSView class]]) {
+        win = [(NSView *)obj window];
+    }
+    if (win == nil) {
+        win = [NSApp keyWindow];
+    }
+    if (win == nil) {
+        return 100;
+    }
+    CGFloat s = win.backingScaleFactor;
+    if (s < 0.5) {
+        s = 1.0;
+    }
+    return (int32_t)(s * 100.0 + 0.5);
+}
+
+int32_t jnative_ui_platform_system_dark(void) {
+    if (!g_cocoa_active) {
+        return -1;
+    }
+    if (@available(macOS 10.14, *)) {
+        NSAppearance *a = NSApp.effectiveAppearance;
+        NSAppearanceName name =
+            [a bestMatchFromAppearancesWithNames:@[NSAppearanceNameAqua,
+                                                   NSAppearanceNameDarkAqua]];
+        if ([name isEqualToString:NSAppearanceNameDarkAqua]) {
+            return 1;
+        }
+        return 0;
+    }
+    return 0;
+}
+
+int32_t jnative_ui_platform_context_menu_show(int32_t menuId, int32_t screenX, int32_t screenY) {
+    if (!g_cocoa_active || menuId <= 0 || menuId >= JN_UI_MAX) {
+        return 0;
+    }
+    if (g_menu_target == nil) {
+        g_menu_target = [JnUiMenuTarget new];
+    }
+    NSMenu *menu = [[NSMenu alloc] initWithTitle:@""];
+    [menu setAutoenablesItems:NO];
+    int32_t n = jnative_ui_menu_child_count(menuId);
+    int32_t i;
+    for (i = 0; i < n; i++) {
+        int32_t itemId = jnative_ui_menu_child_at(menuId, i);
+        int32_t kind = jnative_ui_peer_kind(itemId);
+        const char *itext = jnative_ui_peer_text(itemId);
+        if (kind == JN_UI_KIND_SEPARATOR || (itext && strcmp(itext, "-") == 0)) {
+            [menu addItem:[NSMenuItem separatorItem]];
+            continue;
+        }
+        NSString *title = jn_ns_from_utf8(itext);
+        NSMenuItem *mi = [[NSMenuItem alloc] initWithTitle:title
+                                                    action:@selector(jnMenuAction:)
+                                             keyEquivalent:@""];
+        mi.target = g_menu_target;
+        mi.tag = itemId;
+        [menu addItem:mi];
+    }
+    NSPoint pt = NSMakePoint((CGFloat)screenX, (CGFloat)screenY);
+    NSScreen *screen = [NSScreen mainScreen];
+    if (screen != nil) {
+        CGFloat h = NSHeight(screen.frame);
+        pt.y = h - (CGFloat)screenY;
+    }
+    [menu popUpMenuPositioningItem:nil atLocation:pt inView:nil];
+    return 1;
+}
+
+void jnative_ui_platform_set_control_style(int32_t peerId, int32_t style) {
+    if (!g_cocoa_active || peerId <= 0 || peerId >= JN_UI_MAX) {
+        return;
+    }
+    id obj = g_peers[peerId];
+    if ([obj isKindOfClass:[NSButton class]]) {
+        NSButton *btn = (NSButton *)obj;
+        if (style == 1) {
+            /* Toolbar: compact, hover-revealed chrome (borderless). */
+            [btn setBordered:NO];
+            [btn setButtonType:NSButtonTypeMomentaryLight];
+            [btn setControlSize:NSControlSizeRegular];
+            [btn setFont:[NSFont systemFontOfSize:15.0 weight:NSFontWeightMedium]];
+            [btn setContentTintColor:[NSColor labelColor]];
+            [btn sizeToFit];
+            NSRect f = btn.frame;
+            if (f.size.width < 32.0) {
+                f.size.width = 32.0;
+            }
+            if (f.size.height < 28.0) {
+                f.size.height = 28.0;
+            }
+            [btn setFrame:f];
+        } else if (style == 2) {
+            /* Breadcrumb segment. */
+            [btn setBordered:NO];
+            [btn setButtonType:NSButtonTypeMomentaryLight];
+            [btn setFont:[NSFont systemFontOfSize:12.0 weight:NSFontWeightRegular]];
+            [btn setContentTintColor:[NSColor labelColor]];
+            [btn sizeToFit];
+        } else {
+            [btn setBordered:YES];
+            [btn setButtonType:NSButtonTypeMomentaryPushIn];
+            if (@available(macOS 14.0, *)) {
+                [btn setBezelStyle:NSBezelStyleFlexiblePush];
+            } else {
+                [btn setBezelStyle:NSBezelStyleRounded];
+            }
+        }
+    } else if ([obj isKindOfClass:[NSTextField class]] && style == 2) {
+        NSTextField *lab = (NSTextField *)obj;
+        [lab setFont:[NSFont systemFontOfSize:12.0]];
+        [lab setTextColor:[NSColor secondaryLabelColor]];
+    }
 }

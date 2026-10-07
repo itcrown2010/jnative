@@ -101,6 +101,14 @@ class KeyCombination {
         ctrl = 1;
         return this;
     }
+
+    /** Platform primary modifier: Command on macOS, Control elsewhere. Resolved at match time. */
+    KeyCombination withPrimary() {
+        shortcut = 1;
+        ctrl = 1;
+        meta = 0;
+        return this;
+    }
 }
 
 class UiNative {
@@ -298,6 +306,18 @@ class UiNative {
 
     @Native(symbol = "jnative_ui_events_dispatched")
     static native int eventsDispatched();
+
+    @Native(symbol = "jnative_ui_platform_family")
+    static native int platformFamily();
+
+    @Native(symbol = "jnative_ui_get_scale_percent")
+    static native int getScalePercent(int windowId);
+
+    @Native(symbol = "jnative_ui_system_dark")
+    static native int systemDark();
+
+    @Native(symbol = "jnative_ui_context_menu_show")
+    static native int contextMenuShow(int menuId, int screenX, int screenY);
 
     @Native(symbol = "jnative_ui_event_arg0")
     static native int eventArg0();
@@ -816,9 +836,12 @@ class Application {
 }
 
 class Component {
+    static Component lastClicked;
     int nativeId;
     Component parent;
     String text;
+    /** Optional app-defined payload (e.g. breadcrumb path). Not shown in UI. */
+    String userData;
     int visible;
     int enabled;
     int disposed;
@@ -855,6 +878,7 @@ class Component {
         enabled = 1;
         disposed = 0;
         text = "";
+        userData = "";
         width = 100;
         height = 32;
         minWidth = 0;
@@ -1080,10 +1104,19 @@ class Component {
         if (disposed != 0) {
             return;
         }
+        lastClicked = this;
         if (clickListener != null) {
             clickListener.run();
         }
         fireAction();
+    }
+
+    void setUserData(String data) {
+        userData = data;
+    }
+
+    String getUserData() {
+        return userData;
     }
 
     void fireAction() {
@@ -1787,8 +1820,11 @@ class Label extends Control {
 }
 
 class Button extends Control {
+    int chromeStyle;
+
     Button(String t) {
         text = t;
+        chromeStyle = 0;
         /* Slot size for layout; Cocoa keeps intrinsic bezel via fittingSize. */
         prefHeight = 28;
         height = 28;
@@ -1815,16 +1851,51 @@ class Button extends Control {
         return w;
     }
 
+    /**
+     * Chrome styles (platform peers): 0=default push, 1=toolbar, 2=breadcrumb.
+     * Hit target for toolbar stays ~32–36 logical px.
+     */
+    void setChromeStyle(int style) {
+        ensureAlive("Button.setChromeStyle");
+        chromeStyle = style;
+        if (style == 1) {
+            prefWidth = 34;
+            width = 34;
+            prefHeight = 32;
+            height = 32;
+        } else if (style == 2) {
+            prefHeight = 24;
+            height = 24;
+            prefWidth = buttonPrefWidth(text);
+            if (prefWidth > 160) {
+                prefWidth = 160;
+            }
+            width = prefWidth;
+        }
+        if (nativeId > 0) {
+            UiNative.setValueI32(nativeId, style);
+        }
+        requestLayout();
+    }
+
     void setText(String t) {
         ensureAlive("Button.setText");
         if (t == null) {
             t = "";
         }
         text = t;
-        prefWidth = buttonPrefWidth(text);
-        width = prefWidth;
+        if (chromeStyle == 1) {
+            prefWidth = 34;
+            width = 34;
+        } else {
+            prefWidth = buttonPrefWidth(text);
+            width = prefWidth;
+        }
         if (nativeId > 0) {
             UiNative.setText(nativeId, text);
+            if (chromeStyle != 0) {
+                UiNative.setValueI32(nativeId, chromeStyle);
+            }
         }
         requestLayout();
     }
@@ -2313,6 +2384,11 @@ class UiStrings {
     }
 }
 
+/** Optional per-row absolute path appended to TSV for native file icons. */
+interface TableIconPathProvider<T> {
+    String iconPath(T row);
+}
+
 class TableView<T> extends Control {
     ListModel<T> model;
     ArrayList<ColumnRenderer<T>> columns;
@@ -2322,6 +2398,7 @@ class TableView<T> extends Control {
     int sortColumn;
     int sortAsc;
     int visibleRows;
+    TableIconPathProvider<T> iconPaths;
 
     TableView() {
         model = null;
@@ -2332,6 +2409,7 @@ class TableView<T> extends Control {
         sortColumn = -1;
         sortAsc = 1;
         visibleRows = 30;
+        iconPaths = null;
         width = 500;
         height = 300;
         prefWidth = 500;
@@ -2339,6 +2417,12 @@ class TableView<T> extends Control {
         nativeId = UiNative.createControl(15, 0, "");
         UiHandleRegistry.put(nativeId, this);
         UiNative.setVisibleRows(nativeId, visibleRows);
+    }
+
+    void setIconPathProvider(TableIconPathProvider<T> provider) {
+        ensureAlive("TableView.setIconPathProvider");
+        iconPaths = provider;
+        syncRowsNative();
     }
 
     void addColumn(ColumnRenderer<T> col) {
@@ -2414,6 +2498,13 @@ class TableView<T> extends Control {
             }
             row = row + cell;
             c = c + 1;
+        }
+        if (iconPaths != null) {
+            T item = model.get(modelIndex);
+            String path = iconPaths.iconPath(item);
+            if (path != null && path.length() > 0) {
+                row = row + "\t" + path;
+            }
         }
         return row;
     }
@@ -2828,6 +2919,12 @@ class ContextMenu extends Menu {
     ContextMenu() {
         super("context");
     }
+
+    /** Show at screen logical coordinates (top-left origin). macOS: native popup. */
+    int showAt(int screenX, int screenY) {
+        ensureAlive("ContextMenu.showAt");
+        return UiNative.contextMenuShow(nativeId, screenX, screenY);
+    }
 }
 
 class Dialogs {
@@ -3104,6 +3201,713 @@ class Window extends Component {
         Application.onWindowClosed();
     }
 }
+
+
+class Theme {
+    static int SPACE_1 = 4;
+    static int SPACE_2 = 8;
+    static int SPACE_3 = 12;
+    static int SPACE_4 = 16;
+    static int SPACE_5 = 24;
+    static int TOOLBAR_HEIGHT = 44;
+    static int STATUS_HEIGHT = 24;
+    static int SIDEBAR_ITEM_HEIGHT = 30;
+    static int TABLE_ROW_HEIGHT = 28;
+    static int MODE_SYSTEM = 0;
+    static int MODE_LIGHT = 1;
+    static int MODE_DARK = 2;
+    static int appearanceMode = 0;
+    static String BACKGROUND = "background";
+    static String SURFACE = "surface";
+    static String TEXT_PRIMARY = "textPrimary";
+    static String ACCENT = "accent";
+    static String SELECTION = "selection";
+    static void setAppearanceMode(int mode) { appearanceMode = mode; }
+    static int getAppearanceMode() { return appearanceMode; }
+    static int isDarkEffective() {
+        if (appearanceMode == MODE_DARK) { return 1; }
+        if (appearanceMode == MODE_LIGHT) { return 0; }
+        int sys = UiNative.systemDark();
+        if (sys == 1) { return 1; }
+        return 0;
+    }
+}
+class UiThread {
+    static void assertCurrent() { Application.checkUiThread("UiThread.assertCurrent"); }
+    static void assertNotCurrent() {
+        long tid = Thread.currentThread().id();
+        if (tid == Application.uiThreadId) {
+            throw new UiThreadViolationException("operation must not run on application thread");
+        }
+    }
+    static int isCurrent() {
+        if (Thread.currentThread().id() == Application.uiThreadId) { return 1; }
+        return 0;
+    }
+    static void runLater(Runnable r) { Application.invokeLater(r); }
+}
+class Point {
+    int x;
+    int y;
+
+    Point(int px, int py) {
+        x = px;
+        y = py;
+    }
+}
+
+class Size {
+    int width;
+    int height;
+
+    Size(int w, int h) {
+        width = w;
+        height = h;
+    }
+}
+
+class Rect {
+    int x;
+    int y;
+    int width;
+    int height;
+
+    Rect(int rx, int ry, int rw, int rh) {
+        x = rx;
+        y = ry;
+        width = rw;
+        height = rh;
+    }
+
+    int contains(int px, int py) {
+        if (px < x) {
+            return 0;
+        }
+        if (py < y) {
+            return 0;
+        }
+        if (px >= x + width) {
+            return 0;
+        }
+        if (py >= y + height) {
+            return 0;
+        }
+        return 1;
+    }
+}
+
+class Insets {
+    int top;
+    int right;
+    int bottom;
+    int left;
+
+    Insets(int t, int r, int b, int l) {
+        top = t;
+        right = r;
+        bottom = b;
+        left = l;
+    }
+
+    static Insets uniform(int all) {
+        return new Insets(all, all, all, all);
+    }
+}
+
+class Dpi {
+    static int scalePercentForId(int windowNativeId) {
+        int p = UiNative.getScalePercent(windowNativeId);
+        if (p < 50) {
+            return 100;
+        }
+        return p;
+    }
+
+    static int toDevice(int logical, int scalePercent) {
+        return logical * scalePercent / 100;
+    }
+
+    static int toLogical(int device, int scalePercent) {
+        if (scalePercent <= 0) {
+            return device;
+        }
+        return device * 100 / scalePercent;
+    }
+}
+
+class Toolbar extends HBox {
+    Toolbar() {
+        spacing = Theme.SPACE_2;
+        padding = Theme.SPACE_2;
+        prefHeight = Theme.TOOLBAR_HEIGHT;
+        height = Theme.TOOLBAR_HEIGHT;
+    }
+
+    Button addToolButton(String label, Runnable action) {
+        Button b = new Button(label);
+        b.setChromeStyle(1);
+        if (action != null) {
+            b.onClick(action);
+        }
+        add(b);
+        return b;
+    }
+
+
+    void addSeparatorGap() {
+        Label gap = new Label(" ");
+        gap.setPrefSize(8, 24);
+        add(gap);
+    }
+
+    void addFlexibleSpace() {
+        Label flex = new Label("");
+        flex.setPrefSize(12, 24);
+        add(flex);
+    }
+}
+
+interface BreadcrumbNavigate {
+    void go(String path);
+}
+
+/**
+ * Breadcrumb address control. Normal: clickable segments. Edit: TextField (Cmd/Ctrl+L).
+ */
+class BreadcrumbBar extends HBox {
+    ArrayList<String> segments;
+    ArrayList<String> paths;
+    BreadcrumbNavigate onNavigate;
+    TextField editor;
+    int editing;
+    HBox crumbs;
+
+    BreadcrumbBar() {
+        spacing = 2;
+        padding = 4;
+        segments = new ArrayList<String>();
+        paths = new ArrayList<String>();
+        editing = 0;
+        crumbs = new HBox();
+        crumbs.spacing = 2;
+        crumbs.padding = 0;
+        editor = new TextField("");
+        editor.setPrefSize(480, 26);
+        BreadcrumbBar.host = this;
+        editor.onKeyDown(ev -> {
+            BreadcrumbBar.onEditorKeyStatic(ev);
+        });
+        add(crumbs);
+        prefHeight = 32;
+        height = 32;
+    }
+
+    void setOnNavigate(BreadcrumbNavigate nav) {
+        onNavigate = nav;
+    }
+
+    void setPath(String absolutePath) {
+        ensureAlive("BreadcrumbBar.setPath");
+        segments.clear();
+        paths.clear();
+        if (absolutePath == null || absolutePath.length() == 0) {
+            rebuildCrumbs();
+            return;
+        }
+        String p = absolutePath;
+        if (p.length() >= 2 && p.charAt(1) == 58) {
+            segments.add(p.substring(0, 2));
+            paths.add(p.substring(0, 2) + "\\");
+            if (p.length() > 3) {
+                splitTail(p.substringFrom(3), paths.get(0), "\\");
+            }
+        } else {
+            segments.add("/");
+            paths.add("/");
+            if (p.length() > 1) {
+                String rest = p;
+                if (rest.charAt(0) == 47) {
+                    rest = rest.substringFrom(1);
+                }
+                splitTail(rest, "/", "/");
+            }
+        }
+        if (editing != 0) {
+            editor.setText(absolutePath);
+        } else {
+            rebuildCrumbs();
+        }
+    }
+
+    void splitTail(String rest, String prefix, String sep) {
+        int start = 0;
+        String built = prefix;
+        while (start < rest.length()) {
+            int slash = rest.indexOfFrom(sep, start);
+            int end = slash;
+            if (end < 0) {
+                end = rest.length();
+            }
+            String part = rest.substring(start, end);
+            if (part.length() > 0) {
+                if (built.equals("/")) {
+                    built = "/" + part;
+                } else if (built.endsWith(sep)) {
+                    built = built + part;
+                } else {
+                    built = built + sep + part;
+                }
+                segments.add(part);
+                paths.add(built);
+            }
+            if (slash < 0) {
+                start = rest.length();
+            } else {
+                start = slash + 1;
+            }
+        }
+    }
+
+    void rebuildCrumbs() {
+        if (editing != 0) {
+            clear();
+            editing = 0;
+            add(crumbs);
+        }
+        crumbs.clear();
+        int i = 0;
+        while (i < segments.size()) {
+            if (i > 0) {
+                Label sep = new Label(">");
+                sep.setPrefSize(14, 22);
+                crumbs.add(sep);
+            }
+            addCrumbButton(segments.get(i), paths.get(i));
+            i = i + 1;
+        }
+        requestLayout();
+    }
+
+    /** Click uses Component.lastClicked + userData (no lambda captures — IR-safe). */
+    void addCrumbButton(String label, String target) {
+        Button seg = new Button(label);
+        seg.setChromeStyle(2);
+        seg.setUserData(target);
+        BreadcrumbBar.host = this;
+        seg.onClick(() -> {
+            BreadcrumbBar.onSegmentClick();
+        });
+        crumbs.add(seg);
+    }
+
+    static BreadcrumbBar host;
+
+    static void onSegmentClick() {
+        if (host == null || Component.lastClicked == null) {
+            return;
+        }
+        String path = Component.lastClicked.getUserData();
+        host.fireNav(path);
+    }
+
+    void fireNav(String path) {
+        if (onNavigate != null && path != null) {
+            onNavigate.go(path);
+        }
+    }
+
+    void beginEdit(String currentPath) {
+        editing = 1;
+        clear();
+        if (currentPath != null) {
+            editor.setText(currentPath);
+        }
+        add(editor);
+        if (editor.nativeId > 0) {
+            UiNative.focus(editor.nativeId);
+        }
+        requestLayout();
+    }
+
+    void endEdit(int commit) {
+        String text = editor.getText();
+        editing = 0;
+        clear();
+        add(crumbs);
+        if (commit != 0 && onNavigate != null && text != null && text.length() > 0) {
+            onNavigate.go(text);
+        } else {
+            rebuildCrumbs();
+        }
+    }
+
+    void onEditorKey(KeyEvent ev) {
+        if (ev == null) {
+            return;
+        }
+        if (ev.keyCode == 13) {
+            endEdit(1);
+        }
+        if (ev.keyCode == 27) {
+            endEdit(0);
+        }
+    }
+
+    static void onEditorKeyStatic(KeyEvent ev) {
+        if (host != null) {
+            host.onEditorKey(ev);
+        }
+    }
+
+    int isEditing() {
+        return editing;
+    }
+}
+
+
+class FocusManager {
+    static Component focused;
+
+    static void requestFocus(Component c) {
+        if (c == null || c.nativeId <= 0) {
+            return;
+        }
+        focused = c;
+        UiNative.focus(c.nativeId);
+    }
+}
+
+class VirtualListMetrics {
+    int dataSize;
+    int rowHeight;
+    int viewportHeight;
+    int overscan;
+    int firstVisible;
+    int visibleCount;
+    int poolSize;
+
+    VirtualListMetrics() {
+        dataSize = 0;
+        rowHeight = 28;
+        viewportHeight = 400;
+        overscan = 4;
+        firstVisible = 0;
+        visibleCount = 0;
+        poolSize = 0;
+        recompute();
+    }
+
+    void setDataSize(int n) {
+        dataSize = n;
+        recompute();
+    }
+
+    void setViewportHeight(int h) {
+        viewportHeight = h;
+        recompute();
+    }
+
+    void recompute() {
+        int rows = 1;
+        if (rowHeight > 0) {
+            rows = viewportHeight / rowHeight + 1;
+        }
+        visibleCount = rows + overscan * 2;
+        if (visibleCount > dataSize) {
+            visibleCount = dataSize;
+        }
+        if (visibleCount < 0) {
+            visibleCount = 0;
+        }
+        poolSize = visibleCount;
+        if (poolSize < 8 && dataSize > 0) {
+            poolSize = 8;
+        }
+        if (poolSize > dataSize) {
+            poolSize = dataSize;
+        }
+    }
+}
+
+class SystemIcons {
+    static String BACK = "BACK";
+    static String FORWARD = "FORWARD";
+    static String UP = "UP";
+    static String REFRESH = "REFRESH";
+    static String SEARCH = "SEARCH";
+    static String FOLDER = "FOLDER";
+    static String FILE = "FILE";
+    static String COPY = "COPY";
+    static String CUT = "CUT";
+    static String PASTE = "PASTE";
+    static String DELETE = "DELETE";
+}
+
+interface CommandExecute {
+    void run();
+}
+
+class Command {
+    String id;
+    String label;
+    int shortcutKey;
+    int shortcutPrimary;
+    int enabled;
+    ArrayList<Component> boundControls;
+    CommandExecute onExecute;
+
+    Command(String cid, String lab) {
+        id = cid;
+        label = lab;
+        shortcutKey = 0;
+        shortcutPrimary = 0;
+        enabled = 1;
+        boundControls = new ArrayList<Component>();
+        onExecute = null;
+    }
+
+    void setPrimaryShortcut(int keyCode) {
+        shortcutKey = keyCode;
+        shortcutPrimary = 1;
+    }
+
+    void setShortcut(KeyCombination kc) {
+        if (kc == null) {
+            return;
+        }
+        shortcutKey = kc.keyCode;
+        if (kc.shortcut != 0) {
+            shortcutPrimary = 1;
+        } else {
+            shortcutPrimary = 0;
+        }
+    }
+
+    void setExecute(CommandExecute handler) {
+        onExecute = handler;
+        CommandRegistry.remember(this);
+    }
+
+    void execute() {
+        if (enabled == 0) {
+            return;
+        }
+        if (onExecute != null) {
+            onExecute.run();
+        }
+    }
+
+    void bindButton(Button b) {
+        if (b == null) {
+            return;
+        }
+        boundControls.add(b);
+        b.setText(label);
+        b.setUserData(id);
+        CommandRegistry.remember(this);
+        b.onClick(() -> {
+            CommandRegistry.executeByButton();
+        });
+    }
+
+    void setEnabled(int on) {
+        enabled = on;
+        int i = 0;
+        while (i < boundControls.size()) {
+            Component c = boundControls.get(i);
+            if (on != 0) {
+                c.setEnabled(true);
+            } else {
+                c.setEnabled(false);
+            }
+            i = i + 1;
+        }
+    }
+}
+
+class CommandRegistry {
+    static ArrayList<Command> all;
+    static String lastExecutedId;
+
+    static void remember(Command c) {
+        if (all == null) {
+            all = new ArrayList<Command>();
+        }
+        int i = 0;
+        while (i < all.size()) {
+            if (all.get(i) == c) {
+                return;
+            }
+            i = i + 1;
+        }
+        all.add(c);
+    }
+
+    static void executeByButton() {
+        if (Component.lastClicked == null) {
+            return;
+        }
+        String id = Component.lastClicked.getUserData();
+        Command c = find(id);
+        if (c != null) {
+            lastExecutedId = id;
+            c.execute();
+        }
+    }
+
+    static Command find(String id) {
+        if (all == null || id == null) {
+            return null;
+        }
+        int i = 0;
+        while (i < all.size()) {
+            Command c = all.get(i);
+            if (id.equals(c.id)) {
+                return c;
+            }
+            i = i + 1;
+        }
+        return null;
+    }
+
+    static int handleShortcut(KeyEvent ev) {
+        if (all == null || ev == null) {
+            return 0;
+        }
+        int primary = 0;
+        if (UiNative.platformFamily() == 1) {
+            if (ev.metaDown != 0) {
+                primary = 1;
+            }
+        } else {
+            if (ev.ctrlDown != 0) {
+                primary = 1;
+            }
+        }
+        int code = ev.keyCode;
+        if (code >= 97 && code <= 122) {
+            code = code - 32;
+        }
+        int i = 0;
+        while (i < all.size()) {
+            Command c = all.get(i);
+            if (c.shortcutPrimary != 0 && primary != 0 && code == c.shortcutKey) {
+                lastExecutedId = c.id;
+                c.execute();
+                return 1;
+            }
+            i = i + 1;
+        }
+        return 0;
+    }
+}
+
+class ShortcutManager {
+    static int dispatch(KeyEvent ev) {
+        return CommandRegistry.handleShortcut(ev);
+    }
+}
+
+interface SearchQueryListener {
+    void run();
+}
+
+class SearchField extends HBox {
+    TextField field;
+    Button clearBtn;
+    String placeholder;
+    int changeGen;
+    SearchQueryListener queryListener;
+
+    SearchField() {
+        spacing = 4;
+        padding = 2;
+        placeholder = "Search";
+        changeGen = 0;
+        queryListener = null;
+        field = new TextField("");
+        field.setPrefSize(180, 26);
+        clearBtn = new Button("x");
+        clearBtn.setChromeStyle(1);
+        clearBtn.setPrefSize(28, 26);
+        SearchField.active = this;
+        clearBtn.onClick(() -> {
+            SearchField.clearActive();
+        });
+        field.onChange(ev -> {
+            SearchField.bumpActive();
+        });
+        field.onKeyDown(ev -> {
+            SearchField.onKeyActive(ev);
+        });
+        add(field);
+        add(clearBtn);
+        prefHeight = 30;
+        height = 30;
+    }
+
+    static SearchField active;
+
+    static void clearActive() {
+        if (active != null) {
+            active.clear();
+        }
+    }
+
+    static void bumpActive() {
+        if (active != null) {
+            active.changeGen = active.changeGen + 1;
+            if (active.queryListener != null) {
+                active.queryListener.run();
+            }
+        }
+    }
+
+    static void onKeyActive(KeyEvent ev) {
+        if (active == null || ev == null) {
+            return;
+        }
+        if (ev.keyCode == KeyCode.ESCAPE) {
+            active.clear();
+        }
+    }
+
+    void setPlaceholder(String p) {
+        placeholder = p;
+    }
+
+    void setOnQueryChanged(SearchQueryListener listener) {
+        queryListener = listener;
+    }
+
+    int getChangeGen() {
+        return changeGen;
+    }
+
+    String getQuery() {
+        return field.getText();
+    }
+
+    void setQuery(String q) {
+        if (q == null) {
+            q = "";
+        }
+        field.setText(q);
+    }
+
+    void clear() {
+        field.setText("");
+        changeGen = changeGen + 1;
+        if (queryListener != null) {
+            queryListener.run();
+        }
+    }
+
+    void focusField() {
+        FocusManager.requestFocus(field);
+    }
+}
+
 
 class UiTest {
     static void click(Button b) {

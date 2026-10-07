@@ -406,6 +406,38 @@ class UiAdvancedEndToEndTest {
     }
 
     @Test
+    void toolbarAndBreadcrumbBar() throws Exception {
+        assertEquals("1\n4\n", run("""
+                import jnative.ui.*;
+                class Nav implements BreadcrumbNavigate {
+                    static String last;
+                    void go(String path) { last = path; }
+                }
+                public class Main {
+                    public static void main(String[] args) {
+                        Application.setHeadless(1);
+                        Application app = new Application();
+                        Window window = new Window("T", 640, 400);
+                        Toolbar tb = new Toolbar();
+                        Button b = tb.addToolButton("←", () -> { });
+                        BreadcrumbBar crumbs = new BreadcrumbBar();
+                        crumbs.setOnNavigate(new Nav());
+                        crumbs.setPath("/Users/demo/Documents");
+                        VBox root = new VBox();
+                        root.add(tb);
+                        root.add(crumbs);
+                        window.setContent(root);
+                        window.show();
+                        System.out.println(b.chromeStyle);
+                        System.out.println(crumbs.segments.size());
+                        UiTest.closeWindow(window);
+                        app.run();
+                    }
+                }
+                """, "UiToolbarBreadcrumb"));
+    }
+
+    @Test
     void millionListNoRowComponents() throws Exception {
         assertEquals("0\n1000000\n", run("""
                 import jnative.ui.*;

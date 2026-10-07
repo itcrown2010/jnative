@@ -488,3 +488,28 @@ int32_t jnative_ui_platform_dialog_message(int32_t windowId, int32_t type,
 char *jnative_ui_platform_dialog_file(int32_t windowId, int32_t save, const char *filter) {
     (void)windowId; (void)save; (void)filter; return NULL;
 }
+
+int32_t jnative_ui_platform_family(void) {
+    return 2;
+}
+
+int32_t jnative_ui_platform_get_scale_percent(int32_t windowId) {
+    (void)windowId;
+    return 100;
+}
+
+int32_t jnative_ui_platform_system_dark(void) {
+    return -1;
+}
+
+int32_t jnative_ui_platform_context_menu_show(int32_t menuId, int32_t screenX, int32_t screenY) {
+    (void)menuId;
+    (void)screenX;
+    (void)screenY;
+    return 0;
+}
+
+void jnative_ui_platform_set_control_style(int32_t id, int32_t style) {
+    (void)id;
+    (void)style;
+}

@@ -137,6 +137,27 @@ public final class StdlibIncluder {
                 || sourceText.contains("new CodeEditor(");
     }
 
+    public static boolean needsMath(String sourceText) {
+        if (sourceText == null) {
+            return false;
+        }
+        if (sourceText.contains("// JNative Math stdlib")) {
+            return false;
+        }
+        return sourceText.contains("Math.")
+                || sourceText.contains("Math ")
+                || sourceText.contains("(Math)")
+                || sourceText.contains("jnative.lang.Math")
+                || sourceText.contains("jnative.math");
+    }
+
+    public static String prependMathStdlib(String userSource) throws IOException {
+        if (userSource.contains("// JNative Math stdlib")) {
+            return userSource;
+        }
+        return load("stdlib/math/MathLib.java") + "\n\n" + userSource;
+    }
+
     public static boolean needsCollections(String sourceText) {
         if (sourceText == null) {
             return false;
@@ -320,7 +341,6 @@ public final class StdlibIncluder {
                 || sourceText.contains("BuildManager")
                 || sourceText.contains("StudioSettings")
                 || sourceText.contains("StudioDiagnostic")
-                || sourceText.contains("CommandRegistry")
                 || sourceText.contains("WorkspaceIndex")
                 || sourceText.contains("CompletionService")
                 || sourceText.contains("CompletionItem")
@@ -548,10 +568,14 @@ public final class StdlibIncluder {
         boolean wantCrypto = needsCrypto(userSource) || wantWeb || needsHttp(userSource) || needsHttp2(userSource);
         boolean wantRpc = needsRpc(userSource);
         boolean wantAsync = needsAsync(userSource) || wantWeb || wantDatabase || wantCrypto || wantBrowser || wantRpc;
+        boolean wantMath = needsMath(userSource);
         // Advanced UI / Graphics / Editor use ArrayList / Function from collections.
         if (needsCollections(text) || wantUi || wantGraphics || wantEditor || wantJson || wantIo || wantStudio
                 || wantAsync || wantDatabase || wantCrypto || wantRpc) {
             text = prependCollectionsStdlib(text);
+        }
+        if (wantMath || needsMath(text)) {
+            text = prependMathStdlib(text);
         }
         if (wantAsync) {
             text = insertAsyncStdlib(text);

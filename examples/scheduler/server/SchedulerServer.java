@@ -49,7 +49,8 @@ public class SchedulerServer {
         app.futureGet("/api/search/search", new SearchHandler(Sch.loop));
         app.get("/api/stream", new StreamHandler());
 
-        ReminderScheduler.start(Sch.loop);
+        /* Reminders: EventLoop timer + async DB (no FutureBlocker on the loop, no off-loop SQLite). */
+        ReminderScheduler.start();
 
         System.out.println("JNative Scheduler on http://127.0.0.1:18400");
         System.out.println("Demo: demo@jnative.dev / demo1234");
@@ -65,6 +66,8 @@ class Sch {
     static RateLimiter loginLimiter;
     static long hubSeq;
     static String hubPayload;
+    static ArrayList<Object> hubLog;
+    static HashSet<String> firedReminders;
     static long requestSeq;
 }
 
@@ -155,6 +158,7 @@ class SchSeed {
         FutureBlocker.blockingWait(q);
         Object existing = q.getValue();
         if (existing != null) {
+            ensureExtraCalendarsAndSamples(SchNum.parseLong((String) existing));
             return;
         }
         long now = AsyncClockNative.wallMillis();
@@ -175,27 +179,89 @@ class SchSeed {
         insertCalendar(userId, "Personal", "#3B82F6", 1, now);
         insertCalendar(userId, "Work", "#10B981", 0, now);
         insertCalendar(userId, "Family", "#F59E0B", 0, now);
-
-        ArrayList<Object> cp = new ArrayList<Object>();
-        cp.add(CryptoParse.longToString(userId));
-        JnFuture cq = Sch.db.queryOne("SELECT id FROM calendars WHERE owner_id=? AND is_default=1", cp, new IdMapper());
-        FutureBlocker.blockingWait(cq);
-        long calId = SchNum.parseLong((String) cq.getValue());
-
-        long day = 86400000L;
-        long tomorrow10 = startOfTodayUtc() + day + 10L * 3600000L;
-        insertEvent(calId, "客户会议", "准备报价与演示", "会议室 A", tomorrow10, tomorrow10 + 3600000L, "", 10, now);
-        insertEvent(calId, "Weekly Sync", "", "", tomorrow10 + day, tomorrow10 + day + 1800000L, "WEEKLY", 15, now);
+        ensureExtraCalendarsAndSamples(userId);
 
         ArrayList<Object> t = new ArrayList<Object>();
         t.add(CryptoParse.longToString(userId));
         t.add("准备报价");
         t.add("客户会议材料");
-        t.add(CryptoParse.longToString(tomorrow10 - 3600000L));
+        t.add(CryptoParse.longToString(startOfLocalDay() + 86400000L - 3600000L));
         t.add(TaskPriority.HIGH);
         t.add(TaskStatus.OPEN);
         t.add(CryptoParse.longToString(now));
         SchDb.exec("INSERT INTO tasks(user_id, title, description, due_at, priority, status, created_at) VALUES (?,?,?,?,?,?,?)", t);
+    }
+
+    /** Ensure Personal/Work/Family exist with distinct colors and a few sample events. */
+    static void ensureExtraCalendarsAndSamples(long userId) {
+        long now = AsyncClockNative.wallMillis();
+        long personal = calendarIdByName(userId, "Personal");
+        long work = calendarIdByName(userId, "Work");
+        long family = calendarIdByName(userId, "Family");
+        if (personal <= 0) {
+            insertCalendar(userId, "Personal", "#3B82F6", 1, now);
+            personal = calendarIdByName(userId, "Personal");
+        }
+        if (work <= 0) {
+            insertCalendar(userId, "Work", "#10B981", 0, now);
+            work = calendarIdByName(userId, "Work");
+        }
+        if (family <= 0) {
+            insertCalendar(userId, "Family", "#F59E0B", 0, now);
+            family = calendarIdByName(userId, "Family");
+        }
+        long day0 = startOfLocalDay();
+        long day = 86400000L;
+        if (countEvents(personal) == 0 && personal > 0) {
+            insertEvent(personal, "客户会议", "准备报价与演示", "会议室 A",
+                    day0 + day + 10L * 3600000L, day0 + day + 11L * 3600000L, "", 10, now);
+            insertEvent(personal, "Weekly Sync", "", "",
+                    day0 + 2 * day + 9L * 3600000L, day0 + 2 * day + 9L * 3600000L + 1800000L, "WEEKLY", 15, now);
+        }
+        if (countEvents(work) == 0 && work > 0) {
+            insertEvent(work, "设计评审", "产品评审会", "Zoom",
+                    day0 + day + 14L * 3600000L, day0 + day + 15L * 3600000L, "", 10, now);
+            insertEvent(work, "Sprint Planning", "", "",
+                    day0 + 3 * day + 10L * 3600000L, day0 + 3 * day + 12L * 3600000L, "", 15, now);
+        }
+        if (countEvents(family) == 0 && family > 0) {
+            insertEvent(family, "晚餐约会", "", "家",
+                    day0 + day + 18L * 3600000L, day0 + day + 20L * 3600000L, "", 30, now);
+        }
+    }
+
+    static long calendarIdByName(long userId, String name) {
+        ArrayList<Object> p = new ArrayList<Object>();
+        p.add(CryptoParse.longToString(userId));
+        p.add(name);
+        JnFuture q = Sch.db.queryOne("SELECT id FROM calendars WHERE owner_id=? AND name=?", p, new IdMapper());
+        FutureBlocker.blockingWait(q);
+        if (q.getValue() == null) {
+            return 0;
+        }
+        return SchNum.parseLong((String) q.getValue());
+    }
+
+    static long countEvents(long calendarId) {
+        if (calendarId <= 0) {
+            return 0;
+        }
+        ArrayList<Object> p = new ArrayList<Object>();
+        p.add(CryptoParse.longToString(calendarId));
+        JnFuture q = Sch.db.queryOne("SELECT COUNT(*) FROM events WHERE calendar_id=?", p, new IdMapper());
+        FutureBlocker.blockingWait(q);
+        if (q.getValue() == null) {
+            return 0;
+        }
+        return SchNum.parseLong((String) q.getValue());
+    }
+
+    static long startOfLocalDay() {
+        /* Approximate local midnight as UTC+8 for demo seed (Asia/Shanghai). */
+        long now = AsyncClockNative.wallMillis();
+        long offset = 8L * 3600000L;
+        long local = now + offset;
+        return (local - (local % 86400000L)) - offset;
     }
 
     static long startOfTodayUtc() {
@@ -300,6 +366,13 @@ class SchAuth {
     static void publish(String type, String json) {
         Sch.hubSeq = Sch.hubSeq + 1;
         Sch.hubPayload = "{\"seq\":" + Sch.hubSeq + ",\"type\":\"" + type + "\",\"data\":" + json + "}";
+        if (Sch.hubLog == null) {
+            Sch.hubLog = new ArrayList<Object>();
+        }
+        Sch.hubLog.add(Sch.hubPayload);
+        while (Sch.hubLog.size() > 64) {
+            Sch.hubLog.removeAt(0);
+        }
     }
 
     static void err(WebContext ctx, int status, String code, String message, String requestId) {
@@ -334,11 +407,51 @@ class StreamHandler implements WebHandler {
         if (since != null && since.length() > 0) {
             s = SchNum.parseLong(since);
         }
-        if (Sch.hubSeq > s && Sch.hubPayload.length() > 0) {
+        if (Sch.hubLog != null) {
+            int i = 0;
+            int found = 0;
+            while (i < Sch.hubLog.size() && found == 0) {
+                String payload = (String) Sch.hubLog.get(i);
+                long seq = extractHubSeq(payload);
+                if (seq > s) {
+                    ctx.jsonString(payload);
+                    found = 1;
+                }
+                i = i + 1;
+            }
+            if (found != 0) {
+                return;
+            }
+        } else if (Sch.hubSeq > s && Sch.hubPayload != null && Sch.hubPayload.length() > 0) {
             ctx.jsonString(Sch.hubPayload);
-        } else {
-            ctx.jsonString("{\"seq\":" + Sch.hubSeq + ",\"type\":\"HEARTBEAT\",\"data\":{}}");
+            return;
         }
+        ctx.jsonString("{\"seq\":" + Sch.hubSeq + ",\"type\":\"HEARTBEAT\",\"data\":{}}");
+    }
+
+    static long extractHubSeq(String payload) {
+        if (payload == null) {
+            return 0;
+        }
+        int a = payload.indexOf("\"seq\":");
+        if (a < 0) {
+            return 0;
+        }
+        int b = a + 6;
+        int c = b;
+        int digit = 1;
+        while (c < payload.length() && digit != 0) {
+            int ch = payload.charAt(c);
+            if (ch < 48 || ch > 57) {
+                digit = 0;
+            } else {
+                c = c + 1;
+            }
+        }
+        if (c <= b) {
+            return 0;
+        }
+        return SchNum.parseLong(payload.substring(b, c));
     }
 }
 
@@ -434,12 +547,21 @@ class MeHandler implements AsyncWebHandler {
             SchAuth.err(ctx, 401, "AUTH_REQUIRED", "login required", rid);
             return JnFuture.completed(loop, null);
         }
-        UserDto dto = new UserDto();
-        dto.id = user.id;
-        dto.email = user.email;
-        dto.displayName = user.displayName;
-        dto.timezone = user.timezone;
-        ctx.jsonString(SchJson.user(dto));
+        Session session = SchAuth.load(ctx);
+        String csrf = session.getString("csrf");
+        if (csrf == null || csrf.length() == 0) {
+            csrf = "csrf-" + CryptoParse.longToString(user.id) + "-"
+                    + CryptoParse.longToString(AsyncClockNative.wallMillis());
+            session.setString("csrf", csrf);
+            SchAuth.save(ctx, session);
+        }
+        AuthSessionDto dto = new AuthSessionDto();
+        dto.user.id = user.id;
+        dto.user.email = user.email;
+        dto.user.displayName = user.displayName;
+        dto.user.timezone = user.timezone;
+        dto.csrfToken = csrf;
+        ctx.jsonString(SchJson.authSession(dto));
         return JnFuture.completed(loop, null);
     }
 }
@@ -654,6 +776,10 @@ class UpdateEventHandler implements AsyncWebHandler {
             SchAuth.err(ctx, 404, "NOT_FOUND", "event not found", rid);
             return JnFuture.completed(loop, null);
         }
+        if (req.calendarId <= 0 || CalendarRepo.owns(uid, req.calendarId) == 0) {
+            SchAuth.err(ctx, 400, "VALIDATION_ERROR", "calendar required", rid);
+            return JnFuture.completed(loop, null);
+        }
         EventDto updated = EventRepo.update(id, req);
         SchAuth.publish("EVENT_UPDATED", SchJson.event(updated));
         ctx.jsonString(SchJson.event(updated));
@@ -773,6 +899,7 @@ class EventRepo {
     static EventDto update(long id, UpdateEventRequest req) {
         long now = AsyncClockNative.wallMillis();
         ArrayList<Object> e = new ArrayList<Object>();
+        e.add(CryptoParse.longToString(req.calendarId));
         e.add(req.title);
         e.add(req.description);
         e.add(req.location);
@@ -784,7 +911,7 @@ class EventRepo {
         e.add(req.status);
         e.add(CryptoParse.longToString(now));
         e.add(CryptoParse.longToString(id));
-        SchDb.exec("UPDATE events SET title=?, description=?, location=?, start_time=?, end_time=?, all_day=?, timezone=?, recurrence_rule=?, status=?, updated_at=? WHERE id=?", e);
+        SchDb.exec("UPDATE events SET calendar_id=?, title=?, description=?, location=?, start_time=?, end_time=?, all_day=?, timezone=?, recurrence_rule=?, status=?, updated_at=? WHERE id=?", e);
         ArrayList<Object> d = new ArrayList<Object>();
         d.add(CryptoParse.longToString(id));
         SchDb.exec("DELETE FROM reminders WHERE event_id=?", d);
@@ -1071,38 +1198,110 @@ class SearchTaskMapper implements RowMapper {
 }
 
 class ReminderScheduler {
-    static void start(EventLoop loop) {
-        loop.scheduleTimer(30000, new ReminderTick());
+    static int busy;
+
+    static void start() {
+        if (Sch.firedReminders == null) {
+            Sch.firedReminders = new HashSet<String>();
+        }
+        if (Sch.hubLog == null) {
+            Sch.hubLog = new ArrayList<Object>();
+        }
+        ReminderScheduler.busy = 0;
+        Sch.loop.scheduleTimer(5000, new ReminderTick());
+        System.out.println("ReminderScheduler: EventLoop timer started (10s tick)");
+    }
+
+    static void reschedule() {
+        ReminderScheduler.busy = 0;
+        Sch.loop.scheduleTimer(10000, new ReminderTick());
     }
 }
 
 class ReminderTick implements LoopTask {
     public void run() {
+        if (Sch.db == null) {
+            ReminderScheduler.reschedule();
+            return;
+        }
+        if (ReminderScheduler.busy != 0) {
+            ReminderScheduler.reschedule();
+            return;
+        }
+        ReminderScheduler.busy = 1;
         long now = AsyncClockNative.wallMillis();
-        long windowEnd = now + 60000L;
         ArrayList<Object> p = new ArrayList<Object>();
         p.add(CryptoParse.longToString(now));
-        p.add(CryptoParse.longToString(windowEnd));
-        ArrayList<Object> rows = SchQuery.mapAll(Sch.db.query("SELECT e.id, e.title, r.minutes_before, e.start_time FROM reminders r"
-                        + " JOIN events e ON e.id=r.event_id"
-                        + " WHERE e.start_time - (r.minutes_before * 60000) >= ? AND e.start_time - (r.minutes_before * 60000) < ?"
-                        + " AND e.status='CONFIRMED'",
-                p), new ReminderRowMapper());
-        int i = 0;
-        while (i < rows.size()) {
-            String json = (String) rows.get(i);
-            SchAuth.publish("REMINDER", json);
-            i = i + 1;
-        }
-        Sch.loop.scheduleTimer(30000, new ReminderTick());
+        p.add(CryptoParse.longToString(now));
+        /* Fire when: (start - minutesBefore) <= now < start + 60s */
+        JnFuture q = Sch.db.query(
+                "SELECT e.id, e.title, r.minutes_before, e.start_time FROM events e"
+                        + " JOIN calendars c ON c.id=e.calendar_id"
+                        + " JOIN reminders r ON r.event_id=e.id"
+                        + " WHERE e.status<>'CANCELLED'"
+                        + " AND CAST(r.minutes_before AS INTEGER)>=0"
+                        + " AND (CAST(e.start_time AS INTEGER) - (CAST(r.minutes_before AS INTEGER) * 60000)) <= CAST(? AS INTEGER)"
+                        + " AND (CAST(e.start_time AS INTEGER) + 60000) > CAST(? AS INTEGER)",
+                p);
+        q.onComplete(new ReminderScanCallback());
     }
 }
 
-class ReminderRowMapper implements RowMapper {
+class ReminderScanCallback implements JnFutureCallback {
+    public void invoke(JnFuture future) {
+        try {
+            if (future != null && future.getState() == JnFuture.SUCCESS) {
+                ReminderScan.publishDue((DbQueryResult) future.getValue());
+            }
+        } catch (Exception ex) {
+            /* keep ticking */
+        }
+        ReminderScheduler.reschedule();
+    }
+}
+
+class ReminderScan {
+    static void publishDue(DbQueryResult result) {
+        if (result == null || result.rows == null) {
+            return;
+        }
+        ReminderDueMapper mapper = new ReminderDueMapper();
+        int i = 0;
+        while (i < result.rows.size()) {
+            ReminderDue due = (ReminderDue) mapper.map(result.rows.get(i));
+            String key = CryptoParse.longToString(due.eventId) + ":" + CryptoParse.longToString(due.startTime)
+                    + ":" + String.valueOf(due.minutesBefore);
+            if (Sch.firedReminders.contains(key) == false) {
+                Sch.firedReminders.add(key);
+                String data = "{\"eventId\":" + CryptoParse.longToString(due.eventId)
+                        + ",\"title\":\"" + SchJson.esc(due.title) + "\""
+                        + ",\"minutesBefore\":" + String.valueOf(due.minutesBefore)
+                        + ",\"startTime\":" + CryptoParse.longToString(due.startTime) + "}";
+                SchAuth.publish("REMINDER", data);
+                System.out.println("REMINDER fired: " + due.title + " (" + String.valueOf(due.minutesBefore) + "m)");
+            }
+            i = i + 1;
+        }
+        if (Sch.firedReminders.size() > 2000) {
+            Sch.firedReminders = new HashSet<String>();
+        }
+    }
+}
+
+class ReminderDue {
+    long eventId;
+    String title;
+    int minutesBefore;
+    long startTime;
+}
+
+class ReminderDueMapper implements RowMapper {
     public Object map(Row row) {
-        long id = row.getLong(0);
-        String title = row.getString(1);
-        int mins = row.getInt(2);
-        return "{\"eventId\":" + id + ",\"title\":\"" + SchJson.esc(title) + "\",\"minutesBefore\":" + mins + "}";
+        ReminderDue d = new ReminderDue();
+        d.eventId = row.getLong(0);
+        d.title = row.getString(1);
+        d.minutesBefore = row.getInt(2);
+        d.startTime = row.getLong(3);
+        return d;
     }
 }

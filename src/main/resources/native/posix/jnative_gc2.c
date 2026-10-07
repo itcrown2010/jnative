@@ -423,6 +423,7 @@ static void *forward_ref(void *obj) {
     uint32_t promote = age >= g_promotion_age;
 
     void *neu;
+    int need_scan_promote = 0;
     if (promote) {
         neu = alloc_old_or_large(total - JN_GC_HEADER_SIZE, GEN_OLD);
         if (!neu) {
@@ -436,8 +437,7 @@ static void *forward_ref(void *obj) {
             nh->identity_hash = idhash;
             nh->pad = 0;
             st_bytes_promoted += total;
-            /* Fields may still point into from-space — forward them now (not next GC). */
-            scan_object_refs(neu);
+            need_scan_promote = 1;
             remset_add(neu);
         }
     }
@@ -457,8 +457,14 @@ static void *forward_ref(void *obj) {
         st_bytes_copied += total;
     }
 
+    /* Install forwarding BEFORE scanning fields so object cycles cannot recurse forever. */
     h->meta |= FLAG_FORWARDED;
     h->link = neu;
+
+    if (need_scan_promote) {
+        /* Fields may still point into from-space — forward them now (not next GC). */
+        scan_object_refs(neu);
+    }
     return neu;
 }
 

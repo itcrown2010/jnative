@@ -150,6 +150,14 @@ int32_t jnative_ui_live_controls(void);
 int32_t jnative_ui_live_handles(void);
 int32_t jnative_ui_queued_tasks(void);
 int32_t jnative_ui_events_dispatched(void);
+/** 1=macOS, 2=Windows, 3=other/linux/headless. */
+int32_t jnative_ui_platform_family(void);
+/** Window backing scale (logical→device). 100 = 1.0x, 200 = 2.0x Retina. */
+int32_t jnative_ui_get_scale_percent(int32_t windowId);
+/** System appearance: 0=light, 1=dark, -1=unknown. */
+int32_t jnative_ui_system_dark(void);
+/** Popup context menu at screen logical coords; returns 1 if shown. */
+int32_t jnative_ui_context_menu_show(int32_t menuId, int32_t screenX, int32_t screenY);
 
 /* Event payload side-channel (set before emit, read from managed dispatch). */
 void jnative_ui_emit_event(int32_t handleId, int32_t eventCode);
@@ -186,6 +194,11 @@ int32_t jnative_ui_platform_dialog_message(int32_t windowId, int32_t type,
 char *jnative_ui_platform_dialog_file(int32_t windowId, int32_t save, const char *filter);
 void jnative_ui_platform_items_changed(int32_t id);
 void jnative_ui_platform_table_set_columns(int32_t id, const char *titles_tsv);
+/** Control chrome: 0=default, 1=toolbar, 2=breadcrumb, 3=sidebar item. */
+void jnative_ui_platform_set_control_style(int32_t id, int32_t style);
+int32_t jnative_ui_platform_get_scale_percent(int32_t windowId);
+int32_t jnative_ui_platform_system_dark(void);
+int32_t jnative_ui_platform_context_menu_show(int32_t menuId, int32_t screenX, int32_t screenY);
 
 /* Headless / test helpers */
 void jnative_ui_headless_click(int32_t id);

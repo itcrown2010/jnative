@@ -1,6 +1,7 @@
 # JNative Explorer
 
-Native desktop file manager built entirely with JNative (language → compiler → IR → LLVM → native binary).
+Native desktop file manager (JNative → IR → LLVM → Mach-O / PE).  
+**No** JVM / Swing / Electron at runtime.
 
 ## Build
 
@@ -12,41 +13,20 @@ java -cp target/classes io.jnative.Main \
 ./build/explorer/JNativeExplorer
 ```
 
-On Windows (cross-compile or native host):
+## Milestone 1 UI
 
 ```text
-jnative examples/explorer/JNativeExplorer.java -o JNativeExplorer.exe --app-type gui
-JNativeExplorer.exe
+Toolbar → BreadcrumbBar → Split(Sidebar Tree | Table) → Status
 ```
 
-## Runtime requirements
+- Platform sidebar (macOS Favorites / Locations; Windows Quick Access / This PC)
+- Breadcrumb segments (Cmd/Ctrl+L → address edit)
+- Table: Name · Date Modified · Size · Kind + NSWorkspace icons (macOS)
+- Search field with 300ms debounce (no separate Search button)
 
-- **NO** JVM / JRE / JNI
-- **NO** Swing / JavaFX / Electron / Node.js
-- Links OS UI (Cocoa on macOS, Win32 on Windows) + `jnative_fs` filesystem ABI
+See `docs/jnative-explorer-m1-report.md` and `docs/jnative-explorer-capability-audit.md`.
 
-## Features (phase 1)
+## Rules
 
-- Navigation toolbar: Back / Forward / Up / Refresh
-- Address bar + search
-- Quick Access + dynamic drive roots (`FileSystem.roots()`)
-- Virtualized-style `TableView` listing (`Files.listInfo`)
-- Open folder / open file via `Desktop.openPath` (ShellExecuteW / `open` / `xdg-open`)
-- New folder, rename, copy/cut/paste (async worker thread)
-- Delete → Trash / Recycle Bin (`Desktop.moveToTrash`)
-- Directory watcher (`WatchService`) with coalesced refresh
-- Keyboard shortcuts (Enter, Backspace, F5, Delete, Ctrl/Cmd+C/X/V/A, F2)
-
-## Architecture
-
-```text
-Explorer UI
-   ↓
-jnative.io (FsPath / Files / FileInfo / WatchService / SystemPaths / Desktop)
-   ↓
-jnative_fs C ABI
-   ↓
-posix (stat/opendir/kqueue|inotify)  |  Windows (FindFirstFileW / ShellExecuteW / ReadDirectoryChangesW)
-```
-
-Explorer-specific compiler intrinsics: **NONE**.
+- Explorer-specific compiler intrinsics: **NONE**
+- Missing UI capabilities must be fixed in `jnative.ui` / native peers, not faked in this folder

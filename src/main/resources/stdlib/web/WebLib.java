@@ -345,29 +345,31 @@ class UrlCodec {
         if (s == null) {
             return "";
         }
-        String out = "";
+        /* Collect raw bytes then Bytes.toString — byteChar() maps non-ASCII to '?',
+         * which broke UTF-8 query values (e.g. Chinese search). */
+        ByteBuf buf = new ByteBuf();
         int i = 0;
         while (i < s.length()) {
             int c = s.charAt(i);
             if (plusIsSpace != 0 && c == 43) {
-                out = out + " ";
+                buf.appendByte(32);
                 i = i + 1;
             } else if (c == 37 && i + 2 < s.length()) {
                 int hi = hexVal(s.charAt(i + 1));
                 int lo = hexVal(s.charAt(i + 2));
                 if (hi < 0 || lo < 0) {
-                    out = out + "%";
+                    buf.appendByte(37);
                     i = i + 1;
                 } else {
-                    out = out + WebUtil.byteChar(hi * 16 + lo);
+                    buf.appendByte(hi * 16 + lo);
                     i = i + 3;
                 }
             } else {
-                out = out + WebUtil.byteChar(c);
+                buf.appendByte(c);
                 i = i + 1;
             }
         }
-        return out;
+        return buf.toStringUtf8();
     }
 
     static int hexVal(int c) {
@@ -1521,7 +1523,13 @@ class WebServer {
                     } else {
                         activeConns = activeConns + 1;
                         connLock.unlock();
-                        serveConnection(conn);
+                        /* Dispatch to worker pool so accept is never blocked by
+                         * slow handlers (login PBKDF2 / DB). Browser parallel
+                         * loads of /, /app.css, /app.js must not serialize. */
+                        WebConnTask task = new WebConnTask();
+                        task.server = this;
+                        task.conn = conn;
+                        pool.execute(task);
                     }
                 }
             }
@@ -1664,9 +1672,7 @@ class WebServer {
                     if (count >= app.config.keepAliveMax) {
                         wantClose = 1;
                     }
-                    if (wantClose == 0 && connHdr.indexOf("keep-alive") < 0) {
-                        wantClose = 1;
-                    }
+                    /* HTTP/1.1 default is keep-alive; only close when asked or capped. */
                     HttpResponse httpResp = ctx.response.toHttp();
                     if (wantClose != 0) {
                         httpResp.headers.set("Connection", "close");

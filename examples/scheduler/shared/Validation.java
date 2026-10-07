@@ -28,6 +28,9 @@ class EventValidation {
         if (req.title != null && req.title.length() > 200) {
             return "title too long";
         }
+        if (req.calendarId <= 0) {
+            return "calendarId required";
+        }
         if (req.startTime > 0 && req.endTime > 0 && req.endTime < req.startTime) {
             return "endTime >= startTime";
         }

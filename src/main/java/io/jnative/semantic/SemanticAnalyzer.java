@@ -1325,21 +1325,18 @@ public final class SemanticAnalyzer {
             }
 
             Optional<MethodSymbol> inherited = symbol.superClass()
-                    .flatMap(s -> s.findMethod(method.name()));
+                    .flatMap(s -> s.findMethod(method.name(), ms.parameterTypes()));
             if (inherited.isPresent()) {
                 MethodSymbol parent = inherited.get();
                 if (ms.isNative() || parent.isNative()) {
                     reporter.error(method.location(),
                             "native methods cannot override or be overridden");
                 } else if (parent.isStatic() || ms.isStatic()) {
-                    if (parent.isStatic() && ms.isStatic()) {
-                        reporter.error(method.location(),
-                                "method overloading/hiding of static '" + method.name()
-                                        + "' is not supported");
-                    } else {
+                    if (!(parent.isStatic() && ms.isStatic())) {
                         reporter.error(method.location(),
                                 "instance/static mismatch overriding '" + method.name() + "'");
                     }
+                    /* static same-signature hide is allowed; different signatures are overloads */
                 } else if (!ms.sameSignatureAs(parent)) {
                     reporter.error(method.location(),
                             "method '" + method.name()
@@ -1351,8 +1348,8 @@ public final class SemanticAnalyzer {
 
             if (!symbol.addMethod(ms)) {
                 reporter.error(method.location(),
-                        "method overloading is not supported yet (duplicate '"
-                                + method.name() + "')");
+                        "duplicate method '" + method.name()
+                                + "' with the same parameter types");
             }
             popTypeParamScope();
         }
@@ -2435,16 +2432,26 @@ public final class SemanticAnalyzer {
         }
         if (m.receiver() instanceof VariableExpression v && classes.containsKey(v.name())) {
             ClassSymbol cls = classes.get(v.name());
-            Optional<MethodSymbol> method = cls.findMethod(m.name());
-            if (method.isEmpty()) {
-                reporter.error(m.location(),
-                        "undefined method '" + m.name() + "' in class '" + cls.name() + "'");
+            List<MethodSymbol> statics = new ArrayList<>();
+            for (MethodSymbol cand : cls.findMethods(m.name())) {
+                if (cand.isStatic()) {
+                    statics.add(cand);
+                }
+            }
+            if (statics.isEmpty()) {
+                if (!cls.findMethods(m.name()).isEmpty()) {
+                    reporter.error(m.location(),
+                            "instance method '" + m.name() + "' cannot be called on a type name");
+                } else {
+                    reporter.error(m.location(),
+                            "undefined method '" + m.name() + "' in class '" + cls.name() + "'");
+                }
                 return ErrorType.INSTANCE;
             }
-            MethodSymbol ms = method.get();
-            if (!ms.isStatic()) {
+            MethodSymbol ms = resolveOverload(statics, m, true);
+            if (ms == null) {
                 reporter.error(m.location(),
-                        "instance method '" + m.name() + "' cannot be called on a type name");
+                        "no matching overload for '" + cls.name() + "." + m.name() + "'");
                 return ErrorType.INSTANCE;
             }
             if (ms.isFfiIntrinsic() && "allocate".equals(ms.name())) {
@@ -2512,13 +2519,12 @@ public final class SemanticAnalyzer {
                 }
                 return ErrorType.INSTANCE;
             }
-            Optional<MethodSymbol> method = recvClass.findMethod(m.name());
-            if (method.isEmpty()) {
+            MethodSymbol ms = resolveOverload(recvClass.findMethods(m.name()), m, false);
+            if (ms == null) {
                 reporter.error(m.location(),
                         "undefined method '" + m.name() + "' in class '" + recvClass.name() + "'");
                 return ErrorType.INSTANCE;
             }
-            MethodSymbol ms = method.get();
             if (ms.isStatic()) {
                 reporter.error(m.location(),
                         "static method '" + m.name() + "' should be called without an instance");
@@ -2533,9 +2539,8 @@ public final class SemanticAnalyzer {
         }
 
         if (currentClass != null) {
-            Optional<MethodSymbol> method = currentClass.findMethod(m.name());
-            if (method.isPresent()) {
-                MethodSymbol ms = method.get();
+            MethodSymbol ms = resolveOverload(currentClass.findMethods(m.name()), m, true);
+            if (ms != null) {
                 boolean inInstance = currentConstructor != null
                         || (currentMethod != null && !currentMethod.isStatic());
                 if (!ms.isStatic() && !inInstance) {
@@ -2547,22 +2552,54 @@ public final class SemanticAnalyzer {
             }
         }
 
-        MethodSymbol found = null;
+        List<MethodSymbol> staticCandidates = new ArrayList<>();
         for (ClassSymbol cls : classes.values()) {
-            Optional<MethodSymbol> method = cls.findDeclaredMethod(m.name());
-            if (method.isPresent() && method.get().isStatic()) {
-                if (found != null) {
-                    reporter.error(m.location(), "ambiguous static method '" + m.name() + "'");
-                    return ErrorType.INSTANCE;
+            for (MethodSymbol method : cls.findDeclaredMethods(m.name())) {
+                if (method.isStatic()) {
+                    staticCandidates.add(method);
                 }
-                found = method.get();
             }
         }
+        MethodSymbol found = resolveOverload(staticCandidates, m, true);
         if (found != null) {
             return resolveGenericCall(m, found, expectedReturn);
         }
         reporter.error(m.location(), "undefined method '" + m.name() + "'");
         return ErrorType.INSTANCE;
+    }
+
+    /**
+     * Pick the best overload for a call. When {@code allowStatic} is false, static methods are skipped.
+     * Argument expressions are analyzed once for typing.
+     */
+    private MethodSymbol resolveOverload(
+            List<MethodSymbol> candidates,
+            MethodCallExpression m,
+            boolean allowStatic
+    ) {
+        if (candidates == null || candidates.isEmpty()) {
+            return null;
+        }
+        List<JType> argTypes = new ArrayList<>();
+        for (Expression arg : m.arguments()) {
+            argTypes.add(analyzeExpression(arg));
+        }
+        List<CallableResolver.Candidate> list = new ArrayList<>();
+        for (MethodSymbol ms : candidates) {
+            if (!allowStatic && ms.isStatic()) {
+                continue;
+            }
+            list.add(new CallableResolver.Candidate(ms.parameterTypes(), ms));
+        }
+        Object resolved = CallableResolver.resolve(list, argTypes);
+        if (resolved instanceof MethodSymbol ms) {
+            return ms;
+        }
+        if (list.size() == 1 && ((MethodSymbol) list.get(0).symbol()).parameterTypes().size() == argTypes.size()) {
+            /* let checkArguments report conversion errors for the sole candidate */
+            return (MethodSymbol) list.get(0).symbol();
+        }
+        return null;
     }
 
     /** Resolve call, applying method type-parameter inference when needed. */

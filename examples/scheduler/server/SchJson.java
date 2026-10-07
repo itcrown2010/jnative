@@ -124,6 +124,7 @@ class SchJson {
 
     static UpdateEventRequest parseUpdateEvent(JsonObject o) {
         UpdateEventRequest r = new UpdateEventRequest();
+        r.calendarId = o.getLong("calendarId", 0);
         r.title = o.getString("title", "");
         r.description = o.getString("description", "");
         r.location = o.getString("location", "");

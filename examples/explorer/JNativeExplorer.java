@@ -119,19 +119,13 @@ class NameCol implements ColumnRenderer<FileInfo> {
     }
 }
 
-class TypeCol implements ColumnRenderer<FileInfo> {
+class ModifiedCol implements ColumnRenderer<FileInfo> {
     String getTitle() {
-        return "Kind";
+        return "Date Modified";
     }
 
     String renderRow(FileInfo f) {
-        if (f.isDirectory != 0) {
-            return "Folder";
-        }
-        if (f.type == null || f.type.length() == 0) {
-            return "Document";
-        }
-        return f.type;
+        return ExplorerFormat.time(f.modifiedTime);
     }
 }
 
@@ -148,13 +142,54 @@ class SizeCol implements ColumnRenderer<FileInfo> {
     }
 }
 
-class ModifiedCol implements ColumnRenderer<FileInfo> {
+class TypeCol implements ColumnRenderer<FileInfo> {
     String getTitle() {
-        return "Date Modified";
+        return "Kind";
     }
 
     String renderRow(FileInfo f) {
-        return ExplorerFormat.time(f.modifiedTime);
+        if (f.isDirectory != 0) {
+            return "Folder";
+        }
+        if (f.type == null || f.type.length() == 0) {
+            return "Document";
+        }
+        return f.type;
+    }
+}
+
+class FileIconPath implements TableIconPathProvider<FileInfo> {
+    String iconPath(FileInfo f) {
+        if (f == null || f.path == null) {
+            return "";
+        }
+        return f.path.toString();
+    }
+}
+
+class ExplorerBreadcrumbNav implements BreadcrumbNavigate {
+    void go(String path) {
+        ExplorerActions.breadcrumbGo(path);
+    }
+}
+
+class ExplorerSearchDebounce {
+    static int gen;
+    static int finishGen;
+
+    static void run() {
+        Thread.sleep(300);
+        finishGen = gen;
+        Application.invokeLater(() -> {
+            ExplorerSearchDebounce.finish();
+        });
+    }
+
+    static void finish() {
+        int g = finishGen;
+        if (ExplorerActions.win != null && g == ExplorerActions.win.searchDebounceGen) {
+            ExplorerActions.runSearch();
+        }
     }
 }
 
@@ -324,7 +359,7 @@ class ExplorerActions {
         win.sortBy(0);
     }
 
-    static void sortType() {
+    static void sortModified() {
         win.sortBy(1);
     }
 
@@ -332,8 +367,28 @@ class ExplorerActions {
         win.sortBy(2);
     }
 
-    static void sortModified() {
+    static void sortType() {
         win.sortBy(3);
+    }
+
+    static void breadcrumbGo(String path) {
+        Application.invokeLater(() -> {
+            ExplorerActions.win.navigatePathString(path);
+        });
+    }
+
+    static void focusAddress() {
+        Application.invokeLater(() -> {
+            ExplorerActions.win.focusAddressBar();
+        });
+    }
+
+    static void syncNavButtons() {
+        win.syncNavButtons();
+    }
+
+    static void scheduleSearch() {
+        win.scheduleSearchDebounce();
     }
 
     static void about() {
@@ -421,19 +476,25 @@ class FileOpProgress {
 class ExplorerWindow {
     Window window;
     ExplorerModel model;
-    TextField address;
-    TextField search;
+    BreadcrumbBar breadcrumb;
+    SearchField search;
+    Button backBtn;
+    Button fwdBtn;
+    Button upBtn;
+    Button refreshBtn;
     TreeView<NavNode> tree;
     TableView<FileInfo> table;
     Label status;
     Label statusSize;
     int watchRunning;
+    int searchDebounceGen;
 
     ExplorerWindow() {
         model = new ExplorerModel();
         watchRunning = 0;
+        searchDebounceGen = 0;
         ExplorerActions.win = this;
-        window = new Window("JNative Explorer", 1100, 720);
+        window = new Window("JNative Explorer", 1120, 740);
         buildUi();
         installMenus();
         navigateTo(model.current, 1);
@@ -449,33 +510,112 @@ class ExplorerWindow {
         root.spacing = 0;
         root.padding = 0;
 
-        HBox toolbar = new HBox();
-        toolbar.spacing = 8;
-        toolbar.padding = 10;
-        Button backBtn = new Button("←");
-        Button fwdBtn = new Button("→");
-        Button upBtn = new Button("↑");
-        Button refreshBtn = new Button("↻");
-        address = new TextField("");
-        address.setPrefSize(480, 28);
-        search = new TextField("");
-        search.setPrefSize(160, 28);
-        Button goBtn = new Button("Go");
-        Button searchBtn = new Button("Search");
-        toolbar.add(backBtn);
-        toolbar.add(fwdBtn);
-        toolbar.add(upBtn);
-        toolbar.add(refreshBtn);
-        toolbar.add(address);
-        toolbar.add(goBtn);
+        Toolbar toolbar = new Toolbar();
+        backBtn = toolbar.addToolButton("←", () -> {
+        });
+        fwdBtn = toolbar.addToolButton("→", () -> {
+        });
+        upBtn = toolbar.addToolButton("↑", () -> {
+        });
+        refreshBtn = toolbar.addToolButton("↻", () -> {
+        });
+        Command backCmd = new Command("nav.back", "←");
+        backCmd.setExecute(() -> {
+            ExplorerActions.goBack();
+        });
+        backCmd.bindButton(backBtn);
+        Command fwdCmd = new Command("nav.forward", "→");
+        fwdCmd.setExecute(() -> {
+            ExplorerActions.goForward();
+        });
+        fwdCmd.bindButton(fwdBtn);
+        Command upCmd = new Command("nav.up", "↑");
+        upCmd.setExecute(() -> {
+            ExplorerActions.goUp();
+        });
+        upCmd.bindButton(upBtn);
+        Command refreshCmd = new Command("nav.refresh", "↻");
+        refreshCmd.setExecute(() -> {
+            ExplorerActions.refresh();
+        });
+        refreshCmd.bindButton(refreshBtn);
+        toolbar.addSeparatorGap();
+        toolbar.addToolButton("＋", () -> {
+            ExplorerActions.newFolder();
+        });
+        Button copyBtn = toolbar.addToolButton("⎘", () -> {
+        });
+        Button cutBtn = toolbar.addToolButton("✂", () -> {
+        });
+        Button pasteBtn = toolbar.addToolButton("❐", () -> {
+        });
+        pasteBtn.setChromeStyle(1);
+        Button renameBtn = toolbar.addToolButton("✎", () -> {
+        });
+        Button deleteBtn = toolbar.addToolButton("⌫", () -> {
+        });
+        Command copyCmd = new Command("edit.copy", "Copy");
+        copyCmd.setShortcut(KeyCombination.of(67).withPrimary());
+        copyCmd.setExecute(() -> {
+            ExplorerActions.copySelected();
+        });
+        copyCmd.bindButton(copyBtn);
+        Command cutCmd = new Command("edit.cut", "Cut");
+        cutCmd.setShortcut(KeyCombination.of(88).withPrimary());
+        cutCmd.setExecute(() -> {
+            ExplorerActions.cutSelected();
+        });
+        cutCmd.bindButton(cutBtn);
+        Command pasteCmd = new Command("edit.paste", "Paste");
+        pasteCmd.setShortcut(KeyCombination.of(86).withPrimary());
+        pasteCmd.setExecute(() -> {
+            ExplorerActions.pasteClipboard();
+        });
+        pasteCmd.bindButton(pasteBtn);
+        Command renameCmd = new Command("edit.rename", "Rename");
+        renameCmd.setExecute(() -> {
+            ExplorerActions.renameSelected();
+        });
+        renameCmd.bindButton(renameBtn);
+        Command deleteCmd = new Command("edit.delete", "Delete");
+        deleteCmd.setExecute(() -> {
+            ExplorerActions.deleteSelected();
+        });
+        deleteCmd.bindButton(deleteBtn);
+        toolbar.addFlexibleSpace();
+        search = new SearchField();
+        search.setPlaceholder("Search current folder");
+        search.setOnQueryChanged(() -> {
+            ExplorerActions.scheduleSearch();
+        });
         toolbar.add(search);
-        toolbar.add(searchBtn);
+        Command findCmd = new Command("edit.find", "Find");
+        findCmd.setShortcut(KeyCombination.of(70).withPrimary());
+        findCmd.setExecute(() -> {
+            if (ExplorerActions.win != null && ExplorerActions.win.search != null) {
+                ExplorerActions.win.search.focusField();
+            }
+        });
+        CommandRegistry.remember(findCmd);
+        Command addrCmd = new Command("nav.address", "Address");
+        addrCmd.setShortcut(KeyCombination.of(76).withPrimary());
+        addrCmd.setExecute(() -> {
+            ExplorerActions.navigateAddress();
+        });
+        CommandRegistry.remember(addrCmd);
+
+        breadcrumb = new BreadcrumbBar();
+        breadcrumb.setOnNavigate(new ExplorerBreadcrumbNav());
+        breadcrumb.setPrefSize(1100, 32);
+        breadcrumb.prefHeight = 32;
+        breadcrumb.height = 32;
 
         tree = new TreeView<NavNode>();
         tree.setRenderer(new NavRenderer());
         tree.setModel(new NavTreeModel(buildNavRoot()));
         tree.expand(0);
         tree.expand(1);
+        tree.expand(2);
         tree.onSelectionChanged(ev -> {
             ExplorerActions.onTreeSelect();
         });
@@ -485,9 +625,10 @@ class ExplorerWindow {
 
         table = new TableView<FileInfo>();
         table.addColumn(new NameCol());
-        table.addColumn(new TypeCol());
-        table.addColumn(new SizeCol());
         table.addColumn(new ModifiedCol());
+        table.addColumn(new SizeCol());
+        table.addColumn(new TypeCol());
+        table.setIconPathProvider(new FileIconPath());
         table.onSelectionChanged(ev -> {
             ExplorerActions.updateStatus();
         });
@@ -496,77 +637,135 @@ class ExplorerWindow {
         });
 
         SplitPane split = new SplitPane(Orientation.HORIZONTAL);
-        split.setPrefSize(1000, 560);
-        split.setDividerPosition(0.24);
+        split.setPrefSize(1100, 600);
+        split.setDividerPosition(0.20);
         split.setFirst(tree);
         split.setSecond(table);
-        tree.setPrefSize(240, 560);
-        table.setPrefSize(760, 560);
+        tree.setPrefSize(220, 600);
+        table.setPrefSize(860, 600);
 
         HBox statusBar = new HBox();
-        statusBar.spacing = 12;
-        statusBar.padding = 8;
+        statusBar.spacing = Theme.SPACE_3;
+        statusBar.padding = Theme.SPACE_2;
+        statusBar.prefHeight = Theme.STATUS_HEIGHT;
+        statusBar.height = Theme.STATUS_HEIGHT;
         status = new Label("Ready");
-        status.setPrefSize(520, 22);
+        status.setPrefSize(640, 20);
         statusSize = new Label("");
-        statusSize.setPrefSize(220, 22);
+        statusSize.setPrefSize(180, 20);
         statusBar.add(status);
         statusBar.add(statusSize);
 
         root.add(toolbar);
+        root.add(breadcrumb);
         root.add(split);
         root.add(statusBar);
         window.setContent(root);
 
-        backBtn.onClick(() -> {
-            ExplorerActions.goBack();
-        });
-        fwdBtn.onClick(() -> {
-            ExplorerActions.goForward();
-        });
-        upBtn.onClick(() -> {
-            ExplorerActions.goUp();
-        });
-        refreshBtn.onClick(() -> {
-            ExplorerActions.refresh();
-        });
-        goBtn.onClick(() -> {
-            ExplorerActions.navigateAddress();
-        });
-        searchBtn.onClick(() -> {
-            ExplorerActions.runSearchDeferred();
-        });
-        address.onKeyDown(ev -> {
-            ExplorerActions.onAddressKey(ev);
-        });
-        search.onKeyDown(ev -> {
-            ExplorerActions.onSearchKey(ev);
-        });
         window.onKeyDown(ev -> {
             ExplorerActions.onWindowKey(ev);
         });
+        syncNavButtons();
+    }
+
+    void scheduleSearchDebounce() {
+        searchDebounceGen = searchDebounceGen + 1;
+        int gen = searchDebounceGen;
+        ExplorerSearchDebounce.gen = gen;
+        Thread t = new Thread(() -> {
+            ExplorerSearchDebounce.run();
+        });
+        t.start();
     }
 
     NavNode buildNavRoot() {
-        NavNode root = new NavNode("Computer", null, 0);
-        NavNode qa = new NavNode("Quick Access", null, 0);
-        qa.children.add(new NavNode("Desktop", SystemPaths.desktop(), 1));
-        qa.children.add(new NavNode("Documents", SystemPaths.documents(), 1));
-        qa.children.add(new NavNode("Downloads", SystemPaths.downloads(), 1));
-        qa.children.add(new NavNode("Pictures", SystemPaths.pictures(), 1));
-        qa.children.add(new NavNode("Home", SystemPaths.home(), 1));
-        root.children.add(qa);
-
-        NavNode pc = new NavNode("This PC", null, 0);
-        ArrayList<DriveInfo> drives = FileSystem.drives();
-        int i = 0;
-        while (i < drives.size()) {
-            DriveInfo d = drives.get(i);
-            pc.children.add(new NavNode(d.name, d.root, 2));
-            i = i + 1;
+        NavNode root = new NavNode("Navigation", null, 0);
+        int mac = HostPlatform.isMac();
+        if (mac != 0) {
+            NavNode fav = new NavNode("Favorites", null, 0);
+            fav.children.add(new NavNode("Applications", new FsPath("/Applications"), 1));
+            fav.children.add(new NavNode("Desktop", SystemPaths.desktop(), 1));
+            fav.children.add(new NavNode("Documents", SystemPaths.documents(), 1));
+            fav.children.add(new NavNode("Downloads", SystemPaths.downloads(), 1));
+            fav.children.add(new NavNode("Home", SystemPaths.home(), 1));
+            root.children.add(fav);
+            NavNode loc = new NavNode("Locations", null, 0);
+            loc.children.add(new NavNode("Computer", new FsPath("/"), 1));
+            ArrayList<DriveInfo> drives = FileSystem.drives();
+            int i = 0;
+            while (i < drives.size()) {
+                DriveInfo d = drives.get(i);
+                loc.children.add(new NavNode(d.name, d.root, 2));
+                i = i + 1;
+            }
+            root.children.add(loc);
+        } else if (HostPlatform.current() == HostPlatform.WINDOWS) {
+            NavNode qa = new NavNode("Quick Access", null, 0);
+            qa.children.add(new NavNode("Desktop", SystemPaths.desktop(), 1));
+            qa.children.add(new NavNode("Documents", SystemPaths.documents(), 1));
+            qa.children.add(new NavNode("Downloads", SystemPaths.downloads(), 1));
+            qa.children.add(new NavNode("Pictures", SystemPaths.pictures(), 1));
+            root.children.add(qa);
+            NavNode pc = new NavNode("This PC", null, 0);
+            ArrayList<DriveInfo> drives2 = FileSystem.drives();
+            int j = 0;
+            while (j < drives2.size()) {
+                DriveInfo d2 = drives2.get(j);
+                pc.children.add(new NavNode(d2.name, d2.root, 2));
+                j = j + 1;
+            }
+            root.children.add(pc);
+        } else {
+            NavNode fav = new NavNode("Places", null, 0);
+            fav.children.add(new NavNode("Home", SystemPaths.home(), 1));
+            fav.children.add(new NavNode("Desktop", SystemPaths.desktop(), 1));
+            fav.children.add(new NavNode("Documents", SystemPaths.documents(), 1));
+            fav.children.add(new NavNode("Downloads", SystemPaths.downloads(), 1));
+            root.children.add(fav);
+            NavNode loc = new NavNode("Devices", null, 0);
+            loc.children.add(new NavNode("File System", new FsPath("/"), 1));
+            root.children.add(loc);
         }
-        root.children.add(pc);
         return root;
+    }
+
+    void syncNavButtons() {
+        if (backBtn != null) {
+            if (model.history.canBack() != 0) {
+                backBtn.setEnabled(true);
+            } else {
+                backBtn.setEnabled(false);
+            }
+        }
+        if (fwdBtn != null) {
+            if (model.history.canForward() != 0) {
+                fwdBtn.setEnabled(true);
+            } else {
+                fwdBtn.setEnabled(false);
+            }
+        }
+    }
+
+    void focusAddressBar() {
+        if (breadcrumb != null && model.current != null) {
+            breadcrumb.beginEdit(model.current.toString());
+        }
+    }
+
+    void navigatePathString(String t) {
+        if (t == null || t.length() == 0) {
+            return;
+        }
+        FsPath p = FsPath.of(t).normalize();
+        if (!Files.exists(p)) {
+            Dialogs.error(window, "Path not found:\n" + t);
+            return;
+        }
+        if (!Files.isDirectory(p)) {
+            Desktop.openPath(p);
+            return;
+        }
+        navigateTo(p, 1);
     }
 
     void installMenus() {
@@ -639,9 +838,8 @@ class ExplorerWindow {
         if (ev == null) {
             return;
         }
-        int meta = 0;
-        if (ev.metaDown != 0 || ev.ctrlDown != 0) {
-            meta = 1;
+        if (ShortcutManager.dispatch(ev) != 0) {
+            return;
         }
         if (ev.keyCode == 13) {
             openSelected();
@@ -653,32 +851,19 @@ class ExplorerWindow {
             deleteSelected();
         } else if (ev.keyCode == 113) {
             renameSelected();
-        } else if (meta != 0 && (ev.keyCode == 67 || ev.keyCode == 99)) {
-            copySelected();
-        } else if (meta != 0 && (ev.keyCode == 88 || ev.keyCode == 120)) {
-            cutSelected();
-        } else if (meta != 0 && (ev.keyCode == 86 || ev.keyCode == 118)) {
-            pasteClipboard();
-        } else if (meta != 0 && (ev.keyCode == 65 || ev.keyCode == 97)) {
-            selectAll();
+        } else if (ev.metaDown != 0 || ev.ctrlDown != 0) {
+            if (ev.keyCode == 65 || ev.keyCode == 97) {
+                selectAll();
+            }
         }
     }
 
     void navigateAddress() {
-        String t = address.getText();
-        if (t == null || t.length() == 0) {
+        if (breadcrumb != null && breadcrumb.isEditing() != 0) {
+            breadcrumb.endEdit(1);
             return;
         }
-        FsPath p = FsPath.of(t).normalize();
-        if (!Files.exists(p)) {
-            Dialogs.error(window, "Path not found:\n" + t);
-            return;
-        }
-        if (!Files.isDirectory(p)) {
-            Desktop.openPath(p);
-            return;
-        }
-        navigateTo(p, 1);
+        focusAddressBar();
     }
 
     void navigateTo(FsPath path, int recordHistory) {
@@ -697,13 +882,18 @@ class ExplorerWindow {
         int gen = model.navigationGeneration;
         model.current = path.normalize();
         model.searchQuery = "";
-        search.setText("");
-        address.setText(model.current.toString());
+        if (search != null) {
+            search.setQuery("");
+        }
+        if (breadcrumb != null) {
+            breadcrumb.setPath(model.current.toString());
+        }
         if (recordHistory != 0) {
             model.history.visit(model.current);
         }
         model.loading = 1;
-        status.setText("Loading...");
+        status.setText("Loading…");
+        syncNavButtons();
         reopenWatcher();
         ExplorerListing.lastTarget = model.current;
         ExplorerListing.lastGen = gen;
@@ -761,30 +951,28 @@ class ExplorerWindow {
             return;
         }
         if (sel != null) {
+            status.setText("1 item selected");
             if (sel.isDirectory != 0) {
-                status.setText("Selected  ·  " + sel.name);
-                statusSize.setText("Folder");
+                statusSize.setText("");
             } else {
-                status.setText("Selected  ·  " + sel.name);
                 statusSize.setText(FileSize.format(sel.size));
             }
             return;
         }
         long sum = 0;
-        int files = 0;
-        int folders = 0;
         int i = 0;
         while (i < model.visible.size()) {
             FileInfo f = model.visible.get(i);
-            if (f.isDirectory != 0) {
-                folders = folders + 1;
-            } else {
-                files = files + 1;
+            if (f.isDirectory == 0) {
                 sum = sum + f.size;
             }
             i = i + 1;
         }
-        status.setText(("" + n) + " items  ·  " + folders + " folders  ·  " + files + " files");
+        if (n == 1) {
+            status.setText("1 item");
+        } else {
+            status.setText(("" + n) + " items");
+        }
         statusSize.setText(FileSize.format(sum));
     }
 
@@ -978,7 +1166,10 @@ class ExplorerWindow {
     }
 
     void runSearch() {
-        String q = search.getText();
+        String q = "";
+        if (search != null) {
+            q = search.getQuery();
+        }
         if (q == null) {
             q = "";
         }
@@ -1187,8 +1378,15 @@ class ExplorerSort {
             }
             return 1;
         }
+        /* Columns: 0 Name, 1 Date Modified, 2 Size, 3 Kind */
         if (col == 1) {
-            return UiStrings.compare(a.type, b.type);
+            if (a.modifiedTime < b.modifiedTime) {
+                return -1;
+            }
+            if (a.modifiedTime > b.modifiedTime) {
+                return 1;
+            }
+            return 0;
         }
         if (col == 2) {
             if (a.size < b.size) {
@@ -1200,13 +1398,7 @@ class ExplorerSort {
             return 0;
         }
         if (col == 3) {
-            if (a.modifiedTime < b.modifiedTime) {
-                return -1;
-            }
-            if (a.modifiedTime > b.modifiedTime) {
-                return 1;
-            }
-            return 0;
+            return UiStrings.compare(a.type, b.type);
         }
         return UiStrings.compare(a.name, b.name);
     }

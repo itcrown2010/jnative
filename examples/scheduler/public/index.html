@@ -3,64 +3,118 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>JNative Scheduler</title>
+  <title>JNative Calendar</title>
   <link rel="stylesheet" href="/app.css">
 </head>
 <body>
   <div id="app">
     <div class="shell">
       <header class="top">
-        <div class="brand">JNative Scheduler</div>
-        <input id="search" class="search" type="search" placeholder="Search events & tasks">
-        <button id="btnToday" type="button">Today</button>
-        <div id="userBox" class="user">Guest</div>
+        <div class="brand">JNative Calendar</div>
+        <div class="search-wrap">
+          <input id="search" class="search" type="search" placeholder="Search  ⌘K" autocomplete="off">
+          <div id="searchPanel" class="search-panel hidden"></div>
+        </div>
+        <div id="userMenu" class="user-menu">
+          <button type="button" id="userBtn" class="user-btn" aria-haspopup="true" aria-expanded="false">
+            <span id="userAvatar" class="avatar">?</span>
+            <span id="userName" class="user-name">Guest</span>
+          </button>
+          <div id="userDropdown" class="user-dropdown hidden" role="menu">
+            <div id="userMeta" class="user-meta"></div>
+            <button type="button" id="btnSignOut" role="menuitem">Sign out</button>
+          </div>
+        </div>
       </header>
+
       <div class="main">
-        <aside class="side">
-          <div id="miniCal" class="mini"></div>
-          <h3>Calendars</h3>
-          <div id="calList"></div>
-          <h3>Tasks</h3>
-          <div id="taskList"></div>
+        <aside class="side" id="sidebar">
+          <button type="button" id="btnCreate" class="btn-create">+ Create</button>
+
+          <div id="miniCal" class="mini-cal" aria-label="Mini calendar"></div>
+
+          <div class="side-section">
+            <h3>My Calendars</h3>
+            <div id="calList" class="cal-list"></div>
+          </div>
+
+          <div class="side-section">
+            <h3>Tasks</h3>
+            <div class="task-filters">
+              <button type="button" class="task-filter active" data-task-filter="today">Today</button>
+              <button type="button" class="task-filter" data-task-filter="upcoming">Upcoming</button>
+              <button type="button" class="task-filter" data-task-filter="completed">Completed</button>
+            </div>
+            <div id="taskList" class="task-list"></div>
+            <button type="button" id="btnAddTask" class="linkish">+ Add task</button>
+          </div>
+
+          <div class="side-section">
+            <h3>Upcoming</h3>
+            <div id="upcomingList" class="upcoming-list"></div>
+          </div>
         </aside>
+
         <section class="content">
           <div class="toolbar">
-            <button id="prev" type="button">‹</button>
-            <button id="next" type="button">›</button>
-            <h2 id="title">Calendar</h2>
-            <div class="views">
-              <button data-view="MONTH" type="button">Month</button>
-              <button data-view="WEEK" type="button">Week</button>
-              <button data-view="DAY" type="button">Day</button>
+            <div class="nav-group">
+              <button id="btnToday" type="button" class="btn-today">Today</button>
+              <button id="prev" type="button" class="btn-icon" aria-label="Previous">‹</button>
+              <button id="next" type="button" class="btn-icon" aria-label="Next">›</button>
+              <h2 id="title" class="month-title">Calendar</h2>
             </div>
-            <button id="btnNew" class="primary" type="button">+ Event</button>
+            <div class="toolbar-right">
+              <div class="seg" role="tablist" aria-label="View">
+                <button data-view="MONTH" type="button" class="seg-btn active" role="tab">Month</button>
+                <button data-view="WEEK" type="button" class="seg-btn" role="tab">Week</button>
+                <button data-view="DAY" type="button" class="seg-btn" role="tab">Day</button>
+              </div>
+              <button id="btnNew" class="primary" type="button">+ Event</button>
+            </div>
           </div>
-          <div id="calendarView" class="calendar"></div>
-          <div id="status" class="status">Loading…</div>
+          <div id="calendarView" class="calendar" aria-live="polite"></div>
+          <div id="status" class="status"></div>
         </section>
       </div>
     </div>
+
     <div id="loginModal" class="modal">
       <form id="loginForm" class="card">
         <h2>Sign in</h2>
         <label>Email <input name="email" value="demo@jnative.dev" autocomplete="username"></label>
         <label>Password <input name="password" type="password" value="demo1234" autocomplete="current-password"></label>
-        <button type="submit">Login</button>
+        <button type="submit" class="primary">Login</button>
         <p id="loginError" class="error"></p>
       </form>
     </div>
+
+    <div id="popover" class="popover hidden" role="dialog" aria-modal="true"></div>
+    <div id="dayPopover" class="popover day-pop hidden" role="dialog" aria-modal="true"></div>
+
     <div id="editorModal" class="modal hidden">
       <form id="eventForm" class="card wide">
-        <h2>Event</h2>
-        <label>Title <input name="title" required></label>
+        <h2 id="editorTitle">New Event</h2>
+        <label>Title <input name="title" required placeholder="Add title"></label>
         <label>Calendar
           <select name="calendarId" id="eventCal"></select>
         </label>
-        <label>Start <input name="start" type="datetime-local" required></label>
-        <label>End <input name="end" type="datetime-local" required></label>
-        <label>Location <input name="location"></label>
-        <label>Description <textarea name="description" rows="3"></textarea></label>
-        <label>Reminder (minutes) <input name="minutesBefore" type="number" value="10"></label>
+        <label class="check-row"><input name="allDay" type="checkbox" id="fldAllDay"> All-day</label>
+        <div class="dt-grid" id="dtGrid">
+          <label>Start date <input name="startDate" type="date" required></label>
+          <label class="time-fld">Start time <input name="startTime" type="time" step="900"></label>
+          <label>End date <input name="endDate" type="date" required></label>
+          <label class="time-fld">End time <input name="endTime" type="time" step="900"></label>
+        </div>
+        <label>Timezone
+          <select name="timezone" id="fldTz">
+            <option value="Asia/Shanghai">Asia/Shanghai</option>
+            <option value="UTC">UTC</option>
+            <option value="America/Los_Angeles">America/Los_Angeles</option>
+            <option value="Europe/London">Europe/London</option>
+          </select>
+        </label>
+        <label>Location <input name="location" placeholder="Add location"></label>
+        <label>Description <textarea name="description" rows="3" placeholder="Add description"></textarea></label>
         <label>Repeat
           <select name="recurrenceRule">
             <option value="">None</option>
@@ -69,15 +123,17 @@
             <option value="MONTHLY">Monthly</option>
           </select>
         </label>
+        <label>Reminder (minutes) <input name="minutesBefore" type="number" value="10" min="0"></label>
         <div class="row">
-          <button type="submit">Save</button>
+          <button type="submit" class="primary">Save</button>
           <button type="button" id="btnCancel">Cancel</button>
           <button type="button" id="btnDelete" class="danger hidden">Delete</button>
         </div>
         <p id="editorError" class="error"></p>
       </form>
     </div>
-    <div id="toast" class="toast hidden"></div>
+
+    <div id="toast" class="toast hidden" role="status"></div>
   </div>
   <script src="/app.js"></script>
 </body>

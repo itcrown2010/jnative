@@ -451,6 +451,19 @@ public final class JNativeCompiler {
                 libs.add("z");
                 linkFlags.add("-lm");
             }
+            /* libm for Math stdlib (Linux); Darwin provides these in libSystem. */
+            boolean needsLibm = irText.contains("declare double @sqrt(")
+                    || irText.contains("declare double @pow(")
+                    || irText.contains("declare double @sin(")
+                    || irText.contains("declare double @cos(")
+                    || irText.contains("declare double @log(")
+                    || irText.contains("declare double @hypot(")
+                    || irText.contains("declare double @cbrt(");
+            if (needsLibm
+                    && toolchain.get().platform() != Platform.MACOS_ARM64
+                    && toolchain.get().platform() != Platform.MACOS_X86_64) {
+                linkFlags.add("-lm");
+            }
             boolean linkCocoa = includeUi && !headless
                     && (toolchain.get().platform() == Platform.MACOS_ARM64
                     || toolchain.get().platform() == Platform.MACOS_X86_64)

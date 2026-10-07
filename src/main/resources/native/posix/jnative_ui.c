@@ -158,6 +158,10 @@ __attribute__((weak)) char *jnative_ui_platform_dialog_file(
 __attribute__((weak)) void jnative_ui_platform_items_changed(int32_t id) {
     (void)id;
 }
+__attribute__((weak)) void jnative_ui_platform_set_control_style(int32_t id, int32_t style) {
+    (void)id;
+    (void)style;
+}
 __attribute__((weak)) void jnative_ui_platform_table_set_columns(
         int32_t id, const char *titles_tsv) {
     (void)id; (void)titles_tsv;
@@ -421,6 +425,11 @@ void jnative_ui_set_value_i32(int32_t id, int32_t value) {
     JnUiPeer *p = peer(id);
     if (p == NULL) return;
     p->value_i32 = value;
+    /* Button/label chrome styles (toolbar / breadcrumb) via value channel. */
+    if (g_platform_active && !g_headless
+            && (p->kind == JN_UI_KIND_BUTTON || p->kind == JN_UI_KIND_LABEL)) {
+        jnative_ui_platform_set_control_style(id, value);
+    }
 }
 int32_t jnative_ui_get_value_i32(int32_t id) {
     JnUiPeer *p = peer(id);
@@ -742,6 +751,37 @@ int32_t jnative_ui_live_controls(void) { return g_live_controls; }
 int32_t jnative_ui_live_handles(void) { return g_live_handles; }
 int32_t jnative_ui_queued_tasks(void) { return g_task_queue; }
 int32_t jnative_ui_events_dispatched(void) { return g_events_dispatched; }
+
+__attribute__((weak)) int32_t jnative_ui_platform_family(void) { return 3; }
+__attribute__((weak)) int32_t jnative_ui_platform_get_scale_percent(int32_t windowId) {
+    (void)windowId;
+    return 100;
+}
+__attribute__((weak)) int32_t jnative_ui_platform_system_dark(void) { return -1; }
+__attribute__((weak)) int32_t jnative_ui_platform_context_menu_show(
+        int32_t menuId, int32_t screenX, int32_t screenY) {
+    (void)menuId; (void)screenX; (void)screenY;
+    return 0;
+}
+
+int32_t jnative_ui_get_scale_percent(int32_t windowId) {
+    if (g_platform_active && !g_headless) {
+        return jnative_ui_platform_get_scale_percent(windowId);
+    }
+    return 100;
+}
+int32_t jnative_ui_system_dark(void) {
+    if (g_platform_active && !g_headless) {
+        return jnative_ui_platform_system_dark();
+    }
+    return -1;
+}
+int32_t jnative_ui_context_menu_show(int32_t menuId, int32_t screenX, int32_t screenY) {
+    if (g_platform_active && !g_headless) {
+        return jnative_ui_platform_context_menu_show(menuId, screenX, screenY);
+    }
+    return 0;
+}
 
 void jnative_ui_headless_click(int32_t id) {
     JnUiPeer *p = peer(id);

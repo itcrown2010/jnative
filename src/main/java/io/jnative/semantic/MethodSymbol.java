@@ -288,13 +288,21 @@ public final class MethodSymbol {
         if (!Objects.equals(returnType, other.returnType)) {
             return false;
         }
+        return sameParameterSignatureAs(other);
+    }
+
+    /** Overload identity: parameter types only (return type may differ). */
+    public boolean sameParameterSignatureAs(MethodSymbol other) {
+        return sameParameterTypes(other.parameterTypes());
+    }
+
+    public boolean sameParameterTypes(List<JType> otherParams) {
         List<JType> a = parameterTypes();
-        List<JType> b = other.parameterTypes();
-        if (a.size() != b.size()) {
+        if (a.size() != otherParams.size()) {
             return false;
         }
         for (int i = 0; i < a.size(); i++) {
-            if (!signatureTypeEquals(a.get(i), b.get(i))) {
+            if (!signatureTypeEquals(a.get(i), otherParams.get(i))) {
                 return false;
             }
         }
