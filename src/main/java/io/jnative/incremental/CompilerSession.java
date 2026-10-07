@@ -43,6 +43,7 @@ public final class CompilerSession {
     private volatile long cancelledGeneration = -1;
     private int optLevel = 1; // -Odev default
     private boolean explain;
+    private boolean releaseMode;
     private int jobs;
     private boolean initialBuildDone;
 
@@ -95,6 +96,57 @@ public final class CompilerSession {
 
     public void setExplain(boolean explain) {
         this.explain = explain;
+    }
+
+    /** When true, remap {@code build/X} outputs to {@code build/release/X}. */
+    public void setReleaseMode(boolean releaseMode) {
+        this.releaseMode = releaseMode;
+    }
+
+    public boolean releaseMode() {
+        return releaseMode;
+    }
+
+    /** Resolved output path for a target (honors release layout). */
+    public String targetOutput(BuildTargetSpec target) {
+        String out = target.output();
+        if (!releaseMode) {
+            return out;
+        }
+        if (out.startsWith("build/") && !out.startsWith("build/release/")) {
+            return "build/release/" + out.substring("build/".length());
+        }
+        if (out.contains(".jnative/build") || out.startsWith(".jnative/")) {
+            return "build/release/" + target.name();
+        }
+        Path p = Path.of(out);
+        Path parent = p.getParent();
+        if (parent == null) {
+            return "build/release/" + out;
+        }
+        return parent.resolve("release").resolve(p.getFileName()).toString().replace('\\', '/');
+    }
+
+    /** First existing native artifact from this session / project layout. */
+    public Path primaryArtifact() {
+        for (BuildTargetSpec t : project.targets()) {
+            if (t.isBrowser()) {
+                continue;
+            }
+            Path out = projectRoot.resolve(targetOutput(t)).toAbsolutePath().normalize();
+            if (Files.exists(out)) {
+                return out;
+            }
+            String known = lastGoodArtifacts.get(t.name());
+            if (known != null) {
+                Path k = Path.of(known).toAbsolutePath().normalize();
+                // Only accept last-good when it matches the expected layout for this mode.
+                if (Files.exists(k) && k.equals(out)) {
+                    return k;
+                }
+            }
+        }
+        return null;
     }
 
     public void setJobs(int jobs) {
@@ -171,9 +223,8 @@ public final class CompilerSession {
         }
         boolean needInitialArtifacts = false;
         for (BuildTargetSpec t : project.targets()) {
-            Path out = projectRoot.resolve(t.output());
-            String knownGood = lastGoodArtifacts.get(t.name());
-            if (!Files.exists(out) && (knownGood == null || !Files.exists(Path.of(knownGood)))) {
+            Path out = projectRoot.resolve(targetOutput(t));
+            if (!Files.exists(out)) {
                 needInitialArtifacts = true;
                 break;
             }
@@ -288,29 +339,24 @@ public final class CompilerSession {
         String sourceText = Files.readString(main, StandardCharsets.UTF_8);
         UnitFingerprint fp = fingerprints.getOrDefault(rel, UnitFingerprint.fromSource(rel, sourceText));
         String targetFp = targetContentFingerprint(target);
+        String outRel = targetOutput(target);
         String key = cache.cacheKey(
                 Main.VERSION,
                 target.triple(),
-                String.valueOf(optLevel),
+                optLevel + ":" + (releaseMode ? "release" : "dev") + ":" + outRel,
                 fp.contentHash(),
                 targetFp,
                 "rpc");
-        Path out = projectRoot.resolve(target.output());
+        Path out = projectRoot.resolve(outRel);
         Files.createDirectories(out.getParent() == null ? projectRoot.resolve(project.buildDir()) : out.getParent());
         Path published = out;
         Path staging = out.resolveSibling(out.getFileName() + ".tmp." + gen);
 
-        if (cache.contains(key)) {
-            Path existing = published;
-            if (!Files.exists(existing) && lastGoodArtifacts.containsKey(target.name())) {
-                existing = Path.of(lastGoodArtifacts.get(target.name()));
-            }
-            if (Files.exists(existing)) {
-                lastGoodArtifacts.put(target.name(), existing.toAbsolutePath().toString());
-                result.reused().add("artifact:" + target.name());
-                result.explain().add("Reused artifact " + target.name() + "\nReason:\nCACHE_HIT");
-                return;
-            }
+        if (cache.contains(key) && Files.exists(published)) {
+            lastGoodArtifacts.put(target.name(), published.toAbsolutePath().toString());
+            result.reused().add("artifact:" + target.name());
+            result.explain().add("Reused artifact " + target.name() + "\nReason:\nCACHE_HIT");
+            return;
         }
 
         Path compileSource = materializeModuleCompileUnit(target, main);

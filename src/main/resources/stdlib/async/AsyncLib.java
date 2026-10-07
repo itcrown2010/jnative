@@ -1155,11 +1155,20 @@ class AsyncTcpSocket {
         return Async.blockingOnLoop(loop, new AsyncTcpConnectSupplier(loop, host, port));
     }
 
+    /** Charter alias for connect. */
+    static JnFuture connectAsync(EventLoop loop, String host, int port) {
+        return AsyncTcpSocket.connect(loop, host, port);
+    }
+
     JnFuture writeAll(byte[] data) {
         AsyncTcpWriteSupplier sup = new AsyncTcpWriteSupplier();
         sup.socket = socket;
         sup.data = data;
         return Async.blockingOnLoop(loop, sup);
+    }
+
+    JnFuture writeAsync(byte[] data) {
+        return writeAll(data);
     }
 
     JnFuture readAll() {
@@ -1168,8 +1177,14 @@ class AsyncTcpSocket {
         return Async.blockingOnLoop(loop, sup);
     }
 
+    JnFuture readAsync() {
+        return readAll();
+    }
+
     void close() {
-        socket.close();
+        if (socket != null) {
+            socket.close();
+        }
     }
 }
 

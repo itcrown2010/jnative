@@ -55,7 +55,25 @@ char *jnative_fs_config_dir(const char *appName);
 int64_t jnative_fs_watch_open(const char *path);
 /** Non-blocking poll: 1 if directory changed since last poll, else 0. */
 int32_t jnative_fs_watch_poll(int64_t handle);
+/**
+ * Extended poll: 0=none, 1=changed, 2=OVERFLOW/RESCAN_REQUIRED.
+ */
+int32_t jnative_fs_watch_poll_ex(int64_t handle);
 void jnative_fs_watch_close(int64_t handle);
+
+/** Stream FD: mode 0=read, 1=write trunc create, 2=append create. Returns fd>=0 or -1. */
+int64_t jnative_fs_stream_open(const char *path, int32_t mode);
+/** Read up to len bytes. Returns n>0, 0=EOF, -1=error. Retries EINTR. */
+int32_t jnative_fs_stream_read(int64_t fd, void *buf, int32_t len);
+/** Write up to len bytes (may be partial). Returns n>=0 or -1. Retries EINTR. */
+int32_t jnative_fs_stream_write(int64_t fd, const void *buf, int32_t len);
+int32_t jnative_fs_stream_close(int64_t fd);
+int32_t jnative_fs_stream_fsync(int64_t fd);
+
+/** Symlink: 1 if path is a symlink. */
+int32_t jnative_fs_is_symlink(const char *path);
+/** readlink into malloc'd UTF-8; caller frees. NULL on error. */
+char *jnative_fs_readlink(const char *path);
 
 #ifdef __cplusplus
 }

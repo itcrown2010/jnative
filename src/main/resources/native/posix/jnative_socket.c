@@ -529,3 +529,221 @@ int jnative_plat_tcp_set_timeouts(
     }
     return JN_NET_OK;
 }
+
+#include <arpa/inet.h>
+#include <netinet/tcp.h>
+
+char *jnative_plat_dns_resolve(const char *host, char *errbuf, size_t errbuf_len) {
+    if (host == NULL) {
+        set_err(errbuf, errbuf_len, "null host");
+        return NULL;
+    }
+    struct addrinfo hints;
+    memset(&hints, 0, sizeof(hints));
+    hints.ai_family = AF_UNSPEC;
+    hints.ai_socktype = SOCK_STREAM;
+    struct addrinfo *res = NULL;
+    int rc;
+    do {
+        rc = getaddrinfo(host, NULL, &hints, &res);
+    } while (rc == EAI_SYSTEM && errno == EINTR);
+    if (rc != 0) {
+        set_err_fmt(errbuf, errbuf_len, "dns failed: %s", gai_strerror(rc));
+        return NULL;
+    }
+    size_t cap = 256;
+    size_t len = 0;
+    char *out = (char *)malloc(cap);
+    if (out == NULL) {
+        freeaddrinfo(res);
+        set_err(errbuf, errbuf_len, "oom");
+        return NULL;
+    }
+    out[0] = '\0';
+    for (struct addrinfo *ai = res; ai != NULL; ai = ai->ai_next) {
+        char ip[INET6_ADDRSTRLEN];
+        const void *addr = NULL;
+        if (ai->ai_family == AF_INET) {
+            addr = &((struct sockaddr_in *)ai->ai_addr)->sin_addr;
+        } else if (ai->ai_family == AF_INET6) {
+            addr = &((struct sockaddr_in6 *)ai->ai_addr)->sin6_addr;
+        } else {
+            continue;
+        }
+        if (inet_ntop(ai->ai_family, addr, ip, sizeof(ip)) == NULL) {
+            continue;
+        }
+        size_t need = strlen(ip) + 2;
+        if (len + need >= cap) {
+            cap *= 2;
+            char *nbuf = (char *)realloc(out, cap);
+            if (nbuf == NULL) {
+                free(out);
+                freeaddrinfo(res);
+                set_err(errbuf, errbuf_len, "oom");
+                return NULL;
+            }
+            out = nbuf;
+        }
+        if (len > 0) {
+            out[len++] = '\n';
+        }
+        memcpy(out + len, ip, strlen(ip));
+        len += strlen(ip);
+        out[len] = '\0';
+    }
+    freeaddrinfo(res);
+    if (len == 0) {
+        free(out);
+        set_err(errbuf, errbuf_len, "dns: no addresses");
+        return NULL;
+    }
+    return out;
+}
+
+int64_t jnative_plat_udp_bind(
+        const char *host,
+        int port,
+        char *errbuf,
+        size_t errbuf_len
+) {
+    char portbuf[16];
+    snprintf(portbuf, sizeof(portbuf), "%d", port);
+    struct addrinfo hints;
+    memset(&hints, 0, sizeof(hints));
+    hints.ai_family = AF_UNSPEC;
+    hints.ai_socktype = SOCK_DGRAM;
+    hints.ai_flags = AI_PASSIVE;
+    struct addrinfo *res = NULL;
+    const char *node = (host != NULL && host[0] != ' ') ? host : NULL;
+    int rc = getaddrinfo(node, portbuf, &hints, &res);
+    if (rc != 0) {
+        set_err_fmt(errbuf, errbuf_len, "udp bind resolve: %s", gai_strerror(rc));
+        return JN_NET_INVALID_HANDLE;
+    }
+    int fd = -1;
+    for (struct addrinfo *ai = res; ai != NULL; ai = ai->ai_next) {
+        fd = socket(ai->ai_family, ai->ai_socktype, ai->ai_protocol);
+        if (fd < 0) {
+            continue;
+        }
+        int one = 1;
+        (void)setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &one, sizeof(one));
+        suppress_sigpipe(fd);
+        if (bind(fd, ai->ai_addr, ai->ai_addrlen) == 0) {
+            break;
+        }
+        close(fd);
+        fd = -1;
+    }
+    freeaddrinfo(res);
+    if (fd < 0) {
+        set_err(errbuf, errbuf_len, "udp bind failed");
+        return JN_NET_INVALID_HANDLE;
+    }
+    return (int64_t)fd;
+}
+
+int jnative_plat_udp_sendto(
+        int64_t handle,
+        const void *buf,
+        int n,
+        const char *host,
+        int port,
+        char *errbuf,
+        size_t errbuf_len
+) {
+    if (handle < 0 || host == NULL || (buf == NULL && n > 0)) {
+        set_err(errbuf, errbuf_len, "invalid sendto args");
+        return JN_NET_ERR_ARG;
+    }
+    char portbuf[16];
+    snprintf(portbuf, sizeof(portbuf), "%d", port);
+    struct addrinfo hints;
+    memset(&hints, 0, sizeof(hints));
+    hints.ai_family = AF_UNSPEC;
+    hints.ai_socktype = SOCK_DGRAM;
+    struct addrinfo *res = NULL;
+    int rc = getaddrinfo(host, portbuf, &hints, &res);
+    if (rc != 0) {
+        set_err_fmt(errbuf, errbuf_len, "sendto resolve: %s", gai_strerror(rc));
+        return JN_NET_ERR_HOST;
+    }
+    ssize_t sent = -1;
+    for (struct addrinfo *ai = res; ai != NULL; ai = ai->ai_next) {
+        int flags = 0;
+#if defined(__linux__) || defined(__ANDROID__)
+        flags = MSG_NOSIGNAL;
+#endif
+        sent = sendto((int)handle, buf, (size_t)n, flags, ai->ai_addr, ai->ai_addrlen);
+        if (sent >= 0) {
+            break;
+        }
+        if (errno == EINTR) {
+            continue;
+        }
+    }
+    freeaddrinfo(res);
+    if (sent < 0) {
+        set_err_fmt(errbuf, errbuf_len, "sendto failed: %s", strerror(errno));
+        return JN_NET_ERR_SOCKET;
+    }
+    return JN_NET_OK;
+}
+
+int jnative_plat_udp_recvfrom(
+        int64_t handle,
+        void *buf,
+        int max,
+        int *out_n,
+        char *host_out,
+        size_t host_out_len,
+        int *out_port,
+        char *errbuf,
+        size_t errbuf_len
+) {
+    if (handle < 0 || buf == NULL || max <= 0 || out_n == NULL) {
+        set_err(errbuf, errbuf_len, "invalid recvfrom args");
+        return JN_NET_ERR_ARG;
+    }
+    struct sockaddr_storage ss;
+    socklen_t slen = sizeof(ss);
+    ssize_t n;
+    for (;;) {
+        n = recvfrom((int)handle, buf, (size_t)max, 0, (struct sockaddr *)&ss, &slen);
+        if (n < 0) {
+            if (errno == EINTR) {
+                continue;
+            }
+            set_err_fmt(errbuf, errbuf_len, "recvfrom failed: %s", strerror(errno));
+            return map_errno(errno);
+        }
+        break;
+    }
+    *out_n = (int)n;
+    if (host_out != NULL && host_out_len > 0) {
+        host_out[0] = '\0';
+        if (ss.ss_family == AF_INET) {
+            struct sockaddr_in *in = (struct sockaddr_in *)&ss;
+            inet_ntop(AF_INET, &in->sin_addr, host_out, (socklen_t)host_out_len);
+            if (out_port) {
+                *out_port = ntohs(in->sin_port);
+            }
+        } else if (ss.ss_family == AF_INET6) {
+            struct sockaddr_in6 *in6 = (struct sockaddr_in6 *)&ss;
+            inet_ntop(AF_INET6, &in6->sin6_addr, host_out, (socklen_t)host_out_len);
+            if (out_port) {
+                *out_port = ntohs(in6->sin6_port);
+            }
+        }
+    }
+    return JN_NET_OK;
+}
+
+int jnative_plat_udp_close(int64_t handle) {
+    return jnative_plat_tcp_close(handle);
+}
+
+void jnative_plat_net_free(void *p) {
+    free(p);
+}

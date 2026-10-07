@@ -6,6 +6,7 @@
 #include <shellapi.h>
 #include <shlobj.h>
 #include <stdio.h>
+#include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -514,4 +515,106 @@ void jnative_fs_watch_close(int64_t handle) {
         CloseHandle(ww->ov.hEvent);
     }
     memset(ww, 0, sizeof(*ww));
+}
+
+int32_t jnative_fs_watch_poll_ex(int64_t handle) {
+    return jnative_fs_watch_poll(handle) != 0 ? 1 : 0;
+}
+
+int64_t jnative_fs_stream_open(const char *path, int32_t mode) {
+    if (path == NULL) {
+        return -1;
+    }
+    wchar_t *w = utf8_to_wide(path);
+    if (w == NULL) {
+        return -1;
+    }
+    DWORD access = 0;
+    DWORD creation = 0;
+    if (mode == 0) {
+        access = GENERIC_READ;
+        creation = OPEN_EXISTING;
+    } else if (mode == 1) {
+        access = GENERIC_WRITE;
+        creation = CREATE_ALWAYS;
+    } else if (mode == 2) {
+        access = GENERIC_WRITE;
+        creation = OPEN_ALWAYS;
+    } else {
+        free(w);
+        return -1;
+    }
+    HANDLE h = CreateFileW(w, access, FILE_SHARE_READ | FILE_SHARE_WRITE, NULL, creation,
+            FILE_ATTRIBUTE_NORMAL, NULL);
+    free(w);
+    if (h == INVALID_HANDLE_VALUE) {
+        return -1;
+    }
+    if (mode == 2) {
+        SetFilePointer(h, 0, NULL, FILE_END);
+    }
+    return (int64_t)(intptr_t)h;
+}
+
+int32_t jnative_fs_stream_read(int64_t fd, void *buf, int32_t len) {
+    if (fd < 0 || buf == NULL || len < 0) {
+        return -1;
+    }
+    if (len == 0) {
+        return 0;
+    }
+    DWORD n = 0;
+    if (!ReadFile((HANDLE)(intptr_t)fd, buf, (DWORD)len, &n, NULL)) {
+        return -1;
+    }
+    return (int32_t)n;
+}
+
+int32_t jnative_fs_stream_write(int64_t fd, const void *buf, int32_t len) {
+    if (fd < 0 || (buf == NULL && len > 0) || len < 0) {
+        return -1;
+    }
+    if (len == 0) {
+        return 0;
+    }
+    DWORD n = 0;
+    if (!WriteFile((HANDLE)(intptr_t)fd, buf, (DWORD)len, &n, NULL)) {
+        return -1;
+    }
+    return (int32_t)n;
+}
+
+int32_t jnative_fs_stream_close(int64_t fd) {
+    if (fd < 0) {
+        return 0;
+    }
+    return CloseHandle((HANDLE)(intptr_t)fd) ? 0 : -1;
+}
+
+int32_t jnative_fs_stream_fsync(int64_t fd) {
+    if (fd < 0) {
+        return -1;
+    }
+    return FlushFileBuffers((HANDLE)(intptr_t)fd) ? 0 : -1;
+}
+
+int32_t jnative_fs_is_symlink(const char *path) {
+    if (path == NULL) {
+        return 0;
+    }
+    wchar_t *w = utf8_to_wide(path);
+    if (w == NULL) {
+        return 0;
+    }
+    DWORD attrs = GetFileAttributesW(w);
+    free(w);
+    if (attrs == INVALID_FILE_ATTRIBUTES) {
+        return 0;
+    }
+    return (attrs & FILE_ATTRIBUTE_REPARSE_POINT) ? 1 : 0;
+}
+
+char *jnative_fs_readlink(const char *path) {
+    (void)path;
+    return NULL;
 }

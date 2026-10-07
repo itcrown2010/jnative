@@ -173,7 +173,23 @@ class HttpHeaders {
         values = nv;
     }
 
+    static void rejectCrLf(String s) {
+        if (s == null) {
+            return;
+        }
+        int i = 0;
+        while (i < s.length()) {
+            int c = s.charAt(i);
+            if (c == 13 || c == 10) {
+                throw new HttpProtocolException("CRLF not allowed in header name/value");
+            }
+            i = i + 1;
+        }
+    }
+
     void add(String name, String value) {
+        rejectCrLf(name);
+        rejectCrLf(value);
         ensure(count + 1);
         names[count] = name;
         values[count] = value;
@@ -371,6 +387,8 @@ class HttpRequest {
     String url;
     HttpHeaders headers;
     byte[] body;
+    /** Development-only: skip TLS certificate verify when non-zero. */
+    int insecureSkipVerify;
 
     static HttpRequest create(String method, String url) {
         HttpRequest r = new HttpRequest();
@@ -378,7 +396,16 @@ class HttpRequest {
         r.url = url;
         r.headers = new HttpHeaders();
         r.body = new byte[0];
+        r.insecureSkipVerify = 0;
         return r;
+    }
+
+    HttpRequest insecure(int v) {
+        insecureSkipVerify = v;
+        if (v != 0) {
+            System.out.println("warning: HttpRequest.insecure(true) — TLS certificate verification DISABLED");
+        }
+        return this;
     }
 
     void header(String name, String value) {
@@ -598,6 +625,12 @@ class HttpConnectionPool {
 }
 
 class HttpClient {
+    /**
+     * HTTP/1.1 pipelining is NOT supported.
+     * Keep-alive reuses connections one request at a time (HTTPS pool).
+     */
+    static int PIPELINING_SUPPORTED = 0;
+
     static int maxHeaderSize() {
         return 65536;
     }
@@ -654,14 +687,8 @@ class HttpClient {
                     }
                 }
                 HttpRequest next = HttpRequest.create(method, nextUrl);
-                int i = 0;
-                while (i < request.headers.count) {
-                    if (!request.headers.names[i].equalsIgnoreCase("Host")
-                            && !request.headers.names[i].equalsIgnoreCase("Content-Length")) {
-                        next.headers.add(request.headers.names[i], request.headers.values[i]);
-                    }
-                    i = i + 1;
-                }
+                next.insecureSkipVerify = request.insecureSkipVerify;
+                HttpClient.copyRedirectHeaders(request, next, request.url, nextUrl);
                 next.bodyBytes(body);
                 return HttpClient.sendRedirects(next, redirectCount + 1);
             }
@@ -680,7 +707,15 @@ class HttpClient {
 
     static HttpResponse sendHttpsRedirects(HttpRequest request, int redirectCount) {
         HttpUrl url = HttpUrl.parse(request.url);
-        TlsConfig tlsCfg = TlsConfig.builder().alpn("h2,http/1.1").serverName(url.host).build();
+        String alpnList = "h2,http/1.1";
+        if (request.insecureSkipVerify != 0) {
+            /* Dev/test path: prefer HTTP/1.1 to avoid h2 preface edge cases with skip-verify. */
+            alpnList = "http/1.1";
+        }
+        TlsConfig tlsCfg = TlsConfig.builder().alpn(alpnList).serverName(url.host).build();
+        if (request.insecureSkipVerify != 0) {
+            tlsCfg.insecureSkipVerify(1);
+        }
         HttpPoolKey pk = HttpPoolKey.of(url, tlsCfg);
         HttpConnectionPool pool = HttpConnectionPool.shared();
         HttpPooledConn pooled = pool.take(pk.id());
@@ -708,6 +743,8 @@ class HttpClient {
                     if (loc != null && loc.length() > 0) {
                         String nextUrl = HttpClient.resolveRedirect(request.url, loc);
                         HttpRequest next = HttpRequest.create(request.method, nextUrl);
+                        next.insecureSkipVerify = request.insecureSkipVerify;
+                        HttpClient.copyRedirectHeaders(request, next, request.url, nextUrl);
                         next.bodyBytes(request.body);
                         return HttpClient.sendRedirects(next, redirectCount + 1);
                     }
@@ -737,6 +774,8 @@ class HttpClient {
                 }
                 String nextUrl = HttpClient.resolveRedirect(request.url, loc);
                 HttpRequest next = HttpRequest.create(request.method, nextUrl);
+                next.insecureSkipVerify = request.insecureSkipVerify;
+                HttpClient.copyRedirectHeaders(request, next, request.url, nextUrl);
                 next.bodyBytes(request.body);
                 return HttpClient.sendRedirects(next, redirectCount + 1);
             }
@@ -831,6 +870,53 @@ class HttpClient {
 
     static boolean isRedirect(int code) {
         return code == 301 || code == 302 || code == 303 || code == 307 || code == 308;
+    }
+
+    static int isSensitiveRedirectHeader(String name) {
+        if (name.equalsIgnoreCase("Authorization")) {
+            return 1;
+        }
+        if (name.equalsIgnoreCase("Proxy-Authorization")) {
+            return 1;
+        }
+        if (name.equalsIgnoreCase("Cookie")) {
+            return 1;
+        }
+        return 0;
+    }
+
+    static int isCrossOriginRedirect(String fromUrl, String toUrl) {
+        HttpUrl a = HttpUrl.parse(fromUrl);
+        HttpUrl b = HttpUrl.parse(toUrl);
+        if (!a.scheme.equalsIgnoreCase(b.scheme)) {
+            return 1;
+        }
+        if (!a.host.equalsIgnoreCase(b.host)) {
+            return 1;
+        }
+        if (a.port != b.port) {
+            return 1;
+        }
+        return 0;
+    }
+
+    /** Copy headers for redirect; strip credentials on cross-origin. Never forward Host/Content-Length. */
+    static void copyRedirectHeaders(HttpRequest from, HttpRequest to, String fromUrl, String toUrl) {
+        int cross = HttpClient.isCrossOriginRedirect(fromUrl, toUrl);
+        int i = 0;
+        while (i < from.headers.count) {
+            String n = from.headers.names[i];
+            if (!n.equalsIgnoreCase("Host") && !n.equalsIgnoreCase("Content-Length")) {
+                int skip = 0;
+                if (cross != 0 && HttpClient.isSensitiveRedirectHeader(n) != 0) {
+                    skip = 1;
+                }
+                if (skip == 0) {
+                    to.headers.add(n, from.headers.values[i]);
+                }
+            }
+            i = i + 1;
+        }
     }
 
     static String resolveRedirect(String baseUrl, String location) {

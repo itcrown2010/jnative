@@ -569,3 +569,178 @@ void jnative_fs_watch_close(int64_t handle) {
     }
     pthread_mutex_unlock(&g_watch_lock);
 }
+
+/* ---- Round 4: streaming FD + watch overflow + symlink ---- */
+
+int32_t jnative_fs_watch_poll_ex(int64_t handle) {
+#if defined(__linux__)
+    if (handle <= 0 || handle > JN_WATCH_MAX) {
+        return 0;
+    }
+    pthread_mutex_lock(&g_watch_lock);
+    JnWatch *w = &g_watches[(int)handle - 1];
+    if (!w->armed) {
+        pthread_mutex_unlock(&g_watch_lock);
+        return 0;
+    }
+    int32_t result = 0;
+    if (w->fd >= 0) {
+        char buf[4096];
+        for (;;) {
+            ssize_t n = read(w->fd, buf, sizeof(buf));
+            if (n < 0) {
+                if (errno == EINTR) {
+                    continue;
+                }
+                if (errno == EAGAIN || errno == EWOULDBLOCK) {
+                    break;
+                }
+                break;
+            }
+            if (n == 0) {
+                break;
+            }
+            result = 1;
+            char *p = buf;
+            char *end = buf + n;
+            while (p < end) {
+                struct inotify_event *ev = (struct inotify_event *)p;
+                if (ev->mask & IN_Q_OVERFLOW) {
+                    result = 2;
+                }
+                p += sizeof(struct inotify_event) + ev->len;
+            }
+            if (n < (ssize_t)sizeof(buf)) {
+                break;
+            }
+        }
+    }
+    if (result == 0) {
+        int64_t m = dir_mtime(w->path);
+        if (m != w->last_mtime) {
+            w->last_mtime = m;
+            result = 1;
+        }
+    } else if (result == 1) {
+        w->last_mtime = dir_mtime(w->path);
+    }
+    pthread_mutex_unlock(&g_watch_lock);
+    return result;
+#else
+    int32_t c = jnative_fs_watch_poll(handle);
+    return c != 0 ? 1 : 0;
+#endif
+}
+
+int64_t jnative_fs_stream_open(const char *path, int32_t mode) {
+    if (path == NULL) {
+        return -1;
+    }
+    int flags = 0;
+    if (mode == 0) {
+        flags = O_RDONLY;
+    } else if (mode == 1) {
+        flags = O_WRONLY | O_CREAT | O_TRUNC;
+    } else if (mode == 2) {
+        flags = O_WRONLY | O_CREAT | O_APPEND;
+    } else {
+        return -1;
+    }
+    int fd;
+    do {
+        fd = open(path, flags, 0644);
+    } while (fd < 0 && errno == EINTR);
+    return fd < 0 ? -1 : (int64_t)fd;
+}
+
+int32_t jnative_fs_stream_read(int64_t fd, void *buf, int32_t len) {
+    if (fd < 0 || buf == NULL || len < 0) {
+        return -1;
+    }
+    if (len == 0) {
+        return 0;
+    }
+    for (;;) {
+        ssize_t n = read((int)fd, buf, (size_t)len);
+        if (n < 0) {
+            if (errno == EINTR) {
+                continue;
+            }
+            return -1;
+        }
+        return (int32_t)n;
+    }
+}
+
+int32_t jnative_fs_stream_write(int64_t fd, const void *buf, int32_t len) {
+    if (fd < 0 || (buf == NULL && len > 0) || len < 0) {
+        return -1;
+    }
+    if (len == 0) {
+        return 0;
+    }
+    for (;;) {
+        ssize_t n = write((int)fd, buf, (size_t)len);
+        if (n < 0) {
+            if (errno == EINTR) {
+                continue;
+            }
+            return -1;
+        }
+        return (int32_t)n;
+    }
+}
+
+int32_t jnative_fs_stream_close(int64_t fd) {
+    if (fd < 0) {
+        return 0;
+    }
+    for (;;) {
+        if (close((int)fd) == 0) {
+            return 0;
+        }
+        if (errno == EINTR) {
+            continue;
+        }
+        return -1;
+    }
+}
+
+int32_t jnative_fs_stream_fsync(int64_t fd) {
+    if (fd < 0) {
+        return -1;
+    }
+    for (;;) {
+        if (fsync((int)fd) == 0) {
+            return 0;
+        }
+        if (errno == EINTR) {
+            continue;
+        }
+        return -1;
+    }
+}
+
+int32_t jnative_fs_is_symlink(const char *path) {
+    if (path == NULL) {
+        return 0;
+    }
+    struct stat st;
+    if (lstat(path, &st) != 0) {
+        return 0;
+    }
+    return S_ISLNK(st.st_mode) ? 1 : 0;
+}
+
+char *jnative_fs_readlink(const char *path) {
+    if (path == NULL) {
+        return NULL;
+    }
+    char buf[PATH_MAX];
+    ssize_t n = readlink(path, buf, sizeof(buf) - 1);
+    if (n < 0) {
+        return NULL;
+    }
+    buf[n] = '\0';
+    return strdup(buf);
+}

@@ -1,63 +1,146 @@
-# JNative Supported Language Profile
+# JNative Supported Language Profile (1.0 Audit)
 
-**Profile:** Language Core 0.x (Round 1.1)  
-**Evidence basis:** compiler + native e2e on macOS arm64  
-**Maturity of this profile:** **L2** (implemented + unit/negative/native tests for declared features)
+**Profile ID:** `jnative-lang-1.0-candidate`  
+**Audit date:** 2026-10-08  
+**Maturity of profile as a whole:** **L2** (not L3 — missing optimizer identity, fuzz, multi-OS)  
+**Rule:** Features not listed SUPPORTED must be treated as **NOT SUPPORTED IN 1.0**.
 
-This document defines what is **officially supported**. Features not listed as SUPPORTED must not be assumed present.
+Evidence basis: compiler sources + `src/test` (especially `e2e/`). Host for e2e: macOS arm64 unless noted.
 
-| Feature | Status | Level | Notes |
+---
+
+## 1. Official status legend
+
+| Status | Meaning |
+|---|---|
+| **SUPPORTED** | In language profile; has implementation + tests at stated Level |
+| **NOT SUPPORTED IN 1.0** | Must not be used; reject or absent — do not ship half-implemented |
+| **EXPERIMENTAL** | Exists but API/semantics may change; not Stable |
+
+Levels: L0–L4 per readiness audit.
+
+---
+
+## 2. Types & OOP
+
+| Feature | Status | Level | Evidence / Notes |
 |---|---|---|---|
-| `byte` `short` `int` `long` `float` `double` `boolean` `char` | SUPPORTED | L2 | Happy + e2e coverage via existing suites |
-| `class` / `interface` / `abstract class` | SUPPORTED | L2 | |
-| inheritance / override | SUPPORTED | L2 | |
-| method overload | SUPPORTED | L2 | Fixed Round 1 (semantic + IR) |
-| constructor / `this` / `super` | SUPPORTED | L2 | |
-| `static` | SUPPORTED | L2 | |
-| `null` | SUPPORTED | L2 | |
-| arrays | SUPPORTED | L2 | |
-| generics (basic) | SUPPORTED | L2 | Primitive specialization exists for some collections |
-| lambda / method reference | SUPPORTED | L1–L2 | See callable e2e |
-| `if` / `if-else` | SUPPORTED | L2 | |
-| `while` | SUPPORTED | L2 | |
-| `do` / `while` | SUPPORTED | L2 | Round 1.1 |
-| `for` | SUPPORTED | L2 | |
-| `break` | SUPPORTED | L2 | Round 1.1; BreakTarget model (loop today; switch later) |
-| `continue` | SUPPORTED | L2 | Round 1.1; `for` continues to update |
-| `return` | SUPPORTED | L2 | |
-| `try` / `catch` / `finally` | SUPPORTED | L2 | |
-| `break`/`continue` × `finally` | SUPPORTED | L2 | Finally runs; abrupt completion kinds |
-| `throw` / exceptions | SUPPORTED | L2 | |
-| `enum` | NOT YET SUPPORTED | L0 | |
-| `switch` | NOT YET SUPPORTED | L0 | |
-| labeled break/continue | NOT YET SUPPORTED | L0 | |
-| try-with-resources | SUPPORTED | L2 | AutoCloseable or void close(); reverse-order cleanup |
-| `final` (fields/locals) | NOT YET SUPPORTED | L0 | Partial / unverified |
-| varargs | NOT YET SUPPORTED | L0 | |
-| bitwise `& \| ^ ~ << >> >>>` | NOT YET SUPPORTED | L0 | |
-| ternary `?:` (expr) | NOT YET SUPPORTED | L0 | `?` used in wildcards |
-| primitive casts `(int)` etc. | NOT YET SUPPORTED | L0 | |
-| enhanced for | NOT YET SUPPORTED | L0 | |
+| `byte` `short` `int` `long` `float` `double` `boolean` `char` | SUPPORTED | L2–L3 | Widespread e2e |
+| `class` / fields / methods | SUPPORTED | L3 | All apps |
+| `interface` | SUPPORTED | L2–L3 | `InterfaceEndToEndTest`; **no** default/static interface methods |
+| `abstract class` | SUPPORTED | L2–L3 | Same |
+| inheritance / `extends` | SUPPORTED | L3 | Inheritance + vtable e2e |
+| `implements` | SUPPORTED | L2–L3 | Interface e2e |
+| constructor / `this` / `super` | SUPPORTED | L2–L3 | Constructor semantic + e2e |
+| `static` | SUPPORTED | L3 | |
+| visibility (`public`/`private`/…) | SUPPORTED | L2 | Partial matrix |
+| `final` (fields/locals) | **NOT SUPPORTED IN 1.0** | L0–L1 | Unverified / incomplete |
+| method overload | SUPPORTED | L2–L3 | `OverloadEndToEndTest` — **keep forever as regression** |
+| constructor overload | SUPPORTED | L2 | |
+| `override` (virtual dispatch) | SUPPORTED | L3 | Dynamic dispatch e2e |
+| arrays | SUPPORTED | L3 | Runtime + e2e |
+| generics (basic / specialized collections) | SUPPORTED | L2–L3 | `GenericsEndToEndTest` |
+| wildcards `?` / `? extends` / `? super` | EXPERIMENTAL | L1 | Parsing exists; **no native wildcard e2e** |
+| lambda / SAM | SUPPORTED | L2–L3 | `CallableEndToEndTest` |
+| method reference `::` | SUPPORTED | L2–L3 | Same |
+| annotations (compile-time / meta) | SUPPORTED | L2 | Meta032 processors; limited native app loop |
+| `enum` | **NOT SUPPORTED IN 1.0** | L0 | No language keyword |
+| `record` | **NOT SUPPORTED IN 1.0** | L0 | |
+| pattern matching / switch patterns | **NOT SUPPORTED IN 1.0** | L0 | Classic `instanceof` only |
 
-## Control-flow model
+---
 
-- Semantic validation uses **break-target depth** (loops today).
-- IR uses **LoopFrame / BreakTarget** with exit + continue blocks.
-- Abrupt completion through `finally` uses TLS completion kinds: `return=1`, `break=2`, `continue=3`.
-- LLVM lowering never pattern-matches AST `break`; it only emits CFG branches.
+## 3. Control flow & exceptions
 
-## String contract (core)
+| Feature | Status | Level | Evidence / Notes |
+|---|---|---|---|
+| `if` / `else` | SUPPORTED | L3 | |
+| `while` / `do`/`while` / `for` | SUPPORTED | L2–L3 | |
+| enhanced `for` | **NOT SUPPORTED IN 1.0** | L0 | |
+| `switch` / `case` | **NOT SUPPORTED IN 1.0** | L0 | No tokens/AST |
+| `break` / `continue` | SUPPORTED | L2–L3 | `LoopControlEndToEndTest`; O0/O2/O3 |
+| labeled break/continue | **NOT SUPPORTED IN 1.0** | L0 | |
+| `return` | SUPPORTED | L3 | |
+| `try` / `catch` / `finally` | SUPPORTED | L2–L3 | `ExceptionEndToEndTest` |
+| try-with-resources | SUPPORTED | L2–L3 | `ResourceEndToEndTest` |
+| `throw` | SUPPORTED | L3 | |
+| multi-catch | **NOT SUPPORTED IN 1.0** | L0–L1 | |
+| checked `throws` enforcement | **NOT SUPPORTED IN 1.0** | L0 | |
+| ternary `?:` (expression) | **NOT SUPPORTED IN 1.0** | L0 | `?` is wildcard-only |
+| `async` / `await` | SUPPORTED | L2 | Thin e2e; dual Future debt |
 
-| API | Semantics |
+---
+
+## 4. Operators & conversions
+
+| Feature | Status | Level | Evidence / Notes |
+|---|---|---|---|
+| arithmetic `+ - * / %` | SUPPORTED | L2–L3 | |
+| comparison / logical `&& \|\| !` | SUPPORTED | L3 | |
+| bitwise `& \| ^ ~` | **NOT SUPPORTED IN 1.0** | L0 | No tokens |
+| shifts `<< >> >>>` | **NOT SUPPORTED IN 1.0** | L0 | |
+| varargs `...` | **NOT SUPPORTED IN 1.0** | L0 | |
+| primitive casts `(int)x` | **NOT SUPPORTED IN 1.0** | L0 | Profile: not supported; use typed APIs |
+| reference cast / `instanceof` | SUPPORTED | L2–L3 | RuntimeError + Interface e2e |
+| string `+` | SUPPORTED | L2–L3 | |
+
+### Numeric semantics (1.0 expectations)
+
+| Topic | Status |
+|---|---|
+| integer overflow (wrap) | Assumed two's complement via LLVM — **no dedicated suite** |
+| integer division / modulo | Used in e2e — **no edge corpus** |
+| float NaN / Infinity / `-0.0` | **NOT VERIFIED** systematically |
+| shift masking / signedness | N/A (shifts unsupported) |
+
+---
+
+## 5. String contract (Stable rules)
+
+| API / rule | Semantics |
 |---|---|
 | `length()` | UTF-8 **byte** count (not Unicode code points) |
-| `split(String delimiter)` | **Literal** delimiter (NOT Java regex) |
-| empty delimiter | returns single-element array `[this]` |
-| empty input `"".split(",")` | `[""]` |
-| consecutive / trailing empties | **kept** |
+| `split(delimiter)` | **Literal** delimiter (NOT regex) |
+| empty delimiter | `[this]` |
+| `"".split(",")` | `[""]` |
+| consecutive / trailing empties | kept |
 | null delimiter | NPE |
-| `String.join(delim, String[])` | single-pass join; null element → `"null"` |
+| `StringBuilder` | Present in CollectionsLib — Level **L2** (not full Java parity) |
 
-## Collections core (1.0 minimum)
+---
 
-See Round 1.1 report matrix. Planned post-core: LinkedList, LinkedHashMap, LinkedHashSet, PriorityQueue.
+## 6. Compiler correctness gates (profile)
+
+| Gate | Status |
+|---|---|
+| Illegal source → diagnostic (no NPE/crash) | PARTIAL — many rejects; **no fuzz corpus** |
+| O0 / O2 / O3 same semantics | PARTIAL — `DifferentialOptTest` O0↔O2 only; LoopControl runs three opts |
+| Overload vertical e2e | PASS — must remain regression |
+| Lexer/parser fuzz | **MISSING** |
+
+---
+
+## 7. Explicit 1.0 exclusions (do not half-implement)
+
+Ship as hard errors or absence — **never** silent wrong codegen:
+
+1. `enum`  
+2. `switch`  
+3. ternary expressions  
+4. bitwise / shift operators  
+5. varargs  
+6. records / pattern matching  
+7. labeled break  
+8. primitive cast syntax (until implemented + tested)  
+
+---
+
+## 8. Profile stability statement
+
+For 1.0 RC, freeze this profile:
+
+- **Stable API surface** = SUPPORTED rows at ≥ L2 with native e2e  
+- Raising SUPPORTED → Stable product tier requires ≥ **L3** (real apps + failure paths)  
+- Adding new syntax after RC1 requires a language RFC + e2e + opt differential  
+
+**Current product truth:** language core is a **usable subset**, not Java SE.

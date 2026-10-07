@@ -243,7 +243,7 @@ class TlsContext {
     }
 }
 
-class TlsConnection {
+class TlsConnection implements AutoCloseable {
     long handle;
     TcpSocket tcp;
     String negotiatedAlpn;
@@ -275,6 +275,7 @@ class TlsConnection {
         conn.tcp = tcp;
         conn.closed = 0;
         conn.ctx = ctx;
+        ResourceTracker.trackOpen("tls");
         conn.driveHandshake();
         conn.refreshMeta();
         return conn;
@@ -296,6 +297,7 @@ class TlsConnection {
         conn.tcp = tcp;
         conn.ctx = serverCtx;
         conn.closed = 0;
+        ResourceTracker.trackOpen("tls");
         conn.driveHandshake();
         conn.refreshMeta();
         return conn;
@@ -411,6 +413,7 @@ class TlsConnection {
         if (handle != 0) {
             TlsNative.close(handle);
             handle = 0;
+            ResourceTracker.trackClose("tls");
         }
         if (tcp != null) {
             tcp.close();

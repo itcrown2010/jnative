@@ -19,13 +19,56 @@ interface AutoCloseable {
 class ResourceTracker {
     static int opens;
     static int closes;
+    static int filesOpen;
+    static int socketsOpen;
+    static int tlsOpen;
+    static int serversOpen;
+    static int buffersOpen;
 
     static void trackOpen(String kind) {
         opens = opens + 1;
+        if (kind == null) {
+            return;
+        }
+        if (kind.equals("file")) {
+            filesOpen = filesOpen + 1;
+        } else if (kind.equals("socket")) {
+            socketsOpen = socketsOpen + 1;
+        } else if (kind.equals("tls")) {
+            tlsOpen = tlsOpen + 1;
+        } else if (kind.equals("server")) {
+            serversOpen = serversOpen + 1;
+        } else if (kind.equals("buffer")) {
+            buffersOpen = buffersOpen + 1;
+        }
     }
 
     static void trackClose(String kind) {
         closes = closes + 1;
+        if (kind == null) {
+            return;
+        }
+        if (kind.equals("file")) {
+            if (filesOpen > 0) {
+                filesOpen = filesOpen - 1;
+            }
+        } else if (kind.equals("socket")) {
+            if (socketsOpen > 0) {
+                socketsOpen = socketsOpen - 1;
+            }
+        } else if (kind.equals("tls")) {
+            if (tlsOpen > 0) {
+                tlsOpen = tlsOpen - 1;
+            }
+        } else if (kind.equals("server")) {
+            if (serversOpen > 0) {
+                serversOpen = serversOpen - 1;
+            }
+        } else if (kind.equals("buffer")) {
+            if (buffersOpen > 0) {
+                buffersOpen = buffersOpen - 1;
+            }
+        }
     }
 
     static int openCount() {
@@ -36,9 +79,34 @@ class ResourceTracker {
         return n;
     }
 
+    static int files() {
+        return filesOpen;
+    }
+
+    static int sockets() {
+        return socketsOpen;
+    }
+
+    static int tls() {
+        return tlsOpen;
+    }
+
+    static int servers() {
+        return serversOpen;
+    }
+
+    static int buffers() {
+        return buffersOpen;
+    }
+
     static void reset() {
         opens = 0;
         closes = 0;
+        filesOpen = 0;
+        socketsOpen = 0;
+        tlsOpen = 0;
+        serversOpen = 0;
+        buffersOpen = 0;
     }
 }
 

@@ -63,6 +63,25 @@ class FsNative {
 
     @Native(symbol = "jnative_fs_watch_close")
     static native void watchClose(long handle);
+
+    @Native(symbol = "jnative_fs_watch_poll_ex")
+    static native int watchPollEx(long handle);
+
+    @Native(symbol = "jnative_fs_is_symlink")
+    static native int isSymlink(String path);
+
+    @Native(symbol = "jnative_fs_readlink")
+    static native NativePtr readlink(String path);
+}
+
+/** Standard open options for Files streams / write. */
+class StandardOpenOption {
+    static int READ = 1;
+    static int WRITE = 2;
+    static int APPEND = 4;
+    static int CREATE = 8;
+    static int CREATE_NEW = 16;
+    static int TRUNCATE_EXISTING = 32;
 }
 
 class ProcNative {
@@ -231,6 +250,8 @@ class FsPath {
 }
 
 class Files {
+    static int atomicSeq;
+
     static boolean exists(FsPath path) {
         return FsNative.exists(path.toString()) != 0;
     }
@@ -356,6 +377,90 @@ class Files {
             return copyDirectoryRecursive(from, to, new HashMap<String, String>());
         }
         return FsNative.copyFile(from.toString(), to.toString()) != 0;
+    }
+
+    static boolean isSymlink(FsPath path) {
+        return FsNative.isSymlink(path.toString()) != 0;
+    }
+
+    static String readSymbolicLink(FsPath path) {
+        NativePtr p = FsNative.readlink(path.toString());
+        if (p == NativePtr.NULL) {
+            throw new IOException("readlink failed: " + path.toString());
+        }
+        String s = NativeMemory.fromCString(p);
+        FsNative.free(p);
+        return s;
+    }
+
+    /** Temp write + fsync + rename. Partial temp removed on failure. */
+    static void writeAtomic(FsPath path, byte[] data) {
+        if (path == null) {
+            throw new NullPointerException("path");
+        }
+        if (data == null) {
+            throw new NullPointerException("data");
+        }
+        Files.atomicSeq = Files.atomicSeq + 1;
+        FsPath parent = path.getParent();
+        String tmpName = path.getName() + ".jn-tmp-" + String.valueOf(Files.atomicSeq);
+        FsPath tmp = parent.resolve(tmpName);
+        FileOutputStream out = new FileOutputStream(tmp.toString(), 0);
+        out.write(data);
+        out.flush();
+        out.close();
+        if (!move(tmp, path)) {
+            delete(tmp);
+            throw new IOException("atomic rename failed: " + path.toString());
+        }
+    }
+
+    static void writeAtomicString(FsPath path, String text) {
+        writeAtomic(path, Bytes.fromString(text));
+    }
+
+    static FileInputStream newInputStream(FsPath path) {
+        return new FileInputStream(path);
+    }
+
+    static FileOutputStream newOutputStream(FsPath path) {
+        return new FileOutputStream(path);
+    }
+
+    /**
+     * Depth-first walk. Symlink directories are not followed (cycle-safe).
+     * visited keys are normalized absolute-ish path strings.
+     */
+    static ArrayList<FsPath> walk(FsPath root) {
+        ArrayList<FsPath> out = new ArrayList<FsPath>();
+        HashMap<String, String> seen = new HashMap<String, String>();
+        walkInto(root, out, seen, 0);
+        return out;
+    }
+
+    static void walkInto(FsPath root, ArrayList<FsPath> out, HashMap<String, String> seen, int depth) {
+        if (root == null || depth > 256) {
+            return;
+        }
+        String key = root.normalize().toString();
+        if (seen.containsKey(key)) {
+            return;
+        }
+        seen.put(key, "1");
+        out.add(root);
+        if (!isDirectory(root)) {
+            return;
+        }
+        if (isSymlink(root)) {
+            return;
+        }
+        ArrayList<FileInfo> kids = listInfo(root);
+        int i = 0;
+        while (i < kids.size()) {
+            FileInfo fi = kids.get(i);
+            walkInto(root.resolve(fi.name), out, seen, depth + 1);
+            i = i + 1;
+        }
     }
 
     static boolean copyDirectoryRecursive(FsPath from, FsPath to, HashMap<String, String> seen) {
@@ -578,8 +683,16 @@ class SystemPaths {
     }
 }
 
+/** Watch event codes from pollEx. */
+class WatchKind {
+    static int NONE = 0;
+    static int CHANGED = 1;
+    /** OS queue overflow — client must rescan. */
+    static int OVERFLOW = 2;
+}
+
 /** WatchService — platform backend (kqueue/inotify/ReadDirectoryChangesW) + poll. */
-class WatchService {
+class WatchService implements AutoCloseable {
     long handle;
     FsPath path;
     int closed;
@@ -588,6 +701,7 @@ class WatchService {
         path = dir;
         handle = FsNative.watchOpen(dir.toString());
         closed = 0;
+        ResourceTracker.trackOpen("file");
     }
 
     static WatchService open(FsPath dir) {
@@ -595,10 +709,15 @@ class WatchService {
     }
 
     boolean poll() {
+        return pollEx() == WatchKind.CHANGED;
+    }
+
+    /** 0=none, 1=changed, 2=OVERFLOW/RESCAN_REQUIRED. */
+    int pollEx() {
         if (closed != 0 || handle == 0) {
-            return false;
+            return WatchKind.NONE;
         }
-        return FsNative.watchPoll(handle) != 0;
+        return FsNative.watchPollEx(handle);
     }
 
     void close() {
@@ -606,6 +725,7 @@ class WatchService {
             FsNative.watchClose(handle);
             handle = 0;
             closed = 1;
+            ResourceTracker.trackClose("file");
         }
     }
 }

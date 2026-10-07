@@ -346,7 +346,33 @@ public final class StdlibIncluder {
                 || sourceText.contains("CpuInfo.")
                 || sourceText.contains("StudioApplication")
                 || sourceText.contains("jnative.studio")
+                || sourceText.contains("ByteBuffer")
+                || sourceText.contains("InputStream")
+                || sourceText.contains("OutputStream")
+                || sourceText.contains("FileInputStream")
+                || sourceText.contains("FileOutputStream")
+                || sourceText.contains("BufferedInputStream")
+                || sourceText.contains("BufferedOutputStream")
+                || sourceText.contains("BufferedReader")
+                || sourceText.contains("BufferedWriter")
+                || sourceText.contains("ByteArrayInputStream")
+                || sourceText.contains("ByteArrayOutputStream")
+                || sourceText.contains("ByteBufferPool")
+                || sourceText.contains("StandardOpenOption")
+                || sourceText.contains("writeAtomic")
+                || needsNet(sourceText)
                 || needsWeb(sourceText);
+    }
+
+    public static boolean needsNet(String sourceText) {
+        if (sourceText == null) {
+            return false;
+        }
+        return sourceText.contains("DnsResolver")
+                || sourceText.contains("UdpSocket")
+                || sourceText.contains("IPAddress")
+                || sourceText.contains("SocketAddress")
+                || sourceText.contains("NetNative");
     }
 
     public static boolean needsStudio(String sourceText) {
@@ -516,7 +542,14 @@ public final class StdlibIncluder {
 
     public static String prependIoStdlib(String userSource) throws IOException {
         List<String> parts = new ArrayList<>();
+        parts.add(load("stdlib/io/StreamLib.java"));
         parts.add(load("stdlib/io/IoLib.java"));
+        if (needsNet(userSource)
+                || userSource.contains("UdpSocket")
+                || userSource.contains("DnsResolver")
+                || userSource.contains("IPAddress")) {
+            parts.add(load("stdlib/net/NetLib.java"));
+        }
         parts.add(userSource);
         return String.join("\n\n", parts);
     }
@@ -596,15 +629,17 @@ public final class StdlibIncluder {
         boolean wantIo = needsIo(userSource) || wantStudio || wantWeb;
         boolean wantBrowser = needsBrowser(userSource);
         boolean wantDatabase = needsDatabase(userSource);
-        boolean wantCrypto = needsCrypto(userSource) || wantWeb || needsHttp(userSource) || needsHttp2(userSource);
+        boolean wantCrypto = needsCrypto(userSource) || wantWeb || needsHttp(userSource) || needsHttp2(userSource)
+                || needsTls(userSource);
         boolean wantRpc = needsRpc(userSource);
         boolean wantTime = needsTime(userSource);
         boolean wantAsync = needsAsync(userSource) || wantWeb || wantDatabase || wantCrypto || wantBrowser || wantRpc
                 || wantTime;
         boolean wantMath = needsMath(userSource);
         // Advanced UI / Graphics / Editor use ArrayList / Function from collections.
+        boolean wantTlsEarly = needsTls(userSource) || needsHttp(userSource) || needsHttp2(userSource) || wantWeb;
         if (needsCollections(text) || wantUi || wantGraphics || wantEditor || wantJson || wantIo || wantStudio
-                || wantAsync || wantDatabase || wantCrypto || wantRpc || wantTime) {
+                || wantAsync || wantDatabase || wantCrypto || wantRpc || wantTime || wantTlsEarly || needsNet(userSource)) {
             text = prependCollectionsStdlib(text);
         }
         if (wantMath || needsMath(text)) {
@@ -625,7 +660,7 @@ public final class StdlibIncluder {
         if (wantJson || needsJson(text) || wantRpc) {
             text = prependJsonStdlib(text);
         }
-        if (wantIo || needsIo(text)) {
+        if (wantIo || needsIo(text) || needsNet(text)) {
             text = prependIoStdlib(text);
         }
         if (wantUi || needsUi(text)) {

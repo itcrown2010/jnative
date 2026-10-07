@@ -29,6 +29,34 @@ Collectors treat these as precise roots:
 
 GC must **not** run inside `@NoGC` regions (`jn_nogc_depth > 0` aborts on managed alloc).
 
+## STW sequence (cooperative safepoints)
+
+```
+Thread A        Thread B        GC
+   │               │            │
+allocate         mutate          │
+   │               │          request
+   ├───────────────┼────────────→
+ safepoint       safepoint
+   │               │
+   └──── STOP ─────┘
+                    ↓
+                scan roots
+                    ↓
+                 collect
+                    ↓
+              resume all
+```
+
+| Phase | Runtime |
+|---|---|
+| request | Collector sets `gc_requested` in `jn_gc_stw_begin` (after `jn_gc_collect_lock`) |
+| safepoint | Mutators hit `jn_safepoint_poll` (alloc / leave-native); park as `JN_EXEC_SAFEPOINT` |
+| STOP | STW waits until no other thread remains `JN_EXEC_MANAGED` (`NATIVE`/`SAFEPOINT`/`TERMINATED` ok) |
+| scan roots | `jn_foreach_root_slot` + exception / Thread / static visitors |
+| collect | Young/old/mark-sweep work under world-stopped |
+| resume all | `jn_gc_stw_end` clears request, bumps `stw_generation`, wakes parked polls |
+
 ## Write barriers / moving GC
 
 Under GC2 (generational), stores of managed refs into object fields go through `jn_gc2_write_barrier` so old→young edges enter the remembered set. After a minor collection, root slots and remset owners are updated to forwarded addresses.

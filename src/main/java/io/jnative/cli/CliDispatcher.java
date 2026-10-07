@@ -33,6 +33,10 @@ public final class CliDispatcher {
         }
         String cmd = args[0];
         return switch (cmd) {
+            case "doctor" -> ProjectCli.doctor(args);
+            case "new" -> ProjectCli.newProject(args);
+            case "run" -> ProjectCli.run(args);
+            case "test" -> ProjectCli.test(args);
             case "dev" -> runDev(args);
             case "build" -> runBuild(args);
             case "clean" -> runClean(args);
@@ -143,19 +147,24 @@ public final class CliDispatcher {
                 return 1;
             }
         }
+        if (!explain) {
+            // Quiet UX: "Build succeeded in 0.81s" / "Output: build/release/hello"
+            // (skip Output line for `jnative run` — that path calls buildQuiet directly)
+            ProjectCli.BuildOutcome outcome = ProjectCli.buildQuiet(root, release, opt);
+            return outcome.success() ? 0 : 1;
+        }
         CompilerSession session = new CompilerSession(root);
-        session.setExplain(explain);
+        session.setExplain(true);
         session.setOptLevel(release ? 3 : opt);
+        session.setReleaseMode(release);
         if (jobs > 0) {
             session.setJobs(jobs);
         }
         BuildResult result = session.build();
         System.out.print(result.summary());
-        if (explain) {
-            for (String line : result.explain()) {
-                System.out.println(line);
-                System.out.println();
-            }
+        for (String line : result.explain()) {
+            System.out.println(line);
+            System.out.println();
         }
         for (String d : result.diagnostics()) {
             System.err.println(d);
@@ -280,21 +289,21 @@ public final class CliDispatcher {
     }
 
     public static String helpText() {
-        return """
-                JNative 0.32 — Compile-Time Metaprogramming / Annotation Processing
+        return "JNative " + ProjectCli.CHANNEL + """
+                 — Native Java toolchain
 
                 Usage:
+                  jnative doctor
+                  jnative new <name>
+                  jnative run [--project DIR]
+                  jnative test [--project DIR]
+                  jnative build [--project DIR] [--release] [--explain] [--offline]
                   jnative processors [list|explain <Type>]
                   jnative generated <SymbolOrPath>
-                  jnative build [--project DIR] [--explain] [--deterministic] [--offline] [--release]
                   jnative add|remove|update|deps|search|info|publish|audit|licenses
                   jnative cert|serve|dev|clean|cache
-                  jnative <source.java> [-o out] [-O0..-O3] [--explain-meta] [--deterministic]
+                  jnative <source.java> [-o out] [-O0..-O3] [--run]
                   jnative --version | --help
-
-                Metaprogramming (0.32):
-                  Stable Meta API · AnnotationProcessor · .jnative/generated · ZERO runtime reflection
-                  Metaprogramming LLVM intrinsics: NONE
                 """;
     }
 }

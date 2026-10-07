@@ -64,6 +64,40 @@ int jnative_plat_tcp_write_all(
 
 int jnative_plat_tcp_close(int64_t handle);
 
+/* DNS: newline-separated IP addresses (IPv4/IPv6). Caller frees with free(). */
+void jnative_plat_net_free(void *p);
+
+char *jnative_plat_dns_resolve(const char *host, char *errbuf, size_t errbuf_len);
+
+/** Returns socket handle >=0, or JN_NET_INVALID_HANDLE on error. */
+int64_t jnative_plat_udp_bind(
+        const char *host,
+        int port,
+        char *errbuf,
+        size_t errbuf_len);
+
+int jnative_plat_udp_sendto(
+        int64_t handle,
+        const void *buf,
+        int n,
+        const char *host,
+        int port,
+        char *errbuf,
+        size_t errbuf_len);
+
+int jnative_plat_udp_recvfrom(
+        int64_t handle,
+        void *buf,
+        int max,
+        int *out_n,
+        char *host_out,
+        size_t host_out_len,
+        int *out_port,
+        char *errbuf,
+        size_t errbuf_len);
+
+int jnative_plat_udp_close(int64_t handle);
+
 int jnative_plat_tcp_set_timeouts(
         int64_t handle,
         int read_ms,
