@@ -11,6 +11,9 @@ import io.jnative.compiler.JNativeCompiler;
 import io.jnative.diagnostics.Diagnostic;
 import io.jnative.incremental.BuildResult;
 import io.jnative.incremental.CompilerSession;
+import io.jnative.pkg.BuildGraphPackageIntegration;
+import io.jnative.pkg.FilesystemRegistry;
+import io.jnative.pkg.PackageManager;
 
 import java.io.BufferedReader;
 import java.io.InputStream;
@@ -36,6 +39,21 @@ public final class ProjectCli {
     }
 
     public static int doctor(String[] args) {
+        boolean mobileOnly = false;
+        boolean includeMobile = false;
+        for (String a : args) {
+            if ("--mobile".equals(a)) {
+                includeMobile = true;
+                mobileOnly = true;
+            } else if ("--with-mobile".equals(a)) {
+                includeMobile = true;
+            }
+        }
+        if (mobileOnly) {
+            Path jar = Path.of("target/jnative.jar").toAbsolutePath().normalize();
+            return MobileCli.doctorMobile(Files.isRegularFile(jar) ? jar : null);
+        }
+
         System.out.println("JNative " + CHANNEL);
         System.out.println();
 
@@ -59,6 +77,13 @@ public final class ProjectCli {
             }
         }
         System.out.println();
+        if (includeMobile) {
+            Path jar = Path.of("target/jnative.jar").toAbsolutePath().normalize();
+            int mobileRc = MobileCli.doctorMobile(Files.isRegularFile(jar) ? jar : null);
+            if (mobileRc != 0) {
+                healthy = false;
+            }
+        }
         if (healthy) {
             System.out.println("Environment healthy.");
             return 0;
@@ -69,23 +94,45 @@ public final class ProjectCli {
 
     public static int newProject(String[] args) throws Exception {
         if (args.length < 2 || args[1].startsWith("-")) {
-            System.err.println("usage: jnative new <name>");
+            System.err.println("usage: jnative new <name> [--dir <parent>] [--minimal] [--template mobile]");
             return 1;
         }
+        for (int i = 2; i < args.length; i++) {
+            if ("--template".equals(args[i]) && i + 1 < args.length
+                    && "mobile".equalsIgnoreCase(args[i + 1])) {
+                return MobileCli.newMobileProject(args);
+            }
+        }
         String name = args[1].trim();
+        Path parent = Path.of(".").toAbsolutePath().normalize();
+        boolean minimal = false;
+        for (int i = 2; i < args.length; i++) {
+            if ("--dir".equals(args[i]) && i + 1 < args.length) {
+                parent = Path.of(args[++i]).toAbsolutePath().normalize();
+            } else if ("--minimal".equals(args[i])) {
+                minimal = true;
+            }
+        }
         if (!name.matches("[A-Za-z_][A-Za-z0-9_-]*")) {
             System.err.println("error: invalid project name: " + name);
             return 1;
         }
-        Path dir = Path.of(name).toAbsolutePath().normalize();
+        Path dir = parent.resolve(name).toAbsolutePath().normalize();
+        if (Files.exists(dir.resolve("jnative.project"))
+                || Files.exists(dir.resolve("jnative.toml"))
+                || Files.exists(dir.resolve("src/Main.jn"))
+                || Files.exists(dir.resolve("src/Main.java"))) {
+            System.err.println("error: refusing to overwrite existing project files in " + dir);
+            return 1;
+        }
         if (Files.exists(dir)) {
             if (!Files.isDirectory(dir)) {
-                System.err.println("error: path exists and is not a directory: " + name);
+                System.err.println("error: path exists and is not a directory: " + dir);
                 return 1;
             }
             try (Stream<Path> listing = Files.list(dir)) {
-                if (listing.findAny().isPresent()) {
-                    System.err.println("error: directory already exists and is not empty: " + name);
+                if (listing.findAny().isPresent() && !minimal) {
+                    System.err.println("error: directory already exists and is not empty: " + dir);
                     return 1;
                 }
             }
@@ -94,7 +141,9 @@ public final class ProjectCli {
         }
 
         Files.createDirectories(dir.resolve("src"));
-        Files.createDirectories(dir.resolve("tests"));
+        if (!minimal) {
+            Files.createDirectories(dir.resolve("tests"));
+        }
 
         String projectJson = """
                 {
@@ -106,14 +155,47 @@ public final class ProjectCli {
                 """.formatted(name, name);
         Files.writeString(dir.resolve("jnative.project"), projectJson, StandardCharsets.UTF_8);
 
-        String mainSrc = """
+        String toml = """
+                [package]
+                name = "%s"
+                namespace = "local"
+                version = "0.1.0"
+                license = "MIT"
+                type = "source"
+                """.formatted(name);
+        Files.writeString(dir.resolve("jnative.toml"), toml, StandardCharsets.UTF_8);
+
+        Files.writeString(dir.resolve(".gitignore"), """
+                /build/
+                /.jnative/
+                /jnative.lock
+                *.o
+                *.ll
+                """, StandardCharsets.UTF_8);
+
+        String mainSrc = minimal
+                ? """
+                class Main {
+                    public static void main(String[] args) {
+                        System.out.println("Hello JNative");
+                    }
+                }
+                """
+                : """
                 public class Main {
                     public static void main(String[] args) {
                         System.out.println("Hello, JNative!");
                     }
                 }
                 """;
-        Files.writeString(dir.resolve("src/Main.java"), mainSrc, StandardCharsets.UTF_8);
+        Files.writeString(dir.resolve("src/Main.jn"), mainSrc, StandardCharsets.UTF_8);
+
+        if (minimal) {
+            System.out.println();
+            System.out.println("Created project `" + name + "` at " + dir);
+            System.out.println();
+            return 0;
+        }
 
         writeTest(dir, "GreetingTest", """
                 public class GreetingTest {
@@ -175,12 +257,21 @@ public final class ProjectCli {
         Path root = projectRoot(args, 1);
         if (!Files.isRegularFile(root.resolve("jnative.project"))) {
             System.err.println("error: no jnative.project in " + root);
-            System.err.println("Run `jnative new <name>` or `jnative <source.java> --run`.");
+            System.err.println("Run `jnative new <name>` or `jnative <source.jn|.java> --run`.");
             return 1;
+        }
+        List<Path> registries = new ArrayList<>();
+        boolean offline = false;
+        for (int i = 1; i < args.length; i++) {
+            if ("--registry".equals(args[i]) && i + 1 < args.length) {
+                registries.add(Path.of(args[++i]).toAbsolutePath().normalize());
+            } else if ("--offline".equals(args[i])) {
+                offline = true;
+            }
         }
         JNativeProject project = ProjectFile.discover(root);
         System.out.println("Compiling " + project.name() + "...");
-        BuildOutcome outcome = buildQuiet(root, false, 1, false);
+        BuildOutcome outcome = buildQuiet(root, false, 1, false, offline, registries);
         if (!outcome.success()) {
             return 1;
         }
@@ -206,7 +297,8 @@ public final class ProjectCli {
         List<Path> sources;
         try (Stream<Path> walk = Files.walk(testsDir)) {
             sources = walk
-                    .filter(p -> Files.isRegularFile(p) && p.getFileName().toString().endsWith(".java"))
+                    .filter(p -> Files.isRegularFile(p)
+                            && io.jnative.source.SourceFiles.isSourcePath(p))
                     .sorted()
                     .toList();
         }
@@ -266,46 +358,122 @@ public final class ProjectCli {
 
     /** Shared quiet build used by {@code run} and {@code build}. */
     public static BuildOutcome buildQuiet(Path root, boolean release, int optLevel) throws Exception {
-        return buildQuiet(root, release, optLevel, true);
+        return buildQuiet(root, release, optLevel, true, false, List.of(), false);
     }
 
     public static BuildOutcome buildQuiet(Path root, boolean release, int optLevel, boolean printOutput)
             throws Exception {
+        return buildQuiet(root, release, optLevel, printOutput, false, List.of(), false);
+    }
+
+    public static BuildOutcome buildQuiet(
+            Path root,
+            boolean release,
+            int optLevel,
+            boolean printOutput,
+            boolean offline,
+            List<Path> extraRegistries
+    ) throws Exception {
+        return buildQuiet(root, release, optLevel, printOutput, offline, extraRegistries, false);
+    }
+
+    /**
+     * @param offline if true, package resolve may not download
+     * @param extraRegistries filesystem registry roots (e.g. {@code --registry})
+     * @param debug if true, emit source-level LLVM DI and prefer -O0 unless opt already set
+     */
+    public static BuildOutcome buildQuiet(
+            Path root,
+            boolean release,
+            int optLevel,
+            boolean printOutput,
+            boolean offline,
+            List<Path> extraRegistries,
+            boolean debug
+    ) throws Exception {
         CompilerSession session = new CompilerSession(root);
         session.setOptLevel(release ? 3 : optLevel);
         session.setReleaseMode(release);
+        session.setEmitSourceDebugInfo(debug);
+        attachPackageSources(session, root, offline, extraRegistries);
         long t0 = System.currentTimeMillis();
         BuildResult result = session.build();
         long ms = result.wallTimeMs() > 0 ? result.wallTimeMs() : (System.currentTimeMillis() - t0);
+        List<String> diagStrings = List.copyOf(result.diagnostics());
         if (!result.success()) {
-            System.out.printf(Locale.US, "Build FAILED in %.2fs%n", ms / 1000.0);
-            for (String d : result.diagnostics()) {
-                System.err.println(d);
+            if (printOutput) {
+                System.out.printf(Locale.US, "Build FAILED in %.2fs%n", ms / 1000.0);
+                for (String d : diagStrings) {
+                    System.err.println(d);
+                }
             }
-            return new BuildOutcome(false, null, ms, session);
+            return new BuildOutcome(false, null, ms, session, diagStrings);
         }
         Path artifact = session.primaryArtifact();
-        System.out.printf(Locale.US, "Build succeeded in %.2fs%n", ms / 1000.0);
-        if (printOutput && artifact != null) {
-            Path rel;
-            try {
-                rel = root.relativize(artifact.toAbsolutePath().normalize());
-            } catch (Exception e) {
-                rel = artifact;
+        if (printOutput) {
+            System.out.printf(Locale.US, "Build succeeded in %.2fs%n", ms / 1000.0);
+            if (artifact != null) {
+                Path rel;
+                try {
+                    rel = root.relativize(artifact.toAbsolutePath().normalize());
+                } catch (Exception e) {
+                    rel = artifact;
+                }
+                System.out.println("Output: " + rel.toString().replace('\\', '/'));
             }
-            System.out.println("Output: " + rel.toString().replace('\\', '/'));
+            for (String d : diagStrings) {
+                System.err.println(d);
+            }
         }
-        for (String d : result.diagnostics()) {
-            System.err.println(d);
-        }
-        return new BuildOutcome(true, artifact, ms, session);
+        return new BuildOutcome(true, artifact, ms, session, diagStrings);
     }
 
-    public record BuildOutcome(boolean success, Path primaryArtifact, long wallTimeMs, CompilerSession session) {
+    public record BuildOutcome(
+            boolean success,
+            Path primaryArtifact,
+            long wallTimeMs,
+            CompilerSession session,
+            List<String> diagnosticTexts
+    ) {
+        public BuildOutcome {
+            diagnosticTexts = diagnosticTexts == null ? List.of() : List.copyOf(diagnosticTexts);
+        }
+    }
+
+    /**
+     * Resolve package dependencies and feed their source roots into the compiler session.
+     * Compiler never contacts the registry; it only receives filesystem paths.
+     */
+    public static void attachPackageSources(
+            CompilerSession session,
+            Path root,
+            boolean offline,
+            List<Path> extraRegistries
+    ) throws Exception {
+        boolean hasManifest = Files.isRegularFile(root.resolve("jnative.toml"));
+        boolean hasLock = Files.isRegularFile(root.resolve("jnative.lock"));
+        if (!hasManifest && !hasLock) {
+            return;
+        }
+        PackageManager pm = new PackageManager(root);
+        pm.setOffline(offline);
+        if (extraRegistries != null) {
+            for (Path reg : extraRegistries) {
+                if (reg != null) {
+                    pm.addRegistry(new FilesystemRegistry(reg.toAbsolutePath().normalize(), "cli"));
+                }
+            }
+        }
+        var graph = pm.resolve("native", false, false);
+        var nodes = BuildGraphPackageIntegration.materialize(graph, pm.cache());
+        BuildGraphPackageIntegration.validateCapabilities(nodes, "native");
+        session.setPackageSourceRoots(BuildGraphPackageIntegration.sourceRoots(nodes));
+        System.out.println("[pkg] resolved " + graph.packages().size()
+                + " packages, source roots=" + session.packageSourceRoots().size());
     }
 
     private static void writeTest(Path root, String className, String source) throws Exception {
-        Files.writeString(root.resolve("tests").resolve(className + ".java"), source, StandardCharsets.UTF_8);
+        Files.writeString(root.resolve("tests").resolve(className + ".jn"), source, StandardCharsets.UTF_8);
     }
 
     private static Path projectRoot(String[] args, int start) {

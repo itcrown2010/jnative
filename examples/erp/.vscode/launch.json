@@ -1,0 +1,39 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "type": "lldb",
+      "request": "launch",
+      "name": "ERP logic-test (practice SQLite)",
+      "program": "${workspaceFolder}/examples/erp/.jnative/build/erp-server",
+      "cwd": "${workspaceFolder}",
+      "args": ["--logic-test"],
+      "env": {
+        "DATABASE_URL": "sqlite:${workspaceFolder}/build/erp/debug-practice.db"
+      },
+      "preLaunchTask": "erp-debug-build",
+      "initCommands": [
+        "command script import '${workspaceFolder}/tools/lldb/jnative_formatters.py'",
+        "breakpoint set --name jnative_debugger_on_uncaught"
+      ]
+    },
+    {
+      "type": "lldb",
+      "request": "launch",
+      "name": "ERP server HTTP (practice SQLite)",
+      "program": "${workspaceFolder}/examples/erp/.jnative/build/erp-server",
+      "cwd": "${workspaceFolder}",
+      "args": [],
+      "env": {
+        "DATABASE_URL": "sqlite:${workspaceFolder}/build/erp/debug-practice-http.db",
+        "ERP_DEMO_MODE": "1",
+        "ERP_LISTEN_PORT": "18711"
+      },
+      "preLaunchTask": "erp-debug-build",
+      "initCommands": [
+        "command script import '${workspaceFolder}/tools/lldb/jnative_formatters.py'",
+        "breakpoint set --name jnative_debugger_on_uncaught"
+      ]
+    }
+  ]
+}

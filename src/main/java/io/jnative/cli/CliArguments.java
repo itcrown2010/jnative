@@ -21,10 +21,10 @@ public final class CliArguments {
             switch (arg) {
                 case "-h", "--help" -> options.setHelp(true);
                 case "-v", "--version" -> options.setVersion(true);
-                case "-O0" -> options.setOptLevel(0);
-                case "-O1", "-Odev" -> options.setOptLevel(1);
-                case "-O2" -> options.setOptLevel(2);
-                case "-O3" -> options.setOptLevel(3);
+                case "-O0" -> options.setOptLevelExplicitly(0);
+                case "-O1", "-Odev" -> options.setOptLevelExplicitly(1);
+                case "-O2" -> options.setOptLevelExplicitly(2);
+                case "-O3" -> options.setOptLevelExplicitly(3);
                 case "-o" -> {
                     if (i + 1 >= args.length) {
                         throw new IllegalArgumentException("missing output path after -o");
@@ -50,7 +50,11 @@ public final class CliArguments {
                 case "--debug" -> {
                     options.setBuildProfile(io.jnative.compiler.BuildProfile.DEBUG);
                     options.setDebugSymbols(true);
-                    options.setOptLevel(0);
+                    options.setEmitSourceDebugInfo(true);
+                    // Only default to -O0 when the user did not pass an explicit -O*.
+                    if (!options.optLevelExplicit()) {
+                        options.setOptLevel(0);
+                    }
                 }
                 case "--release" -> {
                     options.setBuildProfile(io.jnative.compiler.BuildProfile.RELEASE);
@@ -113,6 +117,13 @@ public final class CliArguments {
                     }
                     options.addLinkLibrary(args[++i]);
                 }
+                case "--format" -> {
+                    // Consumed by CliDispatcher for JSON reports; ignore value here.
+                    if (i + 1 < args.length && !args[i + 1].startsWith("-")) {
+                        i++;
+                    }
+                }
+                case "--format=json", "--format=text" -> { /* CliDispatcher */ }
                 default -> {
                     if (arg.startsWith("--ui-backend=")) {
                         options.setUiBackend(arg.substring("--ui-backend=".length()));
@@ -136,7 +147,7 @@ public final class CliArguments {
                         continue;
                     }
                     if (arg.startsWith("-O") && arg.length() == 3 && Character.isDigit(arg.charAt(2))) {
-                        options.setOptLevel(arg.charAt(2) - '0');
+                        options.setOptLevelExplicitly(arg.charAt(2) - '0');
                         continue;
                     }
                     if (arg.startsWith("-")) {

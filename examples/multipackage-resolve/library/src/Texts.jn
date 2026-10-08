@@ -1,0 +1,16 @@
+package com.demo.greet;
+
+public class Texts {
+    public static int bump(int x) {
+        return x + 1;
+    }
+
+    /** Package-private: only same language package may call. */
+    static int hidden(int x) {
+        return x * 10;
+    }
+
+    private static int secret() {
+        return 99;
+    }
+}

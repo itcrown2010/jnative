@@ -30,13 +30,14 @@ pg_dump --format=custom --file="$DUMP" "$DB_URL"
 echo "backup=$DUMP"
 
 echo "== apply migrations (idempotent DDL) =="
-for f in 001_init.sql 002_finance.sql 003_manufacturing.sql 004_enterprise.sql; do
+for f in 001_init.sql 002_finance.sql 003_manufacturing.sql 004_enterprise.sql 005_pilot.sql; do
   psql "$DB_URL" -v ON_ERROR_STOP=1 -f "$ROOT/examples/erp/migrations/$f" >/dev/null || {
-    echo "FAIL: migration $f — restore from $DUMP"
+    echo "FAIL: migration $f — application must not serve business until restored"
     echo "  pg_restore --clean --if-exists --dbname=\"\$DATABASE_URL\" $DUMP"
     exit 3
   }
 done
+# App also applies ALTER columns via ErpDb.ensurePilotSchema; binary health gate below.
 
 echo "== rebuild & replace binary =="
 (cd "$ROOT" && java -jar target/jnative.jar build --project examples/erp)

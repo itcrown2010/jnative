@@ -1,0 +1,6 @@
+{
+  "name": "debug-multifile",
+  "source": ["src"],
+  "main": "DebugMulti",
+  "output": "build/DebugMulti"
+}

@@ -192,14 +192,32 @@ public final class JsGlueGenerator {
                   }
                 };
 
-                async function jnativeStart(wasmUrl = './app.wasm') {
+                function writeWasmString(str) {
+                  if (!exports?.jn_bump || !memory) throw new Error('wasm not ready');
+                  const enc = new TextEncoder().encode(str ?? '');
+                  const ptr = exports.jn_bump(enc.length + 4) >>> 0;
+                  const view = new DataView(memory.buffer);
+                  view.setUint32(ptr, enc.length, true);
+                  new Uint8Array(memory.buffer, ptr + 4, enc.length).set(enc);
+                  return ptr;
+                }
+
+                function findExport(substr) {
+                  if (!exports) return null;
+                  for (const k of Object.keys(exports)) {
+                    if (k.includes(substr)) return exports[k];
+                  }
+                  return null;
+                }
+
+                async function jnativeStart(wasmUrl = './app.wasm', { autoStart = true } = {}) {
                   const resp = await fetch(wasmUrl);
                   if (!resp.ok) throw new Error('failed to fetch ' + wasmUrl);
                   const bytes = await resp.arrayBuffer();
                   const { instance } = await WebAssembly.instantiate(bytes, imports);
                   exports = instance.exports;
                   memory = exports.memory;
-                  if (typeof exports.jnative_start === 'function') {
+                  if (autoStart && typeof exports.jnative_start === 'function') {
                     try {
                       exports.jnative_start();
                     } catch (e) {
@@ -207,11 +225,11 @@ public final class JsGlueGenerator {
                       throw e;
                     }
                   }
-                  return { exports, handles, release };
+                  return { exports, memory, handles, release, writeWasmString, findExport, readWasmString };
                 }
 
-                jnativeStart().catch((e) => console.error(e));
-                export { jnativeStart, retain, release, getHandle, applyDomPatches };
+                // No auto-start: the host page (or default HTML) must call jnativeStart().
+                export { jnativeStart, retain, release, getHandle, applyDomPatches, writeWasmString, findExport, readWasmString };
                 """;
     }
 }

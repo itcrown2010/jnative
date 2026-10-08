@@ -65,7 +65,16 @@ public final class ObjectLayoutBuilder {
             for (FieldLayout fl : parent.fields()) {
                 maxAlign = Math.max(maxAlign, fl.alignment());
             }
-            offset = parent.instanceSize();
+            // Append after the last parent field byte (not padded instanceSize).
+            // LLVM flat structs {…parent fields…, child} do not insert parent's
+            // trailing alignment padding between parent and child members; debug
+            // catalogs and GC offsets must match that GEP layout.
+            if (parent.fields().isEmpty()) {
+                offset = parent.headerSize();
+            } else {
+                FieldLayout last = parent.fields().get(parent.fields().size() - 1);
+                offset = last.offset() + last.size();
+            }
             gepIndex = parent.fieldGepBaseIndex() + parent.fields().size();
         } else {
             offset = headerSize;

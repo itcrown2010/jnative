@@ -1,0 +1,4 @@
+[package]
+name = "debug-multifile"
+version = "0.1.0"
+description = "Cross-file native debug sample"

@@ -1,0 +1,19 @@
+[package]
+name = "{{PROJECT_NAME}}"
+namespace = "local"
+version = "{{VERSION}}"
+description = "JNative mobile app"
+license = "MIT"
+
+[mobile]
+app_name = "{{APP_NAME}}"
+android_application_id = "{{ANDROID_APPLICATION_ID}}"
+ios_bundle_id = "{{IOS_BUNDLE_ID}}"
+version = "{{VERSION}}"
+build_number = "{{BUILD_NUMBER}}"
+entry = "src/App.java"
+web_root = "web"
+web_entry = "web/index.html"
+platforms_root = "platforms"
+targets = ["web", "android", "ios"]
+capabilities = ["platform.getName", "storage.get", "storage.set", "storage.remove", "lifecycle"]

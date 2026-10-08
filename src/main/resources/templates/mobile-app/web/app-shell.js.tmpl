@@ -1,0 +1,91 @@
+import { jnativeStart } from './app.js';
+import { JNativeBridge, installWebPlatformHost } from './bridge.js';
+
+const KEY_LEFT = 'calc.lastLeft';
+const KEY_RIGHT = 'calc.lastRight';
+const errMessages = { 1: 'Input is empty', 2: 'Input is not a valid integer' };
+
+function $(id) { return document.getElementById(id); }
+function setStatus(text, isError) {
+  const el = $('status');
+  el.textContent = text || '';
+  el.className = isError ? 'status error' : 'status';
+}
+
+window.addEventListener('error', (e) => {
+  console.error('JS error', e.error || e.message);
+  setStatus('JS error: ' + (e.message || 'unknown'), true);
+});
+window.addEventListener('unhandledrejection', (e) => {
+  console.error('Unhandled rejection', e.reason);
+  setStatus('Promise error: ' + (e.reason?.message || e.reason || 'unknown'), true);
+});
+
+async function main() {
+  const isNativeShell = !!(window.JNativeHost || window.webkit?.messageHandlers?.jnativeBridge);
+  if (!isNativeShell) installWebPlatformHost();
+
+  const bridge = new JNativeBridge({
+    requiredCapabilities: ['platform.getName', 'storage.get', 'storage.set'],
+  });
+  window.__jnativeBridge = bridge;
+
+  let exports, writeWasmString, findExport;
+  try {
+    ({ exports, writeWasmString, findExport } = await jnativeStart('./app.wasm', { autoStart: true }));
+  } catch (e) {
+    setStatus('WASM load failed: ' + e.message, true);
+    throw e;
+  }
+
+  const compute = findExport('App_compute_CString_CString');
+  const getLastError = findExport('App_getLastError');
+  if (typeof compute !== 'function' || typeof getLastError !== 'function') {
+    setStatus('WASM exports missing — rebuild from source', true);
+    return;
+  }
+
+  let session;
+  try {
+    session = await bridge.init();
+  } catch (e) {
+    setStatus('Bridge init failed: ' + (e.code || '') + ' ' + e.message, true);
+    throw e;
+  }
+  $('platform').textContent = 'platform: ' + session.platform + ' (bridge v' + session.version + ')';
+  bridge.onLifecycle((name) => { $('lifecycle').textContent = 'lifecycle: ' + name; });
+
+  try {
+    const left = await bridge.call('storage.get', { key: KEY_LEFT });
+    const right = await bridge.call('storage.get', { key: KEY_RIGHT });
+    if (typeof left === 'string') $('left').value = left;
+    if (typeof right === 'string') $('right').value = right;
+  } catch (e) {
+    console.warn('restore failed', e.code || e.message);
+  }
+
+  $('sum').addEventListener('click', async () => {
+    try {
+      const left = $('left').value.trim();
+      const right = $('right').value.trim();
+      const result = compute(writeWasmString(left), writeWasmString(right));
+      const code = getLastError() | 0;
+      if (code !== 0) {
+        $('result').textContent = '—';
+        setStatus(errMessages[code] || ('Error ' + code), true);
+        return;
+      }
+      $('result').textContent = String(result);
+      setStatus('OK', false);
+      await bridge.call('storage.set', { key: KEY_LEFT, value: left });
+      await bridge.call('storage.set', { key: KEY_RIGHT, value: right });
+    } catch (e) {
+      setStatus('Bridge/WASM error: ' + (e.code || '') + ' ' + (e.message || e), true);
+    }
+  });
+
+  window.addEventListener('pagehide', () => bridge.destroy());
+  window.addEventListener('beforeunload', () => bridge.destroy());
+}
+
+main().catch((e) => setStatus(String(e), true));

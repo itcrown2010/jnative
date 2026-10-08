@@ -1,0 +1,55 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "type": "lldb",
+      "request": "launch",
+      "name": "DebugDemo (CodeLLDB)",
+      "program": "${workspaceFolder}/examples/debug/DebugDemo",
+      "cwd": "${workspaceFolder}/examples/debug",
+      "args": [],
+      "preLaunchTask": "jnative-debug-demo",
+      "initCommands": [
+        "command script import '${workspaceFolder}/tools/lldb/jnative_formatters.py'"
+      ]
+    },
+    {
+      "type": "lldb",
+      "request": "launch",
+      "name": "ObjectDebugDemo (CodeLLDB)",
+      "program": "${workspaceFolder}/examples/debug/ObjectDebugDemo",
+      "cwd": "${workspaceFolder}/examples/debug",
+      "args": [],
+      "preLaunchTask": "jnative-object-debug-demo",
+      "initCommands": [
+        "command script import '${workspaceFolder}/tools/lldb/jnative_formatters.py'"
+      ]
+    },
+    {
+      "type": "lldb",
+      "request": "launch",
+      "name": "GcDebugDemo (CodeLLDB)",
+      "program": "${workspaceFolder}/examples/debug/GcDebugDemo",
+      "cwd": "${workspaceFolder}/examples/debug",
+      "args": [],
+      "preLaunchTask": "jnative-gc-debug-demo",
+      "initCommands": [
+        "command script import '${workspaceFolder}/tools/lldb/jnative_formatters.py'"
+      ]
+    },
+    {
+      "type": "lldb",
+      "request": "launch",
+      "name": "ExceptionDebugDemo (CodeLLDB)",
+      "program": "${workspaceFolder}/examples/debug/ExceptionDebugDemo",
+      "cwd": "${workspaceFolder}/examples/debug",
+      "args": [],
+      "preLaunchTask": "jnative-exception-debug-demo",
+      "initCommands": [
+        "command script import '${workspaceFolder}/tools/lldb/jnative_formatters.py'",
+        "breakpoint set --name jnative_debugger_on_uncaught",
+        "breakpoint set --name jnative_exception_throw"
+      ]
+    }
+  ]
+}

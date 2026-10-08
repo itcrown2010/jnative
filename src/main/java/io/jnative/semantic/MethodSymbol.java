@@ -39,6 +39,7 @@ public final class MethodSymbol {
     private String nativeEffectsContract;
     private boolean isAsync;
     private JType logicalReturnType;
+    private Visibility visibility = Visibility.PUBLIC;
 
     public MethodSymbol(
             ReferenceTypeSymbol owner,
@@ -106,6 +107,14 @@ public final class MethodSymbol {
 
     public String name() {
         return name;
+    }
+
+    public Visibility visibility() {
+        return visibility == null ? Visibility.PUBLIC : visibility;
+    }
+
+    public void setVisibility(Visibility visibility) {
+        this.visibility = visibility == null ? Visibility.PUBLIC : visibility;
     }
 
     public JType returnType() {

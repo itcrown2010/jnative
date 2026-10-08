@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
+  <title>JNative Mobile Calculator</title>
+  <style>
+    :root {
+      --bg: #f3f0e8;
+      --ink: #1c1a16;
+      --accent: #0b6e4f;
+      --err: #9b2226;
+      --card: #fffdf8;
+      --safe-top: env(safe-area-inset-top, 0px);
+      --safe-bottom: env(safe-area-inset-bottom, 0px);
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
+      color: var(--ink);
+      background:
+        radial-gradient(1200px 600px at 10% -10%, #d9efe6 0%, transparent 55%),
+        radial-gradient(900px 500px at 100% 0%, #f7e2c8 0%, transparent 50%),
+        var(--bg);
+      min-height: 100dvh;
+      padding: calc(1.25rem + var(--safe-top)) 1.25rem calc(1.25rem + var(--safe-bottom));
+    }
+    h1 {
+      font-size: 1.75rem;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      margin: 0 0 0.35rem;
+    }
+    .sub { opacity: 0.7; margin-bottom: 1.25rem; font-size: 0.95rem; }
+    label { display: block; font-size: 0.85rem; margin: 0.75rem 0 0.25rem; }
+    input {
+      width: 100%;
+      font: inherit;
+      font-size: 1.25rem;
+      padding: 0.65rem 0.75rem;
+      border: 1px solid #cfc6b6;
+      border-radius: 0.35rem;
+      background: var(--card);
+    }
+    button {
+      margin-top: 1.1rem;
+      width: 100%;
+      font: inherit;
+      font-size: 1.1rem;
+      padding: 0.75rem;
+      border: none;
+      border-radius: 0.4rem;
+      background: var(--accent);
+      color: #f7fff9;
+      cursor: pointer;
+    }
+    button:active { transform: translateY(1px); }
+    .result {
+      margin-top: 1.25rem;
+      font-size: 2rem;
+      font-variant-numeric: tabular-nums;
+    }
+    .status { min-height: 1.25rem; margin-top: 0.5rem; }
+    .status.error { color: var(--err); }
+    .meta { margin-top: 1.5rem; font-size: 0.8rem; opacity: 0.65; }
+    .note { margin-top: 0.75rem; font-size: 0.75rem; opacity: 0.55; max-width: 36rem; }
+  </style>
+</head>
+<body>
+  <h1>JNative Calculator</h1>
+  <p class="sub">Shared WebUI/WASM core — thin mobile containers</p>
+
+  <label for="left">First integer</label>
+  <input id="left" inputmode="numeric" autocomplete="off" placeholder="e.g. 12"/>
+
+  <label for="right">Second integer</label>
+  <input id="right" inputmode="numeric" autocomplete="off" placeholder="e.g. 30"/>
+
+  <button id="sum" type="button">Add</button>
+
+  <div class="result">Result: <span id="result">—</span></div>
+  <div id="status" class="status"></div>
+  <div class="meta">
+    <div id="platform">platform: …</div>
+    <div id="lifecycle">lifecycle: …</div>
+  </div>
+  <p class="note">
+    Stored values use ordinary key-value storage (web: localStorage; mobile: app preferences).
+    This is not a secure store for passwords or tokens.
+  </p>
+
+  <script type="module" src="./app-shell.js"></script>
+</body>
+</html>

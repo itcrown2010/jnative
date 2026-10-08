@@ -1,11 +1,11 @@
 # JNative Supported Language Profile (1.0 Audit)
 
 **Profile ID:** `jnative-lang-1.0-candidate`  
-**Audit date:** 2026-10-08  
+**Audit date:** 2026-10-09  
 **Maturity of profile as a whole:** **L2** (not L3 — missing optimizer identity, fuzz, multi-OS)  
 **Rule:** Features not listed SUPPORTED must be treated as **NOT SUPPORTED IN 1.0**.
 
-Evidence basis: compiler sources + `src/test` (especially `e2e/`). Host for e2e: macOS arm64 unless noted.
+Evidence basis: compiler sources + `src/test` (especially `e2e/`, `PackageAndAccessTest`, `MultipackageResolveIntegrationTest`). Host for e2e: macOS arm64 unless noted.
 
 ---
 
@@ -33,9 +33,14 @@ Levels: L0–L4 per readiness audit.
 | `implements` | SUPPORTED | L2–L3 | Interface e2e |
 | constructor / `this` / `super` | SUPPORTED | L2–L3 | Constructor semantic + e2e |
 | `static` | SUPPORTED | L3 | |
-| visibility (`public`/`private`/…) | SUPPORTED | L2 | Partial matrix |
+| visibility (`public`/`private`/`protected`/package) | SUPPORTED | L2 | Enforced for types/members; `PackageAndAccessTest` |
+| `package` declaration | SUPPORTED | L2 | Language package ≠ pkg-manager coordinate |
+| explicit type `import` | SUPPORTED | L2 | No wildcard / static import (hard error) |
+| same-package + FQN type refs | SUPPORTED | L2 | Expression-position dotted FQN receivers not yet |
+| multi-file / third-party source merge | SUPPORTED | L2 | Concat unit + per-type package/import; line maps |
+| `.jn` / `.java` suffixes | SUPPORTED | L2 | Same language; `jnative new` defaults to `.jn` |
 | `final` (fields/locals) | **NOT SUPPORTED IN 1.0** | L0–L1 | Unverified / incomplete |
-| method overload | SUPPORTED | L2–L3 | `OverloadEndToEndTest` — **keep forever as regression** |
+| method overload | SUPPORTED | L2–L3 | Ambiguity diagnosed; `OverloadEndToEndTest` |
 | constructor overload | SUPPORTED | L2 | |
 | `override` (virtual dispatch) | SUPPORTED | L3 | Dynamic dispatch e2e |
 | arrays | SUPPORTED | L3 | Runtime + e2e |

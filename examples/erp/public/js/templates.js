@@ -18,25 +18,34 @@
     state.draft = null;
   }
 
+  function tt(key, params, fallback) {
+    return window.JnI18n ? JnI18n.t(key, params, fallback) : (fallback != null ? fallback : key);
+  }
+
   function toolbar(page, opts) {
     opts = opts || {};
     return (
       '<div class="jn-toolbar">' +
       "<h2 class=\"jn-card-title\" style=\"margin:0;flex:1\">" + JnUI.esc(page.title) + "</h2>" +
-      (opts.hideNew ? "" : '<button type="button" class="jn-btn primary" data-action="new">New</button>') +
-      '<button type="button" class="jn-btn" data-action="refresh">Refresh</button>' +
+      (opts.hideNew ? "" : '<button type="button" class="jn-btn primary" data-action="new">' + JnUI.esc(tt("common.new")) + "</button>") +
+      '<button type="button" class="jn-btn" data-action="refresh">' + JnUI.esc(tt("common.refresh")) + "</button>" +
       "</div>"
     );
   }
 
   function filterBar(page) {
+    function opt(code) {
+      var label = window.JnI18n ? JnI18n.statusLabel(code) : code;
+      return '<option value="' + code + '">' + JnUI.esc(label) + "</option>";
+    }
     return (
       '<div class="jn-filter-bar">' +
-      '<div class="jn-field"><label>Search</label><input class="jn-input" data-role="search" value="' + JnUI.esc(state.query) + '" placeholder="Filter rows..." /></div>' +
-      '<div class="jn-field"><label>Status</label><select class="jn-select" data-role="status">' +
-      '<option value="">All</option><option value="ACTIVE">ACTIVE</option><option value="OPEN">OPEN</option><option value="DRAFT">DRAFT</option><option value="APPROVED">APPROVED</option><option value="POSTED">POSTED</option><option value="PARTIAL">PARTIAL</option>' +
+      '<div class="jn-field"><label>' + JnUI.esc(tt("common.search")) + '</label><input class="jn-input" data-role="search" value="' + JnUI.esc(state.query) + '" placeholder="' + JnUI.esc(tt("common.filterPlaceholder")) + '" /></div>' +
+      '<div class="jn-field"><label>' + JnUI.esc(tt("common.status")) + '</label><select class="jn-select" data-role="status">' +
+      '<option value="">' + JnUI.esc(tt("common.all")) + "</option>" +
+      opt("ACTIVE") + opt("OPEN") + opt("DRAFT") + opt("APPROVED") + opt("POSTED") + opt("PARTIAL") +
       "</select></div>" +
-      '<button type="button" class="jn-btn primary" data-action="apply-filter">Apply</button>' +
+      '<button type="button" class="jn-btn primary" data-action="apply-filter">' + JnUI.esc(tt("common.apply")) + "</button>" +
       "</div>"
     );
   }
@@ -49,17 +58,17 @@
     var body = (result.rows || []).map(function (row) {
       var cells = cols.map(function (c) { return JnUI.cell(c, row); }).join("");
       return '<tr data-id="' + JnUI.esc(row.id) + '">' + cells +
-        '<td><button type="button" class="jn-btn" data-action="view" data-id="' + JnUI.esc(row.id) + '">Open</button></td></tr>';
+        '<td><button type="button" class="jn-btn" data-action="view" data-id="' + JnUI.esc(row.id) + '">' + JnUI.esc(tt("common.open")) + "</button></td></tr>";
     }).join("");
-    if (!body) body = '<tr><td colspan="' + (cols.length + 1) + '"><div class="jn-empty">No records match the filter.</div></td></tr>';
+    if (!body) body = '<tr><td colspan="' + (cols.length + 1) + '"><div class="jn-empty">' + JnUI.esc(tt("common.empty")) + "</div></td></tr>";
     var from = (result.total === 0) ? 0 : ((result.page - 1) * result.pageSize + 1);
     var to = Math.min(result.page * result.pageSize, result.total);
     return (
       '<div class="jn-table-wrap"><table class="jn-table"><thead><tr>' + head + "</tr></thead><tbody>" + body + "</tbody></table></div>" +
-      '<div class="jn-pagination"><span>' + from + "-" + to + " of " + result.total + " | DEMO DATA</span>" +
+      '<div class="jn-pagination"><span>' + JnUI.esc(tt("common.of", { from: from, to: to, total: result.total })) + "</span>" +
       '<span class="spacer" style="flex:1"></span>' +
-      '<button type="button" class="jn-btn" data-action="prev" ' + (result.page <= 1 ? "disabled" : "") + ">Prev</button>" +
-      '<button type="button" class="jn-btn" data-action="next" ' + (to >= result.total ? "disabled" : "") + ">Next</button></div>"
+      '<button type="button" class="jn-btn" data-action="prev" ' + (result.page <= 1 ? "disabled" : "") + ">" + JnUI.esc(tt("common.prev")) + "</button>" +
+      '<button type="button" class="jn-btn" data-action="next" ' + (to >= result.total ? "disabled" : "") + ">" + JnUI.esc(tt("common.next")) + "</button></div>"
     );
   }
 
@@ -106,7 +115,7 @@
       if (!rec) { JnUI.toast("Record not found", "err"); return; }
       if (page.readOnly) {
         JnUI.modal({
-          title: page.title + " | View",
+          title: tt("common.viewSuffix", { title: page.title }),
           bodyHtml: "<pre style=\"white-space:pre-wrap;font-size:12px\">" + JnUI.esc(JSON.stringify(rec, null, 2)) + "</pre>",
           primaryLabel: null
         });
@@ -122,13 +131,15 @@
         return;
       }
       var fields = page.formFields || Object.keys(rec).filter(function (k) { return k !== "id" && k !== "lines"; });
+      if (!id && page.collection === "items") {
+        fields = ["sku", "name", "price"];
+        rec = { sku: "", name: "", price: 0, status: "ACTIVE" };
+      }
       var body = formFieldsHtml(fields, rec);
-      body = body + '<div class="jn-demo-save-note">Save updates DEMO mock state only - not the formal business database.</div>' +
-        '<div class="jn-checkbox-row" style="margin-top:8px"><input type="checkbox" id="jn-confirm-demo" checked disabled /> <label for="jn-confirm-demo">I understand this is DEMO DATA</label></div>';
       JnUI.modal({
-        title: (id ? "Edit " : "New ") + page.title,
+        title: id ? tt("common.editPrefix", { title: page.title }) : tt("common.newPrefix", { title: page.title }),
         bodyHtml: body,
-        primaryLabel: "Save DEMO",
+        primaryLabel: tt("common.save"),
         onOk: function (backdrop) {
           var invalid = 0;
           fields.forEach(function (f) {
@@ -147,7 +158,7 @@
                 field.classList.add("error");
                 var em = document.createElement("div");
                 em.className = "err-msg";
-                em.textContent = "Required";
+                em.textContent = tt("common.required");
                 field.appendChild(em);
               }
             }
@@ -155,16 +166,20 @@
             rec[f] = v;
           });
           if (invalid) {
-            JnUI.toast("Fix validation errors", "err");
+            JnUI.toast(tt("common.fixInvalid"), "err");
             return false;
           }
           JnData.active.save(page.collection, rec).then(function () {
-            JnUI.toast("DEMO state updated (not persisted to formal DB)", "ok");
+            JnUI.toast(tt("common.saved"), "ok");
             if (onSaved) onSaved();
+          }).catch(function (err) {
+            JnUI.toast((err && err.message) || tt("common.saveFailed"), "err");
           });
           return true;
         }
       });
+    }).catch(function (err) {
+      JnUI.toast((err && err.message) || tt("common.loadFailed"), "err");
     });
   }
 
@@ -195,22 +210,22 @@
         "</tbody></table></div>" +
         '<div style="margin-top:12px;text-align:right;font-weight:700">Total: <span class="jn-money" data-total>' + JnUI.esc(JnUI.money(rec.total || 0)) + "</span></div>" +
         '<div class="jn-split" style="margin-top:16px">' +
-        '<div class="jn-card"><div class="jn-panel-title">Document References</div><ul class="jn-timeline"><li>Created in DEMO mode</li><li>Linked inventory / GL not posted to live DB</li></ul></div>' +
+        '<div class="jn-card"><div class="jn-panel-title">Document References</div><ul class="jn-timeline"><li>Document draft</li><li>Posting uses server APIs when available</li></ul></div>' +
         '<div class="jn-card"><div class="jn-panel-title">Approval Timeline</div><ul class="jn-timeline"><li>Draft saved locally</li><li>Awaiting demo approval</li></ul></div>' +
         "</div>" +
-        '<div class="jn-demo-save-note">Save updates DEMO mock state only - not the formal business database.</div>'
+        '<div class="jn-demo-save-note">' + JnUI.esc(tt("common.demoSaveNote")) + "</div>"
       );
     }
     var backdrop = JnUI.modal({
       title: page.title + " | Editor",
       bodyHtml: renderBody(),
-      primaryLabel: "Save DEMO Draft",
+      primaryLabel: tt("common.save"),
       onOk: function () {
         syncFromDom(backdrop);
         rec.total = JnMockData.recalcLines(rec.lines);
-        if (!rec.docNo || rec.docNo === "(new)") rec.docNo = "DEMO-" + Date.now().toString().slice(-6);
+        if (!rec.docNo || rec.docNo === "(new)") rec.docNo = "DRAFT-" + Date.now().toString().slice(-6);
         JnData.active.save(page.collection, rec).then(function () {
-          JnUI.toast("DEMO draft updated (not formal DB)", "ok");
+          JnUI.toast(tt("common.savedLocalOnly"), "ok");
           if (onSaved) onSaved();
         });
         return true;
@@ -292,6 +307,8 @@
         var st = host.querySelector('[data-role="status"]');
         if (st) st.value = state.status;
         bindListActions(host, page, reload);
+      }).catch(function (err) {
+        host.innerHTML = '<div class="jn-error" role="alert">' + JnUI.esc((err && err.message) || tt("common.loadFailed")) + "</div>";
       });
     }
     reload();
@@ -320,38 +337,38 @@
   }
 
   function renderDashboard(host, page) {
+    var kpiLabel = {
+      customers: tt("dash.kpi.customers"),
+      suppliers: tt("dash.kpi.suppliers"),
+      items: tt("dash.kpi.items"),
+      openPo: tt("dash.kpi.openPo"),
+      openSo: tt("dash.kpi.openSo")
+    };
     JnData.active.dashboard(page.dashKind || "executive").then(function (data) {
       var kpis = (data.kpis || []).map(function (k) {
-        return '<div class="jn-kpi" role="group" aria-label="' + JnUI.esc(k.k) + '"><div class="k">' + JnUI.esc(k.k) + '</div><div class="v">' + JnUI.esc(k.v) + '</div><div class="d">' + JnUI.esc(k.d) + "</div></div>";
-      }).join("");
-      var trend = data.trend || { label: "Trend (DEMO)", points: [] };
-      var todos = (data.todos || []).map(function (t) {
-        return '<div class="jn-todo-item"><span>' + JnUI.esc(t.text) + '</span><button type="button" data-go="' + JnUI.esc(t.go) + '">Open</button></div>';
-      }).join("") || '<div class="jn-empty">No open tasks</div>';
-      var recent = (data.recent || []).map(function (r) {
-        return '<div class="jn-recent-item"><span><strong>' + JnUI.esc(r.docNo) + "</strong> " + JnUI.esc(r.partner) +
-          " " + JnUI.statusHtml(r.status) + '</span><button type="button" data-go="' + JnUI.esc(r.go) + '">View</button></div>';
-      }).join("") || '<div class="jn-empty">No recent documents</div>';
-      var quick = (data.quickActions || []).map(function (q, i) {
-        return '<button type="button" class="jn-btn' + (i === 0 ? " primary" : "") + '" data-go="' + JnUI.esc(q.go) + '">' + JnUI.esc(q.label) + "</button>";
+        var label = kpiLabel[k.k] || k.k;
+        return '<div class="jn-kpi" role="group" aria-label="' + JnUI.esc(label) + '"><div class="k">' + JnUI.esc(label) +
+          '</div><div class="v">' + JnUI.esc(k.v) + '</div><div class="d">' + JnUI.esc(k.d || "") + "</div></div>";
       }).join("");
       host.innerHTML =
         '<div class="jn-toolbar"><h2 class="jn-card-title" style="margin:0">' + JnUI.esc(page.title) + '</h2>' +
-        '<span class="jn-status OPEN">DEMO MODE</span><span class="spacer"></span>' +
-        '<button type="button" class="jn-btn" data-go="demo.center">Demo Center</button></div>' +
+        '<span class="spacer"></span>' +
+        '<button type="button" class="jn-btn" data-go="md.items">' + JnUI.esc(tt("page.md.items")) + "</button>" +
+        '<button type="button" class="jn-btn" data-go="md.customers">' + JnUI.esc(tt("page.md.customers")) + "</button></div>" +
         '<div class="jn-kpi-grid">' + kpis + "</div>" +
-        '<div class="jn-dash-grid">' +
-        '<div class="jn-card"><div class="jn-card-title">Chart | ' + JnUI.esc(trend.label) + "</div>" + sparkSvg(trend.points) +
-        '<div class="jn-demo-save-note">Derived from DemoStateStore - not live analytics warehouse.</div></div>' +
-        '<div class="jn-card"><div class="jn-card-title">Task List</div>' + todos + "</div>" +
-        '<div class="jn-card"><div class="jn-card-title">Recent Documents</div>' + recent + "</div>" +
-        "</div>" +
-        '<div class="jn-card" style="margin-top:16px"><div class="jn-card-title">Quick Actions</div><div class="jn-toolbar">' + quick + "</div></div>";
+        '<div class="jn-card" style="margin-top:16px"><div class="jn-card-title">' + JnUI.esc(tt("dash.quickActions")) +
+        '</div><div class="jn-toolbar">' +
+        '<button type="button" class="jn-btn primary" data-go="md.items">' + JnUI.esc(tt("page.md.items")) + "</button>" +
+        '<button type="button" class="jn-btn" data-go="pur.orders">' + JnUI.esc(tt("page.pur.orders")) + "</button>" +
+        '<button type="button" class="jn-btn" data-go="sales.orders">' + JnUI.esc(tt("page.sales.orders")) + "</button>" +
+        "</div></div>";
       host.querySelectorAll("[data-go]").forEach(function (btn) {
         btn.addEventListener("click", function () {
           global.JnApp.navigate(btn.getAttribute("data-go"));
         });
       });
+    }).catch(function (err) {
+      host.innerHTML = '<div class="jn-error" role="alert">' + JnUI.esc((err && err.message) || tt("common.loadFailed")) + "</div>";
     });
   }
 
@@ -374,7 +391,6 @@
       forecast: { collection: "opportunities", title: "Forecast source", metric: "value" }
     };
     var conf = tables[kind] || tables.sales;
-    var kpis = JnDemoState.computeKpis();
     JnData.active.list(conf.collection, { page: 1, pageSize: 50, q: state.query }).then(function (result) {
       var sample = result.rows[0] || {};
       var cols = [
@@ -403,12 +419,11 @@
         '<input class="jn-input" id="rpt-q" data-role="search" value="' + JnUI.esc(state.query) + '" placeholder="Contains..." /></div>' +
         '<button type="button" class="jn-btn primary" data-action="apply-filter">Apply</button></div>' +
         '<div class="jn-report-summary">' +
-        '<div class="jn-kpi"><div class="k">Rows</div><div class="v">' + result.total + '</div><div class="d">filtered DEMO</div></div>' +
+        '<div class="jn-kpi"><div class="k">Rows</div><div class="v">' + result.total + '</div><div class="d">filtered</div></div>' +
         '<div class="jn-kpi"><div class="k">Sum(' + JnUI.esc(conf.metric) + ')</div><div class="v">' + JnUI.esc(JnUI.money(sum)) + '</div><div class="d">page slice</div></div>' +
-        '<div class="jn-kpi"><div class="k">AR Open</div><div class="v">' + JnUI.esc(JnDemoState.fmtMoney(kpis.arOpen)) + '</div><div class="d">DemoStateStore</div></div>' +
-        '<div class="jn-kpi"><div class="k">Inventory</div><div class="v">' + JnUI.esc(JnDemoState.fmtMoney(kpis.inventoryValue)) + '</div><div class="d">DemoStateStore</div></div>' +
+        '<div class="jn-kpi"><div class="k">Metric</div><div class="v">-</div><div class="d"></div></div>' +
         "</div>" +
-        '<div class="jn-demo-save-note">ReportPageTemplate | DEMO DATA | export is browser CSV only.</div>' +
+        '<div class="jn-demo-save-note">Export is browser CSV for the current page.</div>' +
         tableHtml(pseudo, result) + "</div>";
       bindListActions(host, pseudo, function () { renderReport(host, page); });
       var exp = host.querySelector('[data-action="export-report"]');
@@ -425,10 +440,12 @@
         var blob = new Blob(["\uFEFF" + lines.join("\r\n")], { type: "text/csv;charset=utf-8" });
         var a = document.createElement("a");
         a.href = URL.createObjectURL(blob);
-        a.download = page.pageId + "-report-DEMO.csv";
+        a.download = page.pageId + "-report.csv";
         a.click();
-        JnUI.toast("Exported DEMO report CSV", "ok");
+        JnUI.toast("Exported report CSV", "ok");
       };
+    }).catch(function (err) {
+      host.innerHTML = '<div class="jn-error" role="alert">' + JnUI.esc((err && err.message) || tt("common.loadFailed")) + "</div>";
     });
   }
 
@@ -463,7 +480,7 @@
         });
         host.querySelector("[data-save]").onclick = function () {
           sync();
-          JnData.active.save("boms", bom).then(function () { JnUI.toast("BOM saved (DEMO)", "ok"); });
+          JnData.active.save("boms", bom).then(function () { JnUI.toast(tt("common.saved"), "ok"); });
         };
       }
       function sync() {
@@ -484,8 +501,8 @@
     JnData.active.list("mrpSuggestions", { page: 1, pageSize: 50 }).then(function (result) {
       host.innerHTML =
         '<div class="jn-card"><div class="jn-toolbar"><h2 class="jn-card-title" style="margin:0">MRP Workbench</h2>' +
-        '<button type="button" class="jn-btn primary" data-run>Run MRP (DEMO)</button></div>' +
-        '<p style="color:var(--jn-color-text-muted)">Suggestions are mock planning output - DEMO DATA.</p>' +
+        '<button type="button" class="jn-btn primary" data-run disabled>Run MRP</button></div>' +
+        '<p style="color:var(--jn-color-text-muted)">MRP planning API is not available yet.</p>' +
         tableHtml({ columns: [
           { key: "sku", title: "SKU" },
           { key: "suggestedQty", title: "Suggested Qty", type: "qty" },
@@ -493,105 +510,58 @@
           { key: "priority", title: "Priority", type: "status" }
         ], title: "MRP" }, result) + "</div>";
       host.querySelector("[data-run]").onclick = function () {
-        JnUI.toast("MRP run complete (DEMO - no DB writes)", "ok");
+        JnUI.toast(tt("mrp.unavailableNote"), "err");
       };
     });
   }
 
   function renderSettings(host) {
-    JnData.active.list("settings", { page: 1, pageSize: 50 }).then(function (result) {
-      var counts = JnDemoSeed.counts(JnDemoState.getState());
-      var theme = JnTheme.get();
-      var cats = [
-        { id: "general", title: "General" },
-        { id: "appearance", title: "Appearance" },
-        { id: "demo", title: "Demo Data" },
-        { id: "about", title: "About" }
-      ];
-      var cat = host._settingsCat || "general";
-      function paint() {
-        var panel = "";
-        if (cat === "general") {
-          panel = '<div class="jn-form-grid">' + result.rows.map(function (r, idx) {
-            return '<div class="jn-field"><label for="set-' + idx + '">' + JnUI.esc(r.key) + "</label>" +
-              '<input class="jn-input" id="set-' + idx + '" data-idx="' + idx + '" value="' + JnUI.esc(r.value) + '" /></div>';
-          }).join("") + "</div>";
-        } else if (cat === "appearance") {
-          panel =
-            '<div class="jn-field"><label>Theme</label><div class="jn-toolbar">' +
-            '<button type="button" class="jn-theme-chip' + (theme.theme === "light" ? " active" : "") + '" data-theme-set="light">Light</button>' +
-            '<button type="button" class="jn-theme-chip" data-theme-set="dark" title="Reserved">Dark (preview tokens)</button></div>' +
-            '<div class="jn-muted">Dark theme tokens are reserved; Light is the commercial default.</div></div>' +
-            '<div class="jn-field" style="margin-top:12px"><label>Density</label><div class="jn-toolbar">' +
-            '<button type="button" class="jn-density-toggle" data-den="comfortable">Comfortable</button>' +
-            '<button type="button" class="jn-density-toggle" data-den="compact">Compact</button>' +
-            '<span class="jn-muted">Current: ' + JnUI.esc(theme.density) + "</span></div></div>";
-        } else if (cat === "demo") {
-          panel =
-            '<div class="jn-demo-save-note">Seed: ' + counts.customers + " customers, " + counts.suppliers +
-            " suppliers, " + counts.items + " items, " + counts.warehouses + " warehouses, " + counts.users +
-            " users.</div>" +
-            "<p>Persistence: " + JnUI.esc(JnDemoState.persistenceNote()) + "</p>" +
-            '<p class="jn-muted">Refresh keeps data. Reset / clearing site data restores seed. Never server DB.</p>' +
-            '<button type="button" class="jn-btn danger" data-reset>Reset Demo Data</button>';
-        } else {
-          panel = "<p><strong>JNative One</strong> UI 1.5 Commercial Polish</p>" +
-            '<p class="jn-muted">Product shell: examples/erp/public | WASM SPA: BLOCKED</p>' +
-            '<button type="button" class="jn-btn" data-go-demo>Open Demo Center</button>';
-        }
-        host.innerHTML =
-          '<div class="jn-card jn-settings-page"><div class="jn-toolbar">' +
-          '<h2 class="jn-card-title" style="margin:0">System Settings</h2>' +
-          '<span class="jn-status OPEN">SettingsPageTemplate</span><span class="spacer"></span>' +
-          (cat === "general" ? '<button type="button" class="jn-btn primary" data-save>Save</button>' : "") +
-          "</div>" +
-          '<div class="jn-settings-layout"><nav class="jn-settings-nav" aria-label="Settings categories">' +
-          cats.map(function (c) {
-            return '<button type="button" data-cat="' + c.id + '" class="' + (cat === c.id ? "active" : "") + '">' + JnUI.esc(c.title) + "</button>";
-          }).join("") +
-          '</nav><div class="jn-settings-panel">' + panel +
-          '<div class="jn-field error" id="set-err" style="display:none"><div class="err-msg">Validation error</div></div>' +
-          "</div></div></div>";
-        host.querySelectorAll("[data-cat]").forEach(function (b) {
-          b.onclick = function () { host._settingsCat = b.getAttribute("data-cat"); cat = host._settingsCat; theme = JnTheme.get(); paint(); };
-        });
-        var save = host.querySelector("[data-save]");
-        if (save) save.onclick = function () {
-          var invalid = false;
-          host.querySelectorAll("[data-idx]").forEach(function (inp) {
-            var i = Number(inp.getAttribute("data-idx"));
-            if (String(inp.value).trim() === "") invalid = true;
-            result.rows[i].value = inp.value;
-            JnDemoState.upsert("settings", result.rows[i]);
-          });
-          var err = host.querySelector("#set-err");
-          if (invalid) {
-            err.style.display = "block";
-            err.querySelector(".err-msg").textContent = "Values required - empty settings rejected";
-            JnUI.toast("Fix validation errors", "err");
-            return;
-          }
-          err.style.display = "none";
-          JnUI.toast("Settings saved (DemoStateStore / localStorage)", "ok");
-        };
-        host.querySelectorAll("[data-theme-set]").forEach(function (b) {
-          b.onclick = function () { JnTheme.setTheme(b.getAttribute("data-theme-set")); theme = JnTheme.get(); paint(); JnUI.toast("Theme: " + theme.theme + " (DEMO)", "ok"); };
-        });
-        host.querySelectorAll("[data-den]").forEach(function (b) {
-          b.onclick = function () { JnTheme.setDensity(b.getAttribute("data-den")); theme = JnTheme.get(); paint(); JnUI.toast("Density: " + theme.density, "ok"); };
-        });
-        var reset = host.querySelector("[data-reset]");
-        if (reset) reset.onclick = function () {
-          if (!window.confirm("Reset all DEMO data to seed state?")) return;
-          JnAppService.resetDemo();
-          JnUI.toast("DEMO data reset", "ok");
-          renderSettings(host);
-        };
-        var go = host.querySelector("[data-go-demo]");
-        if (go) go.onclick = function () { JnApp.navigate("demo.center"); };
+    var theme = JnTheme.get();
+    var cats = [
+      { id: "appearance", title: tt("settings.appearance") },
+      { id: "about", title: tt("settings.about") }
+    ];
+    var cat = host._settingsCat || "appearance";
+    function paint() {
+      var panel = "";
+      if (cat === "appearance") {
+        panel =
+          '<div class="jn-field"><label>' + JnUI.esc(tt("settings.theme")) + '</label><div class="jn-toolbar">' +
+          '<button type="button" class="jn-theme-chip' + (theme.theme === "light" ? " active" : "") + '" data-theme-set="light">' +
+          JnUI.esc(tt("settings.themeLight")) + '</button></div></div>' +
+          '<div class="jn-field" style="margin-top:12px"><label>' + JnUI.esc(tt("common.density")) + '</label><div class="jn-toolbar">' +
+          '<button type="button" class="jn-density-toggle" data-den="comfortable">' + JnUI.esc(tt("common.comfortable")) + "</button>" +
+          '<button type="button" class="jn-density-toggle" data-den="compact">' + JnUI.esc(tt("common.compact")) + "</button>" +
+          '<span class="jn-muted">' + JnUI.esc(theme.density) + "</span></div></div>";
+      } else {
+        panel = "<p><strong>" + JnUI.esc(tt("app.brand", null, "JNative One")) + "</strong></p>" +
+          '<p class="jn-muted">' + JnUI.esc(tt("settings.aboutBody")) + "</p>";
       }
-      paint();
-    });
+      host.innerHTML =
+        '<div class="jn-card jn-settings-page"><div class="jn-toolbar">' +
+        '<h2 class="jn-card-title" style="margin:0">' + JnUI.esc(tt("page.sys.settings")) + "</h2>" +
+        '<span class="spacer"></span></div>' +
+        '<div class="jn-settings-layout"><nav class="jn-settings-nav" aria-label="Settings">' +
+        cats.map(function (c) {
+          return '<button type="button" data-cat="' + c.id + '" class="' + (cat === c.id ? "active" : "") + '">' + JnUI.esc(c.title) + "</button>";
+        }).join("") +
+        '</nav><div class="jn-settings-panel">' + panel + "</div></div></div>";
+      host.querySelectorAll("[data-cat]").forEach(function (b) {
+        b.onclick = function () { host._settingsCat = b.getAttribute("data-cat"); cat = host._settingsCat; theme = JnTheme.get(); paint(); };
+      });
+      host.querySelectorAll("[data-theme-set]").forEach(function (b) {
+        b.onclick = function () { JnTheme.setTheme(b.getAttribute("data-theme-set")); theme = JnTheme.get(); paint(); };
+      });
+      host.querySelectorAll("[data-den]").forEach(function (b) {
+        b.onclick = function () {
+          JnTheme.setDensity(b.getAttribute("data-den"));
+          theme = JnTheme.get();
+          paint();
+          JnUI.toast(tt("common.densityToast", { density: theme.density }), "ok");
+        };
+      });
+    }
+    paint();
   }
 
   function renderMasterDetail(host, page, id) {
@@ -611,23 +581,14 @@
           }).join("") + "</div>";
         } else if (tab === "related") {
           var related = [];
-          if (page.collection === "customers") {
-            related = JnDemoState.collection("salesOrders").filter(function (r) {
-              return r.customerId === rec.id || r.customerName === rec.name;
-            }).slice(0, 8);
-          }
-          body = related.length
-            ? '<ul class="jn-timeline">' + related.map(function (r) {
-              return "<li><strong>" + JnUI.esc(r.docNo) + "</strong> " + JnUI.statusHtml(r.status) + " " + JnUI.esc(JnUI.money(r.total)) + "</li>";
-            }).join("") + "</ul>"
-            : '<div class="jn-empty">No related DEMO documents</div>';
+          body = '<div class="jn-empty">' + JnUI.esc(tt("common.relatedUnavailable")) + "</div>";
         } else if (tab === "contacts") {
-          body = '<div class="jn-empty">Contact roles are DEMO placeholders - email ' +
+          body = '<div class="jn-empty">Contacts: email ' +
             JnUI.esc(rec.email || "(none)") + ", phone " + JnUI.esc(rec.phone || "(none)") + "</div>";
         } else if (tab === "attachments") {
-          body = '<div class="jn-empty">No server attachments in DEMO MODE</div>';
+          body = '<div class="jn-empty">No attachments</div>';
         } else {
-          body = '<ul class="jn-timeline"><li>Opened in MasterDataDetailTemplate (DEMO)</li>' +
+          body = '<ul class="jn-timeline"><li>Opened record</li>' +
             "<li>Record id " + JnUI.esc(rec.id) + "</li></ul>";
         }
         host.innerHTML =
@@ -643,7 +604,7 @@
           '</div><div class="jn-detail-layout"><div>' + body + "</div>" +
           '<div class="jn-card" style="box-shadow:none"><div class="jn-card-title">Status</div>' +
           JnUI.statusHtml(rec.status || "ACTIVE") +
-          '<div class="jn-demo-save-note" style="margin-top:12px">MasterDataDetailTemplate | DEMO MODE</div></div></div></div>';
+          '</div></div></div>';
         host.querySelector("[data-back]").onclick = function () { renderMasterList(host, page); };
         host.querySelector("[data-edit]").onclick = function () { openEditor(page, id, function () { renderMasterDetail(host, page, id); }); };
         host.querySelectorAll("[data-tab]").forEach(function (b) {
@@ -656,29 +617,177 @@
 
   function renderImportExport(host) {
     host.innerHTML =
-      '<div class="jn-card"><h2 class="jn-card-title">Import / Export</h2>' +
-      '<p style="color:var(--jn-color-text-muted)">DEMO mode - files stay in the browser; no server upload.</p>' +
+      '<div class="jn-card"><h2 class="jn-card-title">CSV \u5bfc\u5165 / \u5bfc\u51fa</h2>' +
+      '<p style="color:var(--jn-color-text-muted)">\u771f\u5b9e\u670d\u52a1\u7aef UTF-8 \u89e3\u6790\uff1b\u9884\u89c8\u540e\u4e8b\u52a1\u5199\u5165\uff1b\u9ed8\u8ba4\u4e0d\u8986\u76d6\u5df2\u6709\u7f16\u7801\u3002</p>' +
       '<div class="jn-toolbar">' +
-      '<button type="button" class="jn-btn primary" data-exp>Export Customers CSV</button>' +
-      '<button type="button" class="jn-btn" data-imp>Simulate Import</button></div>' +
-      '<div class="jn-empty" data-out>Ready.</div></div>';
-    host.querySelector("[data-exp]").onclick = function () {
-      JnData.active.list("customers", { pageSize: 100 }).then(function (r) {
-        var csv = "code,name,city\n" + r.rows.map(function (c) { return c.code + "," + c.name + "," + c.city; }).join("\n");
-        host.querySelector("[data-out]").textContent = csv;
-        JnUI.toast("Exported " + r.rows.length + " customers (DEMO)", "ok");
-      });
+      '<button type="button" class="jn-btn" data-tpl-p>\u4f19\u4f34\u6a21\u677f</button>' +
+      '<button type="button" class="jn-btn" data-tpl-i>\u5546\u54c1\u6a21\u677f</button>' +
+      '<button type="button" class="jn-btn primary" data-prev-p>\u9884\u89c8\u4f19\u4f34</button>' +
+      '<button type="button" class="jn-btn primary" data-imp-p>\u5bfc\u5165\u4f19\u4f34</button>' +
+      '<button type="button" class="jn-btn primary" data-prev-i>\u9884\u89c8\u5546\u54c1</button>' +
+      '<button type="button" class="jn-btn primary" data-imp-i>\u5bfc\u5165\u5546\u54c1</button></div>' +
+      '<textarea class="jn-input" id="csv-body" rows="10" style="width:100%;font-family:monospace" placeholder="\u7c98\u8d34 CSV\u2026"></textarea>' +
+      '<pre class="jn-empty" data-out style="white-space:pre-wrap;margin-top:12px">Ready.</pre></div>';
+    function csrfFetch(path, body) {
+      return fetch(path, {
+        method: "POST",
+        credentials: "same-origin",
+        headers: {
+          "Content-Type": "application/json",
+          "X-CSRF-Token": sessionStorage.getItem("jn_csrf") || ""
+        },
+        body: JSON.stringify(body || {})
+      }).then(function (r) { return r.json().then(function (j) { if (!r.ok) throw new Error((j && j.message) || r.statusText); return j; }); });
+    }
+    host.querySelector("[data-tpl-p]").onclick = function () {
+      fetch("/api/erp/import/templates/partners", { credentials: "same-origin" }).then(function (r) { return r.json(); })
+        .then(function (j) { host.querySelector("#csv-body").value = j.csv || ""; JnUI.toast("\u5df2\u52a0\u8f7d\u4f19\u4f34\u6a21\u677f", "ok"); })
+        .catch(function (e) { JnUI.toast(e.message, "err"); });
     };
-    host.querySelector("[data-imp]").onclick = function () {
-      JnUI.toast("Import accepted into mock store (DEMO)", "ok");
-      host.querySelector("[data-out]").textContent = "Import simulation complete.";
+    host.querySelector("[data-tpl-i]").onclick = function () {
+      fetch("/api/erp/import/templates/items", { credentials: "same-origin" }).then(function (r) { return r.json(); })
+        .then(function (j) { host.querySelector("#csv-body").value = j.csv || ""; JnUI.toast("\u5df2\u52a0\u8f7d\u5546\u54c1\u6a21\u677f", "ok"); })
+        .catch(function (e) { JnUI.toast(e.message, "err"); });
+    };
+    host.querySelector("[data-prev-p]").onclick = function () {
+      csrfFetch("/api/erp/import/partners/preview", { csv: host.querySelector("#csv-body").value })
+        .then(function (j) { host.querySelector("[data-out]").textContent = JSON.stringify(j, null, 2); })
+        .catch(function (e) { JnUI.toast(e.message, "err"); });
+    };
+    host.querySelector("[data-imp-p]").onclick = function () {
+      csrfFetch("/api/erp/import/partners", { csv: host.querySelector("#csv-body").value, jobCode: "UI-" + Date.now() })
+        .then(function (j) { host.querySelector("[data-out]").textContent = JSON.stringify(j); JnUI.toast("\u5bfc\u5165\u5b8c\u6210", "ok"); })
+        .catch(function (e) { JnUI.toast(e.message, "err"); });
+    };
+    host.querySelector("[data-prev-i]").onclick = function () {
+      csrfFetch("/api/erp/import/items/preview", { csv: host.querySelector("#csv-body").value })
+        .then(function (j) { host.querySelector("[data-out]").textContent = JSON.stringify(j, null, 2); })
+        .catch(function (e) { JnUI.toast(e.message, "err"); });
+    };
+    host.querySelector("[data-imp-i]").onclick = function () {
+      csrfFetch("/api/erp/import/items", { csv: host.querySelector("#csv-body").value, jobCode: "UI-" + Date.now() })
+        .then(function (j) { host.querySelector("[data-out]").textContent = JSON.stringify(j); JnUI.toast("\u5bfc\u5165\u5b8c\u6210", "ok"); })
+        .catch(function (e) { JnUI.toast(e.message, "err"); });
+    };
+  }
+
+  function renderHelpTutorials(host) {
+    host.innerHTML = '<div class="jn-card"><h2 class="jn-card-title">\u4e2d\u6587\u64cd\u4f5c\u6559\u7a0b</h2><p style="color:var(--jn-color-text-muted)">\u7ec3\u4e60\u6599\uff1aFG-PRACTICE-A / WH-PRACTICE\uff08\u4ec5\u6f14\u793a\u8d26\u5957\uff09</p><div data-list></div></div>';
+    var list = (window.JnHelpZh && JnHelpZh.tutorials) || [];
+    host.querySelector("[data-list]").innerHTML = list.map(function (t) {
+      return '<div style="margin:12px 0;padding:12px 0;border-bottom:1px solid var(--jn-color-border,#e5e7eb)">' +
+        "<h3>" + JnUI.esc(t.id + " \u00b7 " + t.title) + "</h3>" +
+        "<p><strong>\u89d2\u8272</strong> " + JnUI.esc(t.role) + " \u00b7 <strong>\u83dc\u5355</strong> " + JnUI.esc(t.menu) + "</p>" +
+        "<p><strong>\u8f93\u5165</strong> " + JnUI.esc(t.input) + "</p>" +
+        "<p><strong>\u9884\u671f</strong> " + JnUI.esc(t.expect) + "</p>" +
+        "<p style=\"color:#b45309\"><strong>\u5e38\u89c1\u9519\u8bef</strong> " + JnUI.esc(t.commonError) + "</p></div>";
+    }).join("") || "<p>\u65e0\u6559\u7a0b</p>";
+  }
+
+  function renderSetupWizard(host) {
+    host.innerHTML =
+      '<div class="jn-card"><h2 class="jn-card-title">\u9996\u6b21\u4f7f\u7528\u5411\u5bfc\uff08\u6b63\u5f0f\u8d26\u5957\uff09</h2>' +
+      '<p style="color:var(--jn-color-text-muted)">\u7a7a\u6b63\u5f0f\u8d26\u5957\uff1a\u516c\u53f8/\u65f6\u533a \u2192 \u5e01\u79cd \u2192 \u4ed3\u5e93 \u2192 \u7f16\u53f7 \u2192 \u7528\u6237 \u2192 \u4e3b\u6570\u636e \u2192 \u671f\u521d \u2192 \u6821\u9a8c\u3002</p>' +
+      '<pre data-state style="white-space:pre-wrap">\u52a0\u8f7d\u4e2d\u2026</pre>' +
+      '<div class="jn-toolbar" style="flex-wrap:wrap;gap:8px">' +
+      '<button type="button" class="jn-btn" data-refresh>\u5237\u65b0\u72b6\u6001</button>' +
+      '<button type="button" class="jn-btn" data-company>\u4fdd\u5b58\u516c\u53f8</button>' +
+      '<button type="button" class="jn-btn" data-currency>\u4fdd\u5b58\u5e01\u79cd</button>' +
+      '<button type="button" class="jn-btn" data-wh>\u521b\u5efa\u4ed3\u5e93</button>' +
+      '<button type="button" class="jn-btn" data-num>\u7f16\u53f7\u89c4\u5219</button>' +
+      '<button type="button" class="jn-btn" data-open>\u8fdb\u5165\u671f\u521d</button>' +
+      '<button type="button" class="jn-btn" data-val>\u8fdb\u5165\u6821\u9a8c</button>' +
+      '<button type="button" class="jn-btn primary" data-done>\u5b8c\u6210\u6821\u9a8c</button></div></div>';
+    function hdr() {
+      return { "Content-Type": "application/json", "X-CSRF-Token": sessionStorage.getItem("jn_csrf") || "" };
+    }
+    function refresh() {
+      fetch("/api/erp/setup/wizard", { credentials: "same-origin" }).then(function (r) { return r.json(); })
+        .then(function (j) { host.querySelector("[data-state]").textContent = JSON.stringify(j, null, 2); })
+        .catch(function (e) { host.querySelector("[data-state]").textContent = e.message; });
+    }
+    function post(path, body) {
+      return fetch(path, { method: "POST", credentials: "same-origin", headers: hdr(), body: JSON.stringify(body || {}) })
+        .then(function (r) { return r.json().then(function (j) { if (!r.ok) throw new Error(j.message || r.statusText); return j; }); });
+    }
+    host.querySelector("[data-refresh]").onclick = refresh;
+    host.querySelector("[data-company]").onclick = function () {
+      post("/api/erp/setup/wizard/company", { name: "\u6b63\u5f0f\u516c\u53f8", timezone: "Asia/Shanghai" }).then(refresh).catch(function (e) { JnUI.toast(e.message, "err"); });
+    };
+    host.querySelector("[data-currency]").onclick = function () {
+      post("/api/erp/setup/wizard/currency", { currency: "CNY", amountScale: 0 }).then(refresh).catch(function (e) { JnUI.toast(e.message, "err"); });
+    };
+    host.querySelector("[data-wh]").onclick = function () {
+      post("/api/erp/setup/wizard/warehouse", { code: "WH1", name: "\u4e3b\u4ed3" }).then(refresh).catch(function (e) { JnUI.toast(e.message, "err"); });
+    };
+    host.querySelector("[data-num]").onclick = function () {
+      post("/api/erp/setup/wizard/numbering", {}).then(refresh).catch(function (e) { JnUI.toast(e.message, "err"); });
+    };
+    host.querySelector("[data-open]").onclick = function () {
+      post("/api/erp/setup/wizard/advance", { to: "OPENING" }).then(refresh).catch(function (e) { JnUI.toast(e.message, "err"); });
+    };
+    host.querySelector("[data-val]").onclick = function () {
+      post("/api/erp/setup/wizard/advance", { to: "VALIDATE" }).then(refresh).catch(function (e) { JnUI.toast(e.message, "err"); });
+    };
+    host.querySelector("[data-done]").onclick = function () {
+      post("/api/erp/setup/wizard/complete", {}).then(function (j) {
+        host.querySelector("[data-state]").textContent = JSON.stringify(j, null, 2);
+        JnUI.toast("\u5411\u5bfc\u5b8c\u6210", "ok");
+      }).catch(function (e) { JnUI.toast(e.message, "err"); });
+    };
+    refresh();
+  }
+
+  function renderOpeningStock(host) {
+    host.innerHTML =
+      '<div class="jn-card"><h2 class="jn-card-title">\u671f\u521d\u5e93\u5b58\u5355\u636e</h2>' +
+      '<p>\u72ec\u7acb\u671f\u521d\u5355\u636e\uff1a\u8349\u7a3f \u2192 \u8fc7\u8d26\uff1b\u9700 Idempotency-Key\u3002\u4f30\u503c\u8303\u56f4\u4e3a\u660e\u786e\u5355\u4ef7\uff0c\u4e0d\u58f0\u79f0\u5b8c\u6574\u603b\u8d26\u3002</p>' +
+      '<div class="jn-field"><label>warehouseId</label><input class="jn-input" id="os-wh" value="1" /></div>' +
+      '<div class="jn-field"><label>itemId</label><input class="jn-input" id="os-item" value="1" /></div>' +
+      '<div class="jn-field"><label>quantity</label><input class="jn-input" id="os-qty" value="20" /></div>' +
+      '<div class="jn-field"><label>unitCostAmount</label><input class="jn-input" id="os-cost" value="5000" /></div>' +
+      '<button type="button" class="jn-btn primary" data-post>\u521b\u5efa\u5e76\u8fc7\u8d26</button>' +
+      '<pre data-out style="margin-top:12px;white-space:pre-wrap"></pre></div>';
+    host.querySelector("[data-post]").onclick = function () {
+      var key = "ui-os-" + Date.now();
+      var body = {
+        warehouseId: Number(host.querySelector("#os-wh").value),
+        businessDate: Date.now(),
+        notes: "UI opening",
+        idempotencyKey: key,
+        lines: [{ itemId: Number(host.querySelector("#os-item").value), quantity: Number(host.querySelector("#os-qty").value), unitCostAmount: Number(host.querySelector("#os-cost").value) }]
+      };
+      fetch("/api/erp/opening/stock", {
+        method: "POST", credentials: "same-origin",
+        headers: { "Content-Type": "application/json", "Idempotency-Key": key, "X-CSRF-Token": sessionStorage.getItem("jn_csrf") || "" },
+        body: JSON.stringify(body)
+      }).then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
+        .then(function (res) {
+          if (!res.ok || (res.j && res.j.ok === 0)) {
+            throw new Error((res.j && res.j.message) || "draft failed");
+          }
+          var doc = res.j.documentJson ? JSON.parse(res.j.documentJson) : res.j;
+          var id = doc.id;
+          var key2 = key + "-post";
+          return fetch("/api/erp/opening/stock/" + id + "/post", {
+            method: "POST", credentials: "same-origin",
+            headers: { "Content-Type": "application/json", "Idempotency-Key": key2, "X-CSRF-Token": sessionStorage.getItem("jn_csrf") || "" },
+            body: JSON.stringify({ idempotencyKey: key2 })
+          }).then(function (r2) { return r2.json(); });
+        }).then(function (j) {
+          host.querySelector("[data-out]").textContent = JSON.stringify(j, null, 2);
+          JnUI.toast("\u671f\u521d\u5df2\u8fc7\u8d26", "ok");
+        }).catch(function (e) {
+          host.querySelector("[data-out]").textContent = e.message;
+          JnUI.toast(e.message, "err");
+        });
     };
   }
 
   global.JnTemplates = {
     openEditor: openEditor,
     render: function (host, page) {
-      host.innerHTML = '<div class="jn-loading" role="status">Loading...</div>';
+      host.innerHTML = '<div class="jn-loading" role="status">' + JnUI.esc(tt("common.loading")) + "</div>";
       try {
         if (page.template === "dashboard") return renderDashboard(host, page);
         if (page.template === "masterList") return renderMasterList(host, page);
@@ -688,7 +797,9 @@
         if (page.template === "mrp") return renderMrp(host, page);
         if (page.template === "settings") return renderSettings(host, page);
         if (page.template === "importExport") return renderImportExport(host, page);
-        if (page.template === "demoCenter") return JnDemoCenter.render(host);
+        if (page.template === "helpTutorials") return renderHelpTutorials(host, page);
+        if (page.template === "setupWizard") return renderSetupWizard(host, page);
+        if (page.template === "openingStock") return renderOpeningStock(host, page);
         host.innerHTML = '<div class="jn-error" role="alert">Unknown template: ' + JnUI.esc(page.template) + "</div>";
       } catch (e) {
         host.innerHTML = '<div class="jn-error" role="alert">Failed to render: ' + JnUI.esc(e.message) + "</div>";

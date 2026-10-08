@@ -40,10 +40,12 @@ public final class BuildGraphPackageIntegration {
         List<PackageBuildNode> nodes = new ArrayList<>();
         for (ResolvedPackage p : graph.packages().values()) {
             Path root;
-            if (!p.path().isEmpty() && Files.isDirectory(Path.of(p.path()))) {
-                root = Path.of(p.path());
-            } else if (!p.contentHash().isEmpty()) {
+            // Prefer content-addressed cache extraction. Registry metadata may set
+            // path to the version directory (which holds package.jnpkg, not sources).
+            if (!p.contentHash().isEmpty()) {
                 root = cache.ensureExtracted(p.contentHash());
+            } else if (!p.path().isEmpty() && Files.isDirectory(Path.of(p.path()))) {
+                root = Path.of(p.path());
             } else {
                 continue;
             }
@@ -114,7 +116,7 @@ public final class BuildGraphPackageIntegration {
             return out;
         }
         try (Stream<Path> walk = Files.walk(root)) {
-            walk.filter(p -> p.toString().endsWith(".java"))
+            walk.filter(io.jnative.source.SourceFiles::isSourcePath)
                     .filter(Files::isRegularFile)
                     .forEach(out::add);
         }

@@ -1,33 +1,92 @@
 /**
- * JNative One - AppShell (UI 1.5 polish)
- * Interactive DEMO SPA (DemoStateStore). Not React/Vue.
+ * JNative One - AppShell (Rpc + DB)
  * Browser WASM SPA remains BLOCKED.
+ * i18n: JnI18n (zh-CN default, en); preference in localStorage jn_erp_locale.
  */
 (function () {
   if (window.JnTheme) JnTheme.apply();
+  if (window.JnI18n) JnI18n.applyHtmlLang();
   var tabs = [];
   var activePageId = null;
   var collapsed = false;
   var notifOpen = false;
   var pageScroll = {};
-  var authed = sessionStorage.getItem("jn_demo_auth") === "1";
+  var sessionUser = null;
+  var bookInfo = null;
+  var authed = sessionStorage.getItem("jn_auth") === "1" || sessionStorage.getItem("jn_rpc_auth") === "1";
+  if (window.JnData) JnData.useRpc("");
 
   function $(sel, root) { return (root || document).querySelector(sel); }
+  function t(key, params, fallback) {
+    return window.JnI18n ? JnI18n.t(key, params, fallback) : (fallback != null ? fallback : key);
+  }
+
+  function userDisplay() {
+    var u = sessionUser || (JnData.active && JnData.active.user) || null;
+    if (!u) {
+      try { u = JSON.parse(sessionStorage.getItem("jn_user") || "null"); } catch (e) { u = null; }
+    }
+    return u;
+  }
+
+  function userLabel(u) {
+    if (!u) return t("common.signedIn");
+    return u.displayName || u.email || ("#" + u.id);
+  }
+
+  function userInitials(u) {
+    var name = userLabel(u);
+    if (!name) return "?";
+    var parts = String(name).replace(/@.*/, "").split(/[\s._-]+/).filter(Boolean);
+    if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase();
+    return String(name).slice(0, 2).toUpperCase();
+  }
+
+  function bookLabel() {
+    var b = bookInfo || (JnData.active && JnData.active.book) || null;
+    if (!b) return "";
+    return b.name || b.code || "";
+  }
+
+  function sanitizeTabs(list) {
+    var removed = { "demo.center": 1 };
+    return (list || []).filter(function (id) {
+      if (removed[id]) return false;
+      return !!JnRegistry.getRaw(id);
+    });
+  }
 
   function renderLogin() {
     document.body.innerHTML =
       '<div class="jn-login"><div class="jn-card jn-login-card">' +
-      "<h1>JNative One</h1>" +
-      '<div class="sub">Modern Enterprise ERP | UI 1.5 | DEMO MODE</div>' +
-      '<div class="jn-field"><label>Email</label><input class="jn-input" id="email" value="user1@jnative.dev" /></div>' +
-      '<div class="jn-field"><label>Password</label><input class="jn-input" id="password" type="password" value="demo" /></div>' +
-      '<button type="button" class="jn-btn primary" id="btn-login" style="width:100%">Enter Demo Workspace</button>' +
-      '<p class="hint" style="margin-top:12px;color:var(--jn-color-text-muted);font-size:12px">Demo mode does not connect to the formal business database. WASM WebUI runtime is not used for this shell (see foundation report).</p>' +
+      (window.JnI18n ? JnI18n.langToggleHtml() : "") +
+      "<h1>" + JnUI.esc(t("app.brand", null, "JNative One")) + "</h1>" +
+      '<div class="sub">' + JnUI.esc(t("login.subtitle")) + "</div>" +
+      '<div class="jn-field"><label>' + JnUI.esc(t("login.email")) + '</label><input class="jn-input" id="email" value="user1@jnative.dev" /></div>' +
+      '<div class="jn-field"><label>' + JnUI.esc(t("login.password")) + '</label><input class="jn-input" id="password" type="password" value="erp1234" /></div>' +
+      '<button type="button" class="jn-btn primary" id="btn-login" style="width:100%">' + JnUI.esc(t("login.submit")) + "</button>" +
+      '<p class="hint" style="margin-top:12px;color:var(--jn-color-text-muted);font-size:12px">' + JnUI.esc(t("login.hint")) + "</p>" +
+      '<p id="login-err" style="color:#b91c1c;font-size:12px;margin-top:8px"></p>' +
       "</div></div>";
+    if (window.JnI18n) {
+      JnI18n.bindLangToggle(document.body, function () { renderLogin(); });
+    }
     $("#btn-login").onclick = function () {
-      authed = true;
-      sessionStorage.setItem("jn_demo_auth", "1");
-      bootShell();
+      var email = $("#email").value.trim();
+      var password = $("#password").value;
+      var errEl = $("#login-err");
+      errEl.textContent = "";
+      JnData.useRpc("");
+      JnData.active.login(email, password).then(function (data) {
+        sessionUser = (data && data.user) || JnData.active.user;
+        authed = true;
+        return JnData.active.loadBook ? JnData.active.loadBook() : null;
+      }).then(function (book) {
+        bookInfo = book || null;
+        bootShell();
+      }).catch(function (err) {
+        errEl.textContent = (err && err.message) ? err.message : t("login.failed");
+      });
     };
   }
 
@@ -46,17 +105,36 @@
 
   function tabsHtml() {
     if (!tabs.length) return "";
-    return tabs.map(function (t) {
-      return '<button type="button" class="jn-tab' + (t === activePageId ? " active" : "") + '" data-tab="' + t + '">' +
-        JnUI.esc(JnRegistry.get(t).title) +
-        '<span class="x" data-close-tab="' + t + '">x</span></button>';
+    return tabs.map(function (tid) {
+      var p = JnRegistry.get(tid);
+      return '<button type="button" class="jn-tab' + (tid === activePageId ? " active" : "") + '" data-tab="' + tid + '">' +
+        JnUI.esc(p ? p.title : tid) +
+        '<span class="x" data-close-tab="' + tid + '">x</span></button>';
     }).join("");
   }
 
   function breadcrumbHtml() {
     var p = JnRegistry.get(activePageId);
     if (!p) return "";
-    return 'JNative One <span>/</span> ' + JnUI.esc(p.module) + " <span>/</span> <strong>" + JnUI.esc(p.title) + "</strong>";
+    return JnUI.esc(t("app.brand", null, "JNative One")) + ' <span>/</span> ' +
+      JnUI.esc(p.module) + " <span>/</span> <strong>" + JnUI.esc(p.title) + "</strong>";
+  }
+
+  function paintUserChrome() {
+    var u = userDisplay();
+    var label = userLabel(u);
+    var initials = userInitials(u);
+    var avatar = $("#user-avatar");
+    var nameEl = $("#user-name");
+    if (avatar) avatar.textContent = initials;
+    if (nameEl) nameEl.textContent = label;
+    var bookEl = $("#jn-book-label");
+    if (bookEl) {
+      var bl = bookLabel();
+      bookEl.textContent = bl;
+      bookEl.style.display = bl ? "" : "none";
+      if (bl) bookEl.title = bl;
+    }
   }
 
   function paintShellChrome() {
@@ -66,7 +144,28 @@
     $(".jn-nav").innerHTML = menuHtml();
     $(".jn-tabbar").innerHTML = tabsHtml();
     $(".jn-breadcrumb").innerHTML = breadcrumbHtml();
+    var langHost = $("#jn-lang-host");
+    if (langHost && window.JnI18n) {
+      langHost.innerHTML = JnI18n.langToggleHtml();
+      JnI18n.bindLangToggle(langHost, function () { onLocaleChange(); });
+    }
+    var dens = $("#btn-density");
+    if (dens && window.JnTheme) {
+      dens.textContent = (JnTheme.get().density === "compact") ? t("common.compact") : t("common.comfortable");
+    }
+    var search = $("#global-search");
+    if (search) {
+      search.placeholder = t("common.searchUnavailable");
+      search.disabled = true;
+      search.title = t("common.searchUnavailable");
+    }
+    paintUserChrome();
     bindChrome();
+  }
+
+  function onLocaleChange() {
+    paintShellChrome();
+    renderActive();
   }
 
   function bindChrome() {
@@ -88,7 +187,7 @@
   }
 
   function closeTab(id) {
-    tabs = tabs.filter(function (t) { return t !== id; });
+    tabs = tabs.filter(function (tid) { return tid !== id; });
     if (activePageId === id) {
       activePageId = tabs[tabs.length - 1] || "dash.executive";
     }
@@ -100,14 +199,18 @@
   function navigate(pageId) {
     var openDoc = document.querySelector(".jn-doc-editor-backdrop .jn-doc-editor");
     if (openDoc && openDoc.querySelector("[data-dirty]") && openDoc.querySelector("[data-dirty]").style.display !== "none") {
-      var leave = window.confirm("Unsaved changes will be lost. Leave document editor?");
+      var leave = window.confirm(t("common.unsavedLeave"));
       if (!leave) return;
       var bd = document.querySelector(".jn-doc-editor-backdrop");
       if (bd) bd.remove();
     }
+    if (pageId === "demo.center") {
+      JnUI.toast(t("common.pageRemoved"), "err");
+      return;
+    }
     var page = JnRegistry.get(pageId);
     if (!page) {
-      JnUI.toast("Unknown page: " + pageId, "err");
+      JnUI.toast(t("common.unknownPage", { id: pageId }), "err");
       return;
     }
     var host = $("#jn-workspace");
@@ -115,7 +218,10 @@
     if (tabs.indexOf(pageId) < 0) tabs.push(pageId);
     activePageId = pageId;
     location.hash = "#" + page.route;
-    try { sessionStorage.setItem("jn_ui_tabs", JSON.stringify(tabs)); sessionStorage.setItem("jn_ui_active", activePageId); } catch (e) {}
+    try {
+      sessionStorage.setItem("jn_ui_tabs", JSON.stringify(sanitizeTabs(tabs)));
+      sessionStorage.setItem("jn_ui_active", activePageId);
+    } catch (e) {}
     paintShellChrome();
     renderActive();
   }
@@ -130,26 +236,30 @@
   }
 
   function bootShell() {
+    var u = userDisplay();
     document.body.innerHTML =
       '<div class="jn-app" id="jn-app">' +
       '<aside class="jn-sidebar">' +
-      '<div class="jn-sidebar-brand"><span class="mark">JN</span><span class="label">JNative One</span></div>' +
+      '<div class="jn-sidebar-brand"><span class="mark">JN</span><span class="label">' +
+      JnUI.esc(t("app.brand", null, "JNative One")) + '</span></div>' +
       '<nav class="jn-nav"></nav></aside>' +
       '<div class="jn-main">' +
       '<header class="jn-topbar">' +
-      '<button type="button" class="jn-icon-btn" id="btn-collapse" title="Toggle sidebar">=</button>' +
-      '<input class="jn-search" id="global-search" placeholder="Global search (DEMO) - customers, orders, items..." />' +
+      '<button type="button" class="jn-icon-btn" id="btn-collapse" title="' + JnUI.esc(t("common.toggleSidebar")) + '">=</button>' +
+      '<input class="jn-search" id="global-search" disabled title="' + JnUI.esc(t("common.searchUnavailable")) +
+      '" placeholder="' + JnUI.esc(t("common.searchUnavailable")) + '" />' +
       '<div class="jn-topbar-right" style="position:relative">' +
-      '<button type="button" class="jn-density-toggle" id="btn-density" title="Toggle density">Density</button>' +
-      '<button type="button" class="jn-btn" id="btn-demo-center" style="height:28px;padding:0 10px;font-size:12px">Demo Center</button>' +
-      '<button type="button" class="jn-icon-btn" id="btn-notif" title="Notifications" aria-label="Notifications">?</button>' +
-      '<div class="jn-user-menu" id="user-menu" tabindex="0" aria-label="User menu"><span class="jn-avatar">DU</span><span>Demo User</span></div>' +
+      '<span class="jn-book-chip" id="jn-book-label" style="display:none;margin-right:8px;font-size:12px;color:var(--jn-color-text-muted)"></span>' +
+      '<span id="jn-lang-host"></span>' +
+      '<button type="button" class="jn-density-toggle" id="btn-density" title="' + JnUI.esc(t("common.density")) + '">' +
+      JnUI.esc(t("common.density")) + "</button>" +
+      '<button type="button" class="jn-icon-btn" id="btn-notif" title="' + JnUI.esc(t("common.notifications")) +
+      '" aria-label="' + JnUI.esc(t("common.notifications")) + '">?</button>' +
+      '<div class="jn-user-menu" id="user-menu" tabindex="0" aria-label="' + JnUI.esc(t("common.userMenu")) +
+      '"><span class="jn-avatar" id="user-avatar">' + JnUI.esc(userInitials(u)) +
+      '</span><span id="user-name">' + JnUI.esc(userLabel(u)) + "</span></div>" +
       '<div class="jn-notif-panel" id="notif-panel" style="display:none" role="menu"></div>' +
       "</div></header>" +
-      '<div class="jn-demo-banner" role="status"><span class="badge">DEMO MODE</span> DemoStateStore + ApplicationService - isolated from formal business DB. ' +
-      'Persist: localStorage (survives refresh; cleared by Reset / clearing site data). Pages: ' +
-      JnRegistry.count +
-      ' <button type="button" class="jn-btn" id="btn-reset-demo" style="margin-left:8px;height:24px;padding:0 8px;font-size:11px">Reset Demo Data</button></div>' +
       '<div class="jn-tabbar"></div>' +
       '<div class="jn-breadcrumb"></div>' +
       '<main class="jn-workspace" id="jn-workspace"></main>' +
@@ -160,70 +270,63 @@
       collapsed = !collapsed;
       paintShellChrome();
     };
-    var resetBtn = $("#btn-reset-demo");
-    if (resetBtn) {
-      resetBtn.onclick = function () {
-        if (!window.confirm("Reset all DEMO data to seed state? This cannot be undone.")) return;
-        JnAppService.resetDemo();
-        JnUI.toast("DEMO data reset to seed (localStorage rewritten)", "ok");
-        renderActive();
-      };
-    }
     var dens = $("#btn-density");
     if (dens) {
       dens.onclick = function () {
         var d = JnTheme.toggleDensity();
-        dens.textContent = d.density === "compact" ? "Compact" : "Comfortable";
-        JnUI.toast("Density: " + d.density, "ok");
+        dens.textContent = d.density === "compact" ? t("common.compact") : t("common.comfortable");
+        JnUI.toast(t("common.densityToast", { density: d.density }), "ok");
         renderActive();
       };
-      dens.textContent = (JnTheme.get().density === "compact") ? "Compact" : "Comfortable";
     }
-    var demoBtn = $("#btn-demo-center");
-    if (demoBtn) demoBtn.onclick = function () { navigate("demo.center"); };
     $("#btn-notif").onclick = function () {
       notifOpen = !notifOpen;
       var panel = $("#notif-panel");
       panel.style.display = notifOpen ? "block" : "none";
       if (notifOpen) {
-        panel.innerHTML = JnMockData.notifications().map(function (n) {
-          return '<div class="jn-notif-item"><strong>' + JnUI.esc(n.title) + "</strong><div>" + JnUI.esc(n.body) +
-            '</div><div style="color:var(--jn-color-text-muted)">' + JnUI.esc(n.time) + "</div></div>";
-        }).join("");
+        panel.innerHTML = '<div class="jn-notif-item"><div>' + JnUI.esc(t("common.notificationsEmpty")) + "</div></div>";
       }
     };
     $("#user-menu").onclick = function () {
+      var cu = userDisplay();
+      var bl = bookLabel();
+      var role = (cu && cu.role) ? String(cu.role) : "";
       JnUI.modal({
-        title: "User menu",
-        bodyHtml: "<p>Demo User | Demo Co</p><p>Role: Admin</p><p>Data mode: DEMO</p>",
-        primaryLabel: "Sign out",
+        title: t("common.userMenu"),
+        bodyHtml: "<p><strong>" + JnUI.esc(userLabel(cu)) + "</strong></p>" +
+          (cu && cu.email ? "<p>" + JnUI.esc(cu.email) + "</p>" : "") +
+          (role ? "<p>" + JnUI.esc(t("common.roleLine", { role: role })) + "</p>" : "") +
+          (bl ? "<p>" + JnUI.esc(t("common.bookLine", { name: bl })) + "</p>" : ""),
+        primaryLabel: t("common.signOut"),
         onOk: function () {
-          sessionStorage.removeItem("jn_demo_auth");
-          location.reload();
+          var done = function () {
+            sessionStorage.removeItem("jn_auth");
+            sessionStorage.removeItem("jn_rpc_auth");
+            sessionStorage.removeItem("jn_csrf");
+            sessionStorage.removeItem("jn_user");
+            location.reload();
+          };
+          if (JnData.active && JnData.active.logout) {
+            JnData.active.logout().then(done).catch(done);
+          } else done();
         }
       });
     };
-    if (window.JnGlobalSearch) JnGlobalSearch.bind($("#global-search"));
-    else {
-      $("#global-search").addEventListener("keydown", function (e) {
-        if (e.key === "Enter") {
-          var q = e.target.value.trim();
-          if (!q) return;
-          navigate("md.customers");
-          JnUI.toast("Global search fallback (DEMO)", "ok");
-        }
-      });
-    }
 
     var hashRoute = (location.hash || "").replace(/^#/, "");
     var initial = JnRegistry.getByRoute(hashRoute);
     try {
       var savedTabs = JSON.parse(sessionStorage.getItem("jn_ui_tabs") || "[]");
       var savedActive = sessionStorage.getItem("jn_ui_active");
-      if (savedTabs && savedTabs.length) {
-        tabs = savedTabs.filter(function (id) { return !!JnRegistry.get(id); });
-        activePageId = JnRegistry.get(savedActive) ? savedActive : tabs[0];
+      tabs = sanitizeTabs(savedTabs);
+      if (savedActive === "demo.center" || !JnRegistry.getRaw(savedActive)) {
+        activePageId = tabs[0] || null;
+      } else {
+        activePageId = savedActive;
       }
+      sessionStorage.setItem("jn_ui_tabs", JSON.stringify(tabs));
+      if (activePageId) sessionStorage.setItem("jn_ui_active", activePageId);
+      else sessionStorage.removeItem("jn_ui_active");
     } catch (e) {}
     if (!tabs.length) {
       var start = initial || JnRegistry.get("dash.executive");
@@ -239,14 +342,43 @@
     renderActive();
   }
 
+  function resumeSession() {
+    JnData.useRpc("");
+    return JnData.active.loadSession().then(function (user) {
+      sessionUser = user;
+      authed = true;
+      return JnData.active.loadBook ? JnData.active.loadBook() : null;
+    }).then(function (book) {
+      bookInfo = book || null;
+      bootShell();
+    }).catch(function () {
+      sessionStorage.removeItem("jn_auth");
+      sessionStorage.removeItem("jn_rpc_auth");
+      authed = false;
+      renderLogin();
+    });
+  }
+
   window.JnApp = {
     navigate: navigate,
-    pageCount: function () { return JnRegistry.count; }
+    pageCount: function () { return JnRegistry.count; },
+    refreshLocale: onLocaleChange,
+    currentUser: userDisplay,
+    bookInfo: function () { return bookInfo; }
   };
 
   document.addEventListener("DOMContentLoaded", function () {
-    JnData.useMock();
+    if (window.JnI18n) {
+      if (JnI18n.ensureReady && JnI18n.ensureReady() === 0) {
+        console.error("[JnI18n] catalogs missing; UI labels may show raw keys");
+      }
+      if (JnI18n.catalogSize("zh-CN") > 0 && JnI18n.getLocale() !== "en" && JnI18n.getLocale() !== "zh-CN") {
+        JnI18n.setLocale("zh-CN");
+      }
+      JnI18n.applyHtmlLang();
+    }
+    JnData.useRpc("");
     if (!authed) renderLogin();
-    else bootShell();
+    else resumeSession();
   });
 })();

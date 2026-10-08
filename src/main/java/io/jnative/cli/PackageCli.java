@@ -1,13 +1,14 @@
 package io.jnative.cli;
 
 import io.jnative.pkg.BuildGraphPackageIntegration;
+import io.jnative.pkg.FilesystemRegistry;
 import io.jnative.pkg.PackageId;
 import io.jnative.pkg.PackageManager;
-import io.jnative.pkg.PackageManifest;
 import io.jnative.pkg.ResolvedDependencyGraph;
-import io.jnative.pkg.SemanticVersion;
 
+import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.List;
 
 /** CLI subcommands for the 0.30 package manager. */
@@ -22,16 +23,26 @@ public final class PackageCli {
             return 1;
         }
         Path root = Path.of(".").toAbsolutePath().normalize();
+        List<Path> registries = new ArrayList<>();
+        boolean offline = false;
         for (int i = 1; i < args.length; i++) {
             if ("--project".equals(args[i]) && i + 1 < args.length) {
                 root = Path.of(args[++i]).toAbsolutePath().normalize();
+            } else if ("--registry".equals(args[i]) && i + 1 < args.length) {
+                registries.add(Path.of(args[++i]).toAbsolutePath().normalize());
+            } else if ("--offline".equals(args[i])) {
+                offline = true;
             }
         }
         PackageManager pm = new PackageManager(root);
-        for (int i = 1; i < args.length; i++) {
-            if ("--offline".equals(args[i])) {
-                pm.setOffline(true);
-            }
+        if (offline) {
+            pm.setOffline(true);
+        }
+        // Prepend CLI registries (first wins for publish + resolve precedence).
+        for (int i = registries.size() - 1; i >= 0; i--) {
+            Path reg = registries.get(i);
+            Files.createDirectories(reg);
+            pm.addRegistry(new FilesystemRegistry(reg, "cli"));
         }
         return switch (args[0]) {
             case "add" -> {
@@ -82,9 +93,16 @@ public final class PackageCli {
                         dry = true;
                     }
                 }
+                if (registries.isEmpty() && pm.registries().registries().isEmpty()) {
+                    System.err.println("error: no registry configured; pass --registry <path> or create ./registry");
+                    yield 1;
+                }
                 var r = pm.publish(dry);
                 System.out.println((dry ? "dry-run " : "") + "publish " + r.id() + "@" + r.version()
                         + (r.hash().isEmpty() ? "" : " sha256:" + r.hash()));
+                if (!pm.registries().url().isEmpty()) {
+                    System.out.println("  registry: " + pm.registries().url());
+                }
                 for (String f : r.files()) {
                     System.out.println("  " + f);
                 }

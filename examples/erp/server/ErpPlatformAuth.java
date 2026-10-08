@@ -8,12 +8,18 @@ class ErpPlatformAuth {
         seedPermission("SALES.ORDER.CREATE", "Create sales orders");
         seedPermission("SALES.ORDER.APPROVE", "Approve sales orders");
         seedPermission("SALES.ORDER.POST", "Post sales/delivery");
+        seedPermission("SALES.DELIVERY.REVERSE", "Reverse deliveries");
         seedPermission("SALES.CUSTOMER.READ", "Read customers");
         seedPermission("FINANCE.JOURNAL.READ", "Read journals");
         seedPermission("FINANCE.JOURNAL.POST", "Post journals");
+        seedPermission("FINANCE.OPENING.POST", "Post opening AR/AP");
         seedPermission("PURCHASE.ORDER.READ", "Read POs");
+        seedPermission("PURCHASE.ORDER.CREATE", "Create POs");
         seedPermission("PURCHASE.ORDER.APPROVE", "Approve POs");
+        seedPermission("PURCHASE.ORDER.POST", "Post goods receipts");
+        seedPermission("PURCHASE.GR.REVERSE", "Reverse goods receipts");
         seedPermission("INVENTORY.BALANCE.READ", "Read inventory");
+        seedPermission("INVENTORY.OPENING.POST", "Post opening stock");
         seedPermission("ADMIN.USER.READ", "Read users");
         seedPermission("ADMIN.ROLE.MANAGE", "Manage roles");
         seedPermission("ADMIN.CUSTOMFIELD.MANAGE", "Manage custom fields");
@@ -23,6 +29,8 @@ class ErpPlatformAuth {
         seedPermission("ADMIN.IMPORT.RUN", "Run imports");
         seedPermission("ADMIN.SETTING.MANAGE", "Manage settings");
         seedPermission("ADMIN.AUDIT.READ", "Read audit");
+        seedPermission("ADMIN.SETUP.MANAGE", "Run setup wizard");
+        seedPermission("ADMIN.DEMO.RESET", "Reset demo book");
 
         long salesRole = ensureRole(companyId, "sales", "Sales", DataScope.OWN);
         long financeRole = ensureRole(companyId, "finance", "Finance", DataScope.COMPANY);
@@ -31,25 +39,51 @@ class ErpPlatformAuth {
 
         grant(salesRole, "SALES.ORDER.READ");
         grant(salesRole, "SALES.ORDER.CREATE");
+        grant(salesRole, "SALES.ORDER.APPROVE");
+        grant(salesRole, "SALES.ORDER.POST");
         grant(salesRole, "SALES.CUSTOMER.READ");
+        grant(salesRole, "INVENTORY.BALANCE.READ");
         grant(financeRole, "FINANCE.JOURNAL.READ");
         grant(financeRole, "FINANCE.JOURNAL.POST");
+        grant(financeRole, "FINANCE.OPENING.POST");
         grant(financeRole, "ADMIN.REPORT.RUN");
         grant(purchaseRole, "PURCHASE.ORDER.READ");
+        grant(purchaseRole, "PURCHASE.ORDER.CREATE");
         grant(purchaseRole, "PURCHASE.ORDER.APPROVE");
-        grant(adminRole, "ADMIN.USER.READ");
-        grant(adminRole, "ADMIN.ROLE.MANAGE");
-        grant(adminRole, "ADMIN.CUSTOMFIELD.MANAGE");
-        grant(adminRole, "ADMIN.FORM.MANAGE");
-        grant(adminRole, "ADMIN.WORKFLOW.MANAGE");
-        grant(adminRole, "ADMIN.REPORT.RUN");
-        grant(adminRole, "ADMIN.IMPORT.RUN");
-        grant(adminRole, "ADMIN.SETTING.MANAGE");
-        grant(adminRole, "ADMIN.AUDIT.READ");
-        grant(adminRole, "SALES.ORDER.READ");
-        grant(adminRole, "SALES.ORDER.APPROVE");
-        grant(adminRole, "FINANCE.JOURNAL.READ");
-        grant(adminRole, "INVENTORY.BALANCE.READ");
+        grant(purchaseRole, "PURCHASE.ORDER.POST");
+        grant(purchaseRole, "INVENTORY.BALANCE.READ");
+        grantAllBusiness(adminRole);
+    }
+
+    /** Full business + admin surface for Administrator role. */
+    static void grantAllBusiness(long roleId) {
+        grant(roleId, "SALES.ORDER.READ");
+        grant(roleId, "SALES.ORDER.CREATE");
+        grant(roleId, "SALES.ORDER.APPROVE");
+        grant(roleId, "SALES.ORDER.POST");
+        grant(roleId, "SALES.DELIVERY.REVERSE");
+        grant(roleId, "SALES.CUSTOMER.READ");
+        grant(roleId, "FINANCE.JOURNAL.READ");
+        grant(roleId, "FINANCE.JOURNAL.POST");
+        grant(roleId, "FINANCE.OPENING.POST");
+        grant(roleId, "PURCHASE.ORDER.READ");
+        grant(roleId, "PURCHASE.ORDER.CREATE");
+        grant(roleId, "PURCHASE.ORDER.APPROVE");
+        grant(roleId, "PURCHASE.ORDER.POST");
+        grant(roleId, "PURCHASE.GR.REVERSE");
+        grant(roleId, "INVENTORY.BALANCE.READ");
+        grant(roleId, "INVENTORY.OPENING.POST");
+        grant(roleId, "ADMIN.USER.READ");
+        grant(roleId, "ADMIN.ROLE.MANAGE");
+        grant(roleId, "ADMIN.CUSTOMFIELD.MANAGE");
+        grant(roleId, "ADMIN.FORM.MANAGE");
+        grant(roleId, "ADMIN.WORKFLOW.MANAGE");
+        grant(roleId, "ADMIN.REPORT.RUN");
+        grant(roleId, "ADMIN.IMPORT.RUN");
+        grant(roleId, "ADMIN.SETTING.MANAGE");
+        grant(roleId, "ADMIN.AUDIT.READ");
+        grant(roleId, "ADMIN.SETUP.MANAGE");
+        grant(roleId, "ADMIN.DEMO.RESET");
     }
 
     static void seedPermission(String code, String name) {
@@ -122,6 +156,14 @@ class ErpPlatformAuth {
     }
 
     static int hasPermission(long userId, long companyId, String permCode) {
+        /* Legacy users.role=admin retains full access for pilot continuity */
+        ArrayList<Object> ur = new ArrayList<Object>();
+        ur.add(CryptoParse.longToString(userId));
+        ur.add(CryptoParse.longToString(companyId));
+        Object role = ErpDb.queryOne("SELECT role FROM users WHERE id=? AND company_id=?", ur, new StringMapper());
+        if (role != null && ((String) role).equals("admin")) {
+            return 1;
+        }
         ArrayList<Object> p = new ArrayList<Object>();
         p.add(CryptoParse.longToString(userId));
         p.add(CryptoParse.longToString(companyId));

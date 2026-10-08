@@ -35,8 +35,14 @@ public final class CliDispatcher {
         return switch (cmd) {
             case "doctor" -> ProjectCli.doctor(args);
             case "new" -> ProjectCli.newProject(args);
+            case "mobile" -> MobileCli.dispatch(args);
             case "run" -> ProjectCli.run(args);
             case "test" -> ProjectCli.test(args);
+            case "analyze" -> AnalyzeCli.dispatch(args);
+            case "lsp" -> {
+                io.jnative.lsp.LspServer.main(slice(args, 1));
+                yield 0;
+            }
             case "dev" -> runDev(args);
             case "build" -> runBuild(args);
             case "clean" -> runClean(args);
@@ -89,7 +95,7 @@ public final class CliDispatcher {
             if ("--target".equals(a) || a.startsWith("--target=")) {
                 hasTarget = true;
             }
-            if (a.endsWith(".java")) {
+            if (io.jnative.source.SourceFiles.isSourceFileName(a)) {
                 hasJava = true;
             }
         }
@@ -100,21 +106,47 @@ public final class CliDispatcher {
         boolean explain = false;
         boolean release = false;
         boolean offline = false;
+        boolean jsonFormat = false;
+        boolean debug = false;
+        boolean optExplicit = false;
         int jobs = 0;
         int opt = 1;
+        java.util.List<Path> registries = new java.util.ArrayList<>();
         for (int i = 1; i < args.length; i++) {
             switch (args[i]) {
                 case "--explain" -> explain = true;
                 case "--offline" -> offline = true;
+                case "--debug" -> debug = true;
+                case "--format" -> {
+                    if (i + 1 < args.length && "json".equalsIgnoreCase(args[++i])) {
+                        jsonFormat = true;
+                    }
+                }
+                case "--format=json" -> jsonFormat = true;
                 case "--release" -> {
                     release = true;
                     opt = 3;
                 }
-                case "-Odev" -> opt = 1;
-                case "-O0" -> opt = 0;
-                case "-O1" -> opt = 1;
-                case "-O2" -> opt = 2;
-                case "-O3" -> opt = 3;
+                case "-Odev" -> {
+                    opt = 1;
+                    optExplicit = true;
+                }
+                case "-O0" -> {
+                    opt = 0;
+                    optExplicit = true;
+                }
+                case "-O1" -> {
+                    opt = 1;
+                    optExplicit = true;
+                }
+                case "-O2" -> {
+                    opt = 2;
+                    optExplicit = true;
+                }
+                case "-O3" -> {
+                    opt = 3;
+                    optExplicit = true;
+                }
                 case "--jobs", "-j" -> {
                     if (i + 1 < args.length) {
                         jobs = Integer.parseInt(args[++i]);
@@ -125,40 +157,56 @@ public final class CliDispatcher {
                         root = Path.of(args[++i]).toAbsolutePath().normalize();
                     }
                 }
+                case "--registry" -> {
+                    if (i + 1 < args.length) {
+                        registries.add(Path.of(args[++i]).toAbsolutePath().normalize());
+                    }
+                }
                 default -> {
                 }
             }
         }
-        // Package resolve before compile (compiler never hits network)
-        try {
-            if (java.nio.file.Files.isRegularFile(root.resolve("jnative.toml"))
-                    || java.nio.file.Files.isRegularFile(root.resolve("jnative.lock"))) {
-                io.jnative.pkg.PackageManager pm = new io.jnative.pkg.PackageManager(root);
-                pm.setOffline(offline);
-                var graph = pm.resolve("native", false, false);
-                var nodes = io.jnative.pkg.BuildGraphPackageIntegration.materialize(graph, pm.cache());
-                io.jnative.pkg.BuildGraphPackageIntegration.validateCapabilities(nodes, "native");
-                System.out.println("[pkg] resolved " + graph.packages().size()
-                        + " packages, build nodes=" + nodes.size());
-            }
-        } catch (Exception e) {
-            System.err.println("[pkg] " + e.getMessage());
-            if (offline || java.nio.file.Files.isRegularFile(root.resolve("jnative.toml"))) {
-                return 1;
-            }
+        if (debug && !optExplicit) {
+            opt = 0;
         }
         if (!explain) {
-            // Quiet UX: "Build succeeded in 0.81s" / "Output: build/release/hello"
-            // (skip Output line for `jnative run` — that path calls buildQuiet directly)
-            ProjectCli.BuildOutcome outcome = ProjectCli.buildQuiet(root, release, opt);
-            return outcome.success() ? 0 : 1;
+            try {
+                ProjectCli.BuildOutcome outcome = ProjectCli.buildQuiet(
+                        root, release, opt, !jsonFormat, offline, registries, debug);
+                if (jsonFormat) {
+                    String artifact = outcome.primaryArtifact() == null
+                            ? null
+                            : outcome.primaryArtifact().toAbsolutePath().normalize().toString();
+                    System.out.println(io.jnative.diagnostics.DiagnosticJson.buildReportJson(
+                            outcome.success(), artifact, parseDiagnosticTexts(outcome.diagnosticTexts())));
+                }
+                return outcome.success() ? 0 : 1;
+            } catch (Exception e) {
+                if (jsonFormat) {
+                    System.out.println(io.jnative.diagnostics.DiagnosticJson.buildReportJson(
+                            false, null, java.util.List.of(
+                                    io.jnative.diagnostics.Diagnostic.error(
+                                            io.jnative.diagnostics.SourceLocation.UNKNOWN,
+                                            e.getMessage() == null ? "build failed" : e.getMessage()))));
+                } else {
+                    System.err.println("[pkg] " + e.getMessage());
+                }
+                return 1;
+            }
         }
         CompilerSession session = new CompilerSession(root);
         session.setExplain(true);
         session.setOptLevel(release ? 3 : opt);
         session.setReleaseMode(release);
+        session.setEmitSourceDebugInfo(debug);
         if (jobs > 0) {
             session.setJobs(jobs);
+        }
+        try {
+            ProjectCli.attachPackageSources(session, root, offline, registries);
+        } catch (Exception e) {
+            System.err.println("[pkg] " + e.getMessage());
+            return 1;
         }
         BuildResult result = session.build();
         System.out.print(result.summary());
@@ -240,6 +288,15 @@ public final class CliDispatcher {
     }
 
     private static int runSingleFile(String[] args) {
+        boolean jsonFormat = false;
+        for (String a : args) {
+            if ("--format=json".equals(a) || ("--format".equals(a))) {
+                jsonFormat = true;
+            }
+            if ("json".equalsIgnoreCase(a)) {
+                jsonFormat = true;
+            }
+        }
         CompilerOptions options;
         try {
             options = CliArguments.parse(args);
@@ -262,8 +319,16 @@ public final class CliDispatcher {
             return 1;
         }
         CompileResult result = new JNativeCompiler().compile(options);
-        for (Diagnostic d : result.diagnostics()) {
-            System.err.println(d);
+        if (jsonFormat) {
+            String artifact = result.executable() == null
+                    ? null
+                    : result.executable().toAbsolutePath().normalize().toString();
+            System.out.println(io.jnative.diagnostics.DiagnosticJson.buildReportJson(
+                    result.success(), artifact, result.diagnostics()));
+        } else {
+            for (Diagnostic d : result.diagnostics()) {
+                System.err.println(d);
+            }
         }
         return result.success() ? 0 : 1;
     }
@@ -293,17 +358,72 @@ public final class CliDispatcher {
                  — Native Java toolchain
 
                 Usage:
-                  jnative doctor
-                  jnative new <name>
+                  jnative doctor [--mobile|--with-mobile]
+                  jnative new <name> [--minimal] [--template mobile]
+                  jnative mobile build|devices|run|logs ...
                   jnative run [--project DIR]
                   jnative test [--project DIR]
-                  jnative build [--project DIR] [--release] [--explain] [--offline]
+                  jnative build [--project DIR] [--registry DIR] [--debug] [--release] [--explain] [--offline] [--format json]
+                  jnative <source.jn|.java> --debug [-O0..-O3] [-o out]
+                  jnative analyze <file.jn|.java> | --stdin [--path name] [--format json]
+                  jnative lsp
                   jnative processors [list|explain <Type>]
                   jnative generated <SymbolOrPath>
-                  jnative add|remove|update|deps|search|info|publish|audit|licenses
+                  jnative add|remove|update|deps|search|info|publish|audit|licenses [--registry DIR]
                   jnative cert|serve|dev|clean|cache
-                  jnative <source.java> [-o out] [-O0..-O3] [--run]
+                  jnative <source.jn|.java> [-o out] [-O0..-O3] [--run]
                   jnative --version | --help
                 """;
+    }
+
+    /**
+     * Parse compiler diagnostic texts {@code file:line:column: severity: message}.
+     * Unparseable lines become a single NOTE at UNKNOWN so stdout logs are not invented as errors.
+     */
+    static java.util.List<io.jnative.diagnostics.Diagnostic> parseDiagnosticTexts(
+            java.util.List<String> texts
+    ) {
+        java.util.List<io.jnative.diagnostics.Diagnostic> out = new java.util.ArrayList<>();
+        if (texts == null) {
+            return out;
+        }
+        java.util.regex.Pattern p = java.util.regex.Pattern.compile(
+                "^(.+):(\\d+):(\\d+):\\s*(error|warning|note):\\s*(.*)$",
+                java.util.regex.Pattern.CASE_INSENSITIVE | java.util.regex.Pattern.DOTALL);
+        for (String text : texts) {
+            if (text == null || text.isBlank()) {
+                continue;
+            }
+            // Multi-line target-prefixed blobs: try each line
+            for (String line : text.split("\\R")) {
+                String t = line.trim();
+                if (t.isEmpty()) {
+                    continue;
+                }
+                // Strip optional "targetName: " prefix from CompilerSession
+                int colonSpace = t.indexOf(": ");
+                String candidate = t;
+                java.util.regex.Matcher m = p.matcher(candidate);
+                if (!m.matches() && colonSpace > 0) {
+                    candidate = t.substring(colonSpace + 2).trim();
+                    m = p.matcher(candidate);
+                }
+                if (m.matches()) {
+                    io.jnative.diagnostics.Diagnostic.Severity sev = switch (m.group(4).toLowerCase()) {
+                        case "error" -> io.jnative.diagnostics.Diagnostic.Severity.ERROR;
+                        case "warning" -> io.jnative.diagnostics.Diagnostic.Severity.WARNING;
+                        default -> io.jnative.diagnostics.Diagnostic.Severity.NOTE;
+                    };
+                    out.add(new io.jnative.diagnostics.Diagnostic(
+                            sev,
+                            new io.jnative.diagnostics.SourceLocation(
+                                    m.group(1),
+                                    Integer.parseInt(m.group(2)),
+                                    Integer.parseInt(m.group(3))),
+                            m.group(5)));
+                }
+            }
+        }
+        return out;
     }
 }

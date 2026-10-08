@@ -1,0 +1,8 @@
+[package]
+name = "math"
+namespace = "acme"
+version = "1.0.0"
+description = "Third-party pure source math helpers (clamp, gcd)"
+license = "MIT"
+type = "source"
+min_compiler = "0.30"

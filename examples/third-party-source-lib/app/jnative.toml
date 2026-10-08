@@ -1,0 +1,10 @@
+[package]
+name = "math-app"
+namespace = "acme"
+version = "0.1.0"
+description = "Consumer of acme/math source package"
+license = "MIT"
+type = "source"
+
+[dependencies]
+"acme/math" = "1.0.0"

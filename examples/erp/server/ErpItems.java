@@ -32,6 +32,48 @@ class ErpItems {
         }
         return (ItemDto) v;
     }
+
+    /** Create item; returns null on validation/duplicate failure (message via outErr). */
+    static ItemDto create(long companyId, String sku, String name, long unitPriceCents) {
+        if (sku == null || sku.length() == 0 || name == null || name.length() == 0) {
+            return null;
+        }
+        if (unitPriceCents < 0L) {
+            return null;
+        }
+        ArrayList<Object> chk = new ArrayList<Object>();
+        chk.add(CryptoParse.longToString(companyId));
+        chk.add(sku);
+        Object existing = ErpDb.queryOne(
+                "SELECT id FROM items WHERE company_id=? AND sku=?", chk, new LongMapper());
+        if (existing != null) {
+            return null;
+        }
+        long now = AsyncClockNative.wallMillis();
+        ArrayList<Object> ins = new ArrayList<Object>();
+        ins.add(CryptoParse.longToString(companyId));
+        ins.add(sku);
+        ins.add(name);
+        ins.add(CryptoParse.longToString(unitPriceCents));
+        ins.add(CryptoParse.longToString(now));
+        ErpDb.exec(
+                "INSERT INTO items(company_id, sku, name, unit_price_cents, created_at) VALUES (?,?,?,?,?)",
+                ins);
+        return getBySku(companyId, sku);
+    }
+
+    static ItemDto getBySku(long companyId, String sku) {
+        ArrayList<Object> p = new ArrayList<Object>();
+        p.add(CryptoParse.longToString(companyId));
+        p.add(sku);
+        Object v = ErpDb.queryOne(
+                "SELECT id, sku, name, unit_price_cents FROM items WHERE company_id=? AND sku=?",
+                p, new ItemRowMapper());
+        if (v == null) {
+            return null;
+        }
+        return (ItemDto) v;
+    }
 }
 
 class ItemRowMapper implements RowMapper {

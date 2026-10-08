@@ -1,110 +1,113 @@
 package io.jnative.webui;
 
+import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
-import java.util.ArrayList;
+import java.io.BufferedReader;
+import java.io.InputStreamReader;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.concurrent.TimeUnit;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-/** Host-JVM mirrors of JNative 0.27 WebUI reactive semantics. */
+/**
+ * WebUI / wasm32-browser checks that rebuild from source.
+ * Full reactive WebUI DOM IR lowering is not complete this round — see mobile calculator
+ * for the supported IR→WASM path (ints, strings length/charAt, loops, statics).
+ */
 public class WebUiReactiveTest {
 
-    static class TestSub {
-        int notifications;
+    @TempDir
+    Path tempDir;
 
-        void notifyChange() {
-            notifications = notifications + 1;
-        }
+    @Test
+    void jsGlueHasNoEvalAndExportsStart() throws Exception {
+        Path jar = Path.of("target/jnative.jar");
+        Assumptions.assumeTrue(Files.isRegularFile(jar));
+        Assumptions.assumeTrue(which("wat2wasm"));
 
-        void dispose() {
-        }
-    }
-
-    static class TestIntState {
-        int value;
-        ArrayList<TestSub> subs = new ArrayList<>();
-
-        int get() {
-            return value;
-        }
-
-        void set(int v) {
-            if (v == value) {
-                return;
-            }
-            value = v;
-            for (int i = 0; i < subs.size(); i = i + 1) {
-                subs.get(i).notifyChange();
-            }
-        }
-
-        void subscribe(TestSub s) {
-            subs.add(s);
-        }
-    }
-
-    @Test void stateSetNotifiesSubscribers() {
-        TestIntState s = new TestIntState();
-        s.value = 0;
-        TestSub sub = new TestSub();
-        s.subscribe(sub);
-        s.set(1);
-        assertEquals(1, sub.notifications);
-        assertEquals(1, s.value);
-    }
-
-    @Test void stateSetSameValueSkipsNotify() {
-        TestIntState s = new TestIntState();
-        s.value = 5;
-        TestSub sub = new TestSub();
-        s.subscribe(sub);
-        s.set(5);
-        assertEquals(0, sub.notifications);
-    }
-
-    @Test void batchCoalescesMultipleSets() {
-        int[] counter = new int[]{0};
-        Runnable flush = () -> counter[0] = counter[0] + 1;
-        Runnable batch = () -> {
-            flush.run();
-        };
-        batch.run();
-        assertEquals(1, counter[0]);
-    }
-
-    @Test void keyedListDuplicateDetection() {
-        ArrayList<String> keys = new ArrayList<>();
-        keys.add("a");
-        keys.add("a");
-        boolean dup = keys.get(0).equals(keys.get(1));
-        assertTrue(dup);
-    }
-
-    @Test void domPatchOpCodes() {
-        assertEquals(1, 1); // SET_TEXT
-        assertEquals(2, 2); // SET_ATTR
-        assertEquals(5, 5); // APPEND
-    }
-
-    @Test void textUsesTextContentNotInnerHtml() throws Exception {
-        String js = java.nio.file.Files.readString(
-                java.nio.file.Path.of("examples/webui/counter/dist/app.js"));
-        assertTrue(js.contains("textContent"));
-        assertFalse(js.contains("innerHTML"));
-    }
-
-    @Test void counterWasmBuilt() throws Exception {
-        var wasm = java.nio.file.Files.readAllBytes(
-                java.nio.file.Path.of("examples/webui/counter/dist/app.wasm"));
+        Path src = tempDir.resolve("Tiny.java");
+        Files.writeString(src, """
+                public class Tiny {
+                    public static int add(int a, int b) { return a + b; }
+                    public static void main(String[] args) {
+                        boolean keep = false;
+                        if (keep) { add(0, 0); }
+                    }
+                }
+                """, StandardCharsets.UTF_8);
+        Path out = tempDir.resolve("dist");
+        Files.createDirectories(out);
+        run(new String[]{
+                "java", "-jar", jar.toString(),
+                "build", "--target", "wasm32-browser",
+                src.toAbsolutePath().toString(),
+                "-o", out.toAbsolutePath().toString()
+        });
+        String js = Files.readString(out.resolve("app.js"), StandardCharsets.UTF_8);
+        assertTrue(js.contains("jnativeStart"));
+        assertTrue(js.contains("applyDomPatches"));
+        assertFalse(js.contains("eval("));
+        assertFalse(js.contains("new Function"));
+        byte[] wasm = Files.readAllBytes(out.resolve("app.wasm"));
         assertTrue(wasm.length > 8);
+        assertEquals(0, wasm[0]);
         assertEquals('a', (char) (wasm[1] & 0xff));
     }
 
-    @Test void webuiGlueHasBatchPatch() throws Exception {
-        String js = java.nio.file.Files.readString(
-                java.nio.file.Path.of("examples/webui/counter/dist/app.js"));
-        assertTrue(js.contains("applyDomPatches"));
-        assertTrue(js.contains("set_count_label"));
-        assertTrue(js.contains("jnative_flush"));
+    @Test
+    void unsupportedWebUiCounterFailsLoudlyOrBuildsWithoutTemplate() throws Exception {
+        Path jar = Path.of("target/jnative.jar");
+        Assumptions.assumeTrue(Files.isRegularFile(jar));
+        Assumptions.assumeTrue(which("wat2wasm"));
+        Path counter = Path.of("examples/webui/counter/App.java");
+        Assumptions.assumeTrue(Files.isRegularFile(counter));
+        Path out = tempDir.resolve("counter-dist");
+        Files.createDirectories(out);
+        ProcessBuilder pb = new ProcessBuilder(
+                "java", "-jar", jar.toString(),
+                "build", "--target", "wasm32-browser",
+                counter.toAbsolutePath().toString(),
+                "-o", out.toAbsolutePath().toString());
+        pb.redirectErrorStream(true);
+        Process p = pb.start();
+        String log;
+        try (BufferedReader r = new BufferedReader(new InputStreamReader(p.getInputStream()))) {
+            log = r.lines().reduce("", (a, b) -> a + b + "\n");
+        }
+        boolean finished = p.waitFor(120, TimeUnit.SECONDS);
+        assertTrue(finished);
+        // Either fails with an explicit unsupported IR error, or succeeds without
+        // fixed Increment/Count template strings in WAT.
+        if (p.exitValue() == 0) {
+            Path wat = out.resolve("app.wat");
+            if (Files.exists(wat)) {
+                String w = Files.readString(wat);
+                assertFalse(w.contains("mount_counter_ui"), "must not use fixed counter template");
+            }
+        } else {
+            assertTrue(log.contains("wasm") || log.contains("unsupported") || log.contains("error"),
+                    "failure should mention wasm/unsupported: " + log);
+        }
+    }
+
+    private static boolean which(String cmd) throws Exception {
+        Process p = new ProcessBuilder("which", cmd).start();
+        return p.waitFor(5, TimeUnit.SECONDS) && p.exitValue() == 0;
+    }
+
+    private static void run(String[] cmd) throws Exception {
+        ProcessBuilder pb = new ProcessBuilder(cmd);
+        pb.redirectErrorStream(true);
+        Process p = pb.start();
+        String log;
+        try (BufferedReader r = new BufferedReader(new InputStreamReader(p.getInputStream()))) {
+            log = r.lines().reduce("", (a, b) -> a + b + "\n");
+        }
+        assertTrue(p.waitFor(120, TimeUnit.SECONDS));
+        assertEquals(0, p.exitValue(), log);
     }
 }

@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
+  <title>{{APP_NAME}}</title>
+  <style>
+    :root {
+      --bg: #eef3f0; --ink: #14201b; --accent: #0f6d4c; --err: #9b2226;
+      --safe-top: env(safe-area-inset-top, 0px);
+      --safe-bottom: env(safe-area-inset-bottom, 0px);
+    }
+    body {
+      margin: 0; font-family: Georgia, "Iowan Old Style", serif; color: var(--ink);
+      background: radial-gradient(900px 480px at 0% 0%, #cfe8dc, transparent 55%), var(--bg);
+      min-height: 100dvh;
+      padding: calc(1.2rem + var(--safe-top)) 1.2rem calc(1.2rem + var(--safe-bottom));
+    }
+    h1 { margin: 0 0 .35rem; font-size: 1.7rem; }
+    .sub { opacity: .7; margin-bottom: 1rem; }
+    label { display: block; margin: .7rem 0 .25rem; font-size: .85rem; }
+    input, button { font: inherit; width: 100%; box-sizing: border-box; }
+    input { padding: .65rem .75rem; border: 1px solid #b9c7bf; border-radius: .35rem; }
+    button { margin-top: 1rem; padding: .75rem; border: 0; border-radius: .4rem; background: var(--accent); color: #f4fff9; }
+    .result { margin-top: 1.1rem; font-size: 1.8rem; }
+    .status.error { color: var(--err); }
+    .meta { margin-top: 1.2rem; font-size: .8rem; opacity: .65; }
+    .note { margin-top: .8rem; font-size: .75rem; opacity: .55; max-width: 36rem; }
+  </style>
+</head>
+<body>
+  <h1>{{APP_NAME}}</h1>
+  <p class="sub">JNative mobile — shared WASM core</p>
+  <label for="left">First integer</label>
+  <input id="left" inputmode="numeric" autocomplete="off"/>
+  <label for="right">Second integer</label>
+  <input id="right" inputmode="numeric" autocomplete="off"/>
+  <button id="sum" type="button">Add</button>
+  <div class="result">Result: <span id="result">—</span></div>
+  <div id="status" class="status"></div>
+  <div class="meta">
+    <div id="platform">platform: …</div>
+    <div id="lifecycle">lifecycle: …</div>
+  </div>
+  <p class="note">KV storage is ordinary preferences / localStorage — not for passwords or tokens.</p>
+  <script type="module" src="./app-shell.js"></script>
+</body>
+</html>

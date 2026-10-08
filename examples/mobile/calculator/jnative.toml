@@ -1,0 +1,21 @@
+[package]
+name = "mobile-calculator"
+namespace = "examples"
+version = "0.1.0"
+description = "JNative Mobile MVP — shared WASM calculator with thin Android/iOS shells"
+license = "MIT"
+
+[mobile]
+app_name = "JNative Calculator"
+android_application_id = "io.jnative.examples.mobile.calculator"
+ios_bundle_id = "io.jnative.examples.mobile.calculator"
+version = "0.1.0"
+build_number = "1"
+entry = "src/CalculatorApp.java"
+web_root = "web"
+web_entry = "web/index.html"
+# MVP layout keeps android/ and ios/ at project root (platforms_root overridden via symlink-style paths).
+# Prefer the mobile-app template's platforms/ layout for new projects.
+platforms_root = "."
+targets = ["web", "android", "ios"]
+capabilities = ["platform.getName", "storage.get", "storage.set", "storage.remove", "lifecycle"]

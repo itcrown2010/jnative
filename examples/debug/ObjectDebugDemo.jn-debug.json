@@ -1,0 +1,341 @@
+{
+  "version": 1,
+  "pointerSize": 8,
+  "classMeta": {
+    "namePtrOffset": 32,
+    "flagsOffset": 24,
+    "instanceSizeOffset": 16
+  },
+  "string": { "lengthOffset": 8, "dataOffset": 16, "dataInline": true },
+  "array": { "lengthOffset": 8, "dataOffset": 16, "dataInline": true },
+  "maxStringBytes": 256,
+  "maxArrayElements": 16,
+  "objectHeaderSize": 8,
+  "classes": {
+    "ArrayIndexOutOfBoundsException": {
+      "instanceSize": 24,
+      "fields": [
+        {"name":"message","offset":8,"size":8,"ref":true,"llvmType":"ptr"},
+        {"name":"cause","offset":16,"size":8,"ref":true,"llvmType":"ptr"}
+      ]
+    },
+    "NegativeArraySizeException": {
+      "instanceSize": 24,
+      "fields": [
+        {"name":"message","offset":8,"size":8,"ref":true,"llvmType":"ptr"},
+        {"name":"cause","offset":16,"size":8,"ref":true,"llvmType":"ptr"}
+      ]
+    },
+    "Object": {
+      "instanceSize": 8,
+      "fields": [
+
+      ]
+    },
+    "String": {
+      "instanceSize": 8,
+      "fields": [
+
+      ]
+    },
+    "AtomicBool": {
+      "instanceSize": 16,
+      "fields": [
+        {"name":"value","offset":8,"size":1,"ref":false,"llvmType":"i1"}
+      ]
+    },
+    "HttpHandler": {
+      "instanceSize": 24,
+      "fields": [
+        {"name":"code","offset":8,"size":8,"ref":false,"llvmType":"i64"},
+        {"name":"env","offset":16,"size":8,"ref":true,"llvmType":"ptr"}
+      ]
+    },
+    "ObjectDebugDemo": {
+      "instanceSize": 8,
+      "fields": [
+
+      ]
+    },
+    "ConcurrentModificationException": {
+      "instanceSize": 24,
+      "fields": [
+        {"name":"message","offset":8,"size":8,"ref":true,"llvmType":"ptr"},
+        {"name":"cause","offset":16,"size":8,"ref":true,"llvmType":"ptr"}
+      ]
+    },
+    "Thread": {
+      "instanceSize": 24,
+      "fields": [
+        {"name":"nativeId","offset":8,"size":8,"ref":false,"llvmType":"i64"},
+        {"name":"target","offset":16,"size":8,"ref":true,"llvmType":"ptr"}
+      ]
+    },
+    "IllegalMonitorStateException": {
+      "instanceSize": 24,
+      "fields": [
+        {"name":"message","offset":8,"size":8,"ref":true,"llvmType":"ptr"},
+        {"name":"cause","offset":16,"size":8,"ref":true,"llvmType":"ptr"}
+      ]
+    },
+    "NativeCallbackHandle": {
+      "instanceSize": 32,
+      "fields": [
+        {"name":"handle","offset":8,"size":8,"ref":false,"llvmType":"i64"},
+        {"name":"retained","offset":16,"size":8,"ref":true,"llvmType":"ptr"},
+        {"name":"slot","offset":24,"size":4,"ref":false,"llvmType":"i32"}
+      ]
+    },
+    "AtomicLong": {
+      "instanceSize": 16,
+      "fields": [
+        {"name":"value","offset":8,"size":8,"ref":false,"llvmType":"i64"}
+      ]
+    },
+    "Exception": {
+      "instanceSize": 24,
+      "fields": [
+        {"name":"message","offset":8,"size":8,"ref":true,"llvmType":"ptr"},
+        {"name":"cause","offset":16,"size":8,"ref":true,"llvmType":"ptr"}
+      ]
+    },
+    "ArithmeticException": {
+      "instanceSize": 24,
+      "fields": [
+        {"name":"message","offset":8,"size":8,"ref":true,"llvmType":"ptr"},
+        {"name":"cause","offset":16,"size":8,"ref":true,"llvmType":"ptr"}
+      ]
+    },
+    "Throwable": {
+      "instanceSize": 24,
+      "fields": [
+        {"name":"message","offset":8,"size":8,"ref":true,"llvmType":"ptr"},
+        {"name":"cause","offset":16,"size":8,"ref":true,"llvmType":"ptr"}
+      ]
+    },
+    "RuntimeException": {
+      "instanceSize": 24,
+      "fields": [
+        {"name":"message","offset":8,"size":8,"ref":true,"llvmType":"ptr"},
+        {"name":"cause","offset":16,"size":8,"ref":true,"llvmType":"ptr"}
+      ]
+    },
+    "Animal": {
+      "instanceSize": 24,
+      "fields": [
+        {"name":"name","offset":8,"size":8,"ref":true,"llvmType":"ptr"},
+        {"name":"age","offset":16,"size":4,"ref":false,"llvmType":"i32"}
+      ]
+    },
+    "Bytes": {
+      "instanceSize": 8,
+      "fields": [
+
+      ]
+    },
+    "NoSuchElementException": {
+      "instanceSize": 24,
+      "fields": [
+        {"name":"message","offset":8,"size":8,"ref":true,"llvmType":"ptr"},
+        {"name":"cause","offset":16,"size":8,"ref":true,"llvmType":"ptr"}
+      ]
+    },
+    "IntFunction": {
+      "instanceSize": 24,
+      "fields": [
+        {"name":"code","offset":8,"size":8,"ref":false,"llvmType":"i64"},
+        {"name":"env","offset":16,"size":8,"ref":true,"llvmType":"ptr"}
+      ]
+    },
+    "Node": {
+      "instanceSize": 32,
+      "fields": [
+        {"name":"value","offset":8,"size":4,"ref":false,"llvmType":"i32"},
+        {"name":"next","offset":16,"size":8,"ref":true,"llvmType":"ptr"},
+        {"name":"self","offset":24,"size":8,"ref":true,"llvmType":"ptr"}
+      ]
+    },
+    "Mutex": {
+      "instanceSize": 16,
+      "fields": [
+        {"name":"handle","offset":8,"size":8,"ref":false,"llvmType":"i64"}
+      ]
+    },
+    "ClassCastException": {
+      "instanceSize": 24,
+      "fields": [
+        {"name":"message","offset":8,"size":8,"ref":true,"llvmType":"ptr"},
+        {"name":"cause","offset":16,"size":8,"ref":true,"llvmType":"ptr"}
+      ]
+    },
+    "IllegalStateException": {
+      "instanceSize": 24,
+      "fields": [
+        {"name":"message","offset":8,"size":8,"ref":true,"llvmType":"ptr"},
+        {"name":"cause","offset":16,"size":8,"ref":true,"llvmType":"ptr"}
+      ]
+    },
+    "NativeMemory": {
+      "instanceSize": 8,
+      "fields": [
+
+      ]
+    },
+    "IllegalArgumentException": {
+      "instanceSize": 24,
+      "fields": [
+        {"name":"message","offset":8,"size":8,"ref":true,"llvmType":"ptr"},
+        {"name":"cause","offset":16,"size":8,"ref":true,"llvmType":"ptr"}
+      ]
+    },
+    "File": {
+      "instanceSize": 8,
+      "fields": [
+
+      ]
+    },
+    "TcpServer": {
+      "instanceSize": 24,
+      "fields": [
+        {"name":"handle","offset":8,"size":8,"ref":false,"llvmType":"i64"},
+        {"name":"closed","offset":16,"size":1,"ref":false,"llvmType":"i1"}
+      ]
+    },
+    "Dog": {
+      "instanceSize": 24,
+      "fields": [
+        {"name":"name","offset":8,"size":8,"ref":true,"llvmType":"ptr"},
+        {"name":"age","offset":16,"size":4,"ref":false,"llvmType":"i32"},
+        {"name":"trained","offset":20,"size":1,"ref":false,"llvmType":"i1"}
+      ]
+    },
+    "AtomicInt": {
+      "instanceSize": 16,
+      "fields": [
+        {"name":"value","offset":8,"size":4,"ref":false,"llvmType":"i32"}
+      ]
+    },
+    "SocketTimeoutException": {
+      "instanceSize": 24,
+      "fields": [
+        {"name":"message","offset":8,"size":8,"ref":true,"llvmType":"ptr"},
+        {"name":"cause","offset":16,"size":8,"ref":true,"llvmType":"ptr"}
+      ]
+    },
+    "ConnectException": {
+      "instanceSize": 24,
+      "fields": [
+        {"name":"message","offset":8,"size":8,"ref":true,"llvmType":"ptr"},
+        {"name":"cause","offset":16,"size":8,"ref":true,"llvmType":"ptr"}
+      ]
+    },
+    "IndexOutOfBoundsException": {
+      "instanceSize": 24,
+      "fields": [
+        {"name":"message","offset":8,"size":8,"ref":true,"llvmType":"ptr"},
+        {"name":"cause","offset":16,"size":8,"ref":true,"llvmType":"ptr"}
+      ]
+    },
+    "NativePtr": {
+      "instanceSize": 8,
+      "fields": [
+
+      ]
+    },
+    "Runnable": {
+      "instanceSize": 24,
+      "fields": [
+        {"name":"code","offset":8,"size":8,"ref":false,"llvmType":"i64"},
+        {"name":"env","offset":16,"size":8,"ref":true,"llvmType":"ptr"}
+      ]
+    },
+    "IntBinaryFunction": {
+      "instanceSize": 24,
+      "fields": [
+        {"name":"code","offset":8,"size":8,"ref":false,"llvmType":"i64"},
+        {"name":"env","offset":16,"size":8,"ref":true,"llvmType":"ptr"}
+      ]
+    },
+    "IntUnaryFunction": {
+      "instanceSize": 24,
+      "fields": [
+        {"name":"code","offset":8,"size":8,"ref":false,"llvmType":"i64"},
+        {"name":"env","offset":16,"size":8,"ref":true,"llvmType":"ptr"}
+      ]
+    },
+    "IntCompare": {
+      "instanceSize": 24,
+      "fields": [
+        {"name":"code","offset":8,"size":8,"ref":false,"llvmType":"i64"},
+        {"name":"env","offset":16,"size":8,"ref":true,"llvmType":"ptr"}
+      ]
+    },
+    "NullPointerException": {
+      "instanceSize": 24,
+      "fields": [
+        {"name":"message","offset":8,"size":8,"ref":true,"llvmType":"ptr"},
+        {"name":"cause","offset":16,"size":8,"ref":true,"llvmType":"ptr"}
+      ]
+    },
+    "Future": {
+      "instanceSize": 24,
+      "fields": [
+        {"name":"state","offset":8,"size":4,"ref":false,"llvmType":"i32"},
+        {"name":"result","offset":16,"size":8,"ref":true,"llvmType":"ptr"}
+      ]
+    },
+    "SocketException": {
+      "instanceSize": 24,
+      "fields": [
+        {"name":"message","offset":8,"size":8,"ref":true,"llvmType":"ptr"},
+        {"name":"cause","offset":16,"size":8,"ref":true,"llvmType":"ptr"}
+      ]
+    },
+    "Condition": {
+      "instanceSize": 16,
+      "fields": [
+        {"name":"handle","offset":8,"size":8,"ref":false,"llvmType":"i64"}
+      ]
+    },
+    "TcpSocket": {
+      "instanceSize": 24,
+      "fields": [
+        {"name":"handle","offset":8,"size":8,"ref":false,"llvmType":"i64"},
+        {"name":"closed","offset":16,"size":1,"ref":false,"llvmType":"i1"}
+      ]
+    },
+    "UnknownHostException": {
+      "instanceSize": 24,
+      "fields": [
+        {"name":"message","offset":8,"size":8,"ref":true,"llvmType":"ptr"},
+        {"name":"cause","offset":16,"size":8,"ref":true,"llvmType":"ptr"}
+      ]
+    },
+    "IOException": {
+      "instanceSize": 24,
+      "fields": [
+        {"name":"message","offset":8,"size":8,"ref":true,"llvmType":"ptr"},
+        {"name":"cause","offset":16,"size":8,"ref":true,"llvmType":"ptr"}
+      ]
+    },
+    "FileNotFoundException": {
+      "instanceSize": 24,
+      "fields": [
+        {"name":"message","offset":8,"size":8,"ref":true,"llvmType":"ptr"},
+        {"name":"cause","offset":16,"size":8,"ref":true,"llvmType":"ptr"}
+      ]
+    },
+    "Native": {
+      "instanceSize": 8,
+      "fields": [
+
+      ]
+    }
+  },
+  "arrayMetas": [
+    {"name":"array.CString","refElements":true,"elemSize":8},
+    {"name":"array.CDog","refElements":true,"elemSize":8},
+    {"name":"array.i8","refElements":false,"elemSize":1},
+    {"name":"array.i32","refElements":false,"elemSize":4}
+  ]
+}

@@ -4,5 +4,4 @@
  * WASM SPA: BLOCKED — do not treat this class as executable product UI.
  */
 public class DocumentEditor {
-    public static final String RUNTIME = "public/js/components/document/editor.js";
 }

@@ -18,6 +18,9 @@ import java.util.Set;
  */
 public final class ClassSymbol implements ReferenceTypeSymbol {
     private final String name;
+    private String packageName = "";
+    private Visibility visibility = Visibility.PUBLIC;
+    private List<String> importTypes = List.of();
     private final SourceLocation location;
     private final Map<String, FieldSymbol> declaredFields = new LinkedHashMap<>();
     /** Overload sets keyed by simple method name (parameter arity/types distinguish members). */
@@ -51,6 +54,36 @@ public final class ClassSymbol implements ReferenceTypeSymbol {
     @Override
     public String name() {
         return name;
+    }
+
+    /** Language package (empty = default). Not a package-manager coordinate. */
+    public String packageName() {
+        return packageName == null ? "" : packageName;
+    }
+
+    public void setPackageName(String packageName) {
+        this.packageName = packageName == null ? "" : packageName;
+    }
+
+    public Visibility visibility() {
+        return visibility == null ? Visibility.PUBLIC : visibility;
+    }
+
+    public void setVisibility(Visibility visibility) {
+        this.visibility = visibility == null ? Visibility.PUBLIC : visibility;
+    }
+
+    public List<String> importTypes() {
+        return importTypes == null ? List.of() : importTypes;
+    }
+
+    public void setImportTypes(List<String> importTypes) {
+        this.importTypes = importTypes == null ? List.of() : List.copyOf(importTypes);
+    }
+
+    public String simpleName() {
+        int dot = name.lastIndexOf('.');
+        return dot < 0 ? name : name.substring(dot + 1);
     }
 
     @Override

@@ -1,4 +1,10 @@
 class ErpSeed {
+    /**
+     * Boot seed policy:
+     * - ERP_DEMO_MODE=1: ensure DEMO book JNAT with versioned practice data.
+     * - ERP_DEMO_MODE=0: never insert demo business into empty DB; formal books stay empty
+     *   until setup wizard. Existing DEMO books may get non-destructive seed upgrade only.
+     */
     static void ensure() {
         Object c = null;
         try {
@@ -9,27 +15,47 @@ class ErpSeed {
             c = ErpDb.queryOne(
                     "SELECT id FROM companies WHERE code='JNAT'", new ArrayList<Object>(), new LongMapper());
         }
-        long companyId = 0L;
-        if (c == null) {
-            long now = AsyncClockNative.wallMillis();
-            ErpDb.exec(
-                    "INSERT INTO companies(code, name, created_at) VALUES ('JNAT','JNative Demo Co',"
-                            + CryptoParse.longToString(now) + ")",
-                    new ArrayList<Object>());
-            Object cidObj = ErpDb.queryOne(
-                    "SELECT id FROM companies WHERE code='JNAT'", new ArrayList<Object>(), new LongMapper());
-            companyId = ErpNum.asLong(cidObj);
-            seedRoles(companyId, now);
-            seedUsers(companyId, now);
-            seedPartners(companyId, now);
-            seedItems(companyId, now);
-            seedWarehouses(companyId, now);
-            seedSequences(companyId);
-            ErpFinanceCore.ensureSeed(companyId);
-        } else {
-            companyId = ErpNum.asLong(c);
+        if (ErpProductConfig.demoMode != 0) {
+            long companyId = 0L;
+            if (c == null) {
+                long now = AsyncClockNative.wallMillis();
+                ErpDb.exec(
+                        "INSERT INTO companies(code, name, book_kind, timezone, currency_code, amount_scale, created_at) VALUES ('JNAT','JNative Demo Co','"
+                                + BookKind.DEMO + "','UTC','CNY',0,"
+                                + CryptoParse.longToString(now) + ")",
+                        new ArrayList<Object>());
+                Object cidObj = ErpDb.queryOne(
+                        "SELECT id FROM companies WHERE code='JNAT'", new ArrayList<Object>(), new LongMapper());
+                companyId = ErpNum.asLong(cidObj);
+                seedRoles(companyId, now);
+                seedUsers(companyId, now);
+                seedDemoBusiness(companyId, now);
+                seedSequences(companyId);
+                ErpFinanceCore.ensureSeed(companyId);
+                ErpBooks.recordDemoSeed(companyId, ErpBooks.DEMO_SEED_VERSION);
+            } else {
+                companyId = ErpNum.asLong(c);
+                ErpBooks.setBookKind(companyId, BookKind.DEMO);
+                ErpBooks.upgradeDemoSeedIfNeeded(companyId);
+            }
+            ensurePlatform(companyId);
+            return;
         }
-        ensurePlatform(companyId);
+        /* Formal / production boot: do not auto-create demo company. */
+        if (c != null) {
+            long companyId = ErpNum.asLong(c);
+            String kind = ErpBooks.bookKind(companyId);
+            if (kind.equals(BookKind.DEMO)) {
+                ErpBooks.upgradeDemoSeedIfNeeded(companyId);
+            }
+            ensurePlatform(companyId);
+        }
+        /* Also ensure platform for any existing formal company (first by id). */
+        Object any = ErpDb.queryOne(
+                "SELECT id FROM companies ORDER BY id LIMIT 1", new ArrayList<Object>(), new LongMapper());
+        if (any != null) {
+            ensurePlatform(ErpNum.asLong(any));
+        }
     }
 
     static void ensurePlatform(long companyId) {
@@ -41,10 +67,42 @@ class ErpSeed {
         if (adminId != null) {
             long adminRole = ErpPlatformAuth.ensureRole(companyId, "admin", "Administrator", DataScope.COMPANY);
             ErpPlatformAuth.assignRole(ErpNum.asLong(adminId), adminRole);
-            ErpPlatformConfig.setSetting(companyId, ErpNum.asLong(adminId), "locale", SettingType.STRING, "en-US", 0);
+            ErpPlatformConfig.setSetting(companyId, ErpNum.asLong(adminId), "locale", SettingType.STRING, "zh-CN", 0);
         }
         ErpPlatformReports.ensureReport(companyId, "INV_BAL", "Inventory Balance", "InventoryBalanceDataset");
         ErpPlatformReports.ensureReport(companyId, "SO_LIST", "Sales Orders", "SalesOrderDataset");
+    }
+
+    /** Practice masters for DEMO books only (customers/suppliers/items/warehouses). */
+    static void seedDemoBusiness(long companyId, long now) {
+        seedPartners(companyId, now);
+        seedItems(companyId, now);
+        seedWarehouses(companyId, now);
+        /* Independent practice materials for tutorials */
+        ArrayList<Object> ip = new ArrayList<Object>();
+        ip.add(CryptoParse.longToString(companyId));
+        ip.add("FG-PRACTICE-A");
+        Object item = ErpDb.queryOne("SELECT id FROM items WHERE company_id=? AND sku=?", ip, new LongMapper());
+        if (item == null) {
+            ErpDb.exec(
+                    "INSERT INTO items(company_id, sku, name, unit_price_cents, unit_cost_amount, created_at) VALUES ("
+                            + CryptoParse.longToString(companyId)
+                            + ",'FG-PRACTICE-A','Practice Item A',8000,5000,"
+                            + CryptoParse.longToString(now) + ")",
+                    new ArrayList<Object>());
+        }
+        ArrayList<Object> wp = new ArrayList<Object>();
+        wp.add(CryptoParse.longToString(companyId));
+        wp.add("WH-PRACTICE");
+        Object wh = ErpDb.queryOne("SELECT id FROM warehouses WHERE company_id=? AND code=?", wp, new LongMapper());
+        if (wh == null) {
+            ErpDb.exec(
+                    "INSERT INTO warehouses(company_id, code, name, created_at) VALUES ("
+                            + CryptoParse.longToString(companyId)
+                            + ",'WH-PRACTICE','Practice WH',"
+                            + CryptoParse.longToString(now) + ")",
+                    new ArrayList<Object>());
+        }
     }
 
     static void seedRoles(long companyId, long now) {
@@ -138,18 +196,29 @@ class ErpSeed {
     }
 
     static void seedSequences(long companyId) {
-        String[] names = new String[4];
+        String[] names = new String[8];
         names[0] = "PO";
         names[1] = "SO";
         names[2] = "GR";
         names[3] = "DL";
+        names[4] = "OS";
+        names[5] = "OA";
+        names[6] = "OAP";
+        names[7] = "RV";
         int i = 0;
         while (i < names.length) {
-            ArrayList<Object> row = new ArrayList<Object>();
-            row.add(CryptoParse.longToString(companyId));
-            row.add(names[i]);
-            row.add("1");
-            ErpDb.exec("INSERT INTO number_sequences(company_id, seq_name, next_val) VALUES (?,?,?)", row);
+            ArrayList<Object> chk = new ArrayList<Object>();
+            chk.add(CryptoParse.longToString(companyId));
+            chk.add(names[i]);
+            Object existing = ErpDb.queryOne(
+                    "SELECT next_val FROM number_sequences WHERE company_id=? AND seq_name=?", chk, new LongMapper());
+            if (existing == null) {
+                ArrayList<Object> row = new ArrayList<Object>();
+                row.add(CryptoParse.longToString(companyId));
+                row.add(names[i]);
+                row.add("1");
+                ErpDb.exec("INSERT INTO number_sequences(company_id, seq_name, next_val) VALUES (?,?,?)", row);
+            }
             i = i + 1;
         }
     }

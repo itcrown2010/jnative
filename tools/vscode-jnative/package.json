@@ -1,0 +1,240 @@
+{
+  "name": "jnative",
+  "displayName": "JNative",
+  "description": "Develop JNative native programs in VS Code (subset of Java → native, no JVM at runtime).",
+  "version": "0.2.0",
+  "publisher": "jnative",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Programming Languages",
+    "Other"
+  ],
+  "keywords": [
+    "jnative",
+    "native",
+    "java"
+  ],
+  "activationEvents": [
+    "onLanguage:jnative",
+    "workspaceContains:**/jnative.project",
+    "onCommand:jnative.createProject",
+    "onCommand:jnative.checkToolchain",
+    "onCommand:jnative.openAsJNative",
+    "onCommand:jnative.debugProject",
+    "onCommand:jnative.generateLaunchJson",
+    "onDebugInitialConfigurations",
+    "onDebugDynamicConfigurations:lldb"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "languages": [
+      {
+        "id": "jnative",
+        "aliases": [
+          "JNative",
+          "jnative"
+        ],
+        "extensions": [
+          ".jn",
+          ".java"
+        ],
+        "configuration": "./language-configuration.json"
+      }
+    ],
+    "grammars": [
+      {
+        "language": "jnative",
+        "scopeName": "source.jnative",
+        "path": "./syntaxes/jnative.tmLanguage.json"
+      }
+    ],
+    "breakpoints": [
+      {
+        "language": "jnative"
+      }
+    ],
+    "commands": [
+      {
+        "command": "jnative.openAsJNative",
+        "title": "JNative: 将当前文件作为 JNative 打开"
+      },
+      {
+        "command": "jnative.checkToolchain",
+        "title": "JNative: 检查工具链"
+      },
+      {
+        "command": "jnative.createProject",
+        "title": "JNative: 创建项目"
+      },
+      {
+        "command": "jnative.buildProject",
+        "title": "JNative: 构建项目"
+      },
+      {
+        "command": "jnative.runProject",
+        "title": "JNative: 运行项目"
+      },
+      {
+        "command": "jnative.debugProject",
+        "title": "JNative: 调试项目"
+      },
+      {
+        "command": "jnative.generateLaunchJson",
+        "title": "JNative: 生成调试配置 (launch.json)"
+      },
+      {
+        "command": "jnative.resolveDebugProgram",
+        "title": "JNative: 解析调试可执行文件"
+      },
+      {
+        "command": "jnative.buildFile",
+        "title": "JNative: 构建当前文件"
+      },
+      {
+        "command": "jnative.stopRun",
+        "title": "JNative: 停止运行"
+      },
+      {
+        "command": "jnative.showOutput",
+        "title": "JNative: 显示输出"
+      },
+      {
+        "command": "jnative.openManifest",
+        "title": "JNative: 打开项目清单"
+      },
+      {
+        "command": "jnative.createMobileProject",
+        "title": "JNative: 创建移动项目"
+      },
+      {
+        "command": "jnative.mobileBuild",
+        "title": "JNative: 构建移动目标"
+      },
+      {
+        "command": "jnative.mobileRun",
+        "title": "JNative: 运行移动应用"
+      },
+      {
+        "command": "jnative.mobileDoctor",
+        "title": "JNative: 检查移动工具链"
+      }
+    ],
+    "configuration": {
+      "title": "JNative",
+      "properties": {
+        "jnative.executablePath": {
+          "type": "string",
+          "default": "",
+          "description": "JNative 可执行入口（脚本或二进制）。优先于 JAR。"
+        },
+        "jnative.jarPath": {
+          "type": "string",
+          "default": "",
+          "description": "jnative.jar 路径；由 jnative.javaPath 启动。"
+        },
+        "jnative.javaPath": {
+          "type": "string",
+          "default": "java",
+          "description": "用于启动 JAR / LSP 的 Java 可执行文件。"
+        },
+        "jnative.buildArguments": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [],
+          "description": "追加到 `jnative build` 的独立参数（勿拼成 shell 字符串）。"
+        },
+        "jnative.runArguments": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [],
+          "description": "运行原生程序时追加的独立参数。"
+        },
+        "jnative.enableLanguageServer": {
+          "type": "boolean",
+          "default": true,
+          "description": "在受信任的 JNative 项目中启用前端诊断 LSP（analyze-only）。"
+        },
+        "jnative.debugEnv": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          },
+          "default": {},
+          "description": "调试会话环境变量（传给 CodeLLDB env，键值均为字符串）。"
+        }
+      }
+    },
+    "taskDefinitions": [
+      {
+        "type": "jnative",
+        "required": [
+          "task"
+        ],
+        "properties": {
+          "task": {
+            "type": "string",
+            "description": "build | run | buildFile"
+          },
+          "project": {
+            "type": "string",
+            "description": "JNative 项目根目录（绝对或相对工作区）"
+          },
+          "file": {
+            "type": "string",
+            "description": "单文件构建路径"
+          }
+        }
+      }
+    ],
+    "problemMatchers": [
+      {
+        "name": "jnative",
+        "owner": "jnative",
+        "fileLocation": [
+          "autoDetect",
+          "${workspaceFolder}"
+        ],
+        "pattern": {
+          "regexp": "^(.*):(\\d+):(\\d+):\\s+(error|warning|note):\\s+(.*)$",
+          "file": 1,
+          "line": 2,
+          "column": 3,
+          "severity": 4,
+          "message": 5
+        },
+        "severity": {
+          "error": "error",
+          "warning": "warning",
+          "info": "note"
+        }
+      }
+    ]
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "lint": "tsc -p ./ --noEmit",
+    "test": "npm run compile && node ./out/test/runUnit.js",
+    "test:vscode": "npm run compile && node ./out/test/runTest.js",
+    "package": "vsce package --no-dependencies"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.0",
+    "@types/mocha": "^10.0.6",
+    "@types/vscode": "^1.85.0",
+    "@vscode/test-electron": "^2.3.9",
+    "@vscode/vsce": "^2.24.0",
+    "mocha": "^10.2.0",
+    "typescript": "^5.3.3"
+  },
+  "dependencies": {
+    "vscode-languageclient": "^9.0.1"
+  }
+}

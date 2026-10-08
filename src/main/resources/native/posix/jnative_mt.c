@@ -800,6 +800,7 @@ static int jn_ex_skip_frame(const char *name) {
     }
     return strstr(name, "jn_ex_") != NULL
             || strstr(name, "jnative_exception_") != NULL
+            || strstr(name, "jnative_debugger_on_uncaught") != NULL
             || strstr(name, "jnative_print_uncaught") != NULL
             || strstr(name, "jnative_throw_") != NULL
             || strstr(name, "jnative_throw_simple") != NULL;

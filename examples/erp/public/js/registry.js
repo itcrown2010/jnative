@@ -34,7 +34,6 @@
     page({ pageId: "dash.manufacturing", module: "Workbench", title: "Manufacturing Dashboard", route: "/dashboard/manufacturing", template: "dashboard", dashKind: "manufacturing", icon: "*" }),
 
     /* Master data */
-    page({ pageId: "demo.center", module: "Workbench", title: "Demo Center", route: "/demo", template: "demoCenter", status: "INTERACTIVE", icon: "*" }),
     page({ pageId: "md.customers", module: "Master Data", title: "Customers", route: "/master/customers", template: "masterList", collection: "customers", enterpriseGrid: true, detailTemplate: true, formFields: ["code","name","city","country","creditLimit","phone","email","status"], columns: [col("code","Code"),col("name","Name"),col("city","City"),col("creditLimit","Credit Limit",{type:"money"}),col("status","Status",{type:"status"})], icon: "*" }),
     page({ pageId: "md.suppliers", module: "Master Data", title: "Suppliers", route: "/master/suppliers", template: "masterList", collection: "suppliers", enterpriseGrid: true, formFields: ["code","name","city","country","paymentTerms","email","status"], columns: [col("code","Code"),col("name","Name"),col("city","City"),col("paymentTerms","Terms"),col("status","Status",{type:"status"})], icon: "*" }),
     page({ pageId: "md.items", module: "Master Data", title: "Items", route: "/master/items", template: "masterList", collection: "items", enterpriseGrid: true, formFields: ["sku","name","category","uom","price","cost","warehouse","onHand","status"], columns: [col("sku","SKU"),col("name","Name"),col("category","Category"),col("price","Price",{type:"money"}),col("onHand","On Hand",{type:"qty"}),col("status","Status",{type:"status"})], icon: "*" }),
@@ -129,7 +128,10 @@
     page({ pageId: "sys.numbering", module: "System", title: "Numbering Series", route: "/system/numbering", template: "masterList", collection: "numberSeries", formFields: ["docType","prefix","next"], columns: [col("docType","Doc Type"),col("prefix","Prefix"),col("next","Next",{type:"qty"})], icon: "#" }),
     page({ pageId: "sys.settings", module: "System", title: "System Settings", route: "/system/settings", template: "settings", collection: "settings", icon: "*" }),
     page({ pageId: "sys.audit", module: "System", title: "Audit Logs", route: "/system/audit", template: "masterList", collection: "auditLogs", formFields: ["time","user","action","entity","ref"], columns: [col("time","Time"),col("user","User"),col("action","Action"),col("entity","Entity"),col("ref","Ref")], readOnly: true, icon: "*" }),
-    page({ pageId: "sys.importExport", module: "System", title: "Import Export", route: "/system/import-export", template: "importExport", icon: "*" })
+    page({ pageId: "sys.importExport", module: "System", title: "Import Export", route: "/system/import-export", template: "importExport", icon: "*" }),
+    page({ pageId: "sys.wizard", module: "System", title: "Setup Wizard", route: "/system/wizard", template: "setupWizard", status: "INTERACTIVE", icon: "*" }),
+    page({ pageId: "sys.help", module: "System", title: "Help Tutorials", route: "/system/help", template: "helpTutorials", status: "INTERACTIVE", icon: "*" }),
+    page({ pageId: "inv.opening", module: "Inventory", title: "Opening Stock", route: "/inventory/opening", template: "openingStock", status: "INTERACTIVE", icon: "*" })
   ];
 
   var byId = {};
@@ -140,17 +142,40 @@
   });
 
   var menuGroups = [
-    { title: "Workbench", ids: ["dash.executive","dash.sales","dash.purchasing","dash.inventory","dash.finance","dash.manufacturing","demo.center"] },
-    { title: "Master Data", ids: ["md.customers","md.suppliers","md.items","md.categories","md.warehouses","md.units","md.pricelists","md.currencies","md.employees","md.departments"] },
-    { title: "Sales", ids: ["sales.quotations","sales.orders","sales.deliveries","sales.returns","sales.ar","sales.analysis"] },
-    { title: "Purchasing", ids: ["pur.requests","pur.quotations","pur.orders","pur.gr","pur.returns","pur.ap","pur.analysis"] },
-    { title: "Inventory", ids: ["inv.balance","inv.txns","inv.transfers","inv.counting","inv.adjustments","inv.batches","inv.serials","inv.alerts","inv.valuation"] },
-    { title: "Finance", ids: ["fin.coa","fin.journals","fin.gl","fin.tb","fin.ar","fin.ap","fin.ip","fin.op","fin.banks","fin.periods","fin.bs","fin.is","fin.cf"] },
-    { title: "Manufacturing", ids: ["mfg.bom","mfg.bomEditor","mfg.orders","mfg.issues","mfg.returns","mfg.receipts","mfg.mrp","mfg.cost","mfg.progress"] },
-    { title: "CRM", ids: ["crm.leads","crm.opps","crm.activities","crm.visits","crm.pipeline","crm.forecast"] },
-    { title: "Reports", ids: ["rpt.sales","rpt.purchasing","rpt.inventory","rpt.finance","rpt.mfg","rpt.customer","rpt.exec"] },
-    { title: "Administration", ids: ["sys.users","sys.roles","sys.permissions","sys.companies","sys.departments","sys.workflows","sys.customFields","sys.forms","sys.numbering","sys.settings","sys.audit","sys.importExport"] }
+    { title: "Workbench", titleKey: "nav.workbench", ids: ["dash.executive","dash.sales","dash.purchasing","dash.inventory","dash.finance","dash.manufacturing"] },
+    { title: "Master Data", titleKey: "nav.master", ids: ["md.customers","md.suppliers","md.items","md.categories","md.warehouses","md.units","md.pricelists","md.currencies","md.employees","md.departments"] },
+    { title: "Sales", titleKey: "nav.sales", ids: ["sales.quotations","sales.orders","sales.deliveries","sales.returns","sales.ar","sales.analysis"] },
+    { title: "Purchasing", titleKey: "nav.purchasing", ids: ["pur.requests","pur.quotations","pur.orders","pur.gr","pur.returns","pur.ap","pur.analysis"] },
+    { title: "Inventory", titleKey: "nav.inventory", ids: ["inv.balance","inv.opening","inv.txns","inv.transfers","inv.counting","inv.adjustments","inv.batches","inv.serials","inv.alerts","inv.valuation"] },
+    { title: "Finance", titleKey: "nav.finance", ids: ["fin.coa","fin.journals","fin.gl","fin.tb","fin.ar","fin.ap","fin.ip","fin.op","fin.banks","fin.periods","fin.bs","fin.is","fin.cf"] },
+    { title: "Manufacturing", titleKey: "nav.manufacturing", ids: ["mfg.bom","mfg.bomEditor","mfg.orders","mfg.issues","mfg.returns","mfg.receipts","mfg.mrp","mfg.cost","mfg.progress"] },
+    { title: "CRM", titleKey: "nav.crm", ids: ["crm.leads","crm.opps","crm.activities","crm.visits","crm.pipeline","crm.forecast"] },
+    { title: "Reports", titleKey: "nav.reports", ids: ["rpt.sales","rpt.purchasing","rpt.inventory","rpt.finance","rpt.mfg","rpt.customer","rpt.exec"] },
+    { title: "Administration", titleKey: "nav.admin", ids: ["sys.wizard","sys.help","sys.users","sys.roles","sys.permissions","sys.companies","sys.departments","sys.workflows","sys.customFields","sys.forms","sys.numbering","sys.settings","sys.audit","sys.importExport"] }
   ];
+
+  function localizePage(p) {
+    if (!p) return null;
+    var I = global.JnI18n;
+    if (!I) return p;
+    var cols = (p.columns || []).map(function (c) {
+      return Object.assign({}, c, { title: I.colTitle(c) });
+    });
+    return Object.assign({}, p, {
+      title: I.pageTitle(p),
+      module: I.moduleTitle(p),
+      columns: cols
+    });
+  }
+
+  function localizeMenuGroups() {
+    var I = global.JnI18n;
+    return menuGroups.map(function (g) {
+      var title = g.title;
+      if (I) title = I.t(g.titleKey || ("nav." + g.title), null, g.title);
+      return Object.assign({}, g, { title: title });
+    });
+  }
 
   function coverageMatrix() {
     return pages.map(function (p) {
@@ -172,9 +197,10 @@
     pages: pages,
     byId: byId,
     byRoute: byRoute,
-    menuGroups: menuGroups,
-    get: function (id) { return byId[id]; },
-    getByRoute: function (route) { return byRoute[route]; },
+    get menuGroups() { return localizeMenuGroups(); },
+    get: function (id) { return localizePage(byId[id]); },
+    getRaw: function (id) { return byId[id]; },
+    getByRoute: function (route) { return localizePage(byRoute[route]); },
     count: pages.length,
     coverageMatrix: coverageMatrix,
     markVerified: function (ids) {

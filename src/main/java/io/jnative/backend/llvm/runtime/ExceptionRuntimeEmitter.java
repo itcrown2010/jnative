@@ -107,9 +107,17 @@ public final class ExceptionRuntimeEmitter {
 
     private void emitUncaught() {
         sb.append("""
+                ; Stable empty hook for debugger breakpoints (no-op when not debugging).
+                ; LLDB/CodeLLDB: `breakpoint set --name jnative_debugger_on_uncaught`
+                define void @jnative_debugger_on_uncaught(ptr %ex) {
+                entry:
+                  ret void
+                }
+
                 define void @jnative_exception_uncaught() {
                 entry:
                   %ex = call ptr @jn_tls_ex_current()
+                  call void @jnative_debugger_on_uncaught(ptr %ex)
                   call void @jnative_print_uncaught(ptr %ex)
                   call void @exit(i32 1)
                   unreachable

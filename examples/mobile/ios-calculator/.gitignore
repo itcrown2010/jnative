@@ -1,0 +1,9 @@
+.build-staging/
+dist/
+build/
+ios/IosCalculator/www/app.wasm
+ios/IosCalculator/www/app.js
+ios/IosCalculator/www/app.wat
+*.xcuserstate
+xcuserdata/
+DerivedData/

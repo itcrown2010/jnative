@@ -3,7 +3,7 @@
  * Sensitive values must never be logged.
  */
 class ErpProductConfig {
-    static String version = "1.5.0-productization";
+    static String version = "1.6.0-pilot";
     static String buildTime = "";
     static String targetTriple = "host-native";
     static String databaseUrl = "";

@@ -1,0 +1,9 @@
+package com.demo.app;
+
+import com.demo.greet.Greeter;
+
+public class SoftGreeter implements Greeter {
+    public int greet(int n) {
+        return n;
+    }
+}

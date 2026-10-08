@@ -1,0 +1,41 @@
+# {{APP_NAME}}
+
+JNative mobile project (template). Shared WASM core + thin Android/iOS shells.
+
+## Identifiers
+
+| Field | Value |
+|-------|-------|
+| Android applicationId | `{{ANDROID_APPLICATION_ID}}` |
+| iOS bundle id | `{{IOS_BUNDLE_ID}}` |
+| Version / build | `{{VERSION}}` / `{{BUILD_NUMBER}}` |
+
+Configured in `jnative.toml` `[mobile]` — applied into platform projects on each `jnative mobile build`.
+
+## Commands
+
+```bash
+jnative doctor --mobile
+jnative mobile build --target web
+jnative mobile build --target android
+jnative mobile build --target ios
+jnative mobile devices --target android
+jnative mobile devices --target ios
+jnative mobile run --target android --device <id>
+jnative mobile run --target ios --device <id>
+jnative mobile logs --target android --device <id>
+```
+
+Serve web dist:
+
+```bash
+jnative mobile build --target web
+cd dist && python3 -m http.server 8765
+```
+
+## Limits
+
+- Debug builds / iOS Simulator only this round (no store signing).
+- KV storage is ordinary preferences — not for secrets.
+- WASM in WebView is not auto-debugged via LLDB; use compile diagnostics, JS console, bridge errors, and platform logs.
+- Generator never overwrites existing files; regenerating the template will skip user-modified native sources.

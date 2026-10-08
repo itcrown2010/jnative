@@ -7,7 +7,11 @@ class ErpPurchasing {
         JnFuture f = Erp.db.transaction(work);
         FutureBlocker.blockingWait(f);
         if (f.getError() != null) {
-            throw new TransactionException("PO create failed");
+            String msg = "PO create failed";
+            if (f.getError().getMessage() != null) {
+                msg = msg + ": " + f.getError().getMessage();
+            }
+            throw new TransactionException(msg);
         }
         long id = ErpNum.asLong(f.getValue());
         ErpDb.reconnect();

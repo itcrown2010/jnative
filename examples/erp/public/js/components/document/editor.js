@@ -30,12 +30,12 @@
     if (!rec.attachments) rec.attachments = [];
     if (!rec.approvals) {
       rec.approvals = [
-        { who: "Demo User", when: today() + " 09:00", result: "CREATED", note: "DEMO" }
+        { who: "System", when: today() + " 09:00", result: "CREATED", note: "" }
       ];
     }
     if (!rec.audit) {
       rec.audit = [
-        { when: today() + " 09:00", user: "Demo User", action: "CREATE", detail: "DEMO mock" }
+        { when: today() + " 09:00", user: "System", action: "CREATE", detail: "" }
       ];
     }
     if (!rec.references) {
@@ -46,7 +46,7 @@
       if (l.unitPriceCents == null && l.price != null) l.unitPriceCents = Math.round(Number(l.price) * 100);
       if (l.lineAmountCents == null && l.amount != null) l.lineAmountCents = Math.round(Number(l.amount) * 100);
       if (l.discountBps == null) l.discountBps = 0;
-      if (l.taxBps == null) l.taxBps = 1300; /* DEMO 13% */
+      if (l.taxBps == null) l.taxBps = 1300; /* default 13% */
       if (!l.uom) l.uom = "EA";
       if (!l.id) l.id = "L" + i + "-" + Date.now();
     });
@@ -104,7 +104,7 @@
 
     function close(force) {
       if (!force && dirty) {
-        var leave = window.confirm("Unsaved changes will be lost. Leave without saving DEMO draft?");
+        var leave = window.confirm("Unsaved changes will be lost. Leave without saving draft?");
         if (!leave) return;
       }
       backdrop.remove();
@@ -232,11 +232,11 @@
         return '<button type="button" class="jn-btn" data-ref-go="' + JnUI.esc(t) + '">' + JnUI.esc(t) + "</button>";
       }).join(" ") || "<span>(none)</span>";
       var atts = (rec.attachments || []).map(function (a, i) {
-        return '<div class="jn-todo-item"><span>' + JnUI.esc(a.name) + ' <em style="color:var(--jn-color-text-muted)">(DEMO local only)</em></span>' +
+        return '<div class="jn-todo-item"><span>' + JnUI.esc(a.name) + ' <em style="color:var(--jn-color-text-muted)">(local only)</em></span>' +
           (editable ? '<button type="button" class="jn-btn danger" data-del-att="' + i + '">Del</button>' : "") + "</div>";
       }).join("") || '<div class="jn-empty">No attachments</div>';
       var appr = (rec.approvals || []).map(function (a) {
-        return "<li><strong>" + JnUI.esc(a.result) + "</strong> " + JnUI.esc(a.who) + " @ " + JnUI.esc(a.when) + " - " + JnUI.esc(a.note || "") + " <em>(DEMO)</em></li>";
+        return "<li><strong>" + JnUI.esc(a.result) + "</strong> " + JnUI.esc(a.who) + " @ " + JnUI.esc(a.when) + " - " + JnUI.esc(a.note || "") + "</li>";
       }).join("");
       var aud = (rec.audit || []).map(function (a) {
         return "<li>" + JnUI.esc(a.when) + " | " + JnUI.esc(a.user) + " | " + JnUI.esc(a.action) + " | " + JnUI.esc(a.detail) + "</li>";
@@ -244,7 +244,7 @@
       return '<div class="jn-doc-panels jn-dash-grid" style="grid-template-columns:1fr 1fr 1fr">' +
         '<div class="jn-card"><div class="jn-panel-title">Document References</div><div>Source: ' + src + "</div><div style=\"margin-top:8px\">Targets: " + tg + "</div></div>" +
         '<div class="jn-card"><div class="jn-panel-title">Attachments</div>' + atts +
-        (editable ? '<div class="jn-toolbar" style="margin-top:8px"><input type="file" data-file multiple /><button type="button" class="jn-btn" data-add-att>Add DEMO file</button></div>' : "") +
+        (editable ? '<div class="jn-toolbar" style="margin-top:8px"><input type="file" data-file multiple /><button type="button" class="jn-btn" data-add-att>Add file</button></div>' : "") +
         '<div class="jn-demo-save-note">Files are not uploaded to server.</div></div>' +
         '<div class="jn-card"><div class="jn-panel-title">Approval Timeline</div><ul class="jn-timeline">' + appr + "</ul>" +
         '<div class="jn-panel-title" style="margin-top:12px">Audit</div><ul class="jn-timeline">' + aud + "</ul></div></div>";
@@ -255,8 +255,15 @@
       var btns = actions.map(function (a) {
         var en = actionEnabled(a, mode, rec.status, dirty);
         var label = a.charAt(0).toUpperCase() + a.slice(1);
-        if (a === "save") label = "Save Draft";
-        return '<button type="button" class="jn-btn' + (a === "save" || a === "submit" ? " primary" : "") +
+        if (window.JnI18n) {
+          var lk = "doc." + a;
+          var tr = JnI18n.t(lk, null, null);
+          if (tr && tr !== lk) label = tr;
+          else if (a === "save") label = JnI18n.t("doc.save");
+        } else if (a === "save") {
+          label = "Save Draft";
+        }
+        return '<button type="button" class="jn-btn' + (a === "save" || a === "submit" ? " primary" : "") + '
           (a === "cancel" || a === "reject" ? " danger" : "") + '" data-act="' + a + '" ' + (en ? "" : "disabled") + ">" + label + "</button>";
       }).join("");
       return '<div class="jn-doc-toolbar jn-toolbar">' +
@@ -271,7 +278,7 @@
       shell.innerHTML =
         toolbarHtml() +
         '<div class="jn-modal-body" style="overflow:auto">' +
-        '<div class="jn-demo-save-note">DEMO editor - status changes are UI mock only, not formal posting. Drafts: sessionStorage (cleared when browser tab closes).</div>' +
+        '<div class="jn-muted" style="margin-top:8px">Document posting APIs are used when available; otherwise save is refused.</div>' +
         headerHtml() + linesHtml() + footerHtml() + panelsHtml() +
         "</div>";
       bind();
@@ -341,13 +348,13 @@
         JnUI.toast("Paste rejected: " + errs[0], "err");
         return;
       }
-      var ok = window.confirm("Paste " + mapped.length + " lines into document? (DEMO)");
+      var ok = window.confirm("Paste " + mapped.length + " lines into document?");
       if (!ok) return;
       syncLinesFromDom();
       mapped.forEach(function (m) { rec.lines.push(Object.assign({ id: "P" + Date.now() + Math.random() }, m)); });
-      rec.audit.push({ when: today() + " " + new Date().toTimeString().slice(0, 5), user: "Demo User", action: "EDIT", detail: "Paste " + mapped.length + " lines (DEMO)" });
+      rec.audit.push({ when: today() + " " + new Date().toTimeString().slice(0, 5), user: "System", action: "EDIT", detail: "Paste " + mapped.length + " lines" });
       paint();
-      JnUI.toast("Pasted " + mapped.length + " lines (DEMO)", "ok");
+      JnUI.toast("Pasted " + mapped.length + " lines", "ok");
     }
 
     function bind() {
@@ -479,14 +486,14 @@
         var fileInput = shell.querySelector("[data-file]");
         var files = fileInput && fileInput.files;
         if (!files || !files.length) {
-          JnUI.toast("Choose a file first (DEMO local name only)", "err");
+          JnUI.toast("Choose a file first", "err");
           return;
         }
         for (var i = 0; i < files.length; i++) {
           rec.attachments.push({ name: files[i].name, size: files[i].size, demo: true });
         }
         paint();
-        JnUI.toast("DEMO attachment metadata added (not uploaded)", "ok");
+        JnUI.toast("Attachment metadata added (local only; upload API not available)", "ok");
       };
       shell.querySelectorAll("[data-del-att]").forEach(function (btn) {
         btn.onclick = function () {
@@ -587,14 +594,14 @@
           if (l.unitPriceCents != null) l.price = l.unitPriceCents / 100;
           if (l.lineAmountCents != null) l.amount = l.lineAmountCents / 100;
         });
-        rec.audit.push({ when: today() + " " + new Date().toTimeString().slice(0, 5), user: "Demo User", action: "EDIT", detail: "Save DEMO draft via ApplicationService" });
+        rec.audit.push({ when: today() + " " + new Date().toTimeString().slice(0, 5), user: "System", action: "EDIT", detail: "Save draft" });
         persistDraft();
         try {
           var saved = JnAppService.saveDocument(def.documentType, rec);
           Object.assign(rec, saved);
           baseline = JSON.stringify(rec);
           dirty = false;
-          JnUI.toast("DEMO draft saved via ApplicationService -> DemoStateStore (localStorage, not formal DB)", "ok");
+          JnUI.toast("Draft saved (local mock path \u2014 prefer server APIs)", "ok");
           paint();
           if (opts.onSaved) opts.onSaved(rec);
         } catch (e) {
@@ -608,10 +615,10 @@
           JnAppService.saveDocument(def.documentType, rec);
           var sub = JnAppService.submitDocument(def.collection, rec.id);
           Object.assign(rec, sub);
-          rec.approvals.push({ who: "Demo User", when: today(), result: "SUBMITTED", note: "DEMO ApplicationService" });
+          rec.approvals.push({ who: "User", when: today(), result: "SUBMITTED", note: "" });
           persistDraft();
           baseline = JSON.stringify(rec);
-          JnUI.toast("DEMO status -> SUBMITTED (ApplicationService, not formal posting)", "ok");
+          JnUI.toast("Status set to SUBMITTED (local \u2014 server posting not wired for this doc)", "ok");
           paint();
         } catch (e) {
           JnUI.toast(e.message || String(e), "err");
@@ -626,12 +633,12 @@
           var posted = JnAppService.approveAndPost(def.documentType, rec);
           Object.assign(rec, posted);
           rec.approvals = rec.approvals || [];
-          rec.approvals.push({ who: "Demo Approver", when: today(), result: "APPROVED/POSTED", note: "DEMO ApplicationService" });
+          rec.approvals.push({ who: "Approver", when: today(), result: "APPROVED/POSTED", note: "" });
           persistDraft();
           baseline = JSON.stringify(rec);
           mode = canEdit("EDIT", rec.status) ? mode : "VIEW";
           editable = canEdit(mode, rec.status);
-          JnUI.toast("DEMO approve/post via ApplicationService (not formal DB posting)", "ok");
+          JnUI.toast("Approve/post (local \u2014 server posting not wired for this doc)", "ok");
           paint();
           if (opts.onSaved) opts.onSaved(rec);
         } catch (e) {
@@ -642,7 +649,7 @@
       }
       if (act === "reject") {
         rec.status = "DRAFT";
-        rec.approvals.push({ who: "Demo Approver", when: today(), result: "REJECTED", note: "DEMO" });
+        rec.approvals.push({ who: "Approver", when: today(), result: "REJECTED", note: "" });
         persistDraft();
         JnData.active.save(def.collection, rec);
         baseline = JSON.stringify(rec);
@@ -651,7 +658,7 @@
       }
       if (act === "cancel") {
         rec.status = "CANCELLED";
-        rec.audit.push({ when: today(), user: "Demo User", action: "CANCEL", detail: "DEMO" });
+        rec.audit.push({ when: today(), user: "System", action: "CANCEL", detail: "" });
         persistDraft();
         JnData.active.save(def.collection, rec);
         baseline = JSON.stringify(rec);

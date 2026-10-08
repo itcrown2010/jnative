@@ -1,0 +1,15 @@
+package com.demo.app;
+
+public class AmbiguousCall {
+    static int f(int a, long b) {
+        return 1;
+    }
+
+    static int f(long a, int b) {
+        return 2;
+    }
+
+    public static void main(String[] args) {
+        System.out.println(f(1, 1));
+    }
+}

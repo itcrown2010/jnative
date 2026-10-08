@@ -161,9 +161,6 @@ public final class SourceDependencyGraph {
         if (slash >= 0) {
             name = name.substring(slash + 1);
         }
-        if (name.endsWith(".java")) {
-            name = name.substring(0, name.length() - 5);
-        }
-        return name;
+        return io.jnative.source.SourceFiles.stripExtension(name);
     }
 }

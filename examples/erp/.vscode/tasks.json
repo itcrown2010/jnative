@@ -1,0 +1,15 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "erp-debug-build",
+      "type": "shell",
+      "command": "mkdir -p build/erp && java -jar target/jnative.jar build --project examples/erp --debug; test -x examples/erp/.jnative/build/erp-server",
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "group": "build",
+      "problemMatcher": []
+    }
+  ]
+}

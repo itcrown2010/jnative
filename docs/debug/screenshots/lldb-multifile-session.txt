@@ -1,0 +1,14 @@
+18:    frame #0: 0x00000001000056b0 DebugMulti`jn_main(args=25769803808) at DebugMulti.java:12:28
+28:(lldb) frame variable x y ready
+29:(int) x = 10
+30:(int) y = 20
+31:(bool) ready = true
+36:    frame #0: 0x00000001000055e0 DebugMulti`_JN_MathUtil_add_i32_i32(a=10, b=20) at MathUtil.java:3:24
+46:(lldb) frame variable a b
+47:(int) a = 10
+48:(int) b = 20
+52:    frame #0: 0x00000001000055f0 DebugMulti`_JN_MathUtil_add_i32_i32(a=10, b=20) at MathUtil.java:4:9
+62:(lldb) frame variable result
+63:(int) result = 30
+66:  * frame #0: 0x00000001000055f0 DebugMulti`_JN_MathUtil_add_i32_i32(a=10, b=20) at MathUtil.java:4:9
+75:PASS: multifile LLDB source mapping verified

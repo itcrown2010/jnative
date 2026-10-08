@@ -1,0 +1,10 @@
+package com.demo.app;
+
+import com.demo.greet.Greeter;
+import com.demo.greet.Texts;
+
+public class LoudGreeter implements Greeter {
+    public int greet(int n) {
+        return Texts.bump(n) * 100;
+    }
+}

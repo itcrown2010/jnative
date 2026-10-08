@@ -1,0 +1,8 @@
+[package]
+name = "greetkit"
+namespace = "demo"
+version = "1.0.0"
+description = "Third-party greet helpers with language packages"
+license = "MIT"
+type = "source"
+min_compiler = "0.32"

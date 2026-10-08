@@ -1,10 +1,32 @@
 {
   "name": "erp",
   "modules": {
-    "shared": { "kind": "lib", "src": "shared" },
-    "server": { "kind": "server", "src": "server", "dependsOn": ["shared", "tests"] },
-    "browser": { "kind": "browser", "src": "browser", "dependsOn": ["shared"] },
-    "tests": { "kind": "lib", "src": "tests", "dependsOn": ["shared"] }
+    "shared": {
+      "kind": "lib",
+      "src": "shared"
+    },
+    "server": {
+      "kind": "server",
+      "src": "server",
+      "dependsOn": [
+        "shared",
+        "tests"
+      ]
+    },
+    "browser": {
+      "kind": "browser",
+      "src": "browser",
+      "dependsOn": [
+        "shared"
+      ]
+    },
+    "tests": {
+      "kind": "lib",
+      "src": "tests",
+      "dependsOn": [
+        "shared"
+      ]
+    }
   },
   "targets": [
     {

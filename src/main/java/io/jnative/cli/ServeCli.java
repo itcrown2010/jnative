@@ -57,7 +57,7 @@ public final class ServeCli {
                         printUsage();
                         return 1;
                     }
-                    if (source == null && arg.endsWith(".java")) {
+                    if (source == null && io.jnative.source.SourceFiles.isSourceFileName(arg)) {
                         source = Path.of(arg).toAbsolutePath().normalize();
                     } else {
                         programArgs.add(arg);
@@ -67,7 +67,7 @@ public final class ServeCli {
         }
 
         if (source == null) {
-            System.err.println("error: missing entry source file (e.g. App.java)");
+            System.err.println("error: missing entry source file (e.g. App.jn or App.java)");
             printUsage();
             return 1;
         }

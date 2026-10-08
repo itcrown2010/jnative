@@ -1,5 +1,7 @@
 package io.jnative.ir;
 
+import io.jnative.diagnostics.SourceLocation;
+
 import java.util.ArrayDeque;
 import java.util.Deque;
 import java.util.HashMap;
@@ -19,9 +21,20 @@ public final class IrBuilder {
     private final Map<String, IrValue.Local> locals = new HashMap<>();
     private final Map<String, Integer> localNameCounts = new HashMap<>();
     private final Deque<IrBasicBlock> exceptionDispatchStack = new ArrayDeque<>();
+    private SourceLocation currentLocation = SourceLocation.UNKNOWN;
+    /** Alloca instruction for each source local name (latest). */
+    private final Map<String, IrInstruction.Alloca> localAllocas = new HashMap<>();
 
     public IrBuilder(IrModule module) {
         this.module = module;
+    }
+
+    public void setLocation(SourceLocation location) {
+        this.currentLocation = location == null ? SourceLocation.UNKNOWN : location;
+    }
+
+    public SourceLocation location() {
+        return currentLocation;
     }
 
     public IrModule module() {
@@ -35,7 +48,9 @@ public final class IrBuilder {
         this.entryAllocaCount = 0;
         this.locals.clear();
         this.localNameCounts.clear();
+        this.localAllocas.clear();
         this.exceptionDispatchStack.clear();
+        this.currentLocation = SourceLocation.UNKNOWN;
         this.entryBlock = function.addBlock("entry");
         this.block = entryBlock;
     }
@@ -65,14 +80,34 @@ public final class IrBuilder {
     }
 
     public IrValue.Local alloca(String identifier, IrType type) {
+        return alloca(identifier, type, false, -1);
+    }
+
+    public IrValue.Local alloca(String identifier, IrType type, boolean isParameter, int argIndex) {
+        return alloca(identifier, type, isParameter, argIndex, null);
+    }
+
+    public IrValue.Local alloca(
+            String identifier,
+            IrType type,
+            boolean isParameter,
+            int argIndex,
+            String javaTypeName
+    ) {
         // Nested/sibling scopes may reuse source names; LLVM SSA names must be unique.
         int n = localNameCounts.getOrDefault(identifier, 0);
         localNameCounts.put(identifier, n + 1);
         String llvmName = n == 0 ? identifier : identifier + "." + n;
         IrValue.Local local = new IrValue.Local(llvmName, type);
         locals.put(identifier, local);
+        IrInstruction.Alloca allocaInst = new IrInstruction.Alloca(local);
         // Always place allocas in the entry block (required for shadow-stack roots).
-        entryBlock.instructions().add(entryAllocaCount++, new IrInstruction.Alloca(local));
+        entryBlock.instructions().add(entryAllocaCount++, allocaInst);
+        localAllocas.put(identifier, allocaInst);
+        attachDebug(allocaInst);
+        module.debugInfo().recordLocal(
+                function, allocaInst, local, identifier, currentLocation, isParameter, argIndex,
+                javaTypeName);
         return local;
     }
 
@@ -82,6 +117,11 @@ public final class IrBuilder {
 
     public void emit(IrInstruction instruction) {
         block.add(instruction);
+        attachDebug(instruction);
+    }
+
+    private void attachDebug(IrInstruction instruction) {
+        module.debugInfo().putInstruction(instruction, currentLocation);
     }
 
     public IrValue load(IrValue.Local local) {

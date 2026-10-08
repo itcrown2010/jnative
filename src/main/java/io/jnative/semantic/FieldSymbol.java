@@ -14,6 +14,7 @@ public final class FieldSymbol {
     private final SourceLocation location;
     private final boolean isStatic;
     private final boolean isVolatile;
+    private final Visibility visibility;
     /** LLVM struct GEP index (includes object header at 0). Set by layout builder. Unused for static. */
     private int gepIndex = -1;
     /** LLVM global symbol for static fields, e.g. {@code jn.static.Main.counter}. */
@@ -21,7 +22,7 @@ public final class FieldSymbol {
     private Expression initializer;
 
     public FieldSymbol(ClassSymbol owner, String name, JType type, int declaredIndex, SourceLocation location) {
-        this(owner, name, type, declaredIndex, false, false, location);
+        this(owner, name, type, declaredIndex, false, false, Visibility.PACKAGE, location);
     }
 
     public FieldSymbol(
@@ -33,12 +34,26 @@ public final class FieldSymbol {
             boolean isVolatile,
             SourceLocation location
     ) {
+        this(owner, name, type, declaredIndex, isStatic, isVolatile, Visibility.PACKAGE, location);
+    }
+
+    public FieldSymbol(
+            ClassSymbol owner,
+            String name,
+            JType type,
+            int declaredIndex,
+            boolean isStatic,
+            boolean isVolatile,
+            Visibility visibility,
+            SourceLocation location
+    ) {
         this.owner = owner;
         this.name = name;
         this.type = type;
         this.declaredIndex = declaredIndex;
         this.isStatic = isStatic;
         this.isVolatile = isVolatile;
+        this.visibility = visibility == null ? Visibility.PACKAGE : visibility;
         this.location = location;
         if (isStatic) {
             this.staticGlobal = "jn.static." + owner.name() + "." + name;
@@ -84,6 +99,10 @@ public final class FieldSymbol {
 
     public boolean isVolatile() {
         return isVolatile;
+    }
+
+    public Visibility visibility() {
+        return visibility;
     }
 
     public String staticGlobal() {

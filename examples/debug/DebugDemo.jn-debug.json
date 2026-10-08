@@ -1,0 +1,316 @@
+{
+  "version": 1,
+  "pointerSize": 8,
+  "classMeta": {
+    "namePtrOffset": 32,
+    "flagsOffset": 24,
+    "instanceSizeOffset": 16
+  },
+  "string": { "lengthOffset": 8, "dataOffset": 16, "dataInline": true },
+  "array": { "lengthOffset": 8, "dataOffset": 16, "dataInline": true },
+  "maxStringBytes": 256,
+  "maxArrayElements": 16,
+  "objectHeaderSize": 8,
+  "classes": {
+    "IOException": {
+      "instanceSize": 24,
+      "fields": [
+        {"name":"message","offset":8,"size":8,"ref":true,"llvmType":"ptr"},
+        {"name":"cause","offset":16,"size":8,"ref":true,"llvmType":"ptr"}
+      ]
+    },
+    "TcpServer": {
+      "instanceSize": 24,
+      "fields": [
+        {"name":"handle","offset":8,"size":8,"ref":false,"llvmType":"i64"},
+        {"name":"closed","offset":16,"size":1,"ref":false,"llvmType":"i1"}
+      ]
+    },
+    "DebugDemo": {
+      "instanceSize": 8,
+      "fields": [
+
+      ]
+    },
+    "FileNotFoundException": {
+      "instanceSize": 24,
+      "fields": [
+        {"name":"message","offset":8,"size":8,"ref":true,"llvmType":"ptr"},
+        {"name":"cause","offset":16,"size":8,"ref":true,"llvmType":"ptr"}
+      ]
+    },
+    "IllegalStateException": {
+      "instanceSize": 24,
+      "fields": [
+        {"name":"message","offset":8,"size":8,"ref":true,"llvmType":"ptr"},
+        {"name":"cause","offset":16,"size":8,"ref":true,"llvmType":"ptr"}
+      ]
+    },
+    "RuntimeException": {
+      "instanceSize": 24,
+      "fields": [
+        {"name":"message","offset":8,"size":8,"ref":true,"llvmType":"ptr"},
+        {"name":"cause","offset":16,"size":8,"ref":true,"llvmType":"ptr"}
+      ]
+    },
+    "IndexOutOfBoundsException": {
+      "instanceSize": 24,
+      "fields": [
+        {"name":"message","offset":8,"size":8,"ref":true,"llvmType":"ptr"},
+        {"name":"cause","offset":16,"size":8,"ref":true,"llvmType":"ptr"}
+      ]
+    },
+    "SocketException": {
+      "instanceSize": 24,
+      "fields": [
+        {"name":"message","offset":8,"size":8,"ref":true,"llvmType":"ptr"},
+        {"name":"cause","offset":16,"size":8,"ref":true,"llvmType":"ptr"}
+      ]
+    },
+    "Throwable": {
+      "instanceSize": 24,
+      "fields": [
+        {"name":"message","offset":8,"size":8,"ref":true,"llvmType":"ptr"},
+        {"name":"cause","offset":16,"size":8,"ref":true,"llvmType":"ptr"}
+      ]
+    },
+    "IntUnaryFunction": {
+      "instanceSize": 24,
+      "fields": [
+        {"name":"code","offset":8,"size":8,"ref":false,"llvmType":"i64"},
+        {"name":"env","offset":16,"size":8,"ref":true,"llvmType":"ptr"}
+      ]
+    },
+    "NativeMemory": {
+      "instanceSize": 8,
+      "fields": [
+
+      ]
+    },
+    "NativePtr": {
+      "instanceSize": 8,
+      "fields": [
+
+      ]
+    },
+    "Thread": {
+      "instanceSize": 24,
+      "fields": [
+        {"name":"nativeId","offset":8,"size":8,"ref":false,"llvmType":"i64"},
+        {"name":"target","offset":16,"size":8,"ref":true,"llvmType":"ptr"}
+      ]
+    },
+    "ClassCastException": {
+      "instanceSize": 24,
+      "fields": [
+        {"name":"message","offset":8,"size":8,"ref":true,"llvmType":"ptr"},
+        {"name":"cause","offset":16,"size":8,"ref":true,"llvmType":"ptr"}
+      ]
+    },
+    "Object": {
+      "instanceSize": 8,
+      "fields": [
+
+      ]
+    },
+    "Future": {
+      "instanceSize": 24,
+      "fields": [
+        {"name":"state","offset":8,"size":4,"ref":false,"llvmType":"i32"},
+        {"name":"result","offset":16,"size":8,"ref":true,"llvmType":"ptr"}
+      ]
+    },
+    "NegativeArraySizeException": {
+      "instanceSize": 24,
+      "fields": [
+        {"name":"message","offset":8,"size":8,"ref":true,"llvmType":"ptr"},
+        {"name":"cause","offset":16,"size":8,"ref":true,"llvmType":"ptr"}
+      ]
+    },
+    "IntBinaryFunction": {
+      "instanceSize": 24,
+      "fields": [
+        {"name":"code","offset":8,"size":8,"ref":false,"llvmType":"i64"},
+        {"name":"env","offset":16,"size":8,"ref":true,"llvmType":"ptr"}
+      ]
+    },
+    "ConnectException": {
+      "instanceSize": 24,
+      "fields": [
+        {"name":"message","offset":8,"size":8,"ref":true,"llvmType":"ptr"},
+        {"name":"cause","offset":16,"size":8,"ref":true,"llvmType":"ptr"}
+      ]
+    },
+    "AtomicBool": {
+      "instanceSize": 16,
+      "fields": [
+        {"name":"value","offset":8,"size":1,"ref":false,"llvmType":"i1"}
+      ]
+    },
+    "TcpSocket": {
+      "instanceSize": 24,
+      "fields": [
+        {"name":"handle","offset":8,"size":8,"ref":false,"llvmType":"i64"},
+        {"name":"closed","offset":16,"size":1,"ref":false,"llvmType":"i1"}
+      ]
+    },
+    "AtomicLong": {
+      "instanceSize": 16,
+      "fields": [
+        {"name":"value","offset":8,"size":8,"ref":false,"llvmType":"i64"}
+      ]
+    },
+    "IllegalArgumentException": {
+      "instanceSize": 24,
+      "fields": [
+        {"name":"message","offset":8,"size":8,"ref":true,"llvmType":"ptr"},
+        {"name":"cause","offset":16,"size":8,"ref":true,"llvmType":"ptr"}
+      ]
+    },
+    "NativeCallbackHandle": {
+      "instanceSize": 32,
+      "fields": [
+        {"name":"handle","offset":8,"size":8,"ref":false,"llvmType":"i64"},
+        {"name":"retained","offset":16,"size":8,"ref":true,"llvmType":"ptr"},
+        {"name":"slot","offset":24,"size":4,"ref":false,"llvmType":"i32"}
+      ]
+    },
+    "File": {
+      "instanceSize": 8,
+      "fields": [
+
+      ]
+    },
+    "String": {
+      "instanceSize": 8,
+      "fields": [
+
+      ]
+    },
+    "NullPointerException": {
+      "instanceSize": 24,
+      "fields": [
+        {"name":"message","offset":8,"size":8,"ref":true,"llvmType":"ptr"},
+        {"name":"cause","offset":16,"size":8,"ref":true,"llvmType":"ptr"}
+      ]
+    },
+    "Exception": {
+      "instanceSize": 24,
+      "fields": [
+        {"name":"message","offset":8,"size":8,"ref":true,"llvmType":"ptr"},
+        {"name":"cause","offset":16,"size":8,"ref":true,"llvmType":"ptr"}
+      ]
+    },
+    "Native": {
+      "instanceSize": 8,
+      "fields": [
+
+      ]
+    },
+    "NoSuchElementException": {
+      "instanceSize": 24,
+      "fields": [
+        {"name":"message","offset":8,"size":8,"ref":true,"llvmType":"ptr"},
+        {"name":"cause","offset":16,"size":8,"ref":true,"llvmType":"ptr"}
+      ]
+    },
+    "Runnable": {
+      "instanceSize": 24,
+      "fields": [
+        {"name":"code","offset":8,"size":8,"ref":false,"llvmType":"i64"},
+        {"name":"env","offset":16,"size":8,"ref":true,"llvmType":"ptr"}
+      ]
+    },
+    "AtomicInt": {
+      "instanceSize": 16,
+      "fields": [
+        {"name":"value","offset":8,"size":4,"ref":false,"llvmType":"i32"}
+      ]
+    },
+    "Condition": {
+      "instanceSize": 16,
+      "fields": [
+        {"name":"handle","offset":8,"size":8,"ref":false,"llvmType":"i64"}
+      ]
+    },
+    "IllegalMonitorStateException": {
+      "instanceSize": 24,
+      "fields": [
+        {"name":"message","offset":8,"size":8,"ref":true,"llvmType":"ptr"},
+        {"name":"cause","offset":16,"size":8,"ref":true,"llvmType":"ptr"}
+      ]
+    },
+    "IntFunction": {
+      "instanceSize": 24,
+      "fields": [
+        {"name":"code","offset":8,"size":8,"ref":false,"llvmType":"i64"},
+        {"name":"env","offset":16,"size":8,"ref":true,"llvmType":"ptr"}
+      ]
+    },
+    "Mutex": {
+      "instanceSize": 16,
+      "fields": [
+        {"name":"handle","offset":8,"size":8,"ref":false,"llvmType":"i64"}
+      ]
+    },
+    "UnknownHostException": {
+      "instanceSize": 24,
+      "fields": [
+        {"name":"message","offset":8,"size":8,"ref":true,"llvmType":"ptr"},
+        {"name":"cause","offset":16,"size":8,"ref":true,"llvmType":"ptr"}
+      ]
+    },
+    "ArithmeticException": {
+      "instanceSize": 24,
+      "fields": [
+        {"name":"message","offset":8,"size":8,"ref":true,"llvmType":"ptr"},
+        {"name":"cause","offset":16,"size":8,"ref":true,"llvmType":"ptr"}
+      ]
+    },
+    "ConcurrentModificationException": {
+      "instanceSize": 24,
+      "fields": [
+        {"name":"message","offset":8,"size":8,"ref":true,"llvmType":"ptr"},
+        {"name":"cause","offset":16,"size":8,"ref":true,"llvmType":"ptr"}
+      ]
+    },
+    "Bytes": {
+      "instanceSize": 8,
+      "fields": [
+
+      ]
+    },
+    "HttpHandler": {
+      "instanceSize": 24,
+      "fields": [
+        {"name":"code","offset":8,"size":8,"ref":false,"llvmType":"i64"},
+        {"name":"env","offset":16,"size":8,"ref":true,"llvmType":"ptr"}
+      ]
+    },
+    "SocketTimeoutException": {
+      "instanceSize": 24,
+      "fields": [
+        {"name":"message","offset":8,"size":8,"ref":true,"llvmType":"ptr"},
+        {"name":"cause","offset":16,"size":8,"ref":true,"llvmType":"ptr"}
+      ]
+    },
+    "ArrayIndexOutOfBoundsException": {
+      "instanceSize": 24,
+      "fields": [
+        {"name":"message","offset":8,"size":8,"ref":true,"llvmType":"ptr"},
+        {"name":"cause","offset":16,"size":8,"ref":true,"llvmType":"ptr"}
+      ]
+    },
+    "IntCompare": {
+      "instanceSize": 24,
+      "fields": [
+        {"name":"code","offset":8,"size":8,"ref":false,"llvmType":"i64"},
+        {"name":"env","offset":16,"size":8,"ref":true,"llvmType":"ptr"}
+      ]
+    }
+  },
+  "arrayMetas": [
+    {"name":"array.i8","refElements":false,"elemSize":1},
+    {"name":"array.CString","refElements":true,"elemSize":8}
+  ]
+}

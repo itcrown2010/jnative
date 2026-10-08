@@ -1,0 +1,14 @@
+package com.demo.app;
+
+import com.demo.greet.Greeter;
+import com.demo.greet.Texts;
+
+public class Main {
+    public static void main(String[] args) {
+        Greeter loud = new LoudGreeter();
+        Greeter soft = new SoftGreeter();
+        System.out.println(loud.greet(3));
+        System.out.println(soft.greet(3));
+        System.out.println(Texts.bump(7));
+    }
+}

@@ -126,14 +126,53 @@ public class ErpServer {
                 exitProcess(2);
             }
         }
+        if (args.length > 0 && args[0].equals("--pilot-test")) {
+            Erp.loop = new EventLoop();
+            try {
+                ErpDb.setup(Erp.loop);
+                int pass = ErpPilotAcceptTest.runAll();
+                if (pass != 0) {
+                    exitProcess(0);
+                }
+                exitProcess(1);
+            } catch (Exception ex) {
+                System.out.println("FAIL pilot exception");
+                if (ex.getMessage() != null) {
+                    System.out.println(ex.getMessage());
+                }
+                exitProcess(2);
+            }
+        }
         if (args.length > 0 && args[0].equals("--reset-demo")) {
             ErpProductConfig.load();
             if (ErpProductConfig.demoMode == 0) {
                 System.out.println("REFUSED: set ERP_DEMO_MODE=1 to reset demo data (production protected)");
                 exitProcess(3);
             }
-            System.out.println("DEMO reset not auto-wiping DB in v1 — use dedicated demo instance + drop/recreate");
-            exitProcess(0);
+            Erp.loop = new EventLoop();
+            try {
+                ErpDb.setup(Erp.loop);
+                Object c = ErpDb.queryOne(
+                        "SELECT id FROM companies WHERE code='JNAT'", new ArrayList<Object>(), new LongMapper());
+                if (c == null) {
+                    System.out.println("REFUSED: no JNAT demo company");
+                    exitProcess(4);
+                }
+                long companyId = ErpNum.asLong(c);
+                if (ErpBooks.isFormalBook(companyId) != 0) {
+                    System.out.println("REFUSED: JNAT is FORMAL book — demo reset forbidden");
+                    exitProcess(3);
+                }
+                ErpBooks.resetDemoBook(companyId);
+                System.out.println("DEMO_RESET_OK companyId=" + CryptoParse.longToString(companyId));
+                exitProcess(0);
+            } catch (Exception ex) {
+                System.out.println("FAIL reset-demo");
+                if (ex.getMessage() != null) {
+                    System.out.println(ex.getMessage());
+                }
+                exitProcess(2);
+            }
         }
         ErpProductConfig.load();
         Erp.loop = new EventLoop();
@@ -182,6 +221,7 @@ public class ErpServer {
         app.futureGet("/api/erp/dashboard", new ErpDashboardHandler(Erp.loop));
         app.futureGet("/api/erp/partners", new ErpPartnersHandler(Erp.loop));
         app.futureGet("/api/erp/items", new ErpItemsHandler(Erp.loop));
+        app.futurePost("/api/erp/items", new ErpCreateItemHandler(Erp.loop));
         app.futureGet("/api/erp/warehouses", new ErpWarehousesHandler(Erp.loop));
         app.futureGet("/api/erp/inventory", new ErpInventoryHandler(Erp.loop));
 
@@ -189,11 +229,39 @@ public class ErpServer {
         app.futureGet("/api/erp/purchaseOrders/:id", new ErpGetPoHandler(Erp.loop));
         app.futurePost("/api/erp/purchaseOrders/:id/approve", new ErpApprovePoHandler(Erp.loop));
         app.futurePost("/api/erp/goodsReceipts", new ErpGrHandler(Erp.loop));
+        app.futurePost("/api/erp/goodsReceipts/:id/reverse", new ErpReverseGrHandler(Erp.loop));
 
         app.futurePost("/api/erp/salesOrders", new ErpCreateSoHandler(Erp.loop));
         app.futureGet("/api/erp/salesOrders/:id", new ErpGetSoHandler(Erp.loop));
         app.futurePost("/api/erp/salesOrders/:id/approve", new ErpApproveSoHandler(Erp.loop));
         app.futurePost("/api/erp/deliveries", new ErpDlHandler(Erp.loop));
+        app.futurePost("/api/erp/deliveries/:id/reverse", new ErpReverseDlHandler(Erp.loop));
+
+        app.futureGet("/api/erp/setup/wizard", new ErpWizardGetHandler(Erp.loop));
+        app.futurePost("/api/erp/setup/wizard/company", new ErpWizardCompanyHandler(Erp.loop));
+        app.futurePost("/api/erp/setup/wizard/currency", new ErpWizardCurrencyHandler(Erp.loop));
+        app.futurePost("/api/erp/setup/wizard/warehouse", new ErpWizardWarehouseHandler(Erp.loop));
+        app.futurePost("/api/erp/setup/wizard/numbering", new ErpWizardNumberingHandler(Erp.loop));
+        app.futurePost("/api/erp/setup/wizard/user", new ErpWizardUserHandler(Erp.loop));
+        app.futurePost("/api/erp/setup/wizard/advance", new ErpWizardAdvanceHandler(Erp.loop));
+        app.futurePost("/api/erp/setup/wizard/complete", new ErpWizardCompleteHandler(Erp.loop));
+        app.futurePost("/api/erp/setup/formal-company", new ErpCreateFormalCompanyHandler(Erp.loop));
+
+        app.futurePost("/api/erp/opening/stock", new ErpOpeningStockDraftHandler(Erp.loop));
+        app.futurePost("/api/erp/opening/stock/:id/post", new ErpOpeningStockPostHandler(Erp.loop));
+        app.futurePost("/api/erp/opening/ar", new ErpOpeningArHandler(Erp.loop));
+        app.futurePost("/api/erp/opening/ap", new ErpOpeningApHandler(Erp.loop));
+
+        app.futureGet("/api/erp/import/templates/partners", new ErpImportPartnerTemplateHandler(Erp.loop));
+        app.futureGet("/api/erp/import/templates/items", new ErpImportItemTemplateHandler(Erp.loop));
+        app.futurePost("/api/erp/import/partners/preview", new ErpImportPartnerPreviewHandler(Erp.loop));
+        app.futurePost("/api/erp/import/items/preview", new ErpImportItemPreviewHandler(Erp.loop));
+        app.futurePost("/api/erp/import/partners", new ErpImportPartnerHandler(Erp.loop));
+        app.futurePost("/api/erp/import/items", new ErpImportItemHandler(Erp.loop));
+
+        app.futurePost("/api/erp/admin/demo/reset", new ErpDemoResetHandler(Erp.loop));
+        app.futureGet("/api/erp/help/tutorials", new ErpHelpTutorialsHandler(Erp.loop));
+        app.futureGet("/api/erp/book", new ErpBookInfoHandler(Erp.loop));
 
         app.futureGet("/api/erp/finance/accounts", new ErpFinanceAccountsHandler(Erp.loop));
         app.futureGet("/api/erp/finance/journals", new ErpFinanceJournalsHandler(Erp.loop));
@@ -258,20 +326,31 @@ class ErpReadyHandler implements WebHandler {
                 dbOk = 1;
             }
             ArrayList<Object> mp = new ArrayList<Object>();
-            mp.add("004_enterprise");
+            mp.add("005_pilot");
             Object v = ErpDb.queryOne("SELECT version FROM schema_migrations WHERE version=?", mp,
                     new StringMapper());
             if (v != null) {
                 mig = (String) v;
+            } else {
+                ArrayList<Object> mp4 = new ArrayList<Object>();
+                mp4.add("004_enterprise");
+                Object v4 = ErpDb.queryOne("SELECT version FROM schema_migrations WHERE version=?", mp4,
+                        new StringMapper());
+                if (v4 != null) {
+                    mig = (String) v4;
+                }
             }
         } catch (Exception ex) {
             dbOk = 0;
         }
-        if (dbOk != 0) {
+        if (dbOk != 0 && Erp.schemaReady != 0) {
             ctx.jsonString("{\"ready\":true,\"db\":" + ErpJson.str(Erp.dialect)
-                    + ",\"migration\":" + ErpJson.str(mig) + "}");
+                    + ",\"migration\":" + ErpJson.str(mig)
+                    + ",\"demoMode\":" + String.valueOf(ErpProductConfig.demoMode) + "}");
         } else {
-            ctx.status(503).jsonString("{\"ready\":false}");
+            ctx.status(503).jsonString("{\"ready\":false,\"schemaReady\":"
+                    + String.valueOf(Erp.schemaReady)
+                    + ",\"error\":" + ErpJson.str(Erp.schemaError) + "}");
         }
     }
 }
@@ -362,6 +441,26 @@ class ErpRequire {
         ErpSession es = ErpAuth.requireSession(ctx);
         if (es.userId == 0L || es.companyId == 0L) {
             return null;
+        }
+        return es;
+    }
+
+    /** Auth + schema ready + permission. Sets 401/503/403 on failure and returns null. */
+    static ErpSession authPerm(WebContext ctx, String perm) {
+        if (Erp.schemaReady == 0) {
+            ErpAuth.err(ctx, 503, "SCHEMA_NOT_READY", Erp.schemaError);
+            return null;
+        }
+        ErpSession es = auth(ctx);
+        if (es == null) {
+            ErpAuth.err(ctx, 401, "AUTH_REQUIRED", "login required");
+            return null;
+        }
+        if (perm != null && perm.length() > 0) {
+            if (ErpPlatformAuth.hasPermission(es.userId, es.companyId, perm) == 0) {
+                ErpAuth.err(ctx, 403, "FORBIDDEN", perm);
+                return null;
+            }
         }
         return es;
     }
@@ -476,6 +575,43 @@ class ErpItemsHandler implements AsyncWebHandler {
     }
 }
 
+class ErpCreateItemHandler implements AsyncWebHandler {
+    EventLoop loop;
+    ErpCreateItemHandler(EventLoop loop) {
+        this.loop = loop;
+    }
+
+    public JnFuture handle(WebContext ctx) {
+        ErpSession es = ErpRequire.auth(ctx);
+        if (es == null) {
+            ErpAuth.err(ctx, 401, "AUTH_REQUIRED", "login required");
+            return JnFuture.completed(loop, null);
+        }
+        if (ErpAuth.checkCsrf(ctx) == 0) {
+            ErpAuth.err(ctx, 403, "CSRF", "invalid csrf token");
+            return JnFuture.completed(loop, null);
+        }
+        JsonObject body = Json.parse(ctx.bodyString()).asObject();
+        String sku = body.getString("sku", "");
+        String name = body.getString("name", "");
+        long price = body.getLong("unitPriceCents", 0L);
+        if (price == 0L) {
+            /* UI may send major units as price */
+            long major = body.getLong("price", 0L);
+            if (major > 0L && major < 100000000L) {
+                price = major * 100L;
+            }
+        }
+        ItemDto created = ErpItems.create(es.companyId, sku, name, price);
+        if (created == null) {
+            ErpAuth.err(ctx, 400, "ITEM_CREATE_FAILED", "invalid or duplicate sku");
+            return JnFuture.completed(loop, null);
+        }
+        ctx.jsonString(ErpJson.item(created));
+        return JnFuture.completed(loop, null);
+    }
+}
+
 class ErpWarehousesHandler implements AsyncWebHandler {
     EventLoop loop;
     ErpWarehousesHandler(EventLoop loop) {
@@ -518,9 +654,8 @@ class ErpCreatePoHandler implements AsyncWebHandler {
     }
 
     public JnFuture handle(WebContext ctx) {
-        ErpSession es = ErpRequire.auth(ctx);
+        ErpSession es = ErpRequire.authPerm(ctx, "PURCHASE.ORDER.CREATE");
         if (es == null) {
-            ErpAuth.err(ctx, 401, "AUTH_REQUIRED", "login required");
             return JnFuture.completed(loop, null);
         }
         JsonObject body = Json.parse(ctx.bodyString()).asObject();
@@ -564,9 +699,8 @@ class ErpApprovePoHandler implements AsyncWebHandler {
     }
 
     public JnFuture handle(WebContext ctx) {
-        ErpSession es = ErpRequire.auth(ctx);
+        ErpSession es = ErpRequire.authPerm(ctx, "PURCHASE.ORDER.APPROVE");
         if (es == null) {
-            ErpAuth.err(ctx, 401, "AUTH_REQUIRED", "login required");
             return JnFuture.completed(loop, null);
         }
         long id = ErpNum.parseLong(ctx.param("id"));
@@ -583,9 +717,8 @@ class ErpGrHandler implements AsyncWebHandler {
     }
 
     public JnFuture handle(WebContext ctx) {
-        ErpSession es = ErpRequire.auth(ctx);
+        ErpSession es = ErpRequire.authPerm(ctx, "PURCHASE.ORDER.POST");
         if (es == null) {
-            ErpAuth.err(ctx, 401, "AUTH_REQUIRED", "login required");
             return JnFuture.completed(loop, null);
         }
         PostGoodsReceiptRequest req = ErpBodyParse.parseGr(ctx);
@@ -602,9 +735,8 @@ class ErpCreateSoHandler implements AsyncWebHandler {
     }
 
     public JnFuture handle(WebContext ctx) {
-        ErpSession es = ErpRequire.auth(ctx);
+        ErpSession es = ErpRequire.authPerm(ctx, "SALES.ORDER.CREATE");
         if (es == null) {
-            ErpAuth.err(ctx, 401, "AUTH_REQUIRED", "login required");
             return JnFuture.completed(loop, null);
         }
         JsonObject body = Json.parse(ctx.bodyString()).asObject();
@@ -648,9 +780,8 @@ class ErpApproveSoHandler implements AsyncWebHandler {
     }
 
     public JnFuture handle(WebContext ctx) {
-        ErpSession es = ErpRequire.auth(ctx);
+        ErpSession es = ErpRequire.authPerm(ctx, "SALES.ORDER.APPROVE");
         if (es == null) {
-            ErpAuth.err(ctx, 401, "AUTH_REQUIRED", "login required");
             return JnFuture.completed(loop, null);
         }
         long id = ErpNum.parseLong(ctx.param("id"));
@@ -667,9 +798,8 @@ class ErpDlHandler implements AsyncWebHandler {
     }
 
     public JnFuture handle(WebContext ctx) {
-        ErpSession es = ErpRequire.auth(ctx);
+        ErpSession es = ErpRequire.authPerm(ctx, "SALES.ORDER.POST");
         if (es == null) {
-            ErpAuth.err(ctx, 401, "AUTH_REQUIRED", "login required");
             return JnFuture.completed(loop, null);
         }
         PostDeliveryRequest req = ErpBodyParse.parseDl(ctx);
@@ -1560,6 +1690,535 @@ class ErpAdminAuditHandler implements AsyncWebHandler {
         }
         out = out + "]";
         ctx.jsonString(out);
+        return JnFuture.completed(loop, null);
+    }
+}
+
+class ErpReverseGrHandler implements AsyncWebHandler {
+    EventLoop loop;
+    ErpReverseGrHandler(EventLoop loop) {
+        this.loop = loop;
+    }
+    public JnFuture handle(WebContext ctx) {
+        ErpSession es = ErpRequire.authPerm(ctx, "PURCHASE.GR.REVERSE");
+        if (es == null) {
+            return JnFuture.completed(loop, null);
+        }
+        long id = ErpNum.parseLong(ctx.param("id"));
+        JsonObject body = Json.parse(ctx.bodyString()).asObject();
+        String reason = body.getString("reason", "");
+        String key = ctx.getHeader("Idempotency-Key");
+        if (key == null || key.length() == 0) {
+            key = body.getString("idempotencyKey", "");
+        }
+        PostResultDto r = ErpReverse.reverseGoodsReceipt(es.companyId, es.userId, id, reason, key);
+        ctx.status(200).jsonString(ErpJson.postResult(r));
+        return JnFuture.completed(loop, null);
+    }
+}
+
+class ErpReverseDlHandler implements AsyncWebHandler {
+    EventLoop loop;
+    ErpReverseDlHandler(EventLoop loop) {
+        this.loop = loop;
+    }
+    public JnFuture handle(WebContext ctx) {
+        ErpSession es = ErpRequire.authPerm(ctx, "SALES.DELIVERY.REVERSE");
+        if (es == null) {
+            return JnFuture.completed(loop, null);
+        }
+        long id = ErpNum.parseLong(ctx.param("id"));
+        JsonObject body = Json.parse(ctx.bodyString()).asObject();
+        String reason = body.getString("reason", "");
+        String key = ctx.getHeader("Idempotency-Key");
+        if (key == null || key.length() == 0) {
+            key = body.getString("idempotencyKey", "");
+        }
+        PostResultDto r = ErpReverse.reverseDelivery(es.companyId, es.userId, id, reason, key);
+        ctx.status(200).jsonString(ErpJson.postResult(r));
+        return JnFuture.completed(loop, null);
+    }
+}
+
+class ErpWizardGetHandler implements AsyncWebHandler {
+    EventLoop loop;
+    ErpWizardGetHandler(EventLoop loop) {
+        this.loop = loop;
+    }
+    public JnFuture handle(WebContext ctx) {
+        ErpSession es = ErpRequire.authPerm(ctx, "ADMIN.SETUP.MANAGE");
+        if (es == null) {
+            return JnFuture.completed(loop, null);
+        }
+        ctx.jsonString(ErpSetupWizard.getStateJson(es.companyId));
+        return JnFuture.completed(loop, null);
+    }
+}
+
+class ErpCreateFormalCompanyHandler implements AsyncWebHandler {
+    EventLoop loop;
+    ErpCreateFormalCompanyHandler(EventLoop loop) {
+        this.loop = loop;
+    }
+    public JnFuture handle(WebContext ctx) {
+        if (Erp.schemaReady == 0) {
+            ErpAuth.err(ctx, 503, "SCHEMA_NOT_READY", Erp.schemaError);
+            return JnFuture.completed(loop, null);
+        }
+        JsonObject body = Json.parse(ctx.bodyString()).asObject();
+        try {
+            long id = ErpSetupWizard.createFormalCompany(body.getString("code", ""),
+                    body.getString("name", ""), body.getString("timezone", "UTC"));
+            ctx.jsonString("{\"companyId\":" + ErpJson.num(id) + ",\"bookKind\":\"FORMAL\"}");
+        } catch (Exception ex) {
+            ErpAuth.err(ctx, 400, "WIZARD_FAIL", ex.getMessage());
+        }
+        return JnFuture.completed(loop, null);
+    }
+}
+
+class ErpWizardCompanyHandler implements AsyncWebHandler {
+    EventLoop loop;
+    ErpWizardCompanyHandler(EventLoop loop) {
+        this.loop = loop;
+    }
+    public JnFuture handle(WebContext ctx) {
+        ErpSession es = ErpRequire.authPerm(ctx, "ADMIN.SETUP.MANAGE");
+        if (es == null) {
+            return JnFuture.completed(loop, null);
+        }
+        JsonObject body = Json.parse(ctx.bodyString()).asObject();
+        try {
+            ErpSetupWizard.applyCompanyStep(es.companyId, es.userId, body.getString("name", ""),
+                    body.getString("timezone", "UTC"));
+            ctx.jsonString(ErpSetupWizard.getStateJson(es.companyId));
+        } catch (Exception ex) {
+            ErpAuth.err(ctx, 400, "WIZARD_FAIL", ex.getMessage());
+        }
+        return JnFuture.completed(loop, null);
+    }
+}
+
+class ErpWizardCurrencyHandler implements AsyncWebHandler {
+    EventLoop loop;
+    ErpWizardCurrencyHandler(EventLoop loop) {
+        this.loop = loop;
+    }
+    public JnFuture handle(WebContext ctx) {
+        ErpSession es = ErpRequire.authPerm(ctx, "ADMIN.SETUP.MANAGE");
+        if (es == null) {
+            return JnFuture.completed(loop, null);
+        }
+        JsonObject body = Json.parse(ctx.bodyString()).asObject();
+        try {
+            ErpSetupWizard.applyCurrencyStep(es.companyId, es.userId, body.getString("currency", "CNY"),
+                    body.getInt("amountScale", 0));
+            ctx.jsonString(ErpSetupWizard.getStateJson(es.companyId));
+        } catch (Exception ex) {
+            ErpAuth.err(ctx, 400, "WIZARD_FAIL", ex.getMessage());
+        }
+        return JnFuture.completed(loop, null);
+    }
+}
+
+class ErpWizardWarehouseHandler implements AsyncWebHandler {
+    EventLoop loop;
+    ErpWizardWarehouseHandler(EventLoop loop) {
+        this.loop = loop;
+    }
+    public JnFuture handle(WebContext ctx) {
+        ErpSession es = ErpRequire.authPerm(ctx, "ADMIN.SETUP.MANAGE");
+        if (es == null) {
+            return JnFuture.completed(loop, null);
+        }
+        JsonObject body = Json.parse(ctx.bodyString()).asObject();
+        try {
+            long wh = ErpSetupWizard.applyWarehouseStep(es.companyId, es.userId,
+                    body.getString("code", "WH1"), body.getString("name", "Main WH"));
+            ctx.jsonString("{\"warehouseId\":" + ErpJson.num(wh) + "}");
+        } catch (Exception ex) {
+            ErpAuth.err(ctx, 400, "WIZARD_FAIL", ex.getMessage());
+        }
+        return JnFuture.completed(loop, null);
+    }
+}
+
+class ErpWizardNumberingHandler implements AsyncWebHandler {
+    EventLoop loop;
+    ErpWizardNumberingHandler(EventLoop loop) {
+        this.loop = loop;
+    }
+    public JnFuture handle(WebContext ctx) {
+        ErpSession es = ErpRequire.authPerm(ctx, "ADMIN.SETUP.MANAGE");
+        if (es == null) {
+            return JnFuture.completed(loop, null);
+        }
+        try {
+            ErpSetupWizard.applyNumberingStep(es.companyId, es.userId);
+            ctx.jsonString(ErpSetupWizard.getStateJson(es.companyId));
+        } catch (Exception ex) {
+            ErpAuth.err(ctx, 400, "WIZARD_FAIL", ex.getMessage());
+        }
+        return JnFuture.completed(loop, null);
+    }
+}
+
+class ErpWizardUserHandler implements AsyncWebHandler {
+    EventLoop loop;
+    ErpWizardUserHandler(EventLoop loop) {
+        this.loop = loop;
+    }
+    public JnFuture handle(WebContext ctx) {
+        ErpSession es = ErpRequire.authPerm(ctx, "ADMIN.SETUP.MANAGE");
+        if (es == null) {
+            return JnFuture.completed(loop, null);
+        }
+        JsonObject body = Json.parse(ctx.bodyString()).asObject();
+        try {
+            long uid = ErpSetupWizard.applyUserStep(es.companyId, es.userId,
+                    body.getString("email", ""), body.getString("displayName", ""),
+                    body.getString("password", ""), body.getString("role", "admin"));
+            ctx.jsonString("{\"userId\":" + ErpJson.num(uid) + "}");
+        } catch (Exception ex) {
+            ErpAuth.err(ctx, 400, "WIZARD_FAIL", ex.getMessage());
+        }
+        return JnFuture.completed(loop, null);
+    }
+}
+
+class ErpWizardAdvanceHandler implements AsyncWebHandler {
+    EventLoop loop;
+    ErpWizardAdvanceHandler(EventLoop loop) {
+        this.loop = loop;
+    }
+    public JnFuture handle(WebContext ctx) {
+        ErpSession es = ErpRequire.authPerm(ctx, "ADMIN.SETUP.MANAGE");
+        if (es == null) {
+            return JnFuture.completed(loop, null);
+        }
+        JsonObject body = Json.parse(ctx.bodyString()).asObject();
+        String to = body.getString("to", WizardStep.OPENING);
+        try {
+            if (to.equals(WizardStep.OPENING)) {
+                ErpSetupWizard.advanceToOpening(es.companyId, es.userId);
+            } else {
+                ErpSetupWizard.advanceToValidate(es.companyId, es.userId);
+            }
+            ctx.jsonString(ErpSetupWizard.getStateJson(es.companyId));
+        } catch (Exception ex) {
+            ErpAuth.err(ctx, 400, "WIZARD_FAIL", ex.getMessage());
+        }
+        return JnFuture.completed(loop, null);
+    }
+}
+
+class ErpWizardCompleteHandler implements AsyncWebHandler {
+    EventLoop loop;
+    ErpWizardCompleteHandler(EventLoop loop) {
+        this.loop = loop;
+    }
+    public JnFuture handle(WebContext ctx) {
+        ErpSession es = ErpRequire.authPerm(ctx, "ADMIN.SETUP.MANAGE");
+        if (es == null) {
+            return JnFuture.completed(loop, null);
+        }
+        try {
+            ctx.jsonString(ErpSetupWizard.validateAndComplete(es.companyId, es.userId));
+        } catch (Exception ex) {
+            ErpAuth.err(ctx, 400, "WIZARD_FAIL", ex.getMessage());
+        }
+        return JnFuture.completed(loop, null);
+    }
+}
+
+class ErpOpeningStockDraftHandler implements AsyncWebHandler {
+    EventLoop loop;
+    ErpOpeningStockDraftHandler(EventLoop loop) {
+        this.loop = loop;
+    }
+    public JnFuture handle(WebContext ctx) {
+        ErpSession es = ErpRequire.authPerm(ctx, "INVENTORY.OPENING.POST");
+        if (es == null) {
+            return JnFuture.completed(loop, null);
+        }
+        JsonObject body = Json.parse(ctx.bodyString()).asObject();
+        String key = ctx.getHeader("Idempotency-Key");
+        if (key == null || key.length() == 0) {
+            key = body.getString("idempotencyKey", "");
+        }
+        ArrayList<Object> lines = new ArrayList<Object>();
+        JsonValue lv = body.get("lines");
+        if (lv != null && lv.kind == JsonValue.ARRAY_KIND) {
+            JsonArray arr = lv.asArray();
+            int i = 0;
+            while (i < arr.size()) {
+                JsonObject o = arr.get(i).asObject();
+                OpeningLineInput in = new OpeningLineInput();
+                in.itemId = o.getLong("itemId", 0L);
+                in.quantity = o.getInt("quantity", 0);
+                in.unitCostAmount = o.getLong("unitCostAmount", 0L);
+                lines.add(in);
+                i = i + 1;
+            }
+        }
+        PostResultDto r = ErpOpening.createStockDraft(es.companyId, es.userId,
+                body.getLong("warehouseId", 0L), body.getLong("businessDate", AsyncClockNative.wallMillis()),
+                body.getString("notes", ""), key, lines);
+        ctx.jsonString(ErpJson.postResult(r));
+        return JnFuture.completed(loop, null);
+    }
+}
+
+class ErpOpeningStockPostHandler implements AsyncWebHandler {
+    EventLoop loop;
+    ErpOpeningStockPostHandler(EventLoop loop) {
+        this.loop = loop;
+    }
+    public JnFuture handle(WebContext ctx) {
+        ErpSession es = ErpRequire.authPerm(ctx, "INVENTORY.OPENING.POST");
+        if (es == null) {
+            return JnFuture.completed(loop, null);
+        }
+        long id = ErpNum.parseLong(ctx.param("id"));
+        JsonObject body = Json.parse(ctx.bodyString()).asObject();
+        String key = ctx.getHeader("Idempotency-Key");
+        if (key == null || key.length() == 0) {
+            key = body.getString("idempotencyKey", "");
+        }
+        PostResultDto r = ErpOpening.postStock(es.companyId, es.userId, id, key);
+        ctx.jsonString(ErpJson.postResult(r));
+        return JnFuture.completed(loop, null);
+    }
+}
+
+class ErpOpeningArHandler implements AsyncWebHandler {
+    EventLoop loop;
+    ErpOpeningArHandler(EventLoop loop) {
+        this.loop = loop;
+    }
+    public JnFuture handle(WebContext ctx) {
+        ErpSession es = ErpRequire.authPerm(ctx, "FINANCE.OPENING.POST");
+        if (es == null) {
+            return JnFuture.completed(loop, null);
+        }
+        JsonObject body = Json.parse(ctx.bodyString()).asObject();
+        String key = ctx.getHeader("Idempotency-Key");
+        if (key == null || key.length() == 0) {
+            key = body.getString("idempotencyKey", "");
+        }
+        PostResultDto r = ErpOpening.createAndPostAr(es.companyId, es.userId,
+                body.getLong("customerId", 0L), body.getLong("businessDate", AsyncClockNative.wallMillis()),
+                body.getLong("amount", 0L), body.getString("notes", ""), key);
+        ctx.jsonString(ErpJson.postResult(r));
+        return JnFuture.completed(loop, null);
+    }
+}
+
+class ErpOpeningApHandler implements AsyncWebHandler {
+    EventLoop loop;
+    ErpOpeningApHandler(EventLoop loop) {
+        this.loop = loop;
+    }
+    public JnFuture handle(WebContext ctx) {
+        ErpSession es = ErpRequire.authPerm(ctx, "FINANCE.OPENING.POST");
+        if (es == null) {
+            return JnFuture.completed(loop, null);
+        }
+        JsonObject body = Json.parse(ctx.bodyString()).asObject();
+        String key = ctx.getHeader("Idempotency-Key");
+        if (key == null || key.length() == 0) {
+            key = body.getString("idempotencyKey", "");
+        }
+        PostResultDto r = ErpOpening.createAndPostAp(es.companyId, es.userId,
+                body.getLong("supplierId", 0L), body.getLong("businessDate", AsyncClockNative.wallMillis()),
+                body.getLong("amount", 0L), body.getString("notes", ""), key);
+        ctx.jsonString(ErpJson.postResult(r));
+        return JnFuture.completed(loop, null);
+    }
+}
+
+class ErpImportPartnerTemplateHandler implements AsyncWebHandler {
+    EventLoop loop;
+    ErpImportPartnerTemplateHandler(EventLoop loop) {
+        this.loop = loop;
+    }
+    public JnFuture handle(WebContext ctx) {
+        ErpSession es = ErpRequire.authPerm(ctx, "ADMIN.IMPORT.RUN");
+        if (es == null) {
+            return JnFuture.completed(loop, null);
+        }
+        ctx.jsonString("{\"csv\":" + ErpJson.str(ErpPlatformIo.partnerTemplateZh()) + "}");
+        return JnFuture.completed(loop, null);
+    }
+}
+
+class ErpImportItemTemplateHandler implements AsyncWebHandler {
+    EventLoop loop;
+    ErpImportItemTemplateHandler(EventLoop loop) {
+        this.loop = loop;
+    }
+    public JnFuture handle(WebContext ctx) {
+        ErpSession es = ErpRequire.authPerm(ctx, "ADMIN.IMPORT.RUN");
+        if (es == null) {
+            return JnFuture.completed(loop, null);
+        }
+        ctx.jsonString("{\"csv\":" + ErpJson.str(ErpPlatformIo.itemTemplateZh()) + "}");
+        return JnFuture.completed(loop, null);
+    }
+}
+
+class ErpImportPartnerPreviewHandler implements AsyncWebHandler {
+    EventLoop loop;
+    ErpImportPartnerPreviewHandler(EventLoop loop) {
+        this.loop = loop;
+    }
+    public JnFuture handle(WebContext ctx) {
+        ErpSession es = ErpRequire.authPerm(ctx, "ADMIN.IMPORT.RUN");
+        if (es == null) {
+            return JnFuture.completed(loop, null);
+        }
+        JsonObject body = Json.parse(ctx.bodyString()).asObject();
+        ctx.jsonString(ErpPlatformIo.previewPartnersCsv(es.companyId, body.getString("csv", "")));
+        return JnFuture.completed(loop, null);
+    }
+}
+
+class ErpImportItemPreviewHandler implements AsyncWebHandler {
+    EventLoop loop;
+    ErpImportItemPreviewHandler(EventLoop loop) {
+        this.loop = loop;
+    }
+    public JnFuture handle(WebContext ctx) {
+        ErpSession es = ErpRequire.authPerm(ctx, "ADMIN.IMPORT.RUN");
+        if (es == null) {
+            return JnFuture.completed(loop, null);
+        }
+        JsonObject body = Json.parse(ctx.bodyString()).asObject();
+        ctx.jsonString(ErpPlatformIo.previewItemsCsv(es.companyId, body.getString("csv", "")));
+        return JnFuture.completed(loop, null);
+    }
+}
+
+class ErpImportPartnerHandler implements AsyncWebHandler {
+    EventLoop loop;
+    ErpImportPartnerHandler(EventLoop loop) {
+        this.loop = loop;
+    }
+    public JnFuture handle(WebContext ctx) {
+        ErpSession es = ErpRequire.authPerm(ctx, "ADMIN.IMPORT.RUN");
+        if (es == null) {
+            return JnFuture.completed(loop, null);
+        }
+        JsonObject body = Json.parse(ctx.bodyString()).asObject();
+        try {
+            long id = ErpPlatformIo.importPartnersCsv(es.companyId, es.userId,
+                    body.getString("jobCode", "IMP-" + CryptoParse.longToString(AsyncClockNative.wallMillis())),
+                    body.getString("csv", ""));
+            ctx.jsonString("{\"batchId\":" + ErpJson.num(id) + "}");
+        } catch (Exception ex) {
+            ErpAuth.err(ctx, 400, "IMPORT_FAIL", ex.getMessage());
+        }
+        return JnFuture.completed(loop, null);
+    }
+}
+
+class ErpImportItemHandler implements AsyncWebHandler {
+    EventLoop loop;
+    ErpImportItemHandler(EventLoop loop) {
+        this.loop = loop;
+    }
+    public JnFuture handle(WebContext ctx) {
+        ErpSession es = ErpRequire.authPerm(ctx, "ADMIN.IMPORT.RUN");
+        if (es == null) {
+            return JnFuture.completed(loop, null);
+        }
+        JsonObject body = Json.parse(ctx.bodyString()).asObject();
+        try {
+            long id = ErpPlatformIo.importItemsCsv(es.companyId, es.userId,
+                    body.getString("jobCode", "IMP-" + CryptoParse.longToString(AsyncClockNative.wallMillis())),
+                    body.getString("csv", ""));
+            ctx.jsonString("{\"batchId\":" + ErpJson.num(id) + "}");
+        } catch (Exception ex) {
+            ErpAuth.err(ctx, 400, "IMPORT_FAIL", ex.getMessage());
+        }
+        return JnFuture.completed(loop, null);
+    }
+}
+
+class ErpDemoResetHandler implements AsyncWebHandler {
+    EventLoop loop;
+    ErpDemoResetHandler(EventLoop loop) {
+        this.loop = loop;
+    }
+    public JnFuture handle(WebContext ctx) {
+        ErpSession es = ErpRequire.auth(ctx);
+        if (es == null) {
+            ErpAuth.err(ctx, 401, "AUTH_REQUIRED", "login required");
+            return JnFuture.completed(loop, null);
+        }
+        try {
+            if (ErpPlatformAuth.hasPermission(es.userId, es.companyId, "ADMIN.DEMO.RESET") == 0) {
+                ErpAuth.err(ctx, 403, "FORBIDDEN", "ADMIN.DEMO.RESET");
+                return JnFuture.completed(loop, null);
+            }
+            ErpBooks.resetDemoBook(es.companyId);
+            ctx.jsonString("{\"ok\":true,\"bookKind\":\"DEMO\"}");
+        } catch (Exception ex) {
+            String msg = "";
+            if (ex.getMessage() != null) {
+                msg = ex.getMessage();
+            }
+            if (msg.indexOf("FORMAL_BOOK") >= 0 || msg.indexOf("DEMO_MODE_REQUIRED") >= 0) {
+                ErpAuth.err(ctx, 403, "FORBIDDEN", msg);
+            } else {
+                ErpAuth.err(ctx, 400, "RESET_FAIL", msg);
+            }
+        }
+        return JnFuture.completed(loop, null);
+    }
+}
+
+class ErpBookInfoHandler implements AsyncWebHandler {
+    EventLoop loop;
+    ErpBookInfoHandler(EventLoop loop) {
+        this.loop = loop;
+    }
+    public JnFuture handle(WebContext ctx) {
+        ErpSession es = ErpRequire.auth(ctx);
+        if (es == null) {
+            ErpAuth.err(ctx, 401, "AUTH_REQUIRED", "login required");
+            return JnFuture.completed(loop, null);
+        }
+        ArrayList<Object> p = new ArrayList<Object>();
+        p.add(CryptoParse.longToString(es.companyId));
+        DbQueryResult r = ErpDb.query(
+                "SELECT code, name, book_kind, timezone, currency_code, amount_scale, setup_completed FROM companies WHERE id=?",
+                p);
+        if (r.rows.size() == 0) {
+            ErpAuth.err(ctx, 404, "NOT_FOUND", "company");
+            return JnFuture.completed(loop, null);
+        }
+        Row row = r.rows.get(0);
+        ctx.jsonString("{\"code\":" + ErpJson.str(row.getString(0))
+                + ",\"name\":" + ErpJson.str(row.getString(1))
+                + ",\"bookKind\":" + ErpJson.str(row.getString(2))
+                + ",\"timezone\":" + ErpJson.str(row.getString(3))
+                + ",\"currency\":" + ErpJson.str(row.getString(4))
+                + ",\"amountScale\":" + ErpJson.num(row.getLong(5))
+                + ",\"setupCompleted\":" + CryptoParse.longToString(row.getInt(6))
+                + ",\"demoSeedVersion\":" + CryptoParse.longToString(ErpBooks.demoSeedVersion(es.companyId))
+                + "}");
+        return JnFuture.completed(loop, null);
+    }
+}
+
+class ErpHelpTutorialsHandler implements AsyncWebHandler {
+    EventLoop loop;
+    ErpHelpTutorialsHandler(EventLoop loop) {
+        this.loop = loop;
+    }
+    public JnFuture handle(WebContext ctx) {
+        ctx.jsonString(ErpHelp.tutorialsJson());
         return JnFuture.completed(loop, null);
     }
 }

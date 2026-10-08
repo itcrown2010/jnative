@@ -4,6 +4,7 @@ import io.jnative.ast.*;
 import io.jnative.diagnostics.DiagnosticReporter;
 import io.jnative.lexer.Token;
 import io.jnative.lexer.TokenType;
+import io.jnative.semantic.Visibility;
 
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -24,6 +25,10 @@ public final class Parser {
     private final Map<String, List<MarkerAnnotation>> typeAnnotations = new LinkedHashMap<>();
     private final Map<String, List<MarkerAnnotation>> methodAnnotations = new LinkedHashMap<>();
     private final Map<String, List<MarkerAnnotation>> fieldAnnotations = new LinkedHashMap<>();
+    /** Active language package (not package-manager coordinates). */
+    private String currentPackage = "";
+    private final List<ImportDeclaration> currentImports = new ArrayList<>();
+    private boolean packageDeclaredInScope;
 
     public Parser(List<Token> tokens, DiagnosticReporter reporter) {
         this.tokens = tokens;
@@ -37,14 +42,20 @@ public final class Parser {
         typeAnnotations.clear();
         methodAnnotations.clear();
         fieldAnnotations.clear();
+        currentPackage = "";
+        currentImports.clear();
+        packageDeclaredInScope = false;
 
         List<ClassDeclaration> classes = new ArrayList<>();
         var loc = peek().location();
         try {
             while (!isAtEnd()) {
-                if (match(TokenType.PACKAGE) || match(TokenType.IMPORT)) {
-                    // 0.17: accept package/import for source compatibility; flatten into one CU.
-                    skipUntilSemicolon();
+                if (check(TokenType.PACKAGE)) {
+                    parsePackageDeclaration();
+                    continue;
+                }
+                if (check(TokenType.IMPORT)) {
+                    parseImportDeclaration();
                     continue;
                 }
                 classes.add(parseTypeDeclaration());
@@ -60,6 +71,65 @@ public final class Parser {
                 Map.copyOf(methodAnnotations),
                 Map.copyOf(fieldAnnotations),
                 loc);
+    }
+
+    private void parsePackageDeclaration() {
+        Token pkgTok = consume(TokenType.PACKAGE, "expected 'package'");
+        if (packageDeclaredInScope && !currentPackage.isEmpty()) {
+            // Mid-compilation-unit package switch (concatenated multi-file): reset imports.
+        }
+        String name = parseQualifiedName("expected package name");
+        consume(TokenType.SEMICOLON, "expected ';' after package declaration");
+        currentPackage = name;
+        currentImports.clear();
+        packageDeclaredInScope = true;
+        if (name.isEmpty()) {
+            reporter.error(pkgTok.location(), "invalid package name");
+        }
+    }
+
+    private void parseImportDeclaration() {
+        Token imp = consume(TokenType.IMPORT, "expected 'import'");
+        if (match(TokenType.STATIC)) {
+            reporter.error(imp.location(),
+                    "static import is not supported; import the type and reference members explicitly");
+            skipUntilSemicolon();
+            return;
+        }
+        String name = parseQualifiedName("expected type name after import");
+        if (match(TokenType.DOT)) {
+            if (match(TokenType.STAR)) {
+                reporter.error(imp.location(),
+                        "wildcard import is not supported; use an explicit type import");
+                consume(TokenType.SEMICOLON, "expected ';' after import");
+                return;
+            }
+            reporter.error(peek().location(), "expected ';' after import");
+            skipUntilSemicolon();
+            return;
+        }
+        consume(TokenType.SEMICOLON, "expected ';' after import");
+        if (!name.contains(".")) {
+            reporter.error(imp.location(),
+                    "import must be a fully qualified type name (e.g. com.acme.Foo)");
+            return;
+        }
+        currentImports.add(new ImportDeclaration(name, imp.location()));
+        knownClassNames.add(name.substring(name.lastIndexOf('.') + 1));
+    }
+
+    private String parseQualifiedName(String message) {
+        Token first = consume(TokenType.IDENTIFIER, message);
+        StringBuilder sb = new StringBuilder(first.lexeme());
+        // Stop before `.*` so import wildcards can be diagnosed separately.
+        while (check(TokenType.DOT)
+                && peekAt(1) != null
+                && peekAt(1).type() == TokenType.IDENTIFIER) {
+            advance(); // DOT
+            Token next = consume(TokenType.IDENTIFIER, "expected identifier after '.'");
+            sb.append('.').append(next.lexeme());
+        }
+        return sb.toString();
     }
 
     private void skipUntilSemicolon() {
@@ -176,7 +246,7 @@ public final class Parser {
                         "@" + ann.name() + " is not allowed on type declarations");
             }
         }
-        match(TokenType.PUBLIC);
+        Visibility typeVis = parseVisibilityModifier();
         boolean isAbstract = match(TokenType.ABSTRACT);
         boolean isInterface = false;
         if (match(TokenType.INTERFACE)) {
@@ -188,6 +258,12 @@ public final class Parser {
             consume(TokenType.CLASS, "expected 'class' or 'interface'");
         }
         Token name = consume(TokenType.IDENTIFIER, "expected type name");
+        if (typeVis == Visibility.PRIVATE || typeVis == Visibility.PROTECTED) {
+            reporter.error(name.location(),
+                    "top-level type cannot be " + typeVis.name().toLowerCase()
+                            + "; use public or package-private");
+            typeVis = Visibility.PACKAGE;
+        }
         if (!pendingTypeAnns.isEmpty()) {
             typeAnnotations.put(name.lexeme(), List.copyOf(pendingTypeAnns));
         }
@@ -233,10 +309,34 @@ public final class Parser {
             parseClassMember(name.lexeme(), fields, methods, nativeStruct, isInterface, isAbstract, typeEffects);
         }
         consume(TokenType.RBRACE, "expected '}'");
+        String pkg = currentPackage == null ? "" : currentPackage;
+        List<ImportDeclaration> importsSnapshot = List.copyOf(currentImports);
         return new ClassDeclaration(
-                name.lexeme(), typeParams, superClassName, superClassTypeArgs,
+                name.lexeme(), pkg, importsSnapshot, typeVis, typeParams, superClassName, superClassTypeArgs,
                 implementedInterfaces, fields, methods,
                 nativeStruct, isInterface, isAbstract, name.location());
+    }
+
+    private Visibility parseVisibilityModifier() {
+        boolean isPublic = match(TokenType.PUBLIC);
+        boolean isProtected = match(TokenType.PROTECTED);
+        boolean isPrivate = match(TokenType.PRIVATE);
+        // Allow any order / duplicates lightly
+        if (!isPublic) {
+            isPublic = match(TokenType.PUBLIC);
+        }
+        if (!isProtected) {
+            isProtected = match(TokenType.PROTECTED);
+        }
+        if (!isPrivate) {
+            isPrivate = match(TokenType.PRIVATE);
+        }
+        Visibility v = Visibility.fromModifiers(isPublic, isProtected, isPrivate);
+        if (v == null) {
+            reporter.error(previous().location(), "conflicting access modifiers");
+            return Visibility.PACKAGE;
+        }
+        return v;
     }
 
     private List<TypeParameterDeclaration> parseTypeParameterList() {
@@ -265,9 +365,14 @@ public final class Parser {
         return types;
     }
 
-    /** Class or interface reference with optional type arguments. */
+    /** Class or interface reference with optional type arguments (allows {@code a.b.C}). */
     private TypeName parseClassTypeRef(String message) {
         Token id = consume(TokenType.IDENTIFIER, message);
+        StringBuilder qn = new StringBuilder(id.lexeme());
+        while (match(TokenType.DOT)) {
+            Token next = consume(TokenType.IDENTIFIER, "expected identifier after '.'");
+            qn.append('.').append(next.lexeme());
+        }
         List<TypeName> args = List.of();
         if (match(TokenType.LT)) {
             if (!check(TokenType.GT)) {
@@ -275,7 +380,7 @@ public final class Parser {
             }
             consume(TokenType.GT, "expected '>' after type arguments");
         }
-        return TypeName.ofClass(id.lexeme(), args, id.location());
+        return TypeName.ofClass(qn.toString(), args, id.location());
     }
 
     private void parseClassMember(String className,
@@ -304,9 +409,7 @@ public final class Parser {
                         "@" + ann.name() + " is not allowed on class members");
             }
         }
-        match(TokenType.PUBLIC);
-        match(TokenType.PRIVATE);
-        match(TokenType.PROTECTED);
+        Visibility memberVis = parseVisibilityModifier();
         boolean isStatic = false;
         boolean isNative = false;
         boolean isVolatile = false;
@@ -364,8 +467,9 @@ public final class Parser {
             List<Parameter> params = parseParameterList();
             BlockStatement body = parseBlock();
             methods.add(new MethodDeclaration(
-                    true, false, false, true, false, false, List.of(), TypeName.ofVoid(name.location()), false,
-                    className, params, body, null, effectContract, name.location()));
+                    memberVis == Visibility.PUBLIC, false, false, true, false, false, List.of(),
+                    TypeName.ofVoid(name.location()), false,
+                    className, params, body, null, effectContract, memberVis, name.location()));
             return;
         }
 
@@ -428,9 +532,9 @@ public final class Parser {
                 body = parseBlock();
             }
             methods.add(new MethodDeclaration(
-                    true, isStatic, isNative, false, methodAbstract && !isNative, isAsync,
+                    memberVis == Visibility.PUBLIC, isStatic, isNative, false, methodAbstract && !isNative, isAsync,
                     methodTypeParams, type, isArray,
-                    name.lexeme(), params, body, nativeAnnotation, effectContract, name.location()));
+                    name.lexeme(), params, body, nativeAnnotation, effectContract, memberVis, name.location()));
             if (!pendingMemberAnns.isEmpty()) {
                 methodAnnotations.put(className + "." + name.lexeme(), List.copyOf(pendingMemberAnns));
             }
@@ -454,7 +558,7 @@ public final class Parser {
         }
         consume(TokenType.SEMICOLON, "expected ';' after field declaration");
         fields.add(new FieldDeclaration(
-                type, isArray, name.lexeme(), isStatic, isVolatile, initializer, name.location()));
+                type, isArray, name.lexeme(), memberVis, isStatic, isVolatile, initializer, name.location()));
         if (!pendingMemberAnns.isEmpty()) {
             fieldAnnotations.put(className + "." + name.lexeme(), List.copyOf(pendingMemberAnns));
         }
@@ -734,13 +838,18 @@ public final class Parser {
         }
         if (match(TokenType.IDENTIFIER)) {
             Token id = previous();
-            if (id.lexeme().equals("NativePtr")) {
+            if (id.lexeme().equals("NativePtr") && !check(TokenType.DOT)) {
                 TypeName arg = null;
                 if (match(TokenType.LT)) {
                     arg = parseNativePtrTypeArgument();
                     consume(TokenType.GT, "expected '>' after NativePtr type argument");
                 }
                 return TypeName.ofNativePtr(arg, id.location());
+            }
+            StringBuilder qn = new StringBuilder(id.lexeme());
+            while (match(TokenType.DOT)) {
+                Token next = consume(TokenType.IDENTIFIER, "expected identifier after '.'");
+                qn.append('.').append(next.lexeme());
             }
             List<TypeName> args = List.of();
             if (match(TokenType.LT)) {
@@ -749,7 +858,7 @@ public final class Parser {
                 }
                 consume(TokenType.GT, "expected '>' after type arguments");
             }
-            return TypeName.ofClass(id.lexeme(), args, id.location());
+            return TypeName.ofClass(qn.toString(), args, id.location());
         }
         if (match(TokenType.QUESTION)) {
             return parseWildcardType(previous());
@@ -1037,8 +1146,16 @@ public final class Parser {
         if (check(TokenType.IDENTIFIER) && "NativePtr".equals(peek().lexeme())) {
             return isNativePtrVariableDeclAhead();
         }
-        if (check(TokenType.IDENTIFIER) && knownClassNames.contains(peek().lexeme())) {
-            int afterType = 1;
+        if (check(TokenType.IDENTIFIER)) {
+            int afterType = indexAfterQualifiedTypeName(0);
+            if (afterType < 0) {
+                return false;
+            }
+            // Simple name must be a known type; FQN (contains '.') is accepted structurally.
+            boolean fqn = afterType > 1;
+            if (!fqn && !knownClassNames.contains(peek().lexeme())) {
+                return false;
+            }
             int afterArgs = indexAfterTypeArguments(afterType);
             if (afterArgs >= 0) {
                 afterType = afterArgs;
@@ -1055,6 +1172,20 @@ public final class Parser {
             }
         }
         return false;
+    }
+
+    /** Index after {@code ID (. ID)*} starting at {@code start}, or -1. */
+    private int indexAfterQualifiedTypeName(int start) {
+        Token first = peekAt(start);
+        if (first == null || first.type() != TokenType.IDENTIFIER) {
+            return -1;
+        }
+        int i = start + 1;
+        while (peekAt(i) != null && peekAt(i).type() == TokenType.DOT
+                && peekAt(i + 1) != null && peekAt(i + 1).type() == TokenType.IDENTIFIER) {
+            i += 2;
+        }
+        return i;
     }
 
     /** {@code NativePtr p} / {@code NativePtr<T> p} / optional {@code []}. */
@@ -1493,7 +1624,16 @@ public final class Parser {
         if (isPrimitiveTypeToken(peek())) {
             type = parseType();
         } else if (check(TokenType.IDENTIFIER)) {
+            // Allow FQN: new com.demo.Box() and diamond: new Box<>()
             Token id = advance();
+            StringBuilder qn = new StringBuilder(id.lexeme());
+            while (check(TokenType.DOT)
+                    && peekAt(1) != null
+                    && peekAt(1).type() == TokenType.IDENTIFIER) {
+                advance();
+                Token next = consume(TokenType.IDENTIFIER, "expected identifier after '.'");
+                qn.append('.').append(next.lexeme());
+            }
             List<TypeName> typeArgs = List.of();
             if (match(TokenType.LT)) {
                 if (check(TokenType.GT)) {
@@ -1504,7 +1644,7 @@ public final class Parser {
                     consume(TokenType.GT, "expected '>' after type arguments");
                 }
             }
-            type = TypeName.ofClass(id.lexeme(), typeArgs, id.location());
+            type = TypeName.ofClass(qn.toString(), typeArgs, id.location());
         } else {
             type = parseType();
         }

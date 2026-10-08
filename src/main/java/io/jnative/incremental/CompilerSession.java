@@ -44,8 +44,11 @@ public final class CompilerSession {
     private int optLevel = 1; // -Odev default
     private boolean explain;
     private boolean releaseMode;
+    private boolean emitSourceDebugInfo;
     private int jobs;
     private boolean initialBuildDone;
+    /** Extra .java roots from resolved packages (never copied into project/src). */
+    private final List<Path> packageSourceRoots = new ArrayList<>();
 
     public CompilerSession(Path projectRoot) throws IOException {
         this.projectRoot = projectRoot.toAbsolutePath().normalize();
@@ -98,6 +101,26 @@ public final class CompilerSession {
         this.explain = explain;
     }
 
+    /**
+     * Attach source roots from {@link io.jnative.pkg.BuildGraphPackageIntegration#sourceRoots}.
+     * Package sources are concatenated ahead of project sources in the compile unit.
+     */
+    public void setPackageSourceRoots(List<Path> roots) {
+        packageSourceRoots.clear();
+        if (roots == null) {
+            return;
+        }
+        for (Path r : roots) {
+            if (r != null) {
+                packageSourceRoots.add(r.toAbsolutePath().normalize());
+            }
+        }
+    }
+
+    public List<Path> packageSourceRoots() {
+        return List.copyOf(packageSourceRoots);
+    }
+
     /** When true, remap {@code build/X} outputs to {@code build/release/X}. */
     public void setReleaseMode(boolean releaseMode) {
         this.releaseMode = releaseMode;
@@ -105,6 +128,14 @@ public final class CompilerSession {
 
     public boolean releaseMode() {
         return releaseMode;
+    }
+
+    public void setEmitSourceDebugInfo(boolean emitSourceDebugInfo) {
+        this.emitSourceDebugInfo = emitSourceDebugInfo;
+    }
+
+    public boolean emitSourceDebugInfo() {
+        return emitSourceDebugInfo;
     }
 
     /** Resolved output path for a target (honors release layout). */
@@ -343,7 +374,9 @@ public final class CompilerSession {
         String key = cache.cacheKey(
                 Main.VERSION,
                 target.triple(),
-                optLevel + ":" + (releaseMode ? "release" : "dev") + ":" + outRel,
+                optLevel + ":" + (releaseMode ? "release" : "dev")
+                        + ":" + (emitSourceDebugInfo ? "srcdbg" : "nosrcdbg")
+                        + ":" + outRel,
                 fp.contentHash(),
                 targetFp,
                 "rpc");
@@ -365,6 +398,15 @@ public final class CompilerSession {
         options.setOutputFile(staging);
         options.setOptLevel(optLevel);
         options.setTarget(target.isBrowser() ? "wasm32-browser" : "native");
+        Path lineMap = Path.of(compileSource.toString() + ".linemap");
+        if (Files.isRegularFile(lineMap)) {
+            options.setSourceLineMapFile(lineMap);
+        }
+        if (emitSourceDebugInfo) {
+            options.setEmitSourceDebugInfo(true);
+            options.setDebugSymbols(true);
+            options.setBuildProfile(io.jnative.compiler.BuildProfile.DEBUG);
+        }
         CompileResult cr = compiler.compile(options);
         if (!cr.success()) {
             String msg = cr.diagnostics().stream()
@@ -404,6 +446,10 @@ public final class CompilerSession {
             }
         } else if (Files.isRegularFile(staging)) {
             Files.move(staging, published, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
+            // macOS clang may emit <staging>.dSYM; publish beside the final binary for LLDB.
+            publishSiblingDsym(staging, published);
+            // LLDB formatters load <binary>.jn-debug.json (written next to staging output).
+            publishSiblingDebugCatalog(staging, published);
         }
         lastGoodArtifacts.put(target.name(), published.toString());
         cache.putString(key, published.toString());
@@ -450,7 +496,7 @@ public final class CompilerSession {
                     continue;
                 }
                 try (Stream<Path> walk = Files.walk(base)) {
-                    walk.filter(p -> p.toString().endsWith(".java"))
+                    walk.filter(io.jnative.source.SourceFiles::isSourcePath)
                             .filter(Files::isRegularFile)
                             .sorted()
                             .forEach(p -> {
@@ -524,20 +570,24 @@ public final class CompilerSession {
      */
     private Path materializeModuleCompileUnit(BuildTargetSpec target, Path main) throws IOException {
         Module m = project.module(target.module());
-        if (m == null) {
+        if (m == null && packageSourceRoots.isEmpty()) {
             return main;
         }
         List<Path> roots = new ArrayList<>();
-        for (String d : m.dependsOn()) {
-            Module dep = project.module(d);
-            if (dep != null) {
-                for (String root : dep.sourceRoots()) {
-                    roots.add(projectRoot.resolve(root));
+        /* Package dependency sources first (registry / cache), then project modules. */
+        roots.addAll(packageSourceRoots);
+        if (m != null) {
+            for (String d : m.dependsOn()) {
+                Module dep = project.module(d);
+                if (dep != null) {
+                    for (String root : dep.sourceRoots()) {
+                        roots.add(projectRoot.resolve(root));
+                    }
                 }
             }
-        }
-        for (String root : m.sourceRoots()) {
-            roots.add(projectRoot.resolve(root));
+            for (String root : m.sourceRoots()) {
+                roots.add(projectRoot.resolve(root));
+            }
         }
         List<Path> files = new ArrayList<>();
         LinkedHashSet<Path> seen = new LinkedHashSet<>();
@@ -545,9 +595,9 @@ public final class CompilerSession {
             if (!Files.isDirectory(root)) {
                 continue;
             }
-            try (Stream<Path> walk = Files.walk(root, 4)) {
+            try (Stream<Path> walk = Files.walk(root, 6)) {
                 walk.filter(Files::isRegularFile)
-                        .filter(p -> p.getFileName().toString().endsWith(".java"))
+                        .filter(io.jnative.source.SourceFiles::isSourcePath)
                         .sorted()
                         .forEach(p -> {
                             Path abs = p.toAbsolutePath().normalize();
@@ -557,11 +607,16 @@ public final class CompilerSession {
                         });
             }
         }
-        if (files.size() <= 1) {
+        if (files.size() <= 1 && packageSourceRoots.isEmpty()) {
+            return main;
+        }
+        if (files.isEmpty()) {
             return main;
         }
         Path mainAbs = main.toAbsolutePath().normalize();
         StringBuilder sb = new StringBuilder();
+        List<io.jnative.ir.SourceLineMap.Segment> segments = new ArrayList<>();
+        int nextLine = 1;
         for (Path p : files) {
             if (p.equals(mainAbs)) {
                 continue;
@@ -570,18 +625,102 @@ public final class CompilerSession {
             if (target.isBrowser() && text.contains("@Rpc")) {
                 continue;
             }
+            int start = nextLine;
             sb.append(text);
             if (!text.endsWith("\n")) {
                 sb.append('\n');
             }
             sb.append('\n');
+            int added = countLines(text) + 1; // trailing blank separator line
+            nextLine = start + added;
+            segments.add(new io.jnative.ir.SourceLineMap.Segment(
+                    start, nextLine - 1, p.toString(), 1));
         }
-        sb.append(Files.readString(mainAbs, StandardCharsets.UTF_8));
+        String mainText = Files.readString(mainAbs, StandardCharsets.UTF_8);
+        int mainStart = nextLine;
+        sb.append(mainText);
+        int mainLines = countLines(mainText);
+        if (mainLines < 1) {
+            mainLines = 1;
+        }
+        segments.add(new io.jnative.ir.SourceLineMap.Segment(
+                mainStart, mainStart + mainLines - 1, mainAbs.toString(), 1));
         Path dir = projectRoot.resolve(project.buildDir()).resolve("units");
         Files.createDirectories(dir);
         Path unit = dir.resolve(target.name() + "-unit.java");
         Files.writeString(unit, sb.toString(), StandardCharsets.UTF_8);
+        Path mapPath = Path.of(unit.toString() + ".linemap");
+        new io.jnative.ir.SourceLineMap(segments).write(mapPath);
         return unit;
+    }
+
+    private static int countLines(String text) {
+        if (text == null || text.isEmpty()) {
+            return 0;
+        }
+        int n = 1;
+        for (int i = 0; i < text.length(); i++) {
+            if (text.charAt(i) == '\n') {
+                n++;
+            }
+        }
+        // Trailing newline does not add an extra logical source line for mapping purposes
+        if (text.endsWith("\n") && n > 1) {
+            n--;
+        }
+        return n;
+    }
+
+    /** Move {@code staging.dSYM} → {@code published.dSYM} when present (Apple toolchain). */
+    private static void publishSiblingDsym(Path staging, Path published) {
+        try {
+            Path stagingDsym = Path.of(staging.toString() + ".dSYM");
+            if (!Files.isDirectory(stagingDsym)) {
+                return;
+            }
+            Path publishedDsym = Path.of(published.toString() + ".dSYM");
+            if (Files.exists(publishedDsym)) {
+                deleteRecursive(publishedDsym);
+            }
+            Files.move(stagingDsym, publishedDsym, StandardCopyOption.REPLACE_EXISTING);
+        } catch (IOException ignored) {
+            // Best-effort: binary still runs; LLDB may lack external dSYM.
+        }
+    }
+
+    /** Move {@code staging.jn-debug.json} → {@code published.jn-debug.json} when present. */
+    private static void publishSiblingDebugCatalog(Path staging, Path published) {
+        try {
+            Path stagingCat = Path.of(staging.toString() + ".jn-debug.json");
+            if (!Files.isRegularFile(stagingCat)) {
+                return;
+            }
+            Path publishedCat = Path.of(published.toString() + ".jn-debug.json");
+            Files.move(stagingCat, publishedCat, StandardCopyOption.REPLACE_EXISTING,
+                    StandardCopyOption.ATOMIC_MOVE);
+        } catch (IOException e) {
+            try {
+                Path stagingCat = Path.of(staging.toString() + ".jn-debug.json");
+                Path publishedCat = Path.of(published.toString() + ".jn-debug.json");
+                if (Files.isRegularFile(stagingCat)) {
+                    Files.copy(stagingCat, publishedCat, StandardCopyOption.REPLACE_EXISTING);
+                    Files.deleteIfExists(stagingCat);
+                }
+            } catch (IOException ignored) {
+            }
+        }
+    }
+
+    private static void deleteRecursive(Path root) throws IOException {
+        if (!Files.exists(root)) {
+            return;
+        }
+        try (Stream<Path> walk = Files.walk(root)) {
+            List<Path> paths = walk.sorted((a, b) -> b.compareTo(a)).toList();
+            for (Path p : paths) {
+                Files.deleteIfExists(p);
+            }
+        }
     }
 
     private Path findMainSource(BuildTargetSpec target) throws IOException {
@@ -589,12 +728,7 @@ public final class CompilerSession {
         if (m == null) {
             return null;
         }
-        List<String> candidates = List.of(
-                target.mainClass() + ".java",
-                "App.java",
-                "Main.java",
-                "Server.java"
-        );
+        List<String> candidates = io.jnative.source.SourceFiles.entryFileNames(target.mainClass());
         for (String root : m.sourceRoots()) {
             Path base = projectRoot.resolve(root);
             for (String c : candidates) {
@@ -603,12 +737,17 @@ public final class CompilerSession {
                     return p;
                 }
             }
-            // recursive search for App.java
+            // recursive search for App / main entry
             if (Files.isDirectory(base)) {
+                String mainJn = target.mainClass() + ".jn";
+                String mainJava = target.mainClass() + ".java";
                 try (Stream<Path> walk = Files.walk(base, 3)) {
-                    Path found = walk.filter(p -> p.getFileName().toString().equals(target.mainClass() + ".java")
-                                    || p.getFileName().toString().equals("App.java"))
-                            .filter(Files::isRegularFile)
+                    Path found = walk.filter(Files::isRegularFile)
+                            .filter(p -> {
+                                String n = p.getFileName().toString();
+                                return n.equals(mainJn) || n.equals(mainJava)
+                                        || n.equals("App.jn") || n.equals("App.java");
+                            })
                             .findFirst()
                             .orElse(null);
                     if (found != null) {
@@ -727,7 +866,7 @@ public final class CompilerSession {
                     continue;
                 }
                 try (Stream<Path> walk = Files.walk(base)) {
-                    walk.filter(p -> p.toString().endsWith(".java"))
+                    walk.filter(io.jnative.source.SourceFiles::isSourcePath)
                             .filter(Files::isRegularFile)
                             .forEach(p -> out.add(projectRoot.relativize(p).toString().replace('\\', '/')));
                 }

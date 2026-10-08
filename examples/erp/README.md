@@ -2,6 +2,18 @@
 
 Purchase → goods receipt → inventory → sales → delivery closed loop on PostgreSQL (SQLite fallback). No GL/MRP/CRM.
 
+## UI language (i18n)
+
+The product shell in `public/` supports **简体中文 (`zh-CN`)** and **English (`en`)**.
+
+- Default on first visit: `zh-CN`
+- Preference key: `localStorage.jn_erp_locale`
+- Switch: **中文 / English** on the login page and in the top bar (no full page reload)
+- Runtime catalog: `public/js/i18n/catalogs.js` (ASCII `\uXXXX` escapes). Source dictionaries: `en.js` / `zh-CN.js`.
+- **Note:** current `erp-server` static file serving corrupts raw UTF-8 bytes in `.js`; keep shipped catalogs ASCII-only.
+- API: `JnI18n.t(key, params)`. Add keys to both locale sources, then regenerate `catalogs.js`.
+- Business codes, API fields, and routes stay English; only display labels are translated
+
 ## Build
 
 From repo root (requires `target/jnative.jar`):
@@ -46,6 +58,19 @@ examples/erp/.jnative/build/erp-server --logic-test
 ```
 
 Scenario: PO 100 → GR 60+40 → stock 100 → SO 30 → DL 10+20 → stock 70; idempotent GR replay; over-receive / over-delivery rejected.
+
+### Pilot 12-step acceptance (formal book)
+
+```bash
+examples/erp/scripts/pilot-accept.sh
+# or
+DATABASE_URL='sqlite:./build/erp/pilot-accept.db' examples/erp/.jnative/build/erp-server --pilot-test
+# prints PILOT_ACCEPT_PASS
+```
+
+Covers wizard → CSV → opening 20 → GR 10 → DL 3 (=27) → reverse DL (=30) → second reverse rejected → AR/AP opening → reconnect → migration 005 → backup scripts → demo reset isolation.
+
+See `docs/erp-pilot-baseline-report.md` and `docs/erp-pilot-delivery.md`.
 
 ## PG e2e script
 

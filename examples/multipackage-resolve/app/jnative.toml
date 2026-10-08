@@ -1,0 +1,10 @@
+[package]
+name = "greet-app"
+namespace = "demo"
+version = "0.1.0"
+description = "Consumer of demo/greetkit with multi-package resolution"
+license = "MIT"
+type = "source"
+
+[dependencies]
+"demo/greetkit" = "1.0.0"

@@ -54,7 +54,10 @@ public final class EffectAnalyzer {
             if (cls.nativeStruct()) {
                 continue;
             }
-            ClassSymbol owner = typed.classes().get(cls.name());
+            ClassSymbol owner = typed.classes().get(cls.qualifiedName());
+            if (owner == null) {
+                owner = typed.classes().get(cls.name());
+            }
             if (owner == null) {
                 continue;
             }
@@ -83,7 +86,10 @@ public final class EffectAnalyzer {
             if (cls.nativeStruct()) {
                 continue;
             }
-            ClassSymbol owner = typed.classes().get(cls.name());
+            ClassSymbol owner = typed.classes().get(cls.qualifiedName());
+            if (owner == null) {
+                owner = typed.classes().get(cls.name());
+            }
             if (owner == null) {
                 continue;
             }
@@ -561,7 +567,10 @@ public final class EffectAnalyzer {
             if (cls.nativeStruct()) {
                 continue;
             }
-            ClassSymbol owner = typed.classes().get(cls.name());
+            ClassSymbol owner = typed.classes().get(cls.qualifiedName());
+            if (owner == null) {
+                owner = typed.classes().get(cls.name());
+            }
             if (owner == null) {
                 continue;
             }
@@ -678,7 +687,10 @@ public final class EffectAnalyzer {
             if (cls.nativeStruct()) {
                 continue;
             }
-            ClassSymbol owner = typed.classes().get(cls.name());
+            ClassSymbol owner = typed.classes().get(cls.qualifiedName());
+            if (owner == null) {
+                owner = typed.classes().get(cls.name());
+            }
             if (owner == null) {
                 continue;
             }

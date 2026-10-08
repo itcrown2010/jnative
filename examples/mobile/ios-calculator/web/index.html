@@ -1,0 +1,162 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover"/>
+  <meta name="apple-mobile-web-app-capable" content="yes"/>
+  <title>JNative Calculator</title>
+  <style>
+    :root {
+      --bg: #0c0d10;
+      --bg-glow: #1a2030;
+      --display: #f4f5f7;
+      --key-num: #2a2d36;
+      --key-num-press: #3d4250;
+      --key-fn: #1c1f28;
+      --key-fn-press: #2c3140;
+      --key-op: #e8a317;
+      --key-op-press: #f0b84a;
+      --key-op-ink: #1a1200;
+      --safe-top: env(safe-area-inset-top, 0px);
+      --safe-bottom: env(safe-area-inset-bottom, 0px);
+      --safe-left: env(safe-area-inset-left, 0px);
+      --safe-right: env(safe-area-inset-right, 0px);
+    }
+    * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+    html, body {
+      margin: 0;
+      height: 100%;
+      background: radial-gradient(120% 80% at 50% -20%, var(--bg-glow), var(--bg) 55%);
+      color: var(--display);
+      font-family: "Avenir Next", "Segoe UI", "Helvetica Neue", sans-serif;
+      overflow: hidden;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+    .app {
+      height: 100%;
+      max-width: 480px;
+      margin: 0 auto;
+      padding:
+        calc(0.5rem + var(--safe-top))
+        calc(0.75rem + var(--safe-right))
+        calc(0.75rem + var(--safe-bottom))
+        calc(0.75rem + var(--safe-left));
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+    }
+    .brand {
+      font-size: 0.72rem;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      opacity: 0.45;
+      margin: 0 0 0.25rem;
+      flex: 0 0 auto;
+    }
+    .display-wrap {
+      flex: 0 0 auto;
+      min-height: 22vh;
+      display: flex;
+      flex-direction: column;
+      justify-content: flex-end;
+      padding: 0.5rem 0.35rem 1rem;
+    }
+    #display {
+      font-size: clamp(2.4rem, 12vw, 4.2rem);
+      font-weight: 500;
+      font-variant-numeric: tabular-nums;
+      text-align: right;
+      line-height: 1.05;
+      word-break: break-all;
+      overflow-wrap: anywhere;
+      min-height: 1.1em;
+    }
+    #display.long { font-size: clamp(1.4rem, 7vw, 2.4rem); }
+    #display.error { color: #ff6b6b; }
+    #status {
+      min-height: 1.1rem;
+      font-size: 0.75rem;
+      text-align: right;
+      opacity: 0.5;
+      margin-top: 0.35rem;
+    }
+    .pad {
+      flex: 1 1 auto;
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      grid-template-rows: repeat(5, 1fr);
+      gap: 0.55rem;
+      min-height: 0;
+    }
+    button.key {
+      border: 0;
+      border-radius: 999px;
+      font: inherit;
+      font-size: clamp(1.25rem, 5.5vw, 1.75rem);
+      font-weight: 500;
+      color: var(--display);
+      background: var(--key-num);
+      cursor: pointer;
+      min-height: 0;
+      touch-action: manipulation;
+      transition: background 80ms ease, transform 80ms ease;
+    }
+    button.key:active, button.key.pressed {
+      background: var(--key-num-press);
+      transform: scale(0.96);
+    }
+    button.key.fn {
+      background: var(--key-fn);
+      color: #c8ccd6;
+      font-size: clamp(1.05rem, 4.5vw, 1.35rem);
+    }
+    button.key.fn:active, button.key.fn.pressed {
+      background: var(--key-fn-press);
+    }
+    button.key.op {
+      background: var(--key-op);
+      color: var(--key-op-ink);
+    }
+    button.key.op:active, button.key.op.pressed {
+      background: var(--key-op-press);
+    }
+    button.key.zero { grid-column: span 1; }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <p class="brand">JNative</p>
+    <div class="display-wrap">
+      <div id="display" aria-live="polite" aria-atomic="true">0</div>
+      <div id="status" role="status"></div>
+    </div>
+    <div class="pad" role="group" aria-label="Calculator keypad">
+      <button type="button" class="key fn" data-act="clear" aria-label="Clear">C</button>
+      <button type="button" class="key fn" data-act="negate" aria-label="Toggle sign">+/−</button>
+      <button type="button" class="key fn" data-act="back" aria-label="Delete">⌫</button>
+      <button type="button" class="key op" data-act="op" data-op="4" aria-label="Divide">÷</button>
+
+      <button type="button" class="key" data-act="digit" data-d="7" aria-label="7">7</button>
+      <button type="button" class="key" data-act="digit" data-d="8" aria-label="8">8</button>
+      <button type="button" class="key" data-act="digit" data-d="9" aria-label="9">9</button>
+      <button type="button" class="key op" data-act="op" data-op="3" aria-label="Multiply">×</button>
+
+      <button type="button" class="key" data-act="digit" data-d="4" aria-label="4">4</button>
+      <button type="button" class="key" data-act="digit" data-d="5" aria-label="5">5</button>
+      <button type="button" class="key" data-act="digit" data-d="6" aria-label="6">6</button>
+      <button type="button" class="key op" data-act="op" data-op="2" aria-label="Subtract">−</button>
+
+      <button type="button" class="key" data-act="digit" data-d="1" aria-label="1">1</button>
+      <button type="button" class="key" data-act="digit" data-d="2" aria-label="2">2</button>
+      <button type="button" class="key" data-act="digit" data-d="3" aria-label="3">3</button>
+      <button type="button" class="key op" data-act="op" data-op="1" aria-label="Add">+</button>
+
+      <button type="button" class="key zero" data-act="digit" data-d="0" aria-label="0">0</button>
+      <button type="button" class="key" data-act="dot" aria-label="Decimal point">.</button>
+      <button type="button" class="key op" data-act="eq" aria-label="Equals" style="grid-column: span 2">=</button>
+    </div>
+  </div>
+  <script type="module" src="./app-shell.js"></script>
+</body>
+</html>

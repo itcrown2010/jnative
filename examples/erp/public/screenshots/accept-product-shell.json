@@ -1,0 +1,85 @@
+{
+  "noDemoBanner": true,
+  "noDemoCenterBtn": true,
+  "noResetDemo": true,
+  "brand": "JNative One",
+  "user": "ERP User 1",
+  "book": "JNative Demo Co",
+  "breadcrumb": "JNative One / 工作台 / 经营仪表盘",
+  "searchDisabled": true,
+  "searchPh": "全局搜索尚未开通",
+  "tabs": [
+    "经营仪表盘"
+  ],
+  "hasDemoCenterTab": false,
+  "dashHtmlLen": 1244,
+  "dashHasKpi": true,
+  "itemsToolbar": [
+    {
+      "a": "new",
+      "t": "新建"
+    },
+    {
+      "a": "filter",
+      "t": "高级筛选"
+    },
+    {
+      "a": "views",
+      "t": "保存的视图"
+    },
+    {
+      "a": "columns",
+      "t": "列设置"
+    },
+    {
+      "a": "refresh",
+      "t": "刷新"
+    },
+    {
+      "a": "sel-page",
+      "t": "选择本页"
+    },
+    {
+      "a": "sel-clear",
+      "t": "清除选择"
+    },
+    {
+      "a": "export-page",
+      "t": "导出"
+    },
+    {
+      "a": "apply-quick",
+      "t": "应用"
+    },
+    {
+      "a": "check-page",
+      "t": ""
+    },
+    {
+      "a": "prev",
+      "t": "上一页"
+    },
+    {
+      "a": "next",
+      "t": "下一页"
+    }
+  ],
+  "gridDemoBadge": false,
+  "itemRows": 20,
+  "breadcrumbItems": "JNative One / 主数据 / 商品",
+  "createdSkuVisible": false,
+  "brandEn": "JNative One",
+  "breadcrumbEn": "JNative One / Master Data / Items",
+  "newBtnEn": "New",
+  "advFilterEn": "Advanced filter",
+  "tabsAfterReload": [
+    "经营仪表盘",
+    "商品"
+  ],
+  "demoTabAfterReload": false,
+  "userAfterReload": "ERP User 1",
+  "pageErrors": [
+    "SyntaxError: Invalid or unexpected token",
+    "SyntaxError: Invalid or unexpected token"
+  ]
+}

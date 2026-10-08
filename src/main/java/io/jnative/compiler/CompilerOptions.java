@@ -48,6 +48,15 @@ public final class CompilerOptions {
     private SanitizeMode sanitizeMode = SanitizeMode.NONE;
     /** Emit DWARF (-g). Default true for crash diagnostics (0.8). */
     private boolean debugSymbols = true;
+    /**
+     * Emit LLVM DI source-level debug metadata mapped to original .java files.
+     * Enabled by {@code --debug}; ordinary builds stay off.
+     */
+    private boolean emitSourceDebugInfo = false;
+    /** Optional sidecar mapping concatenated buffer lines → original files. */
+    private Path sourceLineMapFile;
+    /** True when the user passed an explicit {@code -O*} flag (order-independent vs {@code --debug}). */
+    private boolean optLevelExplicit = false;
     /** Run llvm-as / clang IR verify on generated .ll before link. */
     private boolean verifyLlvmIr = true;
 
@@ -291,7 +300,8 @@ public final class CompilerOptions {
 
     public void setBuildProfile(BuildProfile buildProfile) {
         this.buildProfile = buildProfile == null ? BuildProfile.RELEASE : buildProfile;
-        if (this.buildProfile == BuildProfile.DEBUG && optLevel > 1) {
+        // Do not silently override an explicit -O* when enabling DEBUG profile.
+        if (this.buildProfile == BuildProfile.DEBUG && !optLevelExplicit && optLevel > 1) {
             setOptLevel(0);
         }
     }
@@ -311,6 +321,30 @@ public final class CompilerOptions {
 
     public void setDebugSymbols(boolean debugSymbols) {
         this.debugSymbols = debugSymbols;
+    }
+
+    public boolean emitSourceDebugInfo() {
+        return emitSourceDebugInfo;
+    }
+
+    public void setEmitSourceDebugInfo(boolean emitSourceDebugInfo) {
+        this.emitSourceDebugInfo = emitSourceDebugInfo;
+    }
+
+    public Path sourceLineMapFile() {
+        return sourceLineMapFile;
+    }
+
+    public void setSourceLineMapFile(Path sourceLineMapFile) {
+        this.sourceLineMapFile = sourceLineMapFile;
+    }
+
+    public boolean optLevelExplicit() {
+        return optLevelExplicit;
+    }
+
+    public void setOptLevelExplicit(boolean optLevelExplicit) {
+        this.optLevelExplicit = optLevelExplicit;
     }
 
     public boolean verifyLlvmIr() {
@@ -375,6 +409,12 @@ public final class CompilerOptions {
 
     public void setOptLevel(int optLevel) {
         this.optLevel = Math.max(0, Math.min(3, optLevel));
+    }
+
+    /** Set opt level from an explicit {@code -O*} CLI flag. */
+    public void setOptLevelExplicitly(int optLevel) {
+        setOptLevel(optLevel);
+        this.optLevelExplicit = true;
     }
 
     public boolean emitIrBeforeOpt() {

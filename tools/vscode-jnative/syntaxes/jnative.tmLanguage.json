@@ -1,0 +1,106 @@
+{
+  "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+  "name": "JNative",
+  "scopeName": "source.jnative",
+  "patterns": [
+    { "include": "#comments" },
+    { "include": "#strings" },
+    { "include": "#annotations" },
+    { "include": "#keywords" },
+    { "include": "#numbers" },
+    { "include": "#types" }
+  ],
+  "repository": {
+    "comments": {
+      "patterns": [
+        {
+          "name": "comment.line.double-slash.jnative",
+          "match": "//.*$"
+        },
+        {
+          "name": "comment.block.jnative",
+          "begin": "/\\*",
+          "end": "\\*/"
+        }
+      ]
+    },
+    "strings": {
+      "patterns": [
+        {
+          "name": "string.quoted.double.jnative",
+          "begin": "\"",
+          "end": "\"",
+          "patterns": [
+            {
+              "name": "constant.character.escape.jnative",
+              "match": "\\\\."
+            }
+          ]
+        },
+        {
+          "name": "string.quoted.single.jnative",
+          "begin": "'",
+          "end": "'",
+          "patterns": [
+            {
+              "name": "constant.character.escape.jnative",
+              "match": "\\\\."
+            }
+          ]
+        }
+      ]
+    },
+    "annotations": {
+      "patterns": [
+        {
+          "name": "storage.type.annotation.jnative",
+          "match": "@(Native|NoBlock|NoGc|Rpc|Effect|Override|Deprecated)\\b"
+        },
+        {
+          "name": "storage.type.annotation.jnative",
+          "match": "@[A-Za-z_][A-Za-z0-9_]*"
+        }
+      ]
+    },
+    "keywords": {
+      "patterns": [
+        {
+          "name": "keyword.control.jnative",
+          "match": "\\b(if|else|while|for|return|break|continue|switch|case|default|try|catch|finally|throw|async|await)\\b"
+        },
+        {
+          "name": "storage.modifier.jnative",
+          "match": "\\b(public|private|protected|static|final|abstract|native|synchronized|volatile|transient)\\b"
+        },
+        {
+          "name": "storage.type.jnative",
+          "match": "\\b(class|interface|enum|extends|implements|new|this|super|void|boolean|byte|char|short|int|long|float|double)\\b"
+        },
+        {
+          "name": "constant.language.jnative",
+          "match": "\\b(true|false|null)\\b"
+        },
+        {
+          "name": "keyword.other.import.jnative",
+          "match": "\\b(import|package)\\b"
+        }
+      ]
+    },
+    "numbers": {
+      "patterns": [
+        {
+          "name": "constant.numeric.jnative",
+          "match": "\\b\\d+(\\.\\d+)?([eE][+-]?\\d+)?[fFdDlL]?\\b"
+        }
+      ]
+    },
+    "types": {
+      "patterns": [
+        {
+          "name": "entity.name.type.jnative",
+          "match": "\\b[A-Z][A-Za-z0-9_]*\\b"
+        }
+      ]
+    }
+  }
+}

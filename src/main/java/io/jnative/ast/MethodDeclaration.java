@@ -1,6 +1,7 @@
 package io.jnative.ast;
 
 import io.jnative.diagnostics.SourceLocation;
+import io.jnative.semantic.Visibility;
 
 import java.util.List;
 
@@ -19,8 +20,15 @@ public record MethodDeclaration(
         BlockStatement body,
         NativeAnnotation nativeAnnotation,
         EffectContract effectContract,
+        Visibility visibility,
         SourceLocation location
 ) implements AstNode {
+    public MethodDeclaration {
+        if (visibility == null) {
+            visibility = isPublic ? Visibility.PUBLIC : Visibility.PACKAGE;
+        }
+    }
+
     public MethodDeclaration(
             boolean isPublic,
             boolean isStatic,
@@ -32,7 +40,7 @@ public record MethodDeclaration(
             SourceLocation location
     ) {
         this(isPublic, isStatic, false, isConstructor, false, false, List.of(), returnType, false, name, parameters, body,
-                null, null, location);
+                null, null, isPublic ? Visibility.PUBLIC : Visibility.PACKAGE, location);
     }
 
     public MethodDeclaration(
@@ -49,7 +57,7 @@ public record MethodDeclaration(
             SourceLocation location
     ) {
         this(isPublic, isStatic, isNative, isConstructor, false, false, List.of(), returnType, returnsArray, name, parameters,
-                body, nativeAnnotation, null, location);
+                body, nativeAnnotation, null, isPublic ? Visibility.PUBLIC : Visibility.PACKAGE, location);
     }
 
     public MethodDeclaration(
@@ -67,7 +75,7 @@ public record MethodDeclaration(
             SourceLocation location
     ) {
         this(isPublic, isStatic, isNative, isConstructor, false, false, List.of(), returnType, returnsArray, name, parameters,
-                body, nativeAnnotation, effectContract, location);
+                body, nativeAnnotation, effectContract, isPublic ? Visibility.PUBLIC : Visibility.PACKAGE, location);
     }
 
     public MethodDeclaration(
@@ -86,6 +94,29 @@ public record MethodDeclaration(
             SourceLocation location
     ) {
         this(isPublic, isStatic, isNative, isConstructor, isAbstract, false, List.of(), returnType, returnsArray, name,
-                parameters, body, nativeAnnotation, effectContract, location);
+                parameters, body, nativeAnnotation, effectContract,
+                isPublic ? Visibility.PUBLIC : Visibility.PACKAGE, location);
+    }
+
+    public MethodDeclaration(
+            boolean isPublic,
+            boolean isStatic,
+            boolean isNative,
+            boolean isConstructor,
+            boolean isAbstract,
+            boolean isAsync,
+            List<TypeParameterDeclaration> typeParameters,
+            TypeName returnType,
+            boolean returnsArray,
+            String name,
+            List<Parameter> parameters,
+            BlockStatement body,
+            NativeAnnotation nativeAnnotation,
+            EffectContract effectContract,
+            SourceLocation location
+    ) {
+        this(isPublic, isStatic, isNative, isConstructor, isAbstract, isAsync, typeParameters, returnType, returnsArray,
+                name, parameters, body, nativeAnnotation, effectContract,
+                isPublic ? Visibility.PUBLIC : Visibility.PACKAGE, location);
     }
 }

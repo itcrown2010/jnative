@@ -1,7 +1,12 @@
 /**
  * EnterpriseDataGrid - unified list grid (UI 1.3).
+ * Labels via JnI18n; data via JnGridData (server-backed).
  */
 (function (global) {
+  function tt(key, params, fb) {
+    return global.JnI18n ? JnI18n.t(key, params, fb) : (fb != null ? fb : key);
+  }
+
   function escCsv(v) {
     var s = v == null ? "" : String(v);
     /* neutralize formula injection */
@@ -69,7 +74,7 @@
           if (v.columnWidths[c.field]) c.width = v.columnWidths[c.field];
         });
       }
-      if (!silent) JnUI.toast("Applied DEMO saved view: " + v.name, "ok");
+      if (!silent) JnUI.toast(tt("grid.viewApplied", { name: v.name }), "ok");
     }
 
     function visibleCols() {
@@ -100,6 +105,9 @@
       error = null;
       paint();
       var t0 = performance.now();
+      if (global.JnData && JnData.active && JnData.active.invalidate) {
+        JnData.active.invalidate(page.collection);
+      }
       JnGridData.active.query(page.collection, state, columns).then(function (res) {
         lastResult = res;
         loading = false;
@@ -137,44 +145,39 @@
 
     function toolbarHtml() {
       var nSel = Object.keys(selected).length;
-      var scopeNote = selectAllResults
-        ? ("ALL filtered results selected (" + lastResult.total + ") - DEMO")
-        : (selectAllPage ? ("Current page selected (" + (lastResult.rows || []).length + ")") : (nSel + " selected"));
+      var scopeNote = selectAllPage
+        ? tt("grid.selectedPage", { count: (lastResult.rows || []).length })
+        : tt("grid.selectedCount", { count: nSel });
       return '<div class="jn-grid-toolbar jn-toolbar">' +
         "<h2 class=\"jn-card-title\" style=\"margin:0\">" + JnUI.esc(page.title) + "</h2>" +
-        '<span class="jn-status OPEN">EnterpriseDataGrid DEMO</span>' +
         '<span class="spacer"></span>' +
-        (page.readOnly ? "" : '<button type="button" class="jn-btn primary" data-g="new">New</button>') +
-        '<button type="button" class="jn-btn" data-g="filter">Advanced Filter</button>' +
-        '<button type="button" class="jn-btn" data-g="views">Saved Views</button>' +
-        '<button type="button" class="jn-btn" data-g="columns">Columns</button>' +
-        '<button type="button" class="jn-btn" data-g="refresh">Refresh</button>' +
+        (page.readOnly ? "" : '<button type="button" class="jn-btn primary" data-g="new">' + JnUI.esc(tt("common.new")) + "</button>") +
+        '<button type="button" class="jn-btn" data-g="filter">' + JnUI.esc(tt("grid.advancedFilter")) + "</button>" +
+        '<button type="button" class="jn-btn" data-g="views">' + JnUI.esc(tt("grid.savedViews")) + "</button>" +
+        '<button type="button" class="jn-btn" data-g="columns">' + JnUI.esc(tt("grid.columns")) + "</button>" +
+        '<button type="button" class="jn-btn" data-g="refresh">' + JnUI.esc(tt("common.refresh")) + "</button>" +
         "</div>" +
         '<div class="jn-batch-toolbar jn-toolbar">' +
         "<span>" + JnUI.esc(scopeNote) + "</span>" +
-        '<button type="button" class="jn-btn" data-g="sel-page">Select page</button>' +
-        '<button type="button" class="jn-btn" data-g="sel-all">Select all results</button>' +
-        '<button type="button" class="jn-btn" data-g="sel-clear">Clear selection</button>' +
-        '<button type="button" class="jn-btn" data-g="export-page">Export page CSV</button>' +
-        '<button type="button" class="jn-btn" data-g="export-filtered">Export filtered CSV</button>' +
-        '<button type="button" class="jn-btn" data-g="batch-open">Batch open</button>' +
-        '<span class="jn-demo-save-note" style="margin:0">Batch actions are UI DEMO only - no formal posting.</span>' +
+        '<button type="button" class="jn-btn" data-g="sel-page">' + JnUI.esc(tt("grid.selectPage")) + "</button>" +
+        '<button type="button" class="jn-btn" data-g="sel-clear">' + JnUI.esc(tt("grid.clearSelection")) + "</button>" +
+        '<button type="button" class="jn-btn" data-g="export-page">' + JnUI.esc(tt("grid.export")) + "</button>" +
         "</div>";
     }
 
     function filterBarHtml() {
-      var sortLabel = (state.sorting || []).map(function (s) { return s.field + " " + s.dir; }).join(", ") || "(none)";
+      var sortLabel = (state.sorting || []).map(function (s) { return s.field + " " + s.dir; }).join(", ") || tt("common.none");
       var filtCount = JnGridFilter.countConditions(state.filters);
       return '<div class="jn-filter-bar">' +
-        '<div class="jn-field"><label>Quick search</label><input class="jn-input" data-role="quick-q" placeholder="Contains text..." /></div>' +
-        '<div class="jn-field"><label>Group by</label><select class="jn-select" data-role="group">' +
-        '<option value="">(none)</option>' +
+        '<div class="jn-field"><label>' + JnUI.esc(tt("grid.quickSearch")) + '</label><input class="jn-input" data-role="quick-q" placeholder="' + JnUI.esc(tt("grid.containsPlaceholder")) + '" /></div>' +
+        '<div class="jn-field"><label>' + JnUI.esc(tt("grid.groupBy")) + '</label><select class="jn-select" data-role="group">' +
+        '<option value="">' + JnUI.esc(tt("common.none")) + "</option>" +
         columns.map(function (c) {
           return '<option value="' + JnUI.esc(c.field) + '"' + (state.grouping && state.grouping.field === c.field ? " selected" : "") + ">" + JnUI.esc(c.title) + "</option>";
         }).join("") + "</select></div>" +
-        '<div class="jn-field"><label>Sort</label><div class="jn-muted" style="line-height:32px;font-size:12px">' + JnUI.esc(sortLabel) + "</div></div>" +
-        '<div class="jn-field"><label>Filters</label><div style="line-height:32px">' + filtCount + " condition(s)</div></div>" +
-        '<button type="button" class="jn-btn primary" data-g="apply-quick">Apply</button>' +
+        '<div class="jn-field"><label>' + JnUI.esc(tt("grid.sort")) + '</label><div class="jn-muted" style="line-height:32px;font-size:12px">' + JnUI.esc(sortLabel) + "</div></div>" +
+        '<div class="jn-field"><label>' + JnUI.esc(tt("grid.filters")) + '</label><div style="line-height:32px">' + JnUI.esc(tt("grid.filterCount", { count: filtCount })) + "</div></div>" +
+        '<button type="button" class="jn-btn primary" data-g="apply-quick">' + JnUI.esc(tt("common.apply")) + "</button>" +
         "</div>";
     }
 
@@ -193,7 +196,7 @@
           (dir === "asc" ? " ^" : dir === "desc" ? " v" : "") + "</span>" +
           '<span class="jn-col-resizer" data-resize="' + JnUI.esc(c.field) + '"></span></th>';
       });
-      th += '<th class="jn-pin-right jn-grid-actions">Actions</th>';
+      th += '<th class="jn-pin-right jn-grid-actions">' + JnUI.esc(tt("grid.actions")) + "</th>";
       return th;
     }
 
@@ -206,9 +209,9 @@
       var right = cols.filter(function (c) { return c.pinned === "right"; });
       var ordered = left.concat(mid).concat(right);
       var rows = lastResult.rows || [];
-      if (!rows.length) return '<tr><td colspan="99"><div class="jn-empty">No records match the filter.</div></td></tr>';
+      if (!rows.length) return '<tr><td colspan="99"><div class="jn-empty">' + JnUI.esc(tt("common.empty")) + "</div></td></tr>";
       return rows.map(function (row, ri) {
-        var checked = selectAllResults || !!selected[row.id];
+        var checked = !!selected[row.id];
         var cells = ordered.map(function (c) {
           var pin = c.pinned === "left" ? " jn-pin-left" : (c.pinned === "right" ? " jn-pin-right" : "");
           var html = formatCell(c, row);
@@ -217,13 +220,13 @@
         return '<tr tabindex="0" data-id="' + JnUI.esc(row.id) + '" data-ri="' + ri + '" class="' + (focusRow === ri ? "jn-row-focus" : "") + (checked ? " jn-row-selected" : "") + '">' +
           '<td class="jn-grid-check"><input type="checkbox" data-sel="' + JnUI.esc(row.id) + '" ' + (checked ? "checked" : "") + " /></td>" +
           cells +
-          '<td class="jn-pin-right"><button type="button" class="jn-btn" data-open="' + JnUI.esc(row.id) + '">Open</button></td></tr>';
+          '<td class="jn-pin-right"><button type="button" class="jn-btn" data-open="' + JnUI.esc(row.id) + '">' + JnUI.esc(tt("common.open")) + "</button></td></tr>";
       }).join("");
     }
 
     function groupsHtml() {
       if (!lastResult.groups || !lastResult.groups.length) return "";
-      return '<div class="jn-grid-groups"><strong>Groups (single-level DEMO):</strong> ' +
+      return '<div class="jn-grid-groups"><strong>' + JnUI.esc(tt("grid.groups")) + ':</strong> ' +
         lastResult.groups.map(function (g) {
           return '<span class="jn-status OPEN">' + JnUI.esc(g.key) + ": " + g.count + "</span>";
         }).join(" ") + "</div>";
@@ -237,18 +240,16 @@
       var from = total === 0 ? 0 : (page - 1) * ps + 1;
       var to = Math.min(page * ps, total);
       return '<div class="jn-pagination jn-grid-pager">' +
-        "<span>" + from + "-" + to + " of " + total + " | page " + page + "/" + pages + " | DEMO memory paging</span>" +
+        "<span>" + JnUI.esc(tt("common.of", { from: from, to: to, total: total })) +
+        " | " + JnUI.esc(tt("grid.pageOf", { page: page, pages: pages })) + "</span>" +
         '<span class="spacer" style="flex:1"></span>' +
-        '<label>Page size <select data-role="page-size">' +
+        '<label>' + JnUI.esc(tt("grid.pageSize")) + ' <select data-role="page-size">' +
         [10, 20, 50, 100].map(function (n) {
           return '<option value="' + n + '"' + (ps === n ? " selected" : "") + ">" + n + "</option>";
         }).join("") + "</select></label>" +
-        '<button type="button" class="jn-btn" data-g="prev" ' + (page <= 1 ? "disabled" : "") + ">Prev</button>" +
-        '<button type="button" class="jn-btn" data-g="next" ' + (page >= pages ? "disabled" : "") + ">Next</button>" +
-        "</div>" +
-        '<div class="jn-grid-agg jn-demo-save-note">Aggregates (filtered DEMO): ' + JnUI.esc(aggText || "(none)") +
-        " | last query " + (lastResult.timings && lastResult.timings.totalMs != null ? lastResult.timings.totalMs : "?") +
-        "ms | paint " + lastRenderMs + "ms</div>";
+        '<button type="button" class="jn-btn" data-g="prev" ' + (page <= 1 ? "disabled" : "") + ">" + JnUI.esc(tt("common.prev")) + "</button>" +
+        '<button type="button" class="jn-btn" data-g="next" ' + (page >= pages ? "disabled" : "") + ">" + JnUI.esc(tt("common.next")) + "</button>" +
+        "</div>";
     }
 
     function paint() {
@@ -259,7 +260,6 @@
         '<div class="jn-grid-scroll jn-table-wrap" data-grid-scroll>' +
         '<table class="jn-table jn-grid-table"><thead><tr>' + headerHtml() + "</tr></thead><tbody>" + bodyHtml() +
         "</tbody></table></div>" + pagerHtml() +
-        '<div class="jn-demo-save-note">EnterpriseDataGrid uses MockGridDataProvider. RpcGridDataProvider reserved - not connected.</div>' +
         "</div>";
       bind();
       lastRenderMs = Math.round(performance.now() - t0);
@@ -289,15 +289,14 @@
         URL.revokeObjectURL(a.href);
       }
       if (scope === "page") {
-        download(page.pageId + "-page-DEMO.csv", toCsv(lastResult.rows || []));
-        JnUI.toast("Exported current page DEMO CSV (UTF-8)", "ok");
+        download(page.pageId + "-page.csv", toCsv(lastResult.rows || []));
+        JnUI.toast(tt("grid.exportDone"), "ok");
         return;
       }
-      /* filtered: query large page but never render 100k DOM */
       var st = Object.assign({}, state, { page: 1, pageSize: Math.min(10000, Math.max(lastResult.total, 1)) });
       JnGridData.active.query(page.collection, st, columns).then(function (res) {
-        download(page.pageId + "-filtered-DEMO.csv", toCsv(res.rows || []));
-        JnUI.toast("Exported filtered DEMO CSV (" + (res.rows || []).length + " rows, capped)", "ok");
+        download(page.pageId + "-filtered.csv", toCsv(res.rows || []));
+        JnUI.toast(tt("grid.exportDone"), "ok");
       });
     }
 
@@ -400,24 +399,10 @@
             (lastResult.rows || []).forEach(function (r) { selected[r.id] = true; });
             paint();
             JnUI.toast("Selected current page only (not all results)", "ok");
-          } else if (a === "sel-all") {
-            selectAllResults = true;
-            selectAllPage = false;
-            selected = {};
-            paint();
-            JnUI.toast("Selected ALL filtered results (" + lastResult.total + ") - DEMO UI flag", "ok");
           } else if (a === "sel-clear") {
             selected = {}; selectAllPage = false; selectAllResults = false; paint();
           } else if (a === "export-page") exportCsv("page");
-          else if (a === "export-filtered") exportCsv("filtered");
-          else if (a === "batch-open") {
-            var ids = selectAllResults
-              ? (lastResult.rows || []).map(function (r) { return r.id; }).slice(0, 5)
-              : Object.keys(selected).slice(0, 5);
-            if (!ids.length) { JnUI.toast("No selection", "err"); return; }
-            JnUI.toast("Batch open DEMO: opening up to 5 selected in WorkspaceTabs", "ok");
-            ids.forEach(function (id) { openRow(id); });
-          } else if (a === "check-page") {
+          else if (a === "check-page") {
             /* handled below */
           }
         });

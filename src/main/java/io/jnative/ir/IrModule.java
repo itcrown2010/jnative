@@ -30,6 +30,7 @@ public final class IrModule {
     private final Set<String> nativeLibraries = new LinkedHashSet<>();
     private final List<StaticField> staticFields = new ArrayList<>();
     private final List<StaticFieldInit> staticInits = new ArrayList<>();
+    private final IrDebugInfo debugInfo = new IrDebugInfo();
 
     public record StaticField(String globalName, IrType type, boolean isVolatile, boolean isReference) {
     }
@@ -161,5 +162,9 @@ public final class IrModule {
 
     public void addStaticInit(StaticFieldInit init) {
         staticInits.add(init);
+    }
+
+    public IrDebugInfo debugInfo() {
+        return debugInfo;
     }
 }

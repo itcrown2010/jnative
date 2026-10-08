@@ -1,0 +1,5 @@
+package com.demo.greet;
+
+public interface Greeter {
+    int greet(int n);
+}

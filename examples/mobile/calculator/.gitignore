@@ -1,0 +1,12 @@
+dist/
+.build-staging/
+android/.gradle/
+android/app/build/
+android/local.properties
+ios/Calculator/www/*
+!ios/Calculator/www/.gitkeep
+android/app/src/main/assets/www/*
+!android/app/src/main/assets/www/.gitkeep
+*.xcuserstate
+xcuserdata/
+DerivedData/

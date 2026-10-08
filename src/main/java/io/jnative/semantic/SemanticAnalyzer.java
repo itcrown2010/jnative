@@ -1,6 +1,7 @@
 package io.jnative.semantic;
 
 import io.jnative.ast.*;
+import io.jnative.ast.ImportDeclaration;
 import io.jnative.diagnostics.DiagnosticReporter;
 import io.jnative.diagnostics.SourceLocation;
 import io.jnative.generic.TypeInferenceEngine;
@@ -39,6 +40,8 @@ public final class SemanticAnalyzer {
     private final Map<String, ClassSymbol> classes = new LinkedHashMap<>();
     private final Map<String, InterfaceSymbol> interfaces = new LinkedHashMap<>();
     private final Map<String, NativeStructSymbol> nativeStructs = new LinkedHashMap<>();
+    /** Simple type name → FQNs (for same-package / ambiguity diagnostics). */
+    private final Map<String, List<String>> typesBySimpleName = new HashMap<>();
     private final Map<InterfaceSymbol, ClassSymbol> interfaceAdapters = new LinkedHashMap<>();
     private final Map<Expression, JType> expressionTypes = new HashMap<>();
     private final Map<Expression, Object> resolvedSymbols = new HashMap<>();
@@ -51,6 +54,9 @@ public final class SemanticAnalyzer {
 
     private Scope current;
     private ClassSymbol currentClass;
+    /** Active package/imports for type resolution (class or interface declaration). */
+    private String resolvePackage = "";
+    private List<String> resolveImports = List.of();
     private MethodSymbol currentMethod;
     private ConstructorSymbol currentConstructor;
     private ClassSymbol stringClass;
@@ -92,6 +98,7 @@ public final class SemanticAnalyzer {
         catchTypes.clear();
         resourceCloseCalls.clear();
         nativeStructs.clear();
+        typesBySimpleName.clear();
         provenances.clear();
         current = new Scope(null);
         currentClass = null;
@@ -122,12 +129,15 @@ public final class SemanticAnalyzer {
             }
         }
         for (ClassDeclaration cls : unit.classes()) {
+            beginResolve(cls);
             if (cls.isInterface()) {
                 linkSuperInterfaces(cls);
             } else if (!cls.nativeStruct()) {
+                currentClass = classOf(cls);
                 linkSuperClass(cls);
                 linkImplements(cls);
             }
+            endResolve();
         }
         detectInheritanceCycles(unit);
 
@@ -135,7 +145,7 @@ public final class SemanticAnalyzer {
             if (!cls.nativeStruct()) {
                 continue;
             }
-            NativeStructSymbol symbol = nativeStructs.get(cls.name());
+            NativeStructSymbol symbol = nativeStructs.get(cls.qualifiedName());
             if (symbol != null) {
                 registerNativeStructFields(symbol, cls);
             }
@@ -147,27 +157,33 @@ public final class SemanticAnalyzer {
             if (cls.nativeStruct() || cls.isInterface()) {
                 continue;
             }
-            ClassSymbol symbol = classes.get(cls.name());
+            ClassSymbol symbol = classOf(cls);
             if (symbol != null) {
+                beginResolve(cls);
+                currentClass = symbol;
                 registerFields(symbol, cls);
+                endResolve();
             }
         }
         for (ClassDeclaration cls : unit.classes()) {
             if (cls.nativeStruct()) {
                 continue;
             }
+            beginResolve(cls);
             if (cls.isInterface()) {
-                InterfaceSymbol symbol = interfaces.get(cls.name());
+                InterfaceSymbol symbol = interfaceOf(cls);
                 if (symbol != null) {
                     registerInterfaceMethods(symbol, cls);
                 }
             } else {
-                ClassSymbol symbol = classes.get(cls.name());
+                ClassSymbol symbol = classOf(cls);
                 if (symbol != null) {
+                    currentClass = symbol;
                     registerMethods(symbol, cls);
                     registerConstructors(symbol, cls);
                 }
             }
+            endResolve();
         }
 
         int nextInterfaceId = 0;
@@ -207,10 +223,11 @@ public final class SemanticAnalyzer {
             if (cls.nativeStruct() || cls.isInterface()) {
                 continue;
             }
-            ClassSymbol symbol = classes.get(cls.name());
+            ClassSymbol symbol = classOf(cls);
             if (symbol == null) {
                 continue;
             }
+            beginResolve(cls);
             currentClass = symbol;
             analyzeStaticFieldInitializers(symbol);
             Map<String, Integer> overloadOrdinal = new HashMap<>();
@@ -222,8 +239,8 @@ public final class SemanticAnalyzer {
                     analyzeMethod(symbol, method, idx);
                 }
             }
+            endResolve();
         }
-        currentClass = null;
 
         return new TypedCompilationUnit(
                 unit,
@@ -919,39 +936,73 @@ public final class SemanticAnalyzer {
     }
 
     private void declareClass(ClassDeclaration cls) {
-        if (classes.containsKey(cls.name()) || interfaces.containsKey(cls.name())
-                || nativeStructs.containsKey(cls.name())) {
-            reporter.error(cls.location(), "duplicate class '" + cls.name() + "'");
+        String fqn = cls.qualifiedName();
+        if (classes.containsKey(fqn) || interfaces.containsKey(fqn)
+                || nativeStructs.containsKey(fqn)) {
+            reporter.error(cls.location(), "duplicate class '" + fqn + "'");
             return;
         }
-        ClassSymbol symbol = new ClassSymbol(cls.name(), cls.location(), false);
+        // Same simple name in the same package is duplicate; across packages OK.
+        ClassSymbol symbol = new ClassSymbol(fqn, cls.location(), false);
+        symbol.setPackageName(cls.packageName());
+        symbol.setVisibility(cls.visibility() == null ? Visibility.PACKAGE : cls.visibility());
+        symbol.setImportTypes(cls.imports().stream().map(ImportDeclaration::qualifiedType).toList());
         symbol.setAbstract(cls.isAbstract());
         symbol.setTypeParameters(createTypeParameters(cls.typeParameters(), symbol, null));
-        classes.put(cls.name(), symbol);
+        classes.put(fqn, symbol);
+        indexSimpleName(cls.name(), fqn);
+        // Default-package alias: allow legacy simple-name lookups for unpackaged types.
+        if (cls.packageName() == null || cls.packageName().isEmpty()) {
+            classes.putIfAbsent(cls.name(), symbol);
+        }
     }
 
     private void declareInterface(ClassDeclaration cls) {
-        if (classes.containsKey(cls.name()) || interfaces.containsKey(cls.name())
-                || nativeStructs.containsKey(cls.name())) {
-            reporter.error(cls.location(), "duplicate interface '" + cls.name() + "'");
+        String fqn = cls.qualifiedName();
+        if (classes.containsKey(fqn) || interfaces.containsKey(fqn)
+                || nativeStructs.containsKey(fqn)) {
+            reporter.error(cls.location(), "duplicate interface '" + fqn + "'");
             return;
         }
-        InterfaceSymbol symbol = new InterfaceSymbol(cls.name(), cls.location(), false);
+        InterfaceSymbol symbol = new InterfaceSymbol(fqn, cls.location(), false);
+        symbol.setPackageName(cls.packageName());
+        symbol.setVisibility(cls.visibility() == null ? Visibility.PACKAGE : cls.visibility());
+        symbol.setImportTypes(cls.imports().stream().map(ImportDeclaration::qualifiedType).toList());
         symbol.setTypeParameters(createTypeParameters(cls.typeParameters(), symbol, null));
-        interfaces.put(cls.name(), symbol);
+        interfaces.put(fqn, symbol);
+        indexSimpleName(cls.name(), fqn);
+        if (cls.packageName() == null || cls.packageName().isEmpty()) {
+            interfaces.putIfAbsent(cls.name(), symbol);
+        }
     }
 
     private void declareNativeStruct(ClassDeclaration cls) {
-        if (classes.containsKey(cls.name()) || interfaces.containsKey(cls.name())
-                || nativeStructs.containsKey(cls.name())) {
-            reporter.error(cls.location(), "duplicate type '" + cls.name() + "'");
+        String fqn = cls.qualifiedName();
+        if (classes.containsKey(fqn) || interfaces.containsKey(fqn)
+                || nativeStructs.containsKey(fqn)) {
+            reporter.error(cls.location(), "duplicate type '" + fqn + "'");
             return;
         }
-        nativeStructs.put(cls.name(), new NativeStructSymbol(cls.name(), cls.location()));
+        nativeStructs.put(fqn, new NativeStructSymbol(fqn, cls.location()));
+        if (cls.packageName() == null || cls.packageName().isEmpty()) {
+            nativeStructs.putIfAbsent(cls.name(), nativeStructs.get(fqn));
+        }
+    }
+
+    private void indexSimpleName(String simple, String fqn) {
+        typesBySimpleName.computeIfAbsent(simple, k -> new ArrayList<>()).add(fqn);
+    }
+
+    private ClassSymbol classOf(ClassDeclaration cls) {
+        return classes.get(cls.qualifiedName());
+    }
+
+    private InterfaceSymbol interfaceOf(ClassDeclaration cls) {
+        return interfaces.get(cls.qualifiedName());
     }
 
     private void linkSuperInterfaces(ClassDeclaration cls) {
-        InterfaceSymbol symbol = interfaces.get(cls.name());
+        InterfaceSymbol symbol = interfaceOf(cls);
         if (symbol == null) {
             return;
         }
@@ -980,7 +1031,7 @@ public final class SemanticAnalyzer {
     }
 
     private void linkImplements(ClassDeclaration cls) {
-        ClassSymbol symbol = classes.get(cls.name());
+        ClassSymbol symbol = classOf(cls);
         if (symbol == null) {
             return;
         }
@@ -1113,7 +1164,7 @@ public final class SemanticAnalyzer {
     }
 
     private void linkSuperClass(ClassDeclaration cls) {
-        ClassSymbol symbol = classes.get(cls.name());
+        ClassSymbol symbol = classOf(cls);
         if (symbol == null) {
             return;
         }
@@ -1153,7 +1204,7 @@ public final class SemanticAnalyzer {
             }
         }
         for (ClassDeclaration decl : unit.classes()) {
-            ClassSymbol cls = classes.get(decl.name());
+            ClassSymbol cls = classes.get(decl.qualifiedName());
             if (cls == null || cls.isBuiltin()) {
                 continue;
             }
@@ -1172,7 +1223,7 @@ public final class SemanticAnalyzer {
             if (!decl.isInterface()) {
                 continue;
             }
-            InterfaceSymbol iface = interfaces.get(decl.name());
+            InterfaceSymbol iface = interfaces.get(decl.qualifiedName());
             if (iface == null || iface.isBuiltin()) {
                 continue;
             }
@@ -1291,7 +1342,9 @@ public final class SemanticAnalyzer {
                 // allowed; volatile refs use acquire/release loads/stores
             }
             FieldSymbol fs = new FieldSymbol(
-                    symbol, field.name(), type, index, field.isStatic(), field.isVolatile(), field.location());
+                    symbol, field.name(), type, index, field.isStatic(), field.isVolatile(),
+                    field.visibility() == null ? Visibility.PACKAGE : field.visibility(),
+                    field.location());
             if (field.initializer() != null) {
                 fs.setInitializer(field.initializer());
             }
@@ -1384,6 +1437,9 @@ public final class SemanticAnalyzer {
                     symbol, method.name(), returnType, params,
                     method.isStatic(), isMain, method.isNative(), method.isAbstract(), mangled, method.location());
             ms.setTypeParameters(methodTypeParams);
+            ms.setVisibility(method.visibility() == null
+                    ? (method.isPublic() ? Visibility.PUBLIC : Visibility.PACKAGE)
+                    : method.visibility());
             if (method.isAsync()) {
                 ms.setAsync(true);
                 ms.setLogicalReturnType(logicalReturn);
@@ -1413,6 +1469,12 @@ public final class SemanticAnalyzer {
                                     + "' does not correctly override superclass method");
                 } else {
                     ms.setOverrides(parent);
+                    if (visibilityRank(ms.visibility()) < visibilityRank(parent.visibility())) {
+                        reporter.error(method.location(),
+                                "method '" + method.name()
+                                        + "' is attempting to assign weaker access privileges; was "
+                                        + parent.visibility().name().toLowerCase());
+                    }
                 }
             }
 
@@ -1452,6 +1514,9 @@ public final class SemanticAnalyzer {
                     symbol, method.name(), returnType, params,
                     method.isStatic(), false, method.isNative(), true, mangled, method.location());
             ms.setTypeParameters(methodTypeParams);
+            ms.setVisibility(method.visibility() == null
+                    ? (method.isPublic() ? Visibility.PUBLIC : Visibility.PACKAGE)
+                    : method.visibility());
             applyEffectContract(ms, method.effectContract());
             if (!symbol.addMethod(ms)) {
                 reporter.error(method.location(),
@@ -1470,7 +1535,7 @@ public final class SemanticAnalyzer {
             if (cls.nativeStruct() || cls.isInterface()) {
                 continue;
             }
-            ClassSymbol symbol = classes.get(cls.name());
+            ClassSymbol symbol = classOf(cls);
             if (symbol == null || symbol.isAbstract()) {
                 continue;
             }
@@ -1677,7 +1742,7 @@ public final class SemanticAnalyzer {
 
     private void resolveConstructorDelegations(CompilationUnit unit) {
         for (ClassDeclaration cls : unit.classes()) {
-            ClassSymbol symbol = classes.get(cls.name());
+            ClassSymbol symbol = classOf(cls);
             if (symbol == null) {
                 continue;
             }
@@ -2441,14 +2506,16 @@ public final class SemanticAnalyzer {
                 }
             }
         }
-        if (classes.containsKey(v.name())) {
+        ClassSymbol asClass = resolveClassBySourceName(v.name());
+        if (asClass != null) {
             // Class name used as static-field / static-method receiver.
-            resolvedSymbols.put(v, classes.get(v.name()));
-            return classes.get(v.name()).asType();
+            resolvedSymbols.put(v, asClass);
+            return asClass.asType();
         }
-        if (interfaces.containsKey(v.name())) {
-            resolvedSymbols.put(v, interfaces.get(v.name()));
-            return interfaces.get(v.name()).asType();
+        InterfaceSymbol asIface = resolveInterfaceBySourceName(v.name());
+        if (asIface != null) {
+            resolvedSymbols.put(v, asIface);
+            return asIface.asType();
         }
         reporter.error(v.location(), "undefined variable '" + v.name() + "'");
         return ErrorType.INSTANCE;
@@ -2612,39 +2679,45 @@ public final class SemanticAnalyzer {
         if (m.receiver() instanceof VariableExpression nv && "Native".equals(nv.name())) {
             return typeOfNativeBuiltin(m);
         }
-        if (m.receiver() instanceof VariableExpression v && classes.containsKey(v.name())) {
-            ClassSymbol cls = classes.get(v.name());
-            List<MethodSymbol> statics = new ArrayList<>();
-            for (MethodSymbol cand : cls.findMethods(m.name())) {
-                if (cand.isStatic()) {
-                    statics.add(cand);
+        if (m.receiver() instanceof VariableExpression v) {
+            ClassSymbol cls = resolveClassBySourceName(v.name());
+            if (cls != null) {
+                checkTypeAccessible(cls.visibility(), cls.packageName(), cls.name(), m.location());
+                List<MethodSymbol> statics = new ArrayList<>();
+                for (MethodSymbol cand : cls.findMethods(m.name())) {
+                    if (cand.isStatic()) {
+                        statics.add(cand);
+                    }
                 }
-            }
-            if (statics.isEmpty()) {
-                if (!cls.findMethods(m.name()).isEmpty()) {
-                    reporter.error(m.location(),
-                            "instance method '" + m.name() + "' cannot be called on a type name");
-                } else {
-                    reporter.error(m.location(),
-                            "undefined method '" + m.name() + "' in class '" + cls.name() + "'");
+                if (statics.isEmpty()) {
+                    if (!cls.findMethods(m.name()).isEmpty()) {
+                        reporter.error(m.location(),
+                                "instance method '" + m.name() + "' cannot be called on a type name");
+                    } else {
+                        reporter.error(m.location(),
+                                "undefined method '" + m.name() + "' in class '" + cls.name() + "'");
+                    }
+                    return ErrorType.INSTANCE;
                 }
-                return ErrorType.INSTANCE;
-            }
-            MethodSymbol ms = resolveOverload(statics, m, true);
-            if (ms == null) {
-                reporter.error(m.location(),
-                        "no matching overload for '" + cls.name() + "." + m.name() + "'");
-                return ErrorType.INSTANCE;
-            }
-            if (ms.isFfiIntrinsic() && "allocate".equals(ms.name())) {
-                checkArguments(m, ms);
+                MethodSymbol ms = resolveOverload(statics, m, true);
+                if (ms == null) {
+                    if (!lastOverloadAmbiguous) {
+                        reporter.error(m.location(),
+                                "no matching overload for '" + cls.name() + "." + m.name() + "'");
+                    }
+                    return ErrorType.INSTANCE;
+                }
+                checkMemberAccessible(ms.visibility(), cls, m.location(), "method", ms.name());
+                if (ms.isFfiIntrinsic() && "allocate".equals(ms.name())) {
+                    checkArguments(m, ms);
+                    checkNetworkPortLiteral(m, ms);
+                    resolvedSymbols.put(m, ms);
+                    provenances.put(m, PointerProvenance.NATIVE_HEAP);
+                    return ms.returnType();
+                }
                 checkNetworkPortLiteral(m, ms);
-                resolvedSymbols.put(m, ms);
-                provenances.put(m, PointerProvenance.NATIVE_HEAP);
-                return ms.returnType();
+                return resolveGenericCall(m, ms, expectedReturn);
             }
-            checkNetworkPortLiteral(m, ms);
-            return resolveGenericCall(m, ms, expectedReturn);
         }
         if (m.receiver() != null) {
             JType recvType = analyzeExpression(m.receiver());
@@ -2703,10 +2776,13 @@ public final class SemanticAnalyzer {
             }
             MethodSymbol ms = resolveOverload(recvClass.findMethods(m.name()), m, false);
             if (ms == null) {
-                reporter.error(m.location(),
-                        "undefined method '" + m.name() + "' in class '" + recvClass.name() + "'");
+                if (!lastOverloadAmbiguous) {
+                    reporter.error(m.location(),
+                            "undefined method '" + m.name() + "' in class '" + recvClass.name() + "'");
+                }
                 return ErrorType.INSTANCE;
             }
+            checkMemberAccessible(ms.visibility(), recvClass, m.location(), "method", ms.name());
             if (ms.isStatic()) {
                 reporter.error(m.location(),
                         "static method '" + m.name() + "' should be called without an instance");
@@ -2732,6 +2808,9 @@ public final class SemanticAnalyzer {
                 }
                 return resolveGenericCall(m, ms, expectedReturn);
             }
+            if (lastOverloadAmbiguous) {
+                return ErrorType.INSTANCE;
+            }
         }
 
         List<MethodSymbol> staticCandidates = new ArrayList<>();
@@ -2746,7 +2825,9 @@ public final class SemanticAnalyzer {
         if (found != null) {
             return resolveGenericCall(m, found, expectedReturn);
         }
-        reporter.error(m.location(), "undefined method '" + m.name() + "'");
+        if (!lastOverloadAmbiguous) {
+            reporter.error(m.location(), "undefined method '" + m.name() + "'");
+        }
         return ErrorType.INSTANCE;
     }
 
@@ -2756,11 +2837,15 @@ public final class SemanticAnalyzer {
      * When a single arity-compatible candidate exists, its parameter types are used as SAM
      * expectations so lambdas like {@code onClick(() -> {})} type-check (UI stdlib).
      */
+    /** Set when {@link #resolveOverload} rejected a call for ambiguity (diagnostic already emitted). */
+    private boolean lastOverloadAmbiguous;
+
     private MethodSymbol resolveOverload(
             List<MethodSymbol> candidates,
             MethodCallExpression m,
             boolean allowStatic
     ) {
+        lastOverloadAmbiguous = false;
         if (candidates == null || candidates.isEmpty()) {
             return null;
         }
@@ -2802,9 +2887,15 @@ public final class SemanticAnalyzer {
         if (resolved instanceof MethodSymbol ms) {
             return ms;
         }
-        if (list.size() == 1 && ((MethodSymbol) list.get(0).symbol()).parameterTypes().size() == argTypes.size()) {
-            /* let checkArguments report conversion errors for the sole candidate */
+        if (list.size() == 1) {
+            /* Sole candidate: checkArguments reports arity / conversion errors. */
             return (MethodSymbol) list.get(0).symbol();
+        }
+        if (list.size() > 1) {
+            lastOverloadAmbiguous = true;
+            reporter.error(m.location(),
+                    "ambiguous method call '" + m.name() + "' with " + argTypes.size()
+                            + " argument(s); " + list.size() + " overloads apply");
         }
         return null;
     }
@@ -3312,7 +3403,14 @@ public final class SemanticAnalyzer {
     }
 
     private JType typeOfNew(NewObjectExpression n, JType expected) {
-        NativeStructSymbol nativeStruct = nativeStructs.get(n.className());
+        String resolvedNew = resolveTypeReferenceName(n.className(), n.location());
+        if (resolvedNew == null) {
+            for (Expression arg : n.arguments()) {
+                analyzeExpression(arg);
+            }
+            return ErrorType.INSTANCE;
+        }
+        NativeStructSymbol nativeStruct = nativeStructs.get(resolvedNew);
         if (nativeStruct != null) {
             for (Expression arg : n.arguments()) {
                 analyzeExpression(arg);
@@ -3328,15 +3426,16 @@ public final class SemanticAnalyzer {
             resolvedSymbols.put(n, nativeStruct);
             return nativeStruct.asType();
         }
-        if (interfaces.containsKey(n.className())) {
+        if (interfaces.containsKey(resolvedNew)) {
             reporter.error(n.location(), "cannot instantiate interface '" + n.className() + "'");
             return ErrorType.INSTANCE;
         }
-        ClassSymbol symbol = classes.get(n.className());
+        ClassSymbol symbol = classes.get(resolvedNew);
         if (symbol == null) {
             reporter.error(n.location(), "undefined class '" + n.className() + "'");
             return ErrorType.INSTANCE;
         }
+        checkTypeAccessible(symbol.visibility(), symbol.packageName(), symbol.name(), n.location());
         List<JType> typeArgs = resolveExplicitTypeArguments(n.typeArguments(), n.location());
         if (n.diamond()) {
             if (expected instanceof ParameterizedType pt
@@ -3501,6 +3600,7 @@ public final class SemanticAnalyzer {
             return ErrorType.INSTANCE;
         }
         FieldSymbol fs = field.get();
+        checkMemberAccessible(fs.visibility(), recvClass, f.location(), "field", fs.name());
         boolean receiverIsTypeName = f.receiver() instanceof VariableExpression ve
                 && resolvedSymbols.get(ve) instanceof ClassSymbol;
         if (fs.isStatic()) {
@@ -3641,14 +3741,19 @@ public final class SemanticAnalyzer {
     }
 
     private JType resolveClassTypeName(TypeName typeName, SourceLocation loc) {
-        if ("NativePtr".equals(typeName.name())) {
+        String raw = typeName.name();
+        if ("NativePtr".equals(raw)) {
             return NativePtrType.VOID;
         }
-        TypeParameterSymbol typeParam = lookupTypeParameter(typeName.name());
+        TypeParameterSymbol typeParam = lookupTypeParameter(raw);
         if (typeParam != null && !typeName.hasTypeArguments()) {
             return typeParam.asType();
         }
-        NativeStructSymbol nativeStruct = nativeStructs.get(typeName.name());
+        String resolvedName = resolveTypeReferenceName(raw, loc);
+        if (resolvedName == null) {
+            return ErrorType.INSTANCE;
+        }
+        NativeStructSymbol nativeStruct = nativeStructs.get(resolvedName);
         if (nativeStruct != null) {
             if (typeName.hasTypeArguments()) {
                 reporter.error(loc, "native struct cannot be parameterized");
@@ -3656,12 +3761,15 @@ public final class SemanticAnalyzer {
             return nativeStruct.asType();
         }
         List<JType> args = resolveExplicitTypeArguments(typeName.typeArguments(), loc);
-        InterfaceSymbol iface = interfaces.get(typeName.name());
+        InterfaceSymbol iface = interfaces.get(resolvedName);
         if (iface != null) {
+            if (!checkTypeAccessible(iface.visibility(), iface.packageName(), iface.name(), loc)) {
+                return ErrorType.INSTANCE;
+            }
             if (iface.isGeneric() && args.isEmpty() && !instanceofContext) {
                 reporter.error(loc,
-                        "raw types are not supported; use " + typeName.name() + "<?> or "
-                                + typeName.name() + "<T>");
+                        "raw types are not supported; use " + iface.simpleName() + "<?> or "
+                                + iface.simpleName() + "<T>");
                 return ErrorType.INSTANCE;
             }
             if (!args.isEmpty()) {
@@ -3675,15 +3783,18 @@ public final class SemanticAnalyzer {
             }
             return iface.asType();
         }
-        ClassSymbol symbol = classes.get(typeName.name());
+        ClassSymbol symbol = classes.get(resolvedName);
         if (symbol == null) {
-            reporter.error(loc, "undefined class '" + typeName.name() + "'");
+            reporter.error(loc, "undefined class '" + raw + "'");
+            return ErrorType.INSTANCE;
+        }
+        if (!checkTypeAccessible(symbol.visibility(), symbol.packageName(), symbol.name(), loc)) {
             return ErrorType.INSTANCE;
         }
         if (symbol.isGeneric() && args.isEmpty() && !instanceofContext) {
             reporter.error(loc,
-                    "raw types are not supported; use " + typeName.name() + "<?> or "
-                            + typeName.name() + "<T>");
+                    "raw types are not supported; use " + symbol.simpleName() + "<?> or "
+                            + symbol.simpleName() + "<T>");
             return ErrorType.INSTANCE;
         }
         if (!args.isEmpty()) {
@@ -3696,6 +3807,222 @@ public final class SemanticAnalyzer {
             return new ParameterizedType(symbol, args);
         }
         return symbol.asType();
+    }
+
+    private ClassSymbol resolveClassBySourceName(String raw) {
+        String fqn = resolveTypeReferenceNameQuiet(raw);
+        if (fqn == null) {
+            return null;
+        }
+        return classes.get(fqn);
+    }
+
+    private InterfaceSymbol resolveInterfaceBySourceName(String raw) {
+        String fqn = resolveTypeReferenceNameQuiet(raw);
+        if (fqn == null) {
+            return null;
+        }
+        return interfaces.get(fqn);
+    }
+
+    private static int visibilityRank(Visibility v) {
+        if (v == null) {
+            return 1; // package
+        }
+        return switch (v) {
+            case PUBLIC -> 3;
+            case PROTECTED -> 2;
+            case PACKAGE -> 1;
+            case PRIVATE -> 0;
+        };
+    }
+
+    /**
+     * Resolve a source type name to an FQN using imports and the current type's package.
+     */
+    private String resolveTypeReferenceName(String raw, SourceLocation loc) {
+        if (raw == null || raw.isEmpty()) {
+            return null;
+        }
+        if (!raw.contains(".")) {
+            String ambigImport = ambiguousImportFor(raw);
+            if (ambigImport != null) {
+                reporter.error(loc, ambigImport);
+                return null;
+            }
+        }
+        String fqn = resolveTypeReferenceNameQuiet(raw);
+        if (fqn != null) {
+            if (!raw.contains(".")
+                    && !classes.containsKey(fqn) && !interfaces.containsKey(fqn)
+                    && !nativeStructs.containsKey(fqn)) {
+                reporter.error(loc, "undefined class '" + fqn + "'");
+                return null;
+            }
+            return fqn;
+        }
+        if (raw.contains(".")) {
+            reporter.error(loc, "undefined class '" + raw + "'");
+            return null;
+        }
+        String pkg = currentPackageName();
+        List<String> candidates = typesBySimpleName.getOrDefault(raw, List.of());
+        if (candidates.size() > 1) {
+            reporter.error(loc, "ambiguous type '" + raw + "'; candidates: "
+                    + String.join(", ", candidates));
+            return null;
+        }
+        if (candidates.size() == 1) {
+            reporter.error(loc, "undefined class '" + raw + "' in package '"
+                    + (pkg.isEmpty() ? "<default>" : pkg)
+                    + "'; use a fully qualified name or import");
+            return null;
+        }
+        reporter.error(loc, "undefined class '" + raw + "'");
+        return null;
+    }
+
+    private String ambiguousImportFor(String simple) {
+        String first = null;
+        for (String imp : currentImportTypes()) {
+            int dot = imp.lastIndexOf('.');
+            String s = dot < 0 ? imp : imp.substring(dot + 1);
+            if (s.equals(simple)) {
+                if (first != null && !first.equals(imp)) {
+                    return "ambiguous type '" + simple + "'; imported as both "
+                            + first + " and " + imp;
+                }
+                first = imp;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Quiet resolution for expression/type-name probes (no diagnostics).
+     * Returns FQN when uniquely determined via FQN, import, same package, or default-package alias.
+     */
+    private String resolveTypeReferenceNameQuiet(String raw) {
+        if (raw == null || raw.isEmpty()) {
+            return null;
+        }
+        if (raw.contains(".")) {
+            if (classes.containsKey(raw) || interfaces.containsKey(raw) || nativeStructs.containsKey(raw)) {
+                return raw;
+            }
+            return null;
+        }
+        List<String> imports = currentImportTypes();
+        String fromImport = null;
+        for (String imp : imports) {
+            int dot = imp.lastIndexOf('.');
+            String simple = dot < 0 ? imp : imp.substring(dot + 1);
+            if (simple.equals(raw)) {
+                if (fromImport != null && !fromImport.equals(imp)) {
+                    return null; // ambiguous imports — noisy path reports
+                }
+                fromImport = imp;
+            }
+        }
+        if (fromImport != null) {
+            return fromImport;
+        }
+        String pkg = currentPackageName();
+        if (!pkg.isEmpty()) {
+            String samePkg = pkg + "." + raw;
+            if (classes.containsKey(samePkg) || interfaces.containsKey(samePkg)
+                    || nativeStructs.containsKey(samePkg)) {
+                return samePkg;
+            }
+        }
+        if (classes.containsKey(raw) || interfaces.containsKey(raw) || nativeStructs.containsKey(raw)) {
+            return raw;
+        }
+        List<String> candidates = typesBySimpleName.getOrDefault(raw, List.of());
+        if (candidates.size() == 1) {
+            String only = candidates.getFirst();
+            if (pkg.isEmpty() && !only.contains(".")) {
+                return only;
+            }
+        }
+        return null;
+    }
+
+    private void beginResolve(ClassDeclaration cls) {
+        resolvePackage = cls.packageName() == null ? "" : cls.packageName();
+        resolveImports = cls.imports().stream().map(ImportDeclaration::qualifiedType).toList();
+        currentClass = cls.isInterface() || cls.nativeStruct() ? null : classOf(cls);
+    }
+
+    private void endResolve() {
+        resolvePackage = "";
+        resolveImports = List.of();
+        currentClass = null;
+    }
+
+    private String currentPackageName() {
+        if (resolvePackage != null && !resolvePackage.isEmpty()) {
+            return resolvePackage;
+        }
+        if (currentClass != null) {
+            return currentClass.packageName();
+        }
+        return "";
+    }
+
+    private List<String> currentImportTypes() {
+        if (resolveImports != null && !resolveImports.isEmpty()) {
+            return resolveImports;
+        }
+        if (currentClass != null) {
+            return currentClass.importTypes();
+        }
+        return List.of();
+    }
+
+    private boolean checkTypeAccessible(
+            Visibility visibility, String typePkg, String typeFqn, SourceLocation loc) {
+        String fromPkg = currentPackageName();
+        String fromFqn = currentClass == null ? "" : currentClass.name();
+        if (visibility.accessibleFrom(typePkg, typeFqn, fromPkg, fromFqn, false)) {
+            return true;
+        }
+        reporter.error(loc, "type '" + typeFqn + "' is not accessible from "
+                + (fromPkg.isEmpty() ? "<default package>" : fromPkg));
+        return false;
+    }
+
+    private boolean isSubtypeOf(ClassSymbol sub, ClassSymbol sup) {
+        ClassSymbol cur = sub;
+        while (cur != null) {
+            if (cur == sup) {
+                return true;
+            }
+            cur = cur.superClass().orElse(null);
+        }
+        return false;
+    }
+
+    private void checkMemberAccessible(
+            Visibility visibility,
+            ClassSymbol owner,
+            SourceLocation loc,
+            String memberKind,
+            String memberName
+    ) {
+        if (owner == null || visibility == null) {
+            return;
+        }
+        String fromPkg = currentPackageName();
+        String fromFqn = currentClass == null ? "" : currentClass.name();
+        boolean subtype = currentClass != null && isSubtypeOf(currentClass, owner);
+        if (visibility.accessibleFrom(owner.packageName(), owner.name(), fromPkg, fromFqn, subtype)) {
+            return;
+        }
+        reporter.error(loc, memberKind + " '" + owner.simpleName() + "." + memberName
+                + "' has " + visibility.name().toLowerCase()
+                + " access and is not accessible from "
+                + (fromPkg.isEmpty() ? "<default package>" : fromPkg));
     }
 
     private JType resolveWildcardType(TypeName typeName, SourceLocation loc) {

@@ -5,15 +5,18 @@
       .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
   }
   function money(n) {
+    if (global.JnI18n) return global.JnI18n.formatMoney(n, "USD");
     var v = Number(n) || 0;
-    return "CNY " + v.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    return "USD " + v.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   }
   function qty(n) {
+    if (global.JnI18n) return global.JnI18n.formatNumber(n);
     return String(Number(n) || 0);
   }
   function statusHtml(s) {
     var v = s || "OPEN";
-    return '<span class="jn-status ' + esc(v) + '">' + esc(v) + "</span>";
+    var label = global.JnI18n ? global.JnI18n.statusLabel(v) : v;
+    return '<span class="jn-status ' + esc(v) + '">' + esc(label) + "</span>";
   }
   function cell(col, row) {
     var v = row[col.key];
@@ -40,7 +43,8 @@
       '<span class="spacer" style="flex:1"></span><button type="button" class="jn-icon-btn" data-close>x</button></div>' +
       '<div class="jn-modal-body">' + (opts.bodyHtml || "") + "</div>" +
       '<div class="jn-modal-footer">' +
-      '<button type="button" class="jn-btn" data-close>Cancel</button>' +
+      '<button type="button" class="jn-btn" data-close>' +
+      esc((global.JnI18n && global.JnI18n.t("common.cancel")) || "Cancel") + "</button>" +
       (opts.primaryLabel ? '<button type="button" class="jn-btn primary" data-ok>' + esc(opts.primaryLabel) + "</button>" : "") +
       "</div></div>";
     function close() { backdrop.remove(); }

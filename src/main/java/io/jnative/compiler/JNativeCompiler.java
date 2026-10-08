@@ -39,20 +39,24 @@ public final class JNativeCompiler {
     /**
      * Frontend-only analysis for IDE (lex → parse → semantic). No IR/LLVM/link.
      * Version is caller-owned; stale results should be discarded when sources advance.
+     * Diagnostics are remapped from stdlib-prepended buffers onto the user source.
      */
     public Compilation analyze(SourceUnit unit, long version) {
         DiagnosticReporter reporter = new DiagnosticReporter();
         if (unit == null) {
             return new Compilation(version, null, null, null, reporter.diagnostics(), false, 0, 0);
         }
+        String userSource = unit.sourceText();
         String sourceText;
         try {
-            sourceText = io.jnative.stdlib.StdlibIncluder.prependStdlibs(unit.sourceText());
+            sourceText = io.jnative.stdlib.StdlibIncluder.prependStdlibs(userSource);
         } catch (IOException e) {
             reporter.error(SourceLocation.UNKNOWN, "failed to load stdlib: " + e.getMessage());
             return new Compilation(version, null, null, null, reporter.diagnostics(), false, 0, 0);
         }
-        String fileName = unit.path() == null ? "Memory.java" : unit.path();
+        int userLineOffset = io.jnative.diagnostics.DiagnosticJson.userLineOffset(sourceText, userSource);
+        String userPath = unit.path() == null ? "Memory.java" : unit.path();
+        String fileName = userPath;
         int slash = Math.max(fileName.lastIndexOf('/'), fileName.lastIndexOf('\\'));
         if (slash >= 0 && slash + 1 < fileName.length()) {
             fileName = fileName.substring(slash + 1);
@@ -68,17 +72,22 @@ public final class JNativeCompiler {
         Parser parser = new Parser(tokens, reporter);
         CompilationUnit ast = parser.parse(fileName);
         long parseMs = (System.nanoTime() - t0) / 1_000_000L;
-        SyntaxTree tree = new SyntaxTree(fileName, unit.sourceText(), ast, reporter.diagnostics(), version);
         if (reporter.hasErrors()) {
-            return new Compilation(version, tree, null, null, reporter.diagnostics(), false, parseMs, 0);
+            List<io.jnative.diagnostics.Diagnostic> diags = io.jnative.diagnostics.DiagnosticJson.remapToUserSource(
+                    reporter.diagnostics(), userPath, userLineOffset);
+            SyntaxTree tree = new SyntaxTree(fileName, userSource, ast, diags, version);
+            return new Compilation(version, tree, null, null, diags, false, parseMs, 0);
         }
         long t1 = System.nanoTime();
         SemanticAnalyzer analyzer = new SemanticAnalyzer(reporter);
         TypedCompilationUnit typed = analyzer.analyze(ast);
         long semMs = (System.nanoTime() - t1) / 1_000_000L;
         SemanticModel model = typed == null ? null : new SemanticModel(typed, version);
-        boolean ok = !reporter.hasErrors();
-        return new Compilation(version, tree, typed, model, reporter.diagnostics(), ok, parseMs, semMs);
+        List<io.jnative.diagnostics.Diagnostic> diags = io.jnative.diagnostics.DiagnosticJson.remapToUserSource(
+                reporter.diagnostics(), userPath, userLineOffset);
+        boolean ok = diags.stream().noneMatch(d -> d.severity() == io.jnative.diagnostics.Diagnostic.Severity.ERROR);
+        SyntaxTree tree = new SyntaxTree(fileName, userSource, ast, diags, version);
+        return new Compilation(version, tree, typed, model, diags, ok, parseMs, semMs);
     }
 
     /** Analyze a path on disk (frontend only). */
@@ -86,7 +95,7 @@ public final class JNativeCompiler {
         DiagnosticReporter reporter = new DiagnosticReporter();
         try {
             String text = Files.readString(source, StandardCharsets.UTF_8);
-            return analyze(new SourceUnit(source.getFileName().toString(), text), version);
+            return analyze(SourceUnit.ofPath(source.toAbsolutePath().normalize(), text), version);
         } catch (IOException e) {
             reporter.error(SourceLocation.UNKNOWN, "failed to read: " + e.getMessage());
             return new Compilation(version, null, null, null, reporter.diagnostics(), false, 0, 0);
@@ -147,8 +156,13 @@ public final class JNativeCompiler {
                     "failed to read source: " + e.getMessage());
             return fail(reporter);
         }
+        String userForMap = userSource;
 
         String fileName = source.getFileName().toString();
+        if (options.emitSourceDebugInfo() && options.optLevel() > 0) {
+            System.err.println("warning: --debug with -O" + options.optLevel()
+                    + ": optimizations may impair stepping and local variable visibility");
+        }
 
         // Lexer
         Lexer lexer = new Lexer(sourceText, fileName);
@@ -196,6 +210,7 @@ public final class JNativeCompiler {
         if (!metaResult.artifacts().isEmpty() && !userSource.contains("BEGIN GENERATED META")) {
             String mergedUser = io.jnative.processor.ProcessorScheduler.mergeGeneratedSources(
                     userSource, metaResult.artifacts());
+            userForMap = mergedUser;
             try {
                 sourceText = io.jnative.stdlib.StdlibIncluder.prependStdlibs(mergedUser);
             } catch (IOException e) {
@@ -318,8 +333,27 @@ public final class JNativeCompiler {
             return new CompileResult(true, ast, null, null, null, reporter.diagnostics());
         }
 
-        // IR
-        IrModule ir = new IrGenerator().generate(typed);
+        // IR (map stdlib-prepended locations back onto original user .java files)
+        io.jnative.ir.SourceLineMap lineMap = null;
+        Path mapFile = options.sourceLineMapFile();
+        if (mapFile == null) {
+            Path sibling = Path.of(source.toString() + ".linemap");
+            if (Files.isRegularFile(sibling)) {
+                mapFile = sibling;
+            }
+        }
+        if (mapFile != null && Files.isRegularFile(mapFile)) {
+            try {
+                lineMap = io.jnative.ir.SourceLineMap.read(mapFile);
+            } catch (IOException e) {
+                reporter.error(new SourceLocation(source.toString(), 0, 0),
+                        "failed to read source line map: " + e.getMessage());
+                return fail(reporter);
+            }
+        }
+        io.jnative.ir.SourceLocationMapper locMap = io.jnative.ir.SourceLocationMapper.forPrepended(
+                source.toString(), sourceText, userForMap, lineMap);
+        IrModule ir = new IrGenerator(locMap, options.emitSourceDebugInfo()).generate(typed);
 
         if (options.emitAsync()) {
             System.out.print(AsyncReport.emit(ir, typed));
@@ -513,6 +547,15 @@ public final class JNativeCompiler {
                         "clang failed with exit code " + linkResult.exitCode()
                                 + (linkResult.output().isBlank() ? "" : "\n" + linkResult.output()));
                 return new CompileResult(false, ast, ir, llvmIr, null, reporter.diagnostics());
+            }
+            if (options.emitSourceDebugInfo() && ir != null && output != null) {
+                try {
+                    io.jnative.backend.llvm.DebugCatalogEmitter.write(output, ir);
+                } catch (IOException e) {
+                    reporter.error(SourceLocation.UNKNOWN,
+                            "failed to write debug catalog: " + e.getMessage());
+                    return new CompileResult(false, ast, ir, llvmIr, output, reporter.diagnostics());
+                }
             }
             if (options.runAfterBuild()) {
                 int code = runNativeExecutable(output, options);

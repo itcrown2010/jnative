@@ -1,6 +1,7 @@
 package io.jnative.ir;
 
 import io.jnative.ast.*;
+import io.jnative.diagnostics.SourceLocation;
 import io.jnative.generic.GenericLowering;
 import io.jnative.ffi.AbiType;
 import io.jnative.layout.ClassLayout;
@@ -73,6 +74,17 @@ public final class IrGenerator {
     private int awaitStateCounter;
     /** Async frame temp produced by {@link IrInstruction.AsyncBegin}. */
     private IrValue asyncFrame;
+    private final SourceLocationMapper locationMapper;
+    private boolean emitSourceDebug;
+
+    public IrGenerator() {
+        this(SourceLocationMapper.identity(), false);
+    }
+
+    public IrGenerator(SourceLocationMapper locationMapper, boolean emitSourceDebug) {
+        this.locationMapper = locationMapper == null ? SourceLocationMapper.identity() : locationMapper;
+        this.emitSourceDebug = emitSourceDebug;
+    }
 
     private record TryFrame(
             IrBasicBlock dispatchBlock,
@@ -99,6 +111,19 @@ public final class IrGenerator {
         this.typed = typed;
         CompilationUnit unit = typed.unit();
         IrModule module = new IrModule(unit.fileName());
+        if (emitSourceDebug) {
+            module.debugInfo().setEnabled(true);
+            String abs = locationMapper.userFile();
+            if (abs != null && !abs.isEmpty()) {
+                java.nio.file.Path p = java.nio.file.Path.of(abs);
+                java.nio.file.Path parent = p.getParent();
+                module.debugInfo().setCompileUnit(
+                        parent == null ? "" : parent.toString(),
+                        p.getFileName().toString());
+            } else {
+                module.debugInfo().setCompileUnit("", unit.fileName());
+            }
+        }
         builder = new IrBuilder(module);
 
         for (ClassSymbol cls : typed.classes().values()) {
@@ -144,7 +169,10 @@ public final class IrGenerator {
             if (cls.nativeStruct()) {
                 continue;
             }
-            ClassSymbol classSymbol = typed.classes().get(cls.name());
+            ClassSymbol classSymbol = typed.classes().get(cls.qualifiedName());
+            if (classSymbol == null) {
+                classSymbol = typed.classes().get(cls.name());
+            }
             if (classSymbol == null) {
                 continue;
             }
@@ -687,7 +715,7 @@ public final class IrGenerator {
 
     private ClassDeclaration findClassDeclaration(CompilationUnit unit, String name) {
         for (ClassDeclaration cls : unit.classes()) {
-            if (cls.name().equals(name)) {
+            if (cls.qualifiedName().equals(name) || cls.name().equals(name)) {
                 return cls;
             }
         }
@@ -806,12 +834,19 @@ public final class IrGenerator {
         if ("NativePtr".equals(typeName.name())) {
             return NativePtrType.VOID;
         }
-        NativeStructSymbol ns = typed.nativeStructs().get(typeName.name());
+        String resolved = resolveTypeKey(typeName.name());
+        NativeStructSymbol ns = typed.nativeStructs().get(resolved);
+        if (ns == null) {
+            ns = typed.nativeStructs().get(typeName.name());
+        }
         if (ns != null) {
             return ns.asType();
         }
         List<JType> args = resolveTypeArguments(typeName.typeArguments());
-        ClassSymbol cs = typed.classes().get(typeName.name());
+        ClassSymbol cs = typed.classes().get(resolved);
+        if (cs == null) {
+            cs = typed.classes().get(typeName.name());
+        }
         if (cs != null) {
             if (!args.isEmpty() && cs.isGeneric()) {
                 ParameterizedType pt = new ParameterizedType(cs, args);
@@ -824,7 +859,10 @@ public final class IrGenerator {
             }
             return cs.asType();
         }
-        var iface = typed.interfaces().get(typeName.name());
+        var iface = typed.interfaces().get(resolved);
+        if (iface == null) {
+            iface = typed.interfaces().get(typeName.name());
+        }
         if (iface != null) {
             if (!args.isEmpty() && iface.isGeneric()) {
                 return iface.asType();
@@ -832,6 +870,38 @@ public final class IrGenerator {
             return iface.asType();
         }
         return ErrorType.INSTANCE;
+    }
+
+    /**
+     * Map a source type name to the FQN key used in {@link TypedCompilationUnit} tables,
+     * using the current class's language package and explicit imports.
+     */
+    private String resolveTypeKey(String raw) {
+        if (raw == null || raw.isEmpty()) {
+            return raw;
+        }
+        if (raw.contains(".")) {
+            return raw;
+        }
+        if (currentClass != null) {
+            for (String imp : currentClass.importTypes()) {
+                int dot = imp.lastIndexOf('.');
+                String simple = dot < 0 ? imp : imp.substring(dot + 1);
+                if (simple.equals(raw)) {
+                    return imp;
+                }
+            }
+            String pkg = currentClass.packageName();
+            if (pkg != null && !pkg.isEmpty()) {
+                String samePkg = pkg + "." + raw;
+                if (typed.classes().containsKey(samePkg)
+                        || typed.interfaces().containsKey(samePkg)
+                        || typed.nativeStructs().containsKey(samePkg)) {
+                    return samePkg;
+                }
+            }
+        }
+        return raw;
     }
 
     private List<JType> resolveTypeArguments(List<TypeName> typeArgs) {
@@ -948,6 +1018,19 @@ public final class IrGenerator {
         abruptTargets.clear();
         loopFrames.clear();
 
+        SourceLocation methodLoc = mapLoc(method.location());
+        if (methodLoc == SourceLocation.UNKNOWN && ms.location() != null) {
+            methodLoc = mapLoc(ms.location());
+        }
+        builder.setLocation(methodLoc);
+        if (emitSourceDebug && methodLoc != SourceLocation.UNKNOWN) {
+            String display = ms.name();
+            if (ms.owner() != null) {
+                display = ms.owner().name() + "." + ms.name();
+            }
+            builder.module().debugInfo().setFunction(function, display, methodLoc);
+        }
+
         if (ms.isAsync()) {
             IrValue.Temp frame = builder.temp(IrType.PTR);
             builder.emit(new IrInstruction.AsyncBegin(
@@ -956,12 +1039,18 @@ public final class IrGenerator {
         }
 
         if (!ms.isStatic()) {
-            IrValue.Local thisLocal = builder.alloca("this", IrType.PTR);
+            builder.setLocation(methodLoc);
+            String thisTy = ms.owner() != null ? ms.owner().name() : null;
+            IrValue.Local thisLocal = builder.alloca("this", IrType.PTR, true, 0, thisTy);
             builder.store(new IrValue.Param("this", IrType.PTR), thisLocal);
         }
+        int argIndex = ms.isStatic() ? 0 : 1;
         for (var p : ms.parameters()) {
+            SourceLocation pLoc = p.location() != null ? mapLoc(p.location()) : methodLoc;
+            builder.setLocation(pLoc);
             IrType irType = IrType.from(p.type());
-            IrValue.Local local = builder.alloca(p.name(), irType);
+            IrValue.Local local = builder.alloca(
+                    p.name(), irType, true, argIndex++, debugTypeName(p.type()));
             builder.store(new IrValue.Param(p.name(), irType), local);
         }
 
@@ -982,9 +1071,47 @@ public final class IrGenerator {
         asyncFrame = null;
     }
 
+    private SourceLocation mapLoc(SourceLocation loc) {
+        return locationMapper.map(loc);
+    }
+
+    /** Stable Java type name for DWARF / LLDB (null for primitives). */
+    private static String debugTypeName(JType type) {
+        if (type == null) {
+            return null;
+        }
+        if (type instanceof ClassType ct) {
+            return ct.name();
+        }
+        if (type instanceof InterfaceType it) {
+            return it.name();
+        }
+        if (type instanceof ArrayType at) {
+            String elem = debugTypeName(at.elementType());
+            if (elem == null) {
+                IrType ir = IrType.from(at.elementType());
+                elem = switch (ir) {
+                    case I1 -> "boolean";
+                    case I8 -> "byte";
+                    case I16 -> "short";
+                    case I32 -> "int";
+                    case I64 -> "long";
+                    case FLOAT -> "float";
+                    case DOUBLE -> "double";
+                    default -> "ptr";
+                };
+            }
+            return elem + "[]";
+        }
+        return null;
+    }
+
     private void lowerStatement(Statement stmt) {
         if (builder.block().isTerminated()) {
             return;
+        }
+        if (stmt != null) {
+            builder.setLocation(mapLoc(stmt.location()));
         }
         switch (stmt) {
             case BlockStatement b -> {
@@ -1010,15 +1137,20 @@ public final class IrGenerator {
                     break;
                 }
                 IrType type = IrType.from(jt);
-                IrValue.Local local = builder.alloca(v.name(), type);
+                IrValue.Local local = builder.alloca(v.name(), type, false, -1, debugTypeName(jt));
                 if (v.initializer() != null) {
+                    builder.setLocation(mapLoc(v.initializer().location()));
                     IrValue value = lowerExpression(v.initializer());
+                    builder.setLocation(mapLoc(v.location()));
                     builder.store(castIfNeeded(value, type), local);
                 } else {
                     builder.store(defaultValue(type), local);
                 }
             }
-            case ExpressionStatement e -> lowerExpression(e.expression());
+            case ExpressionStatement e -> {
+                builder.setLocation(mapLoc(e.expression().location()));
+                lowerExpression(e.expression());
+            }
             case IfStatement i -> lowerIf(i);
             case WhileStatement w -> lowerWhile(w);
             case DoWhileStatement d -> lowerDoWhile(d);

@@ -1,0 +1,65 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "jnative-debug-demo",
+      "type": "shell",
+      "command": "java",
+      "args": [
+        "-jar",
+        "${workspaceFolder}/target/jnative.jar",
+        "--debug",
+        "${workspaceFolder}/examples/debug/DebugDemo.java",
+        "-o",
+        "${workspaceFolder}/examples/debug/DebugDemo"
+      ],
+      "group": "build",
+      "problemMatcher": []
+    },
+    {
+      "label": "jnative-object-debug-demo",
+      "type": "shell",
+      "command": "java",
+      "args": [
+        "-jar",
+        "${workspaceFolder}/target/jnative.jar",
+        "--debug",
+        "${workspaceFolder}/examples/debug/ObjectDebugDemo.java",
+        "-o",
+        "${workspaceFolder}/examples/debug/ObjectDebugDemo"
+      ],
+      "group": "build",
+      "problemMatcher": []
+    },
+    {
+      "label": "jnative-gc-debug-demo",
+      "type": "shell",
+      "command": "java",
+      "args": [
+        "-jar",
+        "${workspaceFolder}/target/jnative.jar",
+        "--debug",
+        "${workspaceFolder}/examples/debug/GcDebugDemo.java",
+        "-o",
+        "${workspaceFolder}/examples/debug/GcDebugDemo"
+      ],
+      "group": "build",
+      "problemMatcher": []
+    },
+    {
+      "label": "jnative-exception-debug-demo",
+      "type": "shell",
+      "command": "java",
+      "args": [
+        "-jar",
+        "${workspaceFolder}/target/jnative.jar",
+        "--debug",
+        "${workspaceFolder}/examples/debug/ExceptionDebugDemo.java",
+        "-o",
+        "${workspaceFolder}/examples/debug/ExceptionDebugDemo"
+      ],
+      "group": "build",
+      "problemMatcher": []
+    }
+  ]
+}

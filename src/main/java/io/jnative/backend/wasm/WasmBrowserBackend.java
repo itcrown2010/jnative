@@ -106,7 +106,10 @@ public final class WasmBrowserBackend implements TargetBackend {
                 + "</head>\n"
                 + "<body>\n"
                 + "  <div id=\"app\"></div>\n"
-                + "  <script type=\"module\" src=\"./app.js\"></script>\n"
+                + "  <script type=\"module\">\n"
+                + "    import { jnativeStart } from './app.js';\n"
+                + "    jnativeStart().catch((e) => console.error(e));\n"
+                + "  </script>\n"
                 + "</body>\n"
                 + "</html>\n";
     }
