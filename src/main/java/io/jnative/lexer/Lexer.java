@@ -69,17 +69,17 @@ public final class Lexer {
                     addToken(TokenType.MINUS);
                 }
             }
-            case ':' -> {
-                if (match(':')) {
-                    addToken(TokenType.COLON_COLON);
-                } else {
-                    errorToken("unexpected character ':'");
-                }
-            }
             case '*' -> addToken(TokenType.STAR);
             case '%' -> addToken(TokenType.PERCENT);
             case '!' -> addToken(match('=') ? TokenType.NE : TokenType.NOT);
             case '?' -> addToken(TokenType.QUESTION);
+            case ':' -> {
+                if (match(':')) {
+                    addToken(TokenType.COLON_COLON);
+                } else {
+                    addToken(TokenType.COLON);
+                }
+            }
             case '=' -> addToken(match('=') ? TokenType.EQ : TokenType.ASSIGN);
             case '<' -> addToken(match('=') ? TokenType.LE : TokenType.LT);
             case '>' -> addToken(match('=') ? TokenType.GE : TokenType.GT);
@@ -87,16 +87,18 @@ public final class Lexer {
                 if (match('&')) {
                     addToken(TokenType.AND);
                 } else {
-                    errorToken("unexpected character '&'");
+                    addToken(TokenType.BIT_AND);
                 }
             }
             case '|' -> {
                 if (match('|')) {
                     addToken(TokenType.OR);
                 } else {
-                    errorToken("unexpected character '|'");
+                    addToken(TokenType.BIT_OR);
                 }
             }
+            case '^' -> addToken(TokenType.BIT_XOR);
+            case '~' -> addToken(TokenType.BIT_NOT);
             case '/' -> {
                 if (match('/')) {
                     while (peek() != '\n' && !isAtEnd()) {

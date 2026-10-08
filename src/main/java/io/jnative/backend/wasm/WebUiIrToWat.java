@@ -474,7 +474,7 @@ public final class WebUiIrToWat {
             }
             case IrInstruction.Cast c -> {
                 out.append("          ").append(emitValue(c.source())).append("\n");
-                emitCast(typeOf(c.source()), c.target(), out);
+                emitCast(typeOf(c.source()), c.target(), c.mode(), out);
                 out.append("          local.set $t").append(c.dest().id()).append("\n");
                 return false;
             }
@@ -675,6 +675,10 @@ public final class WebUiIrToWat {
             case MOD -> p + ".rem_s";
             case AND -> p + ".and";
             case OR -> p + ".or";
+            case XOR -> p + ".xor";
+            case SHL -> p + ".shl";
+            case ASHR -> p + ".shr_s";
+            case LSHR -> p + ".shr_u";
         };
         out.append("          ").append(op).append("\n");
         out.append("          local.set $t").append(b.dest().id()).append("\n");
@@ -697,20 +701,45 @@ public final class WebUiIrToWat {
         out.append("          local.set $t").append(c.dest().id()).append("\n");
     }
 
-    private void emitCast(IrType from, IrType to, StringBuilder out) {
+    private void emitCast(IrType from, IrType to, IrInstruction.CastMode mode, StringBuilder out) {
         if (from == to) {
             return;
         }
+        boolean zext = mode == IrInstruction.CastMode.ZERO;
         if (isI32Family(from) && to == IrType.I64) {
-            out.append("          i64.extend_i32_s\n");
+            out.append(zext ? "          i64.extend_i32_u\n" : "          i64.extend_i32_s\n");
             return;
         }
         if (from == IrType.I64 && isI32Family(to)) {
             out.append("          i32.wrap_i64\n");
+            // Truncate/mask for narrow integer targets that share the i32 WAT slot.
+            if (to == IrType.I16) {
+                out.append("          i32.const 65535\n");
+                out.append("          i32.and\n");
+            } else if (to == IrType.I8) {
+                out.append("          i32.const 255\n");
+                out.append("          i32.and\n");
+            } else if (to == IrType.I1) {
+                out.append("          i32.const 1\n");
+                out.append("          i32.and\n");
+            }
             return;
         }
-        // Same WAT width (i1/i8/i16/i32) — no-op
+        // Same WAT width (i1/i8/i16/i32): mask on narrow/zext so char/byte semantics hold.
         if (isI32Family(from) && isI32Family(to)) {
+            if (to == IrType.I16 || (zext && from == IrType.I16)) {
+                out.append("          i32.const 65535\n");
+                out.append("          i32.and\n");
+            } else if (to == IrType.I8) {
+                out.append("          i32.const 255\n");
+                out.append("          i32.and\n");
+            } else if (to == IrType.I1) {
+                out.append("          i32.const 1\n");
+                out.append("          i32.and\n");
+            } else if (zext && from == IrType.I8) {
+                out.append("          i32.const 255\n");
+                out.append("          i32.and\n");
+            }
             return;
         }
         throw new IllegalStateException("wasm: unsupported cast " + from + " -> " + to);

@@ -1,0 +1,6 @@
+{
+  "name": "multi-cu-app",
+  "source": ["src"],
+  "main": "Main",
+  "output": "build/multi-cu-app"
+}

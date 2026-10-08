@@ -1,0 +1,6 @@
+[package]
+name = "kit"
+namespace = "demo"
+version = "1.0.0"
+license = "MIT"
+type = "source"

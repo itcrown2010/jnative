@@ -37,7 +37,7 @@ Levels: L0–L4 per readiness audit.
 | `package` declaration | SUPPORTED | L2 | Language package ≠ pkg-manager coordinate |
 | explicit type `import` | SUPPORTED | L2 | No wildcard / static import (hard error) |
 | same-package + FQN type refs | SUPPORTED | L2 | Expression-position dotted FQN receivers not yet |
-| multi-file / third-party source merge | SUPPORTED | L2 | Concat unit + per-type package/import; line maps |
+| multi-file / third-party (multi-CU) | SUPPORTED | L2 | Independent parse + project symbols; see `docs/jnative-multi-cu-architecture.md` |
 | `.jn` / `.java` suffixes | SUPPORTED | L2 | Same language; `jnative new` defaults to `.jn` |
 | `final` (fields/locals) | **NOT SUPPORTED IN 1.0** | L0–L1 | Unverified / incomplete |
 | method overload | SUPPORTED | L2–L3 | Ambiguity diagnosed; `OverloadEndToEndTest` |
@@ -71,7 +71,7 @@ Levels: L0–L4 per readiness audit.
 | `throw` | SUPPORTED | L3 | |
 | multi-catch | **NOT SUPPORTED IN 1.0** | L0–L1 | |
 | checked `throws` enforcement | **NOT SUPPORTED IN 1.0** | L0 | |
-| ternary `?:` (expression) | **NOT SUPPORTED IN 1.0** | L0 | `?` is wildcard-only |
+| ternary `?:` (expression) | SUPPORTED | L2 | `PrimitiveOpsEndToEndTest`; unused branch not evaluated |
 | `async` / `await` | SUPPORTED | L2 | Thin e2e; dual Future debt |
 
 ---
@@ -82,10 +82,10 @@ Levels: L0–L4 per readiness audit.
 |---|---|---|---|
 | arithmetic `+ - * / %` | SUPPORTED | L2–L3 | |
 | comparison / logical `&& \|\| !` | SUPPORTED | L3 | |
-| bitwise `& \| ^ ~` | **NOT SUPPORTED IN 1.0** | L0 | No tokens |
-| shifts `<< >> >>>` | **NOT SUPPORTED IN 1.0** | L0 | |
+| bitwise `& \| ^ ~` | SUPPORTED | L2 | Integer + boolean non-short-circuit; `PrimitiveOpsEndToEndTest` |
+| shifts `<< >> >>>` | SUPPORTED | L2 | Distance masked 0x1f / 0x3f; ashr/lshr | 
 | varargs `...` | **NOT SUPPORTED IN 1.0** | L0 | |
-| primitive casts `(int)x` | **NOT SUPPORTED IN 1.0** | L0 | Profile: not supported; use typed APIs |
+| primitive casts `(int)x` | SUPPORTED | L2 | Integer matrix; float/boolean rejected; char zext |
 | reference cast / `instanceof` | SUPPORTED | L2–L3 | RuntimeError + Interface e2e |
 | string `+` | SUPPORTED | L2–L3 | |
 
@@ -96,7 +96,7 @@ Levels: L0–L4 per readiness audit.
 | integer overflow (wrap) | Assumed two's complement via LLVM — **no dedicated suite** |
 | integer division / modulo | Used in e2e — **no edge corpus** |
 | float NaN / Infinity / `-0.0` | **NOT VERIFIED** systematically |
-| shift masking / signedness | N/A (shifts unsupported) |
+| shift masking / signedness | Java-compatible masks; verified vs javac in `PrimitiveOpsEndToEndTest` |
 
 ---
 
@@ -131,12 +131,12 @@ Ship as hard errors or absence — **never** silent wrong codegen:
 
 1. `enum`  
 2. `switch`  
-3. ternary expressions  
-4. bitwise / shift operators  
+3. floating-point casts / float ternary branches  
+4. hex / binary integer literals (`0x…`)  
 5. varargs  
 6. records / pattern matching  
 7. labeled break  
-8. primitive cast syntax (until implemented + tested)  
+8. bitwise compound assignment (`&=`, `<<=`, …)  
 
 ---
 

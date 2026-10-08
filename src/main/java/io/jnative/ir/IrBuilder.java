@@ -157,11 +157,16 @@ public final class IrBuilder {
     }
 
     public IrValue cast(IrValue value, IrType target) {
+        return cast(value, target, IrInstruction.CastMode.SIGNED);
+    }
+
+    public IrValue cast(IrValue value, IrType target, IrInstruction.CastMode mode) {
         if (value.type() == target) {
             return value;
         }
         IrValue.Temp t = temp(target);
-        emit(new IrInstruction.Cast(t, value, target));
+        emit(new IrInstruction.Cast(t, value, target,
+                mode == null ? IrInstruction.CastMode.SIGNED : mode));
         return t;
     }
 

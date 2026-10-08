@@ -1,10 +1,14 @@
 package io.jnative.stdlib;
 
+import io.jnative.compiler.SourceUnit;
+
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
 
 /**
  * Merges bundled JNative stdlib sources into a compilation unit.
@@ -658,8 +662,12 @@ public final class StdlibIncluder {
         return String.join("\n\n", parts);
     }
 
-    public static String prependStdlibs(String userSource) throws IOException {
-        String text = userSource;
+    /**
+     * Collect selected stdlib resources as independent {@link SourceUnit}s (no text concat).
+     * Order is dependency-friendly for deterministic IR; resolution does not rely on it.
+     */
+    public static List<SourceUnit> collectStdlibSourceUnits(String userSource) throws IOException {
+        Set<String> resources = new LinkedHashSet<>();
         boolean wantStudio = needsStudio(userSource);
         boolean wantEditor = needsEditor(userSource) || wantStudio;
         boolean wantClipboard = needsClipboard(userSource);
@@ -667,89 +675,114 @@ public final class StdlibIncluder {
         boolean wantUi = needsUi(userSource) || wantGraphics || wantEditor || wantStudio || wantClipboard;
         boolean wantWeb = needsWeb(userSource);
         boolean wantJson = needsJson(userSource) || wantStudio || wantWeb;
-        /* HttpConnection streaming Range uses FileInputStream from StreamLib. */
         boolean wantIo = needsIo(userSource) || wantStudio || wantWeb
                 || needsHttp(userSource) || needsHttp2(userSource);
         boolean wantBrowser = needsBrowser(userSource);
         boolean wantDatabase = needsDatabase(userSource);
         boolean wantCrypto = needsCrypto(userSource) || wantWeb || needsHttp(userSource) || needsHttp2(userSource)
                 || needsTls(userSource)
-                || userSource.contains("BitOps.")
+                || (userSource != null && userSource.contains("BitOps."))
                 || needsDecimal(userSource);
         boolean wantRpc = needsRpc(userSource);
         boolean wantTime = needsTime(userSource);
         boolean wantAsync = needsAsync(userSource) || wantWeb || wantDatabase || wantCrypto || wantBrowser || wantRpc
                 || wantTime;
         boolean wantMath = needsMath(userSource);
-        // Advanced UI / Graphics / Editor use ArrayList / Function from collections.
         boolean wantTlsEarly = needsTls(userSource) || needsHttp(userSource) || needsHttp2(userSource) || wantWeb;
-        if (needsCollections(text) || wantUi || wantGraphics || wantEditor || wantJson || wantIo || wantStudio
+        if (needsCollections(userSource) || wantUi || wantGraphics || wantEditor || wantJson || wantIo || wantStudio
                 || wantAsync || wantDatabase || wantCrypto || wantRpc || wantTime || wantTlsEarly || needsNet(userSource)) {
-            text = prependCollectionsStdlib(text);
+            resources.add("stdlib/collections/CollectionsLib.java");
         }
-        if (wantMath || needsMath(text)) {
-            text = prependMathStdlib(text);
+        if (wantMath || needsMath(userSource)) {
+            resources.add("stdlib/math/MathLib.java");
+            if (needsDecimal(userSource) || (userSource != null && userSource.contains("Decimal"))) {
+                resources.add("stdlib/math/DecimalLib.java");
+            }
         }
         if (wantAsync) {
-            text = insertAsyncStdlib(text);
+            resources.add("stdlib/async/AsyncLib.java");
         }
         if (wantDatabase) {
-            text = insertDatabaseStdlib(text);
+            resources.add("stdlib/db/DbLib.java");
+            resources.add("stdlib/db/SqliteDriverLib.java");
+            resources.add("stdlib/db/DbMigrateLib.java");
+            resources.add("stdlib/db/PgDriverLib.java");
         }
-        if (wantTime || needsTime(text)) {
-            text = insertTimeStdlib(text);
+        if (wantTime || needsTime(userSource)) {
+            resources.add("stdlib/time/TimeLib.java");
         }
-        if (wantCrypto || needsCrypto(text)) {
-            text = prependCryptoStdlib(text);
+        if (wantCrypto || needsCrypto(userSource)) {
+            resources.add("stdlib/crypto/CryptoLib.java");
         }
-        if (wantJson || needsJson(text) || wantRpc) {
-            text = prependJsonStdlib(text);
+        if (wantJson || needsJson(userSource) || wantRpc) {
+            resources.add("stdlib/json/JsonLib.java");
         }
-        if (wantIo || needsIo(text) || needsNet(text)) {
-            text = prependIoStdlib(text);
+        if (wantIo || needsIo(userSource) || needsNet(userSource)) {
+            resources.add("stdlib/io/StreamLib.java");
+            resources.add("stdlib/io/IoLib.java");
+            if (needsNet(userSource)) {
+                resources.add("stdlib/net/NetLib.java");
+            }
         }
-        if (wantUi || needsUi(text)) {
-            text = prependUiStdlib(text);
+        if (wantUi || needsUi(userSource)) {
+            resources.add("stdlib/ui/UiLib.java");
         }
-        // Graphics after UI so Canvas can extend Component.
-        if (wantGraphics || needsGraphics(text)) {
-            text = prependGraphicsStdlib(text);
+        if (wantGraphics || needsGraphics(userSource)) {
+            resources.add("stdlib/graphics/GraphicsLib.java");
         }
-        // Editor after Graphics so CodeEditor can extend Canvas.
-        if (wantEditor || needsEditor(text)) {
-            text = prependEditorStdlib(text);
-        } else if (wantClipboard || needsClipboard(text)) {
-            text = prependClipboardStdlib(text);
+        if (wantEditor || needsEditor(userSource)) {
+            resources.add("stdlib/editor/EditorLib.java");
+        } else if (wantClipboard || needsClipboard(userSource)) {
+            resources.add("stdlib/editor/ClipboardLib.java");
         }
-        if (wantStudio || needsStudio(text)) {
-            text = prependStudioStdlib(text);
+        if (wantStudio || needsStudio(userSource)) {
+            resources.add("stdlib/studio/StudioLib.java");
         }
-        /* HttpClient HTTPS→ALPN h2 needs Http2Lib; HTTPS needs TlsLib. Prepend order → Tls, Http, Http2. */
-        boolean wantHttpStack = needsHttp(text) || needsHttp2(text) || wantWeb || needsWeb(text) || wantRpc;
-        boolean wantHttp2Stack = needsHttp2(text) || wantHttpStack;
-        boolean wantTlsStack = needsTls(text) || wantHttpStack;
-        if (wantHttp2Stack) {
-            text = prependHttp2Stdlib(text);
+        boolean wantHttpStack = needsHttp(userSource) || needsHttp2(userSource) || wantWeb || wantRpc;
+        boolean wantHttp2Stack = needsHttp2(userSource) || wantHttpStack;
+        boolean wantTlsStack = needsTls(userSource) || wantHttpStack;
+        if (wantTlsStack) {
+            resources.add("stdlib/tls/TlsLib.java");
         }
         if (wantHttpStack) {
-            text = prependHttpStdlib(text);
+            resources.add("stdlib/http/HttpLib.java");
         }
-        if (wantTlsStack) {
-            text = prependTlsStdlib(text);
+        if (wantHttp2Stack) {
+            resources.add("stdlib/http/Http2Lib.java");
         }
-        if (wantWeb || needsWeb(text) || wantRpc) {
-            text = prependWebStdlib(text);
+        if (wantWeb || wantRpc) {
+            resources.add("stdlib/web/WebLib.java");
+            resources.add("stdlib/web/RealtimeLib.java");
+            resources.add("stdlib/web/AuthLib.java");
         }
-        if (wantBrowser || needsBrowser(text)) {
-            text = prependBrowserStdlib(text);
+        if (wantBrowser || needsBrowser(userSource)) {
+            resources.add("stdlib/browser/BrowserLib.java");
         }
-        if (needsWebui(text)) {
-            text = prependWebuiStdlib(text);
+        if (needsWebui(userSource)) {
+            resources.add("stdlib/webui/WebUiLib.java");
         }
-        if (wantRpc || needsRpc(text)) {
-            text = prependRpcStdlib(text);
+        if (wantRpc || needsRpc(userSource)) {
+            resources.add("stdlib/rpc/RpcLib.java");
         }
-        return text;
+        List<SourceUnit> out = new ArrayList<>();
+        for (String res : resources) {
+            out.add(new SourceUnit("<stdlib>/" + res, load(res)));
+        }
+        return out;
+    }
+
+    /** Legacy: concatenate stdlibs in front of user source (IDE remap / transitional). */
+    public static String prependStdlibs(String userSource) throws IOException {
+        List<SourceUnit> libs = collectStdlibSourceUnits(userSource);
+        if (libs.isEmpty()) {
+            return userSource;
+        }
+        StringBuilder sb = new StringBuilder();
+        for (SourceUnit u : libs) {
+            sb.append(u.sourceText()).append("\n\n");
+        }
+        sb.append(userSource);
+        return sb.toString();
     }
 
     public static String prependBrowserStdlib(String userSource) throws IOException {

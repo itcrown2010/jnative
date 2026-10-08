@@ -154,6 +154,7 @@ public final class GenericLowering {
 
         return new TypedCompilationUnit(
                 typed.unit(),
+                typed.units(),
                 Map.copyOf(classes),
                 typed.interfaces(),
                 typed.nativeStructs(),

@@ -1,0 +1,13 @@
+package com.demo.util;
+
+public class Link {
+    private Node owner;
+
+    public Link(Node owner) {
+        this.owner = owner;
+    }
+
+    public int extra() {
+        return 0;
+    }
+}

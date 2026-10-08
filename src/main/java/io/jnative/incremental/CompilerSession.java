@@ -7,6 +7,8 @@ import io.jnative.build.ProjectFile;
 import io.jnative.compiler.CompileResult;
 import io.jnative.compiler.CompilerOptions;
 import io.jnative.compiler.JNativeCompiler;
+import io.jnative.compiler.ProgramSources;
+import io.jnative.compiler.SourceUnit;
 import io.jnative.Main;
 
 import java.io.IOException;
@@ -392,16 +394,13 @@ public final class CompilerSession {
             return;
         }
 
-        Path compileSource = materializeModuleCompileUnit(target, main);
+        ProgramSources programSources = collectModuleProgramSources(target, main);
         CompilerOptions options = new CompilerOptions();
-        options.setSourceFile(compileSource);
+        options.setSourceFile(main);
+        options.setProgramSources(programSources);
         options.setOutputFile(staging);
         options.setOptLevel(optLevel);
         options.setTarget(target.isBrowser() ? "wasm32-browser" : "native");
-        Path lineMap = Path.of(compileSource.toString() + ".linemap");
-        if (Files.isRegularFile(lineMap)) {
-            options.setSourceLineMapFile(lineMap);
-        }
         if (emitSourceDebugInfo) {
             options.setEmitSourceDebugInfo(true);
             options.setDebugSymbols(true);
@@ -564,17 +563,12 @@ public final class CompilerSession {
     }
 
     /**
-     * Multi-module projects share DTOs via dependsOn. The compiler still takes a single
-     * source file, so we materialize a temporary compilation unit that concatenates
-     * dependency + same-module sources (main last).
+     * Collect dependency + module sources as independent {@link SourceUnit}s (no text concat).
+     * Main entry is listed last for deterministic IR only; resolution is order-independent.
      */
-    private Path materializeModuleCompileUnit(BuildTargetSpec target, Path main) throws IOException {
+    private ProgramSources collectModuleProgramSources(BuildTargetSpec target, Path main) throws IOException {
         Module m = project.module(target.module());
-        if (m == null && packageSourceRoots.isEmpty()) {
-            return main;
-        }
         List<Path> roots = new ArrayList<>();
-        /* Package dependency sources first (registry / cache), then project modules. */
         roots.addAll(packageSourceRoots);
         if (m != null) {
             for (String d : m.dependsOn()) {
@@ -607,16 +601,13 @@ public final class CompilerSession {
                         });
             }
         }
-        if (files.size() <= 1 && packageSourceRoots.isEmpty()) {
-            return main;
-        }
-        if (files.isEmpty()) {
-            return main;
-        }
         Path mainAbs = main.toAbsolutePath().normalize();
-        StringBuilder sb = new StringBuilder();
-        List<io.jnative.ir.SourceLineMap.Segment> segments = new ArrayList<>();
-        int nextLine = 1;
+        if (files.isEmpty()) {
+            files.add(mainAbs);
+        } else if (!seen.contains(mainAbs)) {
+            files.add(mainAbs);
+        }
+        List<SourceUnit> units = new ArrayList<>();
         for (Path p : files) {
             if (p.equals(mainAbs)) {
                 continue;
@@ -625,33 +616,10 @@ public final class CompilerSession {
             if (target.isBrowser() && text.contains("@Rpc")) {
                 continue;
             }
-            int start = nextLine;
-            sb.append(text);
-            if (!text.endsWith("\n")) {
-                sb.append('\n');
-            }
-            sb.append('\n');
-            int added = countLines(text) + 1; // trailing blank separator line
-            nextLine = start + added;
-            segments.add(new io.jnative.ir.SourceLineMap.Segment(
-                    start, nextLine - 1, p.toString(), 1));
+            units.add(SourceUnit.ofPath(p, text));
         }
-        String mainText = Files.readString(mainAbs, StandardCharsets.UTF_8);
-        int mainStart = nextLine;
-        sb.append(mainText);
-        int mainLines = countLines(mainText);
-        if (mainLines < 1) {
-            mainLines = 1;
-        }
-        segments.add(new io.jnative.ir.SourceLineMap.Segment(
-                mainStart, mainStart + mainLines - 1, mainAbs.toString(), 1));
-        Path dir = projectRoot.resolve(project.buildDir()).resolve("units");
-        Files.createDirectories(dir);
-        Path unit = dir.resolve(target.name() + "-unit.java");
-        Files.writeString(unit, sb.toString(), StandardCharsets.UTF_8);
-        Path mapPath = Path.of(unit.toString() + ".linemap");
-        new io.jnative.ir.SourceLineMap(segments).write(mapPath);
-        return unit;
+        units.add(SourceUnit.ofPath(mainAbs, Files.readString(mainAbs, StandardCharsets.UTF_8)));
+        return ProgramSources.of(units);
     }
 
     private static int countLines(String text) {

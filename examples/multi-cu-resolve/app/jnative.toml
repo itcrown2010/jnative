@@ -1,0 +1,9 @@
+[package]
+name = "multi-cu-app"
+namespace = "demo"
+version = "0.1.0"
+license = "MIT"
+type = "source"
+
+[dependencies]
+"demo/kit" = "1.0.0"

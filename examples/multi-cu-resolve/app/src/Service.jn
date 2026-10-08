@@ -1,0 +1,11 @@
+package com.demo.app;
+
+import com.demo.util.Node;
+
+public class Service extends BaseService {
+    public static int run() {
+        Node u = new Node(3);
+        com.demo.app.Node a = new com.demo.app.Node(4);
+        return u.value() + a.value();
+    }
+}

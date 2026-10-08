@@ -198,6 +198,9 @@ public final class AstPrinter {
             case ArrayAccessExpression a -> printExpr(a.array()) + "[" + printExpr(a.index()) + "]";
             case InstanceOfExpression i -> "(" + printExpr(i.expression()) + " instanceof " + i.type() + ")";
             case CastExpression c -> "((" + c.type() + ") " + printExpr(c.expression()) + ")";
+            case ConditionalExpression c ->
+                    "(" + printExpr(c.condition()) + " ? " + printExpr(c.thenExpr())
+                            + " : " + printExpr(c.elseExpr()) + ")";
             case GcCollectExpression ignored -> "System.gc()";
             case AwaitExpression a -> "await " + printExpr(a.operand());
             case NativeNullExpression ignored -> "NativePtr.NULL";

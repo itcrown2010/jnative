@@ -6,6 +6,8 @@ import java.util.List;
 
 public final class CompilerOptions {
     private Path sourceFile;
+    /** When set, compile these units independently (multi-CU); {@link #sourceFile()} is the entry/main. */
+    private ProgramSources programSources;
     private Path outputFile;
     private boolean emitAst;
     private boolean emitIr;
@@ -162,6 +164,14 @@ public final class CompilerOptions {
 
     public void setSourceFile(Path sourceFile) {
         this.sourceFile = sourceFile;
+    }
+
+    public ProgramSources programSources() {
+        return programSources;
+    }
+
+    public void setProgramSources(ProgramSources programSources) {
+        this.programSources = programSources;
     }
 
     public Path outputFile() {

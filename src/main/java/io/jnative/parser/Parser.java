@@ -22,6 +22,8 @@ public final class Parser {
     private final DiagnosticReporter reporter;
     private int current;
     private final Set<String> knownClassNames = new HashSet<>();
+    /** Types declared in other compilation units (stdlib, deps, siblings). */
+    private final Set<String> programTypeNames;
     private final Map<String, List<MarkerAnnotation>> typeAnnotations = new LinkedHashMap<>();
     private final Map<String, List<MarkerAnnotation>> methodAnnotations = new LinkedHashMap<>();
     private final Map<String, List<MarkerAnnotation>> fieldAnnotations = new LinkedHashMap<>();
@@ -31,8 +33,13 @@ public final class Parser {
     private boolean packageDeclaredInScope;
 
     public Parser(List<Token> tokens, DiagnosticReporter reporter) {
+        this(tokens, reporter, Set.of());
+    }
+
+    public Parser(List<Token> tokens, DiagnosticReporter reporter, Set<String> programTypeNames) {
         this.tokens = tokens;
         this.reporter = reporter;
+        this.programTypeNames = programTypeNames == null ? Set.of() : Set.copyOf(programTypeNames);
     }
 
     public CompilationUnit parse(String fileName) {
@@ -185,6 +192,7 @@ public final class Parser {
         knownClassNames.add("IntCompare");
         knownClassNames.add("HttpHandler");
         knownClassNames.add("NativeCallbackHandle");
+        knownClassNames.addAll(programTypeNames);
         int saved = current;
         current = 0;
         while (!isAtEnd()) {
@@ -1363,7 +1371,7 @@ public final class Parser {
     }
 
     private Expression parseAssignment() {
-        Expression expr = parseOr();
+        Expression expr = parseTernary();
         if (match(TokenType.ASSIGN)) {
             Token eq = previous();
             Expression value = parseAssignment();
@@ -1381,6 +1389,19 @@ public final class Parser {
                 || expr instanceof ArrayAccessExpression;
     }
 
+    /** {@code cond ? then : else} — right-associative; middle is a full expression. */
+    private Expression parseTernary() {
+        Expression expr = parseOr();
+        if (match(TokenType.QUESTION)) {
+            Token q = previous();
+            Expression thenExpr = parseExpression();
+            consume(TokenType.COLON, "expected ':' in conditional expression");
+            Expression elseExpr = parseTernary();
+            return new ConditionalExpression(expr, thenExpr, elseExpr, q.location());
+        }
+        return expr;
+    }
+
     private Expression parseOr() {
         Expression expr = parseAnd();
         while (match(TokenType.OR)) {
@@ -1392,11 +1413,41 @@ public final class Parser {
     }
 
     private Expression parseAnd() {
-        Expression expr = parseEquality();
+        Expression expr = parseBitOr();
         while (match(TokenType.AND)) {
             Token op = previous();
-            Expression right = parseEquality();
+            Expression right = parseBitOr();
             expr = new BinaryExpression(expr, BinaryOp.AND, right, op.location());
+        }
+        return expr;
+    }
+
+    private Expression parseBitOr() {
+        Expression expr = parseBitXor();
+        while (match(TokenType.BIT_OR)) {
+            Token op = previous();
+            Expression right = parseBitXor();
+            expr = new BinaryExpression(expr, BinaryOp.BIT_OR, right, op.location());
+        }
+        return expr;
+    }
+
+    private Expression parseBitXor() {
+        Expression expr = parseBitAnd();
+        while (match(TokenType.BIT_XOR)) {
+            Token op = previous();
+            Expression right = parseBitAnd();
+            expr = new BinaryExpression(expr, BinaryOp.BIT_XOR, right, op.location());
+        }
+        return expr;
+    }
+
+    private Expression parseBitAnd() {
+        Expression expr = parseEquality();
+        while (match(TokenType.BIT_AND)) {
+            Token op = previous();
+            Expression right = parseEquality();
+            expr = new BinaryExpression(expr, BinaryOp.BIT_AND, right, op.location());
         }
         return expr;
     }
@@ -1413,7 +1464,7 @@ public final class Parser {
     }
 
     private Expression parseRelational() {
-        Expression expr = parseAdditive();
+        Expression expr = parseShift();
         while (true) {
             if (match(TokenType.INSTANCEOF)) {
                 Token op = previous();
@@ -1423,7 +1474,7 @@ public final class Parser {
             }
             if (match(TokenType.LT, TokenType.LE, TokenType.GT, TokenType.GE)) {
                 Token op = previous();
-                Expression right = parseAdditive();
+                Expression right = parseShift();
                 BinaryOp bop = switch (op.type()) {
                     case LT -> BinaryOp.LT;
                     case LE -> BinaryOp.LE;
@@ -1431,6 +1482,37 @@ public final class Parser {
                     case GE -> BinaryOp.GE;
                     default -> throw new IllegalStateException();
                 };
+                expr = new BinaryExpression(expr, bop, right, op.location());
+                continue;
+            }
+            break;
+        }
+        return expr;
+    }
+
+    /**
+     * Shift operators assembled from {@code <}/{@code >} tokens so nested generics
+     * {@code List<List<T>>} keep separate {@code >} tokens.
+     */
+    private Expression parseShift() {
+        Expression expr = parseAdditive();
+        while (true) {
+            if (check(TokenType.LT) && peekAt(1) != null && peekAt(1).type() == TokenType.LT) {
+                Token op = advance();
+                advance(); // second <
+                Expression right = parseAdditive();
+                expr = new BinaryExpression(expr, BinaryOp.SHL, right, op.location());
+                continue;
+            }
+            if (check(TokenType.GT) && peekAt(1) != null && peekAt(1).type() == TokenType.GT) {
+                Token op = advance();
+                advance(); // second >
+                BinaryOp bop = BinaryOp.SHR;
+                if (check(TokenType.GT)) {
+                    advance();
+                    bop = BinaryOp.USHR;
+                }
+                Expression right = parseAdditive();
                 expr = new BinaryExpression(expr, bop, right, op.location());
                 continue;
             }
@@ -1470,6 +1552,10 @@ public final class Parser {
         if (match(TokenType.NOT)) {
             Token op = previous();
             return new UnaryExpression(UnaryOp.NOT, parseUnary(), op.location());
+        }
+        if (match(TokenType.BIT_NOT)) {
+            Token op = previous();
+            return new UnaryExpression(UnaryOp.BIT_NOT, parseUnary(), op.location());
         }
         if (match(TokenType.MINUS)) {
             Token op = previous();
@@ -1712,7 +1798,7 @@ public final class Parser {
         }
         return switch (after.type()) {
             case IDENTIFIER, INT_LITERAL, LONG_LITERAL, DOUBLE_LITERAL, STRING_LITERAL,
-                 TRUE, FALSE, NULL, THIS, SUPER, NEW, LPAREN, NOT -> true;
+                 TRUE, FALSE, NULL, THIS, SUPER, NEW, LPAREN, NOT, BIT_NOT -> true;
             case MINUS, PLUS -> primitive;
             default -> false;
         };

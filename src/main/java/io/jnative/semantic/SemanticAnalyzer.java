@@ -87,6 +87,17 @@ public final class SemanticAnalyzer {
     }
 
     public TypedCompilationUnit analyze(CompilationUnit unit) {
+        return analyze(List.of(unit));
+    }
+
+    /**
+     * Project-level analysis over independently parsed compilation units.
+     * File order must not affect resolution; declaration order within a type still matters for locals.
+     */
+    public TypedCompilationUnit analyze(List<CompilationUnit> units) {
+        List<CompilationUnit> unitList = units == null || units.isEmpty()
+                ? List.of()
+                : List.copyOf(units);
         classes.clear();
         interfaces.clear();
         interfaceAdapters.clear();
@@ -111,7 +122,10 @@ public final class SemanticAnalyzer {
         envClassCounter = 0;
         lambdaCounter = 0;
         callbackCounter = 0;
-        installBuiltins(unit);
+        CompilationUnit probe = unitList.isEmpty()
+                ? new CompilationUnit("<empty>", List.of(), SourceLocation.UNKNOWN)
+                : unitList.getFirst();
+        installBuiltins(probe);
         // File.readBytes / argv need these metadatas present for the runtime.
         arrayMetadataFor(PrimitiveType.BYTE);
         arrayMetadataFor(stringClass.asType());
@@ -119,71 +133,81 @@ public final class SemanticAnalyzer {
         nativeStructs.clear();
         provenances.clear();
 
-        for (ClassDeclaration cls : unit.classes()) {
-            if (cls.isInterface()) {
-                declareInterface(cls);
-            } else if (cls.nativeStruct()) {
-                declareNativeStruct(cls);
-            } else {
-                declareClass(cls);
+        for (CompilationUnit unit : unitList) {
+            for (ClassDeclaration cls : unit.classes()) {
+                if (cls.isInterface()) {
+                    declareInterface(cls);
+                } else if (cls.nativeStruct()) {
+                    declareNativeStruct(cls);
+                } else {
+                    declareClass(cls);
+                }
             }
         }
-        for (ClassDeclaration cls : unit.classes()) {
-            beginResolve(cls);
-            if (cls.isInterface()) {
-                linkSuperInterfaces(cls);
-            } else if (!cls.nativeStruct()) {
-                currentClass = classOf(cls);
-                linkSuperClass(cls);
-                linkImplements(cls);
+        for (CompilationUnit unit : unitList) {
+            for (ClassDeclaration cls : unit.classes()) {
+                beginResolve(cls);
+                if (cls.isInterface()) {
+                    linkSuperInterfaces(cls);
+                } else if (!cls.nativeStruct()) {
+                    currentClass = classOf(cls);
+                    linkSuperClass(cls);
+                    linkImplements(cls);
+                }
+                endResolve();
             }
-            endResolve();
         }
-        detectInheritanceCycles(unit);
+        detectInheritanceCycles(unitList);
 
-        for (ClassDeclaration cls : unit.classes()) {
-            if (!cls.nativeStruct()) {
-                continue;
-            }
-            NativeStructSymbol symbol = nativeStructs.get(cls.qualifiedName());
-            if (symbol != null) {
-                registerNativeStructFields(symbol, cls);
+        for (CompilationUnit unit : unitList) {
+            for (ClassDeclaration cls : unit.classes()) {
+                if (!cls.nativeStruct()) {
+                    continue;
+                }
+                NativeStructSymbol symbol = nativeStructs.get(cls.qualifiedName());
+                if (symbol != null) {
+                    registerNativeStructFields(symbol, cls);
+                }
             }
         }
         detectRecursiveNativeStructs();
         buildNativeStructLayouts();
 
-        for (ClassDeclaration cls : unit.classes()) {
-            if (cls.nativeStruct() || cls.isInterface()) {
-                continue;
-            }
-            ClassSymbol symbol = classOf(cls);
-            if (symbol != null) {
-                beginResolve(cls);
-                currentClass = symbol;
-                registerFields(symbol, cls);
-                endResolve();
-            }
-        }
-        for (ClassDeclaration cls : unit.classes()) {
-            if (cls.nativeStruct()) {
-                continue;
-            }
-            beginResolve(cls);
-            if (cls.isInterface()) {
-                InterfaceSymbol symbol = interfaceOf(cls);
-                if (symbol != null) {
-                    registerInterfaceMethods(symbol, cls);
+        for (CompilationUnit unit : unitList) {
+            for (ClassDeclaration cls : unit.classes()) {
+                if (cls.nativeStruct() || cls.isInterface()) {
+                    continue;
                 }
-            } else {
                 ClassSymbol symbol = classOf(cls);
                 if (symbol != null) {
+                    beginResolve(cls);
                     currentClass = symbol;
-                    registerMethods(symbol, cls);
-                    registerConstructors(symbol, cls);
+                    registerFields(symbol, cls);
+                    endResolve();
                 }
             }
-            endResolve();
+        }
+        for (CompilationUnit unit : unitList) {
+            for (ClassDeclaration cls : unit.classes()) {
+                if (cls.nativeStruct()) {
+                    continue;
+                }
+                beginResolve(cls);
+                if (cls.isInterface()) {
+                    InterfaceSymbol symbol = interfaceOf(cls);
+                    if (symbol != null) {
+                        registerInterfaceMethods(symbol, cls);
+                    }
+                } else {
+                    ClassSymbol symbol = classOf(cls);
+                    if (symbol != null) {
+                        currentClass = symbol;
+                        registerMethods(symbol, cls);
+                        registerConstructors(symbol, cls);
+                    }
+                }
+                endResolve();
+            }
         }
 
         int nextInterfaceId = 0;
@@ -200,7 +224,9 @@ public final class SemanticAnalyzer {
             }
         }
 
-        verifyAbstractAndInterfaceCompleteness(unit);
+        for (CompilationUnit unit : unitList) {
+            verifyAbstractAndInterfaceCompleteness(unit);
+        }
         if (!reporter.hasErrors()) {
             for (ClassSymbol symbol : classes.values()) {
                 if (symbol.isBuiltin() || symbol.isAbstract()) {
@@ -216,34 +242,40 @@ public final class SemanticAnalyzer {
             }
         }
 
-        resolveConstructorDelegations(unit);
+        for (CompilationUnit unit : unitList) {
+            resolveConstructorDelegations(unit);
+        }
         detectConstructorCycles();
 
-        for (ClassDeclaration cls : unit.classes()) {
-            if (cls.nativeStruct() || cls.isInterface()) {
-                continue;
-            }
-            ClassSymbol symbol = classOf(cls);
-            if (symbol == null) {
-                continue;
-            }
-            beginResolve(cls);
-            currentClass = symbol;
-            analyzeStaticFieldInitializers(symbol);
-            Map<String, Integer> overloadOrdinal = new HashMap<>();
-            for (MethodDeclaration method : cls.methods()) {
-                if (method.isConstructor()) {
-                    analyzeConstructor(symbol, method);
-                } else {
-                    int idx = overloadOrdinal.merge(method.name(), 1, Integer::sum) - 1;
-                    analyzeMethod(symbol, method, idx);
+        for (CompilationUnit unit : unitList) {
+            for (ClassDeclaration cls : unit.classes()) {
+                if (cls.nativeStruct() || cls.isInterface()) {
+                    continue;
                 }
+                ClassSymbol symbol = classOf(cls);
+                if (symbol == null) {
+                    continue;
+                }
+                beginResolve(cls);
+                currentClass = symbol;
+                analyzeStaticFieldInitializers(symbol);
+                Map<String, Integer> overloadOrdinal = new HashMap<>();
+                for (MethodDeclaration method : cls.methods()) {
+                    if (method.isConstructor()) {
+                        analyzeConstructor(symbol, method);
+                    } else {
+                        int idx = overloadOrdinal.merge(method.name(), 1, Integer::sum) - 1;
+                        analyzeMethod(symbol, method, idx);
+                    }
+                }
+                endResolve();
             }
-            endResolve();
         }
 
+        CompilationUnit flat = new ProgramAst(unitList).flattened("<program>");
         return new TypedCompilationUnit(
-                unit,
+                flat,
+                unitList,
                 Map.copyOf(classes),
                 Map.copyOf(interfaces),
                 Map.copyOf(nativeStructs),
@@ -1196,20 +1228,22 @@ public final class SemanticAnalyzer {
         }
     }
 
-    private void detectInheritanceCycles(CompilationUnit unit) {
+    private void detectInheritanceCycles(List<CompilationUnit> units) {
         Map<ClassSymbol, Integer> classColor = new HashMap<>();
         for (ClassSymbol cls : classes.values()) {
             if (!cls.isBuiltin()) {
                 classColor.put(cls, 0);
             }
         }
-        for (ClassDeclaration decl : unit.classes()) {
-            ClassSymbol cls = classes.get(decl.qualifiedName());
-            if (cls == null || cls.isBuiltin()) {
-                continue;
-            }
-            if (classColor.getOrDefault(cls, 2) == 0) {
-                dfsClassCycle(cls, classColor);
+        for (CompilationUnit unit : units) {
+            for (ClassDeclaration decl : unit.classes()) {
+                ClassSymbol cls = classes.get(decl.qualifiedName());
+                if (cls == null || cls.isBuiltin()) {
+                    continue;
+                }
+                if (classColor.getOrDefault(cls, 2) == 0) {
+                    dfsClassCycle(cls, classColor);
+                }
             }
         }
 
@@ -1219,16 +1253,18 @@ public final class SemanticAnalyzer {
                 ifaceColor.put(iface, 0);
             }
         }
-        for (ClassDeclaration decl : unit.classes()) {
-            if (!decl.isInterface()) {
-                continue;
-            }
-            InterfaceSymbol iface = interfaces.get(decl.qualifiedName());
-            if (iface == null || iface.isBuiltin()) {
-                continue;
-            }
-            if (ifaceColor.getOrDefault(iface, 2) == 0) {
-                dfsInterfaceCycle(iface, ifaceColor);
+        for (CompilationUnit unit : units) {
+            for (ClassDeclaration decl : unit.classes()) {
+                if (!decl.isInterface()) {
+                    continue;
+                }
+                InterfaceSymbol iface = interfaces.get(decl.qualifiedName());
+                if (iface == null || iface.isBuiltin()) {
+                    continue;
+                }
+                if (ifaceColor.getOrDefault(iface, 2) == 0) {
+                    dfsInterfaceCycle(iface, ifaceColor);
+                }
             }
         }
     }
@@ -2436,6 +2472,7 @@ public final class SemanticAnalyzer {
                 case ArrayAccessExpression a -> typeOfArrayAccess(a);
                 case InstanceOfExpression i -> typeOfInstanceOf(i);
                 case CastExpression c -> typeOfCast(c);
+                case ConditionalExpression c -> typeOfConditional(c);
                 case GcCollectExpression ignored -> VoidType.INSTANCE;
                 case AwaitExpression a -> typeOfAwait(a);
                 case NativeNullExpression n -> {
@@ -2647,7 +2684,59 @@ public final class SemanticAnalyzer {
                 expectBoolean(right, b.right().location(), "operand of " + b.operator());
                 yield PrimitiveType.BOOLEAN;
             }
+            case BIT_AND, BIT_OR, BIT_XOR -> {
+                if (left == PrimitiveType.BOOLEAN && right == PrimitiveType.BOOLEAN) {
+                    yield PrimitiveType.BOOLEAN;
+                }
+                if (left.isInteger() && right.isInteger()) {
+                    yield JType.binaryArithmeticResult(left, right);
+                }
+                if (!(left instanceof ErrorType) && !(right instanceof ErrorType)) {
+                    reporter.error(b.location(),
+                            "operator " + bitwiseSymbol(b.operator()) + " cannot be applied to "
+                                    + left + ", " + right);
+                }
+                yield ErrorType.INSTANCE;
+            }
+            case SHL, SHR, USHR -> {
+                if (!left.isInteger() || !right.isInteger()) {
+                    if (!(left instanceof ErrorType) && !(right instanceof ErrorType)) {
+                        reporter.error(b.location(),
+                                "operator " + shiftSymbol(b.operator()) + " cannot be applied to "
+                                        + left + ", " + right);
+                    }
+                    yield ErrorType.INSTANCE;
+                }
+                // Result type follows unary numeric promotion of the left operand.
+                yield unaryNumericPromotion(left);
+            }
         };
+    }
+
+    private static String bitwiseSymbol(BinaryOp op) {
+        return switch (op) {
+            case BIT_AND -> "&";
+            case BIT_OR -> "|";
+            case BIT_XOR -> "^";
+            default -> op.name();
+        };
+    }
+
+    private static String shiftSymbol(BinaryOp op) {
+        return switch (op) {
+            case SHL -> "<<";
+            case SHR -> ">>";
+            case USHR -> ">>>";
+            default -> op.name();
+        };
+    }
+
+    /** Java unary numeric promotion for integral types (byte/short/char → int). */
+    private static JType unaryNumericPromotion(JType t) {
+        if (t == PrimitiveType.BYTE || t == PrimitiveType.SHORT || t == PrimitiveType.CHAR) {
+            return PrimitiveType.INT;
+        }
+        return t;
     }
 
     private boolean isString(JType t) {
@@ -2661,14 +2750,63 @@ public final class SemanticAnalyzer {
                 expectBoolean(operand, u.location(), "operand of !");
                 yield PrimitiveType.BOOLEAN;
             }
+            case BIT_NOT -> {
+                if (!operand.isInteger() && !(operand instanceof ErrorType)) {
+                    reporter.error(u.location(), "operator ~ cannot be applied to " + operand);
+                    yield ErrorType.INSTANCE;
+                }
+                yield unaryNumericPromotion(operand);
+            }
             case NEGATE, PLUS -> {
                 if (!operand.isNumeric() && !(operand instanceof ErrorType)) {
                     reporter.error(u.location(), "unary operator cannot be applied to " + operand);
                     yield ErrorType.INSTANCE;
                 }
-                yield operand;
+                yield unaryNumericPromotion(operand);
             }
         };
+    }
+
+    private JType typeOfConditional(ConditionalExpression c) {
+        JType cond = analyzeExpression(c.condition());
+        expectBoolean(cond, c.condition().location(), "condition of ?:");
+        JType thenT = analyzeExpression(c.thenExpr());
+        JType elseT = analyzeExpression(c.elseExpr());
+        if (thenT instanceof ErrorType || elseT instanceof ErrorType) {
+            return ErrorType.INSTANCE;
+        }
+        if (thenT == PrimitiveType.BOOLEAN && elseT == PrimitiveType.BOOLEAN) {
+            return PrimitiveType.BOOLEAN;
+        }
+        if (thenT.isNumeric() && elseT.isNumeric()) {
+            if (thenT == PrimitiveType.FLOAT || thenT == PrimitiveType.DOUBLE
+                    || elseT == PrimitiveType.FLOAT || elseT == PrimitiveType.DOUBLE) {
+                reporter.error(c.location(),
+                        "floating-point branches in ?: are not supported yet");
+                return ErrorType.INSTANCE;
+            }
+            return JType.binaryArithmeticResult(thenT, elseT);
+        }
+        if (thenT instanceof NullType && elseT.isReference()) {
+            return elseT;
+        }
+        if (elseT instanceof NullType && thenT.isReference()) {
+            return thenT;
+        }
+        if (thenT.isReference() && elseT.isReference()) {
+            if (thenT.isAssignableFrom(elseT)) {
+                return thenT;
+            }
+            if (elseT.isAssignableFrom(thenT)) {
+                return elseT;
+            }
+        }
+        if (thenT.equals(elseT)) {
+            return thenT;
+        }
+        reporter.error(c.location(),
+                "incompatible types for ?: branches: " + thenT + " and " + elseT);
+        return ErrorType.INSTANCE;
     }
 
     private JType typeOfCall(MethodCallExpression m) {
@@ -2679,23 +2817,24 @@ public final class SemanticAnalyzer {
         if (m.receiver() instanceof VariableExpression nv && "Native".equals(nv.name())) {
             return typeOfNativeBuiltin(m);
         }
-        if (m.receiver() instanceof VariableExpression v) {
-            ClassSymbol cls = resolveClassBySourceName(v.name());
-            if (cls != null) {
-                checkTypeAccessible(cls.visibility(), cls.packageName(), cls.name(), m.location());
+        if (m.receiver() != null) {
+            ClassSymbol typeRecv = resolveTypeNameReceiver(m.receiver());
+            if (typeRecv != null) {
+                checkTypeAccessible(typeRecv.visibility(), typeRecv.packageName(), typeRecv.name(),
+                        m.location());
                 List<MethodSymbol> statics = new ArrayList<>();
-                for (MethodSymbol cand : cls.findMethods(m.name())) {
+                for (MethodSymbol cand : typeRecv.findMethods(m.name())) {
                     if (cand.isStatic()) {
                         statics.add(cand);
                     }
                 }
                 if (statics.isEmpty()) {
-                    if (!cls.findMethods(m.name()).isEmpty()) {
+                    if (!typeRecv.findMethods(m.name()).isEmpty()) {
                         reporter.error(m.location(),
                                 "instance method '" + m.name() + "' cannot be called on a type name");
                     } else {
                         reporter.error(m.location(),
-                                "undefined method '" + m.name() + "' in class '" + cls.name() + "'");
+                                "undefined method '" + m.name() + "' in class '" + typeRecv.name() + "'");
                     }
                     return ErrorType.INSTANCE;
                 }
@@ -2703,11 +2842,11 @@ public final class SemanticAnalyzer {
                 if (ms == null) {
                     if (!lastOverloadAmbiguous) {
                         reporter.error(m.location(),
-                                "no matching overload for '" + cls.name() + "." + m.name() + "'");
+                                "no matching overload for '" + typeRecv.name() + "." + m.name() + "'");
                     }
                     return ErrorType.INSTANCE;
                 }
-                checkMemberAccessible(ms.visibility(), cls, m.location(), "method", ms.name());
+                checkMemberAccessible(ms.visibility(), typeRecv, m.location(), "method", ms.name());
                 if (ms.isFfiIntrinsic() && "allocate".equals(ms.name())) {
                     checkArguments(m, ms);
                     checkNetworkPortLiteral(m, ms);
@@ -2717,6 +2856,12 @@ public final class SemanticAnalyzer {
                 }
                 checkNetworkPortLiteral(m, ms);
                 return resolveGenericCall(m, ms, expectedReturn);
+            }
+            String maybeFqn = flattenQualifiedName(m.receiver());
+            if (maybeFqn != null && maybeFqn.contains(".")
+                    && !classes.containsKey(maybeFqn) && !interfaces.containsKey(maybeFqn)) {
+                reporter.error(m.location(), "undefined class '" + maybeFqn + "'");
+                return ErrorType.INSTANCE;
             }
         }
         if (m.receiver() != null) {
@@ -3549,6 +3694,38 @@ public final class SemanticAnalyzer {
     }
 
     private JType typeOfFieldAccess(FieldAccessExpression f) {
+        // Dotted FQN type or static field: walk AST names without analyzing package prefixes.
+        String recvFqn = flattenQualifiedName(f.receiver());
+        if (recvFqn != null) {
+            ClassSymbol typeRecv = recvFqn.contains(".")
+                    ? classes.get(recvFqn)
+                    : resolveClassBySourceName(recvFqn);
+            String asTypeFqn = recvFqn + "." + f.fieldName();
+            if (classes.containsKey(asTypeFqn)) {
+                ClassSymbol t = classes.get(asTypeFqn);
+                resolvedSymbols.put(f, t);
+                return t.asType();
+            }
+            if (interfaces.containsKey(asTypeFqn)) {
+                InterfaceSymbol t = interfaces.get(asTypeFqn);
+                resolvedSymbols.put(f, t);
+                return t.asType();
+            }
+            if (typeRecv != null) {
+                Optional<FieldSymbol> field = typeRecv.findField(f.fieldName());
+                if (field.isPresent()) {
+                    FieldSymbol fs = field.get();
+                    checkMemberAccessible(fs.visibility(), typeRecv, f.location(), "field", fs.name());
+                    if (!fs.isStatic()) {
+                        reporter.error(f.location(),
+                                "instance field '" + fs.name() + "' cannot be accessed via type name");
+                        return ErrorType.INSTANCE;
+                    }
+                    resolvedSymbols.put(f, fs);
+                    return fs.type();
+                }
+            }
+        }
         JType recvType = analyzeExpression(f.receiver());
         if (recvType instanceof ArrayType && f.fieldName().equals("length")) {
             resolvedSymbols.put(f, ArrayLengthSymbol.INSTANCE);
@@ -3652,6 +3829,12 @@ public final class SemanticAnalyzer {
     private JType typeOfCast(CastExpression c) {
         JType source = analyzeExpression(c.expression());
         JType target = resolveTypeName(c.type(), false, c.location());
+        if (target instanceof ErrorType || source instanceof ErrorType) {
+            return ErrorType.INSTANCE;
+        }
+        if (target.isPrimitive() || source.isPrimitive()) {
+            return typeOfPrimitiveCast(source, target, c.location());
+        }
         if (target instanceof NativePtrType && source instanceof NativePtrType) {
             provenances.put(c, provenances.getOrDefault(c.expression(), PointerProvenance.UNKNOWN));
             return target;
@@ -3673,7 +3856,7 @@ public final class SemanticAnalyzer {
             return ErrorType.INSTANCE;
         }
         if (!(target instanceof ClassType targetCt)) {
-            reporter.error(c.location(), "cast target must be a class or interface type");
+            reporter.error(c.location(), "cast target must be a class, interface, or supported primitive type");
             return ErrorType.INSTANCE;
         }
         if (source instanceof NullType || source instanceof ErrorType) {
@@ -3696,6 +3879,32 @@ public final class SemanticAnalyzer {
             return ErrorType.INSTANCE;
         }
         resolvedSymbols.put(c, t.metadata());
+        return target;
+    }
+
+    /**
+     * Integer cast matrix (Java-compatible two's complement narrow / sign or zero extend).
+     * {@code char} is 16-bit unsigned: widen with zero-extend; narrow by truncation.
+     * Floating-point and boolean conversions are rejected (not silently remapped).
+     */
+    private JType typeOfPrimitiveCast(JType source, JType target, SourceLocation loc) {
+        if (source == PrimitiveType.BOOLEAN || target == PrimitiveType.BOOLEAN) {
+            reporter.error(loc, "cannot cast between boolean and numeric types");
+            return ErrorType.INSTANCE;
+        }
+        if (!source.isPrimitive() || !target.isPrimitive()) {
+            reporter.error(loc, "cannot cast " + source + " to " + target);
+            return ErrorType.INSTANCE;
+        }
+        if (source == PrimitiveType.FLOAT || source == PrimitiveType.DOUBLE
+                || target == PrimitiveType.FLOAT || target == PrimitiveType.DOUBLE) {
+            reporter.error(loc, "floating-point casts are not supported; use integer types only");
+            return ErrorType.INSTANCE;
+        }
+        if (!source.isInteger() || !target.isInteger()) {
+            reporter.error(loc, "cannot cast " + source + " to " + target);
+            return ErrorType.INSTANCE;
+        }
         return target;
     }
 
@@ -3815,6 +4024,36 @@ public final class SemanticAnalyzer {
             return null;
         }
         return classes.get(fqn);
+    }
+
+    /**
+     * Resolve a call/field receiver that is a type name: {@code Foo}, imported simple name,
+     * or dotted FQN chain {@code com.acme.Foo}.
+     */
+    private ClassSymbol resolveTypeNameReceiver(Expression recv) {
+        if (recv instanceof VariableExpression v) {
+            return resolveClassBySourceName(v.name());
+        }
+        String fqn = flattenQualifiedName(recv);
+        if (fqn == null || !fqn.contains(".")) {
+            return null;
+        }
+        return classes.get(fqn);
+    }
+
+    /** {@code a.b.c} as Variable/FieldAccess chain → {@code "a.b.c"}; otherwise null. */
+    private String flattenQualifiedName(Expression expr) {
+        if (expr instanceof VariableExpression v) {
+            return v.name();
+        }
+        if (expr instanceof FieldAccessExpression f) {
+            String left = flattenQualifiedName(f.receiver());
+            if (left == null) {
+                return null;
+            }
+            return left + "." + f.fieldName();
+        }
+        return null;
     }
 
     private InterfaceSymbol resolveInterfaceBySourceName(String raw) {

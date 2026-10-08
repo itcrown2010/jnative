@@ -82,7 +82,11 @@ public final class EffectAnalyzer {
 
     private void buildMethodAstMap() {
         methodAst.clear();
-        for (ClassDeclaration cls : unit.classes()) {
+        List<CompilationUnit> units = typed != null && typed.units() != null
+                ? typed.units()
+                : List.of(unit);
+        for (CompilationUnit cu : units) {
+        for (ClassDeclaration cls : cu.classes()) {
             if (cls.nativeStruct()) {
                 continue;
             }
@@ -103,6 +107,7 @@ public final class EffectAnalyzer {
                     methodAst.put(ms, md);
                 }
             }
+        }
         }
     }
 
@@ -384,9 +389,17 @@ public final class EffectAnalyzer {
                 e.union(inferExpression(a.index(), ms, contribs));
             }
             case CastExpression c -> {
-                e.with(FunctionEffects.THROWS);
-                contribs.add("cast");
+                // Reference casts may throw; primitive casts do not.
+                if (c.type() != null && !isPrimitiveTypeName(c.type())) {
+                    e.with(FunctionEffects.THROWS);
+                    contribs.add("cast");
+                }
                 e.union(inferExpression(c.expression(), ms, contribs));
+            }
+            case ConditionalExpression c -> {
+                e.union(inferExpression(c.condition(), ms, contribs));
+                e.union(inferExpression(c.thenExpr(), ms, contribs));
+                e.union(inferExpression(c.elseExpr(), ms, contribs));
             }
             case InstanceOfExpression i -> {
                 e.with(FunctionEffects.THROWS);
@@ -489,6 +502,13 @@ public final class EffectAnalyzer {
     private boolean isStringType(Expression expr) {
         JType t = typed.expressionTypes().get(expr);
         return t instanceof ClassType ct && "String".equals(ct.name());
+    }
+
+    private static boolean isPrimitiveTypeName(TypeName type) {
+        return switch (type.kind()) {
+            case BYTE, SHORT, INT, LONG, FLOAT, DOUBLE, BOOLEAN, CHAR -> true;
+            default -> false;
+        };
     }
 
     private FunctionEffects resolveCallEffects(MethodSymbol callee, boolean virtualDispatch) {
@@ -677,6 +697,10 @@ public final class EffectAnalyzer {
                     containsAwaitExpr(a.array()) || containsAwaitExpr(a.index());
             case InstanceOfExpression i -> containsAwaitExpr(i.expression());
             case CastExpression c -> containsAwaitExpr(c.expression());
+            case ConditionalExpression c ->
+                    containsAwaitExpr(c.condition())
+                            || containsAwaitExpr(c.thenExpr())
+                            || containsAwaitExpr(c.elseExpr());
             case LambdaExpression l -> l.expressionBody() != null && containsAwaitExpr(l.expressionBody());
             default -> false;
         };

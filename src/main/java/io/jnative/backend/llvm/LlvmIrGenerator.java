@@ -1270,6 +1270,10 @@ public final class LlvmIrGenerator {
             case MOD -> "srem";
             case AND -> "and";
             case OR -> "or";
+            case XOR -> "xor";
+            case SHL -> "shl";
+            case ASHR -> "ashr";
+            case LSHR -> "lshr";
         };
         line("  " + llvmName(b.dest()) + " = " + op + " " + b.dest().type().llvm() + " "
                 + llvmOperand(b.left()) + ", " + llvmOperand(b.right()));
@@ -1307,6 +1311,7 @@ public final class LlvmIrGenerator {
         IrType to = c.target();
         String dest = llvmName(c.dest());
         String src = llvmOperand(c.source());
+        boolean zext = c.mode() == IrInstruction.CastMode.ZERO;
         if (from == to) {
             if (from == IrType.PTR) {
                 line("  " + dest + " = bitcast ptr " + src + " to ptr");
@@ -1317,27 +1322,20 @@ public final class LlvmIrGenerator {
             }
             return;
         }
-        if (from == IrType.I32 && to == IrType.I64) {
-            line("  " + dest + " = sext i32 " + src + " to i64");
-        } else if (from == IrType.I64 && to == IrType.I32) {
-            line("  " + dest + " = trunc i64 " + src + " to i32");
-        } else if (from == IrType.I16 && to == IrType.I32) {
-            line("  " + dest + " = sext i16 " + src + " to i32");
-        } else if (from == IrType.I32 && to == IrType.I16) {
-            line("  " + dest + " = trunc i32 " + src + " to i16");
-        } else if (from == IrType.I8 && to == IrType.I32) {
-            line("  " + dest + " = sext i8 " + src + " to i32");
-        } else if (from == IrType.I32 && to == IrType.I8) {
-            line("  " + dest + " = trunc i32 " + src + " to i8");
-        } else if (from == IrType.I8 && to == IrType.I64) {
-            line("  " + dest + " = sext i8 " + src + " to i64");
-        } else if (from == IrType.I64 && to == IrType.I8) {
-            line("  " + dest + " = trunc i64 " + src + " to i8");
-        } else if (from == IrType.I16 && to == IrType.I8) {
-            line("  " + dest + " = trunc i16 " + src + " to i8");
-        } else if (from == IrType.I8 && to == IrType.I16) {
-            line("  " + dest + " = sext i8 " + src + " to i16");
-        } else if (from.isIntegerLike() && to == IrType.DOUBLE) {
+        if (from.isIntegerLike() && to.isIntegerLike()) {
+            int fromW = bitWidth(from);
+            int toW = bitWidth(to);
+            if (fromW < toW) {
+                String ext = zext ? "zext" : "sext";
+                line("  " + dest + " = " + ext + " " + from.llvm() + " " + src + " to " + to.llvm());
+                return;
+            }
+            if (fromW > toW) {
+                line("  " + dest + " = trunc " + from.llvm() + " " + src + " to " + to.llvm());
+                return;
+            }
+        }
+        if (from.isIntegerLike() && to == IrType.DOUBLE) {
             line("  " + dest + " = sitofp " + from.llvm() + " " + src + " to double");
         } else if (from == IrType.DOUBLE && to.isIntegerLike()) {
             line("  " + dest + " = fptosi double " + src + " to " + to.llvm());
@@ -1349,15 +1347,6 @@ public final class LlvmIrGenerator {
             line("  " + dest + " = inttoptr i64 " + src + " to " + to.llvm());
         } else if ((from == IrType.NATIVE_PTR || from == IrType.PTR) && to == IrType.I64) {
             line("  " + dest + " = ptrtoint " + from.llvm() + " " + src + " to i64");
-        } else if (from.isIntegerLike() && to.isIntegerLike()) {
-            // Generic integer widen/narrow
-            int fromW = bitWidth(from);
-            int toW = bitWidth(to);
-            if (fromW < toW) {
-                line("  " + dest + " = sext " + from.llvm() + " " + src + " to " + to.llvm());
-            } else {
-                line("  " + dest + " = trunc " + from.llvm() + " " + src + " to " + to.llvm());
-            }
         } else {
             line("  " + dest + " = bitcast " + from.llvm() + " " + src + " to " + to.llvm());
         }

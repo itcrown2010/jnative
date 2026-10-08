@@ -28,6 +28,7 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
@@ -46,15 +47,6 @@ public final class JNativeCompiler {
         if (unit == null) {
             return new Compilation(version, null, null, null, reporter.diagnostics(), false, 0, 0);
         }
-        String userSource = unit.sourceText();
-        String sourceText;
-        try {
-            sourceText = io.jnative.stdlib.StdlibIncluder.prependStdlibs(userSource);
-        } catch (IOException e) {
-            reporter.error(SourceLocation.UNKNOWN, "failed to load stdlib: " + e.getMessage());
-            return new Compilation(version, null, null, null, reporter.diagnostics(), false, 0, 0);
-        }
-        int userLineOffset = io.jnative.diagnostics.DiagnosticJson.userLineOffset(sourceText, userSource);
         String userPath = unit.path() == null ? "Memory.java" : unit.path();
         String fileName = userPath;
         int slash = Math.max(fileName.lastIndexOf('/'), fileName.lastIndexOf('\\'));
@@ -62,31 +54,27 @@ public final class JNativeCompiler {
             fileName = fileName.substring(slash + 1);
         }
         long t0 = System.nanoTime();
-        Lexer lexer = new Lexer(sourceText, fileName);
-        List<Token> tokens = lexer.tokenize();
-        for (Token token : tokens) {
-            if (token.type() == TokenType.ERROR) {
-                reporter.error(token.location(), token.lexeme());
-            }
+        ProgramSources program;
+        try {
+            program = MultiUnitFrontend.withStdlib(ProgramSources.of(unit));
+        } catch (IOException e) {
+            reporter.error(SourceLocation.UNKNOWN, "failed to load stdlib: " + e.getMessage());
+            return new Compilation(version, null, null, null, reporter.diagnostics(), false, 0, 0);
         }
-        Parser parser = new Parser(tokens, reporter);
-        CompilationUnit ast = parser.parse(fileName);
+        MultiUnitFrontend.Result fe = MultiUnitFrontend.analyzeProgram(program, reporter);
         long parseMs = (System.nanoTime() - t0) / 1_000_000L;
-        if (reporter.hasErrors()) {
-            List<io.jnative.diagnostics.Diagnostic> diags = io.jnative.diagnostics.DiagnosticJson.remapToUserSource(
-                    reporter.diagnostics(), userPath, userLineOffset);
-            SyntaxTree tree = new SyntaxTree(fileName, userSource, ast, diags, version);
+        CompilationUnit ast = fe == null ? null : fe.flattened();
+        // Multi-CU keeps real paths; no stdlib line-offset remap needed.
+        List<io.jnative.diagnostics.Diagnostic> diags = reporter.diagnostics();
+        if (reporter.hasErrors() || fe == null || fe.typed() == null) {
+            SyntaxTree tree = new SyntaxTree(fileName, unit.sourceText(), ast, diags, version);
             return new Compilation(version, tree, null, null, diags, false, parseMs, 0);
         }
-        long t1 = System.nanoTime();
-        SemanticAnalyzer analyzer = new SemanticAnalyzer(reporter);
-        TypedCompilationUnit typed = analyzer.analyze(ast);
-        long semMs = (System.nanoTime() - t1) / 1_000_000L;
-        SemanticModel model = typed == null ? null : new SemanticModel(typed, version);
-        List<io.jnative.diagnostics.Diagnostic> diags = io.jnative.diagnostics.DiagnosticJson.remapToUserSource(
-                reporter.diagnostics(), userPath, userLineOffset);
+        long semMs = 0;
+        TypedCompilationUnit typed = fe.typed();
+        SemanticModel model = new SemanticModel(typed, version);
         boolean ok = diags.stream().noneMatch(d -> d.severity() == io.jnative.diagnostics.Diagnostic.Severity.ERROR);
-        SyntaxTree tree = new SyntaxTree(fileName, userSource, ast, diags, version);
+        SyntaxTree tree = new SyntaxTree(fileName, unit.sourceText(), ast, diags, version);
         return new Compilation(version, tree, typed, model, diags, ok, parseMs, semMs);
     }
 
@@ -134,56 +122,60 @@ public final class JNativeCompiler {
     public CompileResult compile(CompilerOptions options) {
         DiagnosticReporter reporter = new DiagnosticReporter();
 
-        if (options.sourceFile() == null) {
+        if (options.sourceFile() == null && (options.programSources() == null || options.programSources().isEmpty())) {
             reporter.error(SourceLocation.UNKNOWN, "no input file");
             return fail(reporter);
         }
 
-        Path source = options.sourceFile().toAbsolutePath().normalize();
-        if (!Files.isRegularFile(source)) {
+        Path source = options.sourceFile() == null
+                ? null
+                : options.sourceFile().toAbsolutePath().normalize();
+        if (source != null && !Files.isRegularFile(source)
+                && (options.programSources() == null || options.programSources().isEmpty())) {
             reporter.error(new SourceLocation(source.toString(), 0, 0),
                     "source file not found: " + source);
             return fail(reporter);
         }
 
-        String userSource;
-        String sourceText;
+        ProgramSources userSources;
         try {
-            userSource = Files.readString(source, StandardCharsets.UTF_8);
-            sourceText = io.jnative.stdlib.StdlibIncluder.prependStdlibs(userSource);
+            if (options.programSources() != null && !options.programSources().isEmpty()) {
+                userSources = options.programSources();
+                if (source == null) {
+                    source = Path.of(userSources.units().getFirst().path()).toAbsolutePath().normalize();
+                }
+            } else {
+                String userSource = Files.readString(source, StandardCharsets.UTF_8);
+                userSources = ProgramSources.of(SourceUnit.ofPath(source, userSource));
+            }
         } catch (IOException e) {
-            reporter.error(new SourceLocation(source.toString(), 0, 0),
+            reporter.error(source == null ? SourceLocation.UNKNOWN
+                            : new SourceLocation(source.toString(), 0, 0),
                     "failed to read source: " + e.getMessage());
             return fail(reporter);
         }
-        String userForMap = userSource;
 
-        String fileName = source.getFileName().toString();
         if (options.emitSourceDebugInfo() && options.optLevel() > 0) {
             System.err.println("warning: --debug with -O" + options.optLevel()
                     + ": optimizations may impair stepping and local variable visibility");
         }
 
-        // Lexer
-        Lexer lexer = new Lexer(sourceText, fileName);
-        List<Token> tokens = lexer.tokenize();
-        for (Token token : tokens) {
-            if (token.type() == TokenType.ERROR) {
-                reporter.error(token.location(), token.lexeme());
-            }
-        }
-        if (reporter.hasErrors()) {
+        ProgramSources program;
+        try {
+            program = MultiUnitFrontend.withStdlib(userSources);
+        } catch (IOException e) {
+            reporter.error(SourceLocation.UNKNOWN, "failed to load stdlib: " + e.getMessage());
             return fail(reporter);
         }
 
-        // Parser
-        Parser parser = new Parser(tokens, reporter);
-        CompilationUnit ast = parser.parse(fileName);
-        if (reporter.hasErrors()) {
+        MultiUnitFrontend.Result fe = MultiUnitFrontend.analyzeProgram(program, reporter);
+        CompilationUnit ast = fe == null ? null : fe.flattened();
+        if (reporter.hasErrors() || fe == null || fe.typed() == null) {
             return new CompileResult(false, ast, null, null, null, reporter.diagnostics());
         }
+        TypedCompilationUnit typed = fe.typed();
 
-        // ---- Meta / Annotation Processing (0.32) ----
+        // ---- Meta / Annotation Processing (0.32): generated files as extra units ----
         Path generatedDir = options.generatedDir();
         if (generatedDir == null) {
             Path parent = source.getParent();
@@ -206,43 +198,42 @@ public final class JNativeCompiler {
                 System.out.println(line);
             }
         }
-        // Merge into user source (not stdlib-expanded text), then re-select stdlibs for generated refs.
-        if (!metaResult.artifacts().isEmpty() && !userSource.contains("BEGIN GENERATED META")) {
-            String mergedUser = io.jnative.processor.ProcessorScheduler.mergeGeneratedSources(
-                    userSource, metaResult.artifacts());
-            userForMap = mergedUser;
-            try {
-                sourceText = io.jnative.stdlib.StdlibIncluder.prependStdlibs(mergedUser);
-            } catch (IOException e) {
-                reporter.error(SourceLocation.UNKNOWN,
-                        "failed to reload stdlib after metaprogramming: " + e.getMessage());
-                return fail(reporter);
-            }
-            reporter = new DiagnosticReporter();
-            lexer = new Lexer(sourceText, fileName);
-            tokens = lexer.tokenize();
-            for (Token token : tokens) {
-                if (token.type() == TokenType.ERROR) {
-                    reporter.error(token.location(), token.lexeme());
+        if (!metaResult.artifacts().isEmpty()) {
+            List<SourceUnit> genUnits = new ArrayList<>();
+            for (var art : metaResult.artifacts()) {
+                if (art.kind() != io.jnative.processor.GeneratedArtifact.Kind.SOURCE) {
+                    continue;
                 }
+                Path gp = generatedDir.resolve(art.relativePath());
+                genUnits.add(SourceUnit.ofPath(gp, art.content()));
             }
-            if (reporter.hasErrors()) {
-                return fail(reporter);
-            }
-            parser = new Parser(tokens, reporter);
-            ast = parser.parse(fileName);
-            if (reporter.hasErrors()) {
-                return new CompileResult(false, ast, null, null, null, reporter.diagnostics());
+            if (!genUnits.isEmpty()) {
+                try {
+                    program = MultiUnitFrontend.withStdlib(userSources.append(genUnits));
+                } catch (IOException e) {
+                    reporter.error(SourceLocation.UNKNOWN,
+                            "failed to reload stdlib after metaprogramming: " + e.getMessage());
+                    return fail(reporter);
+                }
+                reporter = new DiagnosticReporter();
+                fe = MultiUnitFrontend.analyzeProgram(program, reporter);
+                ast = fe == null ? null : fe.flattened();
+                if (reporter.hasErrors() || fe == null || fe.typed() == null) {
+                    return new CompileResult(false, ast, null, null, null, reporter.diagnostics());
+                }
+                typed = fe.typed();
             }
         }
 
-        // ---- RPC (0.28): analyze @Rpc interfaces → generate dispatcher/client source ----
+        // ---- RPC (0.28): generate as independent unit ----
         io.jnative.rpc.RpcAnalyzer rpcAnalyzer = new io.jnative.rpc.RpcAnalyzer(reporter);
         java.util.List<io.jnative.rpc.RpcServiceModel> rpcServices = rpcAnalyzer.analyze(ast);
         if (reporter.hasErrors()) {
             return new CompileResult(false, ast, null, null, null, reporter.diagnostics());
         }
-        if (!rpcServices.isEmpty() && !sourceText.contains("BEGIN GENERATED RPC")) {
+        boolean alreadyHasRpc = program.units().stream()
+                .anyMatch(u -> u.sourceText().contains("BEGIN GENERATED RPC"));
+        if (!rpcServices.isEmpty() && !alreadyHasRpc) {
             String generated = io.jnative.rpc.RpcCodeGenerator.generate(rpcServices);
             if (options.emitRpc()) {
                 System.out.print(io.jnative.rpc.RpcSchemaGenerator.toReport(rpcServices));
@@ -263,24 +254,23 @@ public final class JNativeCompiler {
                     reporter.error(SourceLocation.UNKNOWN, "failed to write rpc-schema.json: " + e.getMessage());
                 }
             }
-            sourceText = sourceText + "\n\n" + generated;
-            reporter = new DiagnosticReporter();
-            lexer = new Lexer(sourceText, fileName);
-            tokens = lexer.tokenize();
-            for (Token token : tokens) {
-                if (token.type() == TokenType.ERROR) {
-                    reporter.error(token.location(), token.lexeme());
-                }
-            }
-            if (reporter.hasErrors()) {
+            Path rpcPath = generatedDir.resolve("rpc/GeneratedRpc.java");
+            try {
+                Files.createDirectories(rpcPath.getParent());
+                Files.writeString(rpcPath, generated, StandardCharsets.UTF_8);
+                program = MultiUnitFrontend.withStdlib(
+                        userSources.append(List.of(SourceUnit.ofPath(rpcPath, generated))));
+            } catch (IOException e) {
+                reporter.error(SourceLocation.UNKNOWN, "failed to write generated RPC: " + e.getMessage());
                 return fail(reporter);
             }
-            parser = new Parser(tokens, reporter);
-            ast = parser.parse(fileName);
-            if (reporter.hasErrors()) {
+            reporter = new DiagnosticReporter();
+            fe = MultiUnitFrontend.analyzeProgram(program, reporter);
+            ast = fe == null ? null : fe.flattened();
+            if (reporter.hasErrors() || fe == null || fe.typed() == null) {
                 return new CompileResult(false, ast, null, null, null, reporter.diagnostics());
             }
-            // Re-analyze after merge (generated has no @Rpc)
+            typed = fe.typed();
             rpcServices = new io.jnative.rpc.RpcAnalyzer(reporter).analyze(ast);
         } else if (options.emitRpc() && !rpcServices.isEmpty()) {
             System.out.print(io.jnative.rpc.RpcSchemaGenerator.toReport(rpcServices));
@@ -288,13 +278,6 @@ public final class JNativeCompiler {
 
         if (options.emitAst()) {
             System.out.print(AstPrinter.print(ast));
-        }
-
-        // Semantic
-        SemanticAnalyzer analyzer = new SemanticAnalyzer(reporter);
-        TypedCompilationUnit typed = analyzer.analyze(ast);
-        if (reporter.hasErrors()) {
-            return new CompileResult(false, ast, null, null, null, reporter.diagnostics());
         }
 
         EffectAnalyzer effectAnalyzer = new EffectAnalyzer(reporter);
@@ -334,25 +317,8 @@ public final class JNativeCompiler {
         }
 
         // IR (map stdlib-prepended locations back onto original user .java files)
-        io.jnative.ir.SourceLineMap lineMap = null;
-        Path mapFile = options.sourceLineMapFile();
-        if (mapFile == null) {
-            Path sibling = Path.of(source.toString() + ".linemap");
-            if (Files.isRegularFile(sibling)) {
-                mapFile = sibling;
-            }
-        }
-        if (mapFile != null && Files.isRegularFile(mapFile)) {
-            try {
-                lineMap = io.jnative.ir.SourceLineMap.read(mapFile);
-            } catch (IOException e) {
-                reporter.error(new SourceLocation(source.toString(), 0, 0),
-                        "failed to read source line map: " + e.getMessage());
-                return fail(reporter);
-            }
-        }
-        io.jnative.ir.SourceLocationMapper locMap = io.jnative.ir.SourceLocationMapper.forPrepended(
-                source.toString(), sourceText, userForMap, lineMap);
+        // Multi-CU parse keeps per-file SourceLocations; no stdlib prepend offset.
+        io.jnative.ir.SourceLocationMapper locMap = io.jnative.ir.SourceLocationMapper.identity();
         IrModule ir = new IrGenerator(locMap, options.emitSourceDebugInfo()).generate(typed);
 
         if (options.emitAsync()) {
@@ -398,9 +364,10 @@ public final class JNativeCompiler {
                         && outDir.getFileName().toString().endsWith(".wasm")) {
                     outDir = outDir.getParent();
                 }
+                String probe = userSources.probeText();
                 var artifact = new io.jnative.backend.wasm.WasmBrowserBackend().compile(
                         new io.jnative.backend.BackendRequest(
-                                source, sourceText, typed, ir, options, outDir));
+                                source, probe, typed, ir, options, outDir));
                 System.out.println("wasm32-browser: " + artifact.primaryOutput());
                 for (Path p : artifact.secondaryOutputs()) {
                     System.out.println("  + " + p);

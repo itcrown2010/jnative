@@ -6,6 +6,7 @@ public sealed interface Expression extends AstNode
         PrintlnExpression, GroupingExpression,
         NewObjectExpression, FieldAccessExpression, NullLiteralExpression, ThisExpression,
         NewArrayExpression, ArrayAccessExpression, InstanceOfExpression, CastExpression,
+        ConditionalExpression,
         GcCollectExpression, NativeNullExpression,
         LambdaExpression, MethodReferenceExpression,
         AwaitExpression {

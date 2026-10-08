@@ -1761,6 +1761,7 @@ public final class IrGenerator {
             case ArrayAccessExpression a -> lowerArrayLoad(a);
             case InstanceOfExpression i -> lowerInstanceOf(i);
             case CastExpression c -> lowerCast(c);
+            case ConditionalExpression c -> lowerConditional(c);
             case GcCollectExpression ignored -> {
                 builder.gcCollect();
                 yield new IrValue.Const(IrType.I32, 0);
@@ -2242,9 +2243,15 @@ public final class IrGenerator {
     }
 
     private IrValue lowerCast(CastExpression c) {
-        Object resolved = typed.resolvedSymbols().get(c);
+        JType targetType = typed.expressionTypes().get(c);
+        JType sourceType = typed.expressionTypes().get(c.expression());
         IrValue obj = lowerExpression(c.expression());
-        if (resolved instanceof NativePtrType || typed.expressionTypes().get(c) instanceof NativePtrType) {
+        if (targetType != null && targetType.isPrimitive()
+                && sourceType != null && sourceType.isPrimitive()) {
+            return lowerPrimitiveCast(obj, sourceType, targetType);
+        }
+        Object resolved = typed.resolvedSymbols().get(c);
+        if (resolved instanceof NativePtrType || targetType instanceof NativePtrType) {
             // NativePtr casts are bitcasts at IR level (same machine pointer width).
             return castIfNeeded(obj, IrType.NATIVE_PTR);
         }
@@ -2253,6 +2260,54 @@ public final class IrGenerator {
         }
         ClassMetadata meta = (ClassMetadata) resolved;
         return builder.checkedCast(obj, meta.globalName());
+    }
+
+    /**
+     * Integer casts: narrow by truncation; widen with sext except {@code char} (zext).
+     */
+    private IrValue lowerPrimitiveCast(IrValue value, JType source, JType target) {
+        IrType to = IrType.from(target);
+        if (value.type() == to) {
+            return value;
+        }
+        int fromW = bitWidthOf(value.type());
+        int toW = bitWidthOf(to);
+        if (fromW < toW && source == PrimitiveType.CHAR) {
+            return builder.cast(value, to, IrInstruction.CastMode.ZERO);
+        }
+        return castIfNeeded(value, to);
+    }
+
+    private static int bitWidthOf(IrType t) {
+        return switch (t) {
+            case I1 -> 1;
+            case I8 -> 8;
+            case I16 -> 16;
+            case I32, FLOAT -> 32;
+            case I64, DOUBLE, PTR, NATIVE_PTR -> 64;
+            case VOID -> 0;
+        };
+    }
+
+    private IrValue lowerConditional(ConditionalExpression c) {
+        JType resultJt = typed.expressionTypes().get(c);
+        IrType resultType = resultJt == null ? IrType.I32 : IrType.from(resultJt);
+        IrValue.Local slot = builder.alloca("tern.tmp" + System.identityHashCode(c), resultType);
+        IrBasicBlock thenBlock = builder.newBlock("tern.then");
+        IrBasicBlock elseBlock = builder.newBlock("tern.else");
+        IrBasicBlock endBlock = builder.newBlock("tern.end");
+        IrValue cond = lowerExpression(c.condition());
+        builder.condBranch(cond, thenBlock, elseBlock);
+        builder.setBlock(thenBlock);
+        IrValue thenV = castIfNeeded(lowerExpression(c.thenExpr()), resultType);
+        builder.store(thenV, slot);
+        builder.branch(endBlock);
+        builder.setBlock(elseBlock);
+        IrValue elseV = castIfNeeded(lowerExpression(c.elseExpr()), resultType);
+        builder.store(elseV, slot);
+        builder.branch(endBlock);
+        builder.setBlock(endBlock);
+        return builder.load(slot);
     }
 
     private IrValue lowerNativeIntrinsic(NativeIntrinsic intrinsic, MethodCallExpression m) {
@@ -2873,6 +2928,10 @@ public final class IrGenerator {
         if (b.operator() == BinaryOp.AND || b.operator() == BinaryOp.OR) {
             return lowerLogical(b);
         }
+        if (b.operator() == BinaryOp.SHL || b.operator() == BinaryOp.SHR
+                || b.operator() == BinaryOp.USHR) {
+            return lowerShift(b);
+        }
 
         // String concat (String+String, String+number, number+String)
         if (b.operator() == BinaryOp.ADD) {
@@ -2905,6 +2964,23 @@ public final class IrGenerator {
             }
         }
 
+        // Boolean & | ^ evaluate both sides (no short-circuit).
+        JType lt = typed.expressionTypes().get(b.left());
+        JType rt = typed.expressionTypes().get(b.right());
+        if ((b.operator() == BinaryOp.BIT_AND || b.operator() == BinaryOp.BIT_OR
+                || b.operator() == BinaryOp.BIT_XOR)
+                && lt == PrimitiveType.BOOLEAN && rt == PrimitiveType.BOOLEAN) {
+            IrValue left = lowerExpression(b.left());
+            IrValue right = lowerExpression(b.right());
+            IrInstruction.BinOp op = switch (b.operator()) {
+                case BIT_AND -> IrInstruction.BinOp.AND;
+                case BIT_OR -> IrInstruction.BinOp.OR;
+                case BIT_XOR -> IrInstruction.BinOp.XOR;
+                default -> throw new IllegalStateException();
+            };
+            return builder.binary(op, castIfNeeded(left, IrType.I1), castIfNeeded(right, IrType.I1));
+        }
+
         IrValue left = lowerExpression(b.left());
         IrValue right = lowerExpression(b.right());
 
@@ -2916,9 +2992,10 @@ public final class IrGenerator {
                     left, right);
         }
 
+        // char widen uses zero-extend for bitwise/arithmetic with mixed types.
         IrType resultType = promote(left.type(), right.type());
-        left = castIfNeeded(left, resultType);
-        right = castIfNeeded(right, resultType);
+        left = widenForBinary(left, lt, resultType);
+        right = widenForBinary(right, rt, resultType);
         return switch (b.operator()) {
             case ADD -> builder.binary(IrInstruction.BinOp.ADD, left, right);
             case SUB -> builder.binary(IrInstruction.BinOp.SUB, left, right);
@@ -2931,8 +3008,55 @@ public final class IrGenerator {
             case GE -> builder.compare(IrInstruction.CmpOp.GE, left, right);
             case EQ -> builder.compare(IrInstruction.CmpOp.EQ, left, right);
             case NE -> builder.compare(IrInstruction.CmpOp.NE, left, right);
-            case AND, OR -> throw new IllegalStateException();
+            case BIT_AND -> builder.binary(IrInstruction.BinOp.AND, left, right);
+            case BIT_OR -> builder.binary(IrInstruction.BinOp.OR, left, right);
+            case BIT_XOR -> builder.binary(IrInstruction.BinOp.XOR, left, right);
+            case AND, OR, SHL, SHR, USHR -> throw new IllegalStateException();
         };
+    }
+
+    private IrValue widenForBinary(IrValue value, JType sourceType, IrType target) {
+        if (value.type() == target) {
+            return value;
+        }
+        if (sourceType == PrimitiveType.CHAR && bitWidthOf(value.type()) < bitWidthOf(target)) {
+            return builder.cast(value, target, IrInstruction.CastMode.ZERO);
+        }
+        return castIfNeeded(value, target);
+    }
+
+    /**
+     * Java shift: mask distance with 0x1f (int) or 0x3f (long); result type = promoted left.
+     */
+    private IrValue lowerShift(BinaryExpression b) {
+        JType leftJt = typed.expressionTypes().get(b.left());
+        IrValue left = lowerExpression(b.left());
+        IrValue right = lowerExpression(b.right());
+        IrType leftType = unaryPromoteIr(left.type());
+        if (leftJt == PrimitiveType.CHAR) {
+            left = builder.cast(left, leftType, IrInstruction.CastMode.ZERO);
+        } else {
+            left = castIfNeeded(left, leftType);
+        }
+        IrType distType = leftType == IrType.I64 ? IrType.I64 : IrType.I32;
+        long mask = leftType == IrType.I64 ? 63L : 31L;
+        right = castIfNeeded(right, distType);
+        IrValue masked = builder.binary(IrInstruction.BinOp.AND, right,
+                new IrValue.Const(distType, mask));
+        IrInstruction.BinOp op = switch (b.operator()) {
+            case SHL -> IrInstruction.BinOp.SHL;
+            case SHR -> IrInstruction.BinOp.ASHR;
+            case USHR -> IrInstruction.BinOp.LSHR;
+            default -> throw new IllegalStateException();
+        };
+        return builder.binary(op, left, masked);
+    }
+
+    private static IrType unaryPromoteIr(IrType t) {
+        if (t == IrType.I8 || t == IrType.I16 || t == IrType.I1) {
+            return IrType.I32;
+        }
+        return t;
     }
 
     private IrValue lowerLogical(BinaryExpression b) {
@@ -2959,8 +3083,24 @@ public final class IrGenerator {
         IrValue operand = lowerExpression(u.operand());
         return switch (u.operator()) {
             case NOT -> builder.not(operand);
-            case NEGATE -> builder.binary(IrInstruction.BinOp.SUB, defaultValue(operand.type()), operand);
-            case PLUS -> operand;
+            case NEGATE -> {
+                IrType t = unaryPromoteIr(operand.type());
+                IrValue v = castIfNeeded(operand, t);
+                yield builder.binary(IrInstruction.BinOp.SUB, defaultValue(t), v);
+            }
+            case PLUS -> {
+                IrType t = unaryPromoteIr(operand.type());
+                yield castIfNeeded(operand, t);
+            }
+            case BIT_NOT -> {
+                JType src = typed.expressionTypes().get(u.operand());
+                IrType t = unaryPromoteIr(operand.type());
+                IrValue v = src == PrimitiveType.CHAR
+                        ? builder.cast(operand, t, IrInstruction.CastMode.ZERO)
+                        : castIfNeeded(operand, t);
+                IrValue ones = new IrValue.Const(t, t == IrType.I64 ? -1L : -1);
+                yield builder.binary(IrInstruction.BinOp.XOR, v, ones);
+            }
         };
     }
 

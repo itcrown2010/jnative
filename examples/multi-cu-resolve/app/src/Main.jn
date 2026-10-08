@@ -1,0 +1,11 @@
+package com.demo.app;
+
+import com.demo.kit.Util;
+
+public class Main {
+    public static void main(String[] args) {
+        System.out.println(Util.answer());
+        System.out.println(Service.run());
+        System.out.println(com.demo.kit.Util.answer());
+    }
+}

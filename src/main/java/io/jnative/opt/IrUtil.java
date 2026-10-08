@@ -192,7 +192,7 @@ public final class IrUtil {
             case IrInstruction.UnaryNot u ->
                     new IrInstruction.UnaryNot(mapTemp(u.dest(), map), map.apply(u.operand()));
             case IrInstruction.Cast c ->
-                    new IrInstruction.Cast(mapTemp(c.dest(), map), map.apply(c.source()), c.target());
+                    new IrInstruction.Cast(mapTemp(c.dest(), map), map.apply(c.source()), c.target(), c.mode());
             case IrInstruction.Call c -> {
                 List<IrValue> args = c.args().stream().map(map).toList();
                 IrValue.Temp dest = c.dest() == null ? null : mapTemp(c.dest(), map);
@@ -324,6 +324,15 @@ public final class IrUtil {
         }
         long l = ((Number) left.value()).longValue();
         long r = ((Number) right.value()).longValue();
+        // Normalize to the left operand width before folding (matches runtime bitwidth).
+        if (left.type() == IrType.I32 || left.type() == IrType.I16 || left.type() == IrType.I8
+                || left.type() == IrType.I1) {
+            l = (int) l;
+            if (op != IrInstruction.BinOp.SHL && op != IrInstruction.BinOp.ASHR
+                    && op != IrInstruction.BinOp.LSHR) {
+                r = (int) r;
+            }
+        }
         Long result = switch (op) {
             case ADD -> l + r;
             case SUB -> l - r;
@@ -332,6 +341,25 @@ public final class IrUtil {
             case MOD -> r == 0 ? null : l % r;
             case AND -> l & r;
             case OR -> l | r;
+            case XOR -> l ^ r;
+            case SHL -> {
+                if (left.type() == IrType.I64) {
+                    yield l << (r & 63);
+                }
+                yield (long) ((int) l << ((int) r & 31));
+            }
+            case ASHR -> {
+                if (left.type() == IrType.I64) {
+                    yield l >> (r & 63);
+                }
+                yield (long) ((int) l >> ((int) r & 31));
+            }
+            case LSHR -> {
+                if (left.type() == IrType.I64) {
+                    yield l >>> (r & 63);
+                }
+                yield (long) ((int) l >>> ((int) r & 31));
+            }
         };
         if (result == null) {
             return null;

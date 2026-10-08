@@ -36,7 +36,11 @@ public sealed interface IrInstruction
     record Store(IrValue value, IrValue.Local dest) implements IrInstruction {
     }
 
-    enum BinOp { ADD, SUB, MUL, DIV, MOD, AND, OR }
+    enum BinOp {
+        ADD, SUB, MUL, DIV, MOD,
+        AND, OR, XOR,
+        SHL, ASHR, LSHR
+    }
 
     record Binary(IrValue.Temp dest, BinOp op, IrValue left, IrValue right) implements IrInstruction {
     }
@@ -49,7 +53,13 @@ public sealed interface IrInstruction
     record UnaryNot(IrValue.Temp dest, IrValue operand) implements IrInstruction {
     }
 
-    record Cast(IrValue.Temp dest, IrValue source, IrType target) implements IrInstruction {
+    /** Integer widen mode: {@link CastMode#SIGNED} uses sext; {@link CastMode#ZERO} uses zext (char). */
+    enum CastMode { SIGNED, ZERO }
+
+    record Cast(IrValue.Temp dest, IrValue source, IrType target, CastMode mode) implements IrInstruction {
+        public Cast(IrValue.Temp dest, IrValue source, IrType target) {
+            this(dest, source, target, CastMode.SIGNED);
+        }
     }
 
     record Call(IrValue.Temp dest, String function, IrType returnType, List<IrValue> args) implements IrInstruction {

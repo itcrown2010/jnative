@@ -1,0 +1,16 @@
+package com.demo.util;
+
+/** Cross-file cycle with Link (types only; no inheritance cycle). */
+public class Node {
+    private int v;
+    private Link link;
+
+    public Node(int v) {
+        this.v = v;
+        this.link = new Link(this);
+    }
+
+    public int value() {
+        return v + link.extra();
+    }
+}
