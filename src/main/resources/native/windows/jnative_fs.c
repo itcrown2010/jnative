@@ -598,6 +598,18 @@ int32_t jnative_fs_stream_fsync(int64_t fd) {
     return FlushFileBuffers((HANDLE)(intptr_t)fd) ? 0 : -1;
 }
 
+int32_t jnative_fs_stream_seek(int64_t fd, int64_t offset) {
+    if (fd < 0 || offset < 0) {
+        return -1;
+    }
+    LARGE_INTEGER li;
+    li.QuadPart = (LONGLONG)offset;
+    if (!SetFilePointerEx((HANDLE)(intptr_t)fd, li, NULL, FILE_BEGIN)) {
+        return -1;
+    }
+    return 0;
+}
+
 int32_t jnative_fs_is_symlink(const char *path) {
     if (path == NULL) {
         return 0;

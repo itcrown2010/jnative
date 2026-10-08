@@ -1,0 +1,24 @@
+{
+  "name": "music",
+  "modules": {
+    "shared": { "kind": "lib", "src": "shared" },
+    "server": { "kind": "server", "src": "server", "dependsOn": ["shared"] },
+    "browser": { "kind": "browser", "src": "browser", "dependsOn": ["shared"] }
+  },
+  "targets": [
+    {
+      "name": "server",
+      "triple": "native",
+      "module": "server",
+      "main": "MusicServer",
+      "output": ".jnative/build/music-server"
+    },
+    {
+      "name": "browser",
+      "triple": "wasm32-browser",
+      "module": "browser",
+      "main": "MusicApp",
+      "output": ".jnative/build/browser"
+    }
+  ]
+}

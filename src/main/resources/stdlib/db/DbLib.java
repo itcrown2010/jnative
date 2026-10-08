@@ -164,7 +164,7 @@ class DbByteBuffer {
     }
 
     void flip() {
-        limit = position;
+        /* Write cursor is `limit`; prepare for reading from the start. */
         position = 0;
     }
 
@@ -283,9 +283,9 @@ class DbByteBuffer {
 
     String getCString() {
         int start = position;
-        int done = 0;
-        while (position < limit && done == 0) {
-            if (data[position] == 0) {
+        while (position < limit) {
+            int b = DbByteUtil.unsignedByte(data[position]);
+            if (b == 0) {
                 byte[] slice = Bytes.slice(data, start, position);
                 position = position + 1;
                 return Bytes.toString(slice);
@@ -638,6 +638,27 @@ class DbParseUtil {
         }
         return out;
     }
+
+    static String questionToDollar(String sql) {
+        if (sql == null) {
+            return "";
+        }
+        String out = "";
+        int i = 0;
+        int n = 0;
+        while (i < sql.length()) {
+            int c = sql.charAt(i);
+            if (c == 63) {
+                n = n + 1;
+                out = out + "$" + intToString(n);
+                i = i + 1;
+            } else {
+                out = out + sql.substring(i, i + 1);
+                i = i + 1;
+            }
+        }
+        return out;
+    }
 }
 
 class Row {
@@ -814,6 +835,10 @@ class DbConnection {
         if (sqliteBackend == null) {
             throw new QueryException("DbConnection.query: no backend");
         }
+        if (sqliteBackend instanceof PgConnection) {
+            PgConnection pg = (PgConnection)sqliteBackend;
+            return pg.query(sql, params);
+        }
         SQLiteConnection sc = (SQLiteConnection)sqliteBackend;
         return sc.query(sql, params);
     }
@@ -821,6 +846,10 @@ class DbConnection {
     JnFuture queryOne(String sql, ArrayList<Object> params, RowMapper mapper) {
         if (sqliteBackend == null) {
             throw new QueryException("DbConnection.queryOne: no backend");
+        }
+        if (sqliteBackend instanceof PgConnection) {
+            PgConnection pg = (PgConnection)sqliteBackend;
+            return pg.queryOne(sql, params, mapper);
         }
         SQLiteConnection sc = (SQLiteConnection)sqliteBackend;
         return sc.queryOne(sql, params, mapper);
@@ -830,6 +859,10 @@ class DbConnection {
         if (sqliteBackend == null) {
             throw new QueryException("DbConnection.execute: no backend");
         }
+        if (sqliteBackend instanceof PgConnection) {
+            PgConnection pg = (PgConnection)sqliteBackend;
+            return pg.execute(sql, params);
+        }
         SQLiteConnection sc = (SQLiteConnection)sqliteBackend;
         return sc.execute(sql, params);
     }
@@ -837,6 +870,10 @@ class DbConnection {
     JnFuture beginTransaction() {
         if (sqliteBackend == null) {
             throw new QueryException("DbConnection.beginTransaction: no backend");
+        }
+        if (sqliteBackend instanceof PgConnection) {
+            PgConnection pg = (PgConnection)sqliteBackend;
+            return pg.beginTransaction();
         }
         SQLiteConnection sc = (SQLiteConnection)sqliteBackend;
         return sc.beginTransaction();
@@ -846,6 +883,10 @@ class DbConnection {
         if (sqliteBackend == null) {
             throw new QueryException("DbConnection.commit: no backend");
         }
+        if (sqliteBackend instanceof PgConnection) {
+            PgConnection pg = (PgConnection)sqliteBackend;
+            return pg.commit();
+        }
         SQLiteConnection sc = (SQLiteConnection)sqliteBackend;
         return sc.commit();
     }
@@ -854,19 +895,43 @@ class DbConnection {
         if (sqliteBackend == null) {
             throw new QueryException("DbConnection.rollback: no backend");
         }
+        if (sqliteBackend instanceof PgConnection) {
+            PgConnection pg = (PgConnection)sqliteBackend;
+            return pg.rollback();
+        }
         SQLiteConnection sc = (SQLiteConnection)sqliteBackend;
         return sc.rollback();
     }
 
     int isBroken() {
+        if (sqliteBackend == null) {
+            return broken;
+        }
+        if (sqliteBackend instanceof PgConnection) {
+            PgConnection pg = (PgConnection)sqliteBackend;
+            if (pg.isBroken() != 0) {
+                return 1;
+            }
+            return broken;
+        }
+        SQLiteConnection sc = (SQLiteConnection)sqliteBackend;
+        if (sc.isBroken() != 0) {
+            return 1;
+        }
         return broken;
     }
 
     void release() {
-        if (sqliteBackend != null) {
-            SQLiteConnection sc = (SQLiteConnection)sqliteBackend;
-            sc.release();
+        if (sqliteBackend == null) {
+            return;
         }
+        if (sqliteBackend instanceof PgConnection) {
+            PgConnection pg = (PgConnection)sqliteBackend;
+            pg.release();
+            return;
+        }
+        SQLiteConnection sc = (SQLiteConnection)sqliteBackend;
+        sc.release();
     }
 }
 
@@ -1272,7 +1337,13 @@ class TransactionFlatMap implements FlatMapFunction {
     DbTransactionWork work;
 
     public JnFuture apply(Object ignored) {
-        JnFuture ran = work.run(conn);
+        JnFuture ran;
+        try {
+            ran = work.run(conn);
+        } catch (Exception ex) {
+            FutureBlocker.blockingWait(conn.rollback());
+            return JnFuture.failed(TransactionLoopUtil.loopOf(conn), ex);
+        }
         TransactionCommitMap cm = new TransactionCommitMap();
         cm.conn = conn;
         JnFuture committed = ran.flatMap(cm);
@@ -1282,12 +1353,28 @@ class TransactionFlatMap implements FlatMapFunction {
     }
 }
 
+class TransactionLoopUtil {
+    static EventLoop loopOf(DbConnection conn) {
+        if (conn.sqliteBackend instanceof PgConnection) {
+            PgConnection pg = (PgConnection)conn.sqliteBackend;
+            return pg.loop;
+        }
+        SQLiteConnection sc = (SQLiteConnection)conn.sqliteBackend;
+        return sc.loop;
+    }
+}
+
 class TransactionRollbackRecover implements RecoverFunction {
     DbConnection conn;
 
     public Object apply(Exception ex) {
         FutureBlocker.blockingWait(conn.rollback());
-        throw new TransactionException("transaction rolled back: " + ex.getMessage());
+        conn.broken = 1;
+        String msg = "transaction rolled back";
+        if (ex != null && ex.getMessage() != null) {
+            msg = msg + ": " + ex.getMessage();
+        }
+        throw new TransactionException(msg);
     }
 }
 
@@ -1298,14 +1385,19 @@ class TransactionCommitMap implements FlatMapFunction {
         JnFuture committed = conn.commit();
         TransactionReturnValue rv = new TransactionReturnValue();
         rv.value = v;
+        rv.conn = conn;
         return committed.then(rv);
     }
 }
 
 class TransactionReturnValue implements Function<Object, Object> {
     Object value;
+    DbConnection conn;
 
     public Object apply(Object ignored) {
+        if (conn != null) {
+            conn.broken = 1;
+        }
         return value;
     }
 }
@@ -1328,6 +1420,8 @@ class DbBootstrap {
             return;
         }
         DbSqliteBootstrap.register();
+        /* PostgreSQL wire driver (md5/trust; SCRAM still incomplete — B-P0-05). */
+        DbPgBootstrap.register();
         done = 1;
     }
 }

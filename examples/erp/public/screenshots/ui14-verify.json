@@ -1,0 +1,108 @@
+{
+  "ok": [
+    "DemoSeedService counts: {\"company\":1,\"customers\":20,\"suppliers\":10,\"items\":100,\"warehouses\":3,\"users\":10}",
+    "DEMO MODE banner visible",
+    "PageRegistry coverage 85/85",
+    "Inventory after GR: 100",
+    "Inventory after delivery: 70",
+    "Inventory value 70*50=3500",
+    "Finance margin 2400-1500=900 (no tax/freight/discount)",
+    "All DEMO journals balanced",
+    "Inventory txns traceable: DL-3001:-30, GR-5301:100",
+    "Executive KPIs from DemoStateStore (Sales Amount CNY 2,400.00 from DemoStateStore)",
+    "shot ui14-customer-list.png",
+    "shot ui14-sales-order-list.png",
+    "shot ui14-purchase-order-list.png",
+    "shot ui14-inventory-balance.png",
+    "shot ui14-inventory-transactions.png",
+    "shot ui14-ar-invoice.png",
+    "shot ui14-ap-invoice.png",
+    "shot ui14-journal-entry.png",
+    "shot ui14-bom-editor.png",
+    "shot ui14-mrp-workbench.png",
+    "shot ui14-system-settings.png",
+    "Reset Demo Data restored seed",
+    "viewport 1366x768",
+    "viewport 1440x900",
+    "viewport 1920x1080"
+  ],
+  "fail": [],
+  "golden": {
+    "purchaseStock": 100,
+    "purchaseValue": 5000,
+    "finalStock": 70,
+    "finalValue": 3500,
+    "revenue": 2400,
+    "cogs": 1500,
+    "margin": 900,
+    "stockOk": true,
+    "valueOk": true,
+    "marginOk": true,
+    "txnCount": 2,
+    "txnRefs": [
+      "DL-3001:-30",
+      "GR-5301:100"
+    ],
+    "unbalancedJournals": 0,
+    "kpis": {
+      "salesAmount": 2400,
+      "purchaseAmount": 5000,
+      "inventoryValue": 509870,
+      "arOpen": 0,
+      "apOpen": 0,
+      "pendingApproval": 0,
+      "pendingDelivery": 1,
+      "openSalesOrders": 1,
+      "openPurchaseOrders": 1
+    },
+    "arOpen": 0,
+    "apOpen": 0
+  },
+  "coverage": {
+    "total": 85,
+    "loaded": 85,
+    "fail": [],
+    "byStatus": {
+      "INTERACTIVE": 68,
+      "PREVIEW": 17
+    }
+  },
+  "screenshots": [
+    "ui14-executive-dashboard.png",
+    "ui14-customer-list.png",
+    "ui14-sales-order-list.png",
+    "ui14-sales-order-editor.png",
+    "ui14-purchase-order-list.png",
+    "ui14-purchase-order-editor.png",
+    "ui14-inventory-balance.png",
+    "ui14-inventory-transactions.png",
+    "ui14-ar-invoice.png",
+    "ui14-ap-invoice.png",
+    "ui14-journal-entry.png",
+    "ui14-bom-editor.png",
+    "ui14-mrp-workbench.png",
+    "ui14-system-settings.png",
+    "ui14-viewport-1366.png",
+    "ui14-viewport-1440.png",
+    "ui14-viewport-1920.png"
+  ],
+  "viewports": [
+    {
+      "w": 1366,
+      "h": 768,
+      "name": "ui14-viewport-1366.png"
+    },
+    {
+      "w": 1440,
+      "h": 900,
+      "name": "ui14-viewport-1440.png"
+    },
+    {
+      "w": 1920,
+      "h": 1080,
+      "name": "ui14-viewport-1920.png"
+    }
+  ],
+  "wasm": "BLOCKED (product shell is public/ SPA; wasm32-browser not full ERP UI)",
+  "stampHint": "JNATIVE_ONE_UI_1_4_PASS"
+}

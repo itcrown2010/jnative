@@ -1,0 +1,1117 @@
+{
+  "generated": "2026-10-08T12:50:52.970Z",
+  "total": 85,
+  "loaded": 85,
+  "fail": [],
+  "byStatus": {
+    "INTERACTIVE": 68,
+    "PREVIEW": 17
+  },
+  "pages": [
+    {
+      "pageId": "dash.executive",
+      "module": "Workbench",
+      "route": "/dashboard",
+      "title": "Executive Dashboard",
+      "template": "dashboard",
+      "status": "INTERACTIVE",
+      "permissions": [
+        "demo.user"
+      ],
+      "enterpriseGrid": false,
+      "editor": false
+    },
+    {
+      "pageId": "dash.sales",
+      "module": "Workbench",
+      "route": "/dashboard/sales",
+      "title": "Sales Dashboard",
+      "template": "dashboard",
+      "status": "INTERACTIVE",
+      "permissions": [
+        "demo.user"
+      ],
+      "enterpriseGrid": false,
+      "editor": false
+    },
+    {
+      "pageId": "dash.purchasing",
+      "module": "Workbench",
+      "route": "/dashboard/purchasing",
+      "title": "Purchasing Dashboard",
+      "template": "dashboard",
+      "status": "INTERACTIVE",
+      "permissions": [
+        "demo.user"
+      ],
+      "enterpriseGrid": false,
+      "editor": false
+    },
+    {
+      "pageId": "dash.inventory",
+      "module": "Workbench",
+      "route": "/dashboard/inventory",
+      "title": "Inventory Dashboard",
+      "template": "dashboard",
+      "status": "INTERACTIVE",
+      "permissions": [
+        "demo.user"
+      ],
+      "enterpriseGrid": false,
+      "editor": false
+    },
+    {
+      "pageId": "dash.finance",
+      "module": "Workbench",
+      "route": "/dashboard/finance",
+      "title": "Finance Dashboard",
+      "template": "dashboard",
+      "status": "INTERACTIVE",
+      "permissions": [
+        "demo.user"
+      ],
+      "enterpriseGrid": false,
+      "editor": false
+    },
+    {
+      "pageId": "dash.manufacturing",
+      "module": "Workbench",
+      "route": "/dashboard/manufacturing",
+      "title": "Manufacturing Dashboard",
+      "template": "dashboard",
+      "status": "INTERACTIVE",
+      "permissions": [
+        "demo.user"
+      ],
+      "enterpriseGrid": false,
+      "editor": false
+    },
+    {
+      "pageId": "md.customers",
+      "module": "Master Data",
+      "route": "/master/customers",
+      "title": "Customers",
+      "template": "masterList",
+      "status": "INTERACTIVE",
+      "permissions": [
+        "demo.user"
+      ],
+      "enterpriseGrid": true,
+      "editor": false
+    },
+    {
+      "pageId": "md.suppliers",
+      "module": "Master Data",
+      "route": "/master/suppliers",
+      "title": "Suppliers",
+      "template": "masterList",
+      "status": "INTERACTIVE",
+      "permissions": [
+        "demo.user"
+      ],
+      "enterpriseGrid": true,
+      "editor": false
+    },
+    {
+      "pageId": "md.items",
+      "module": "Master Data",
+      "route": "/master/items",
+      "title": "Items",
+      "template": "masterList",
+      "status": "INTERACTIVE",
+      "permissions": [
+        "demo.user"
+      ],
+      "enterpriseGrid": true,
+      "editor": false
+    },
+    {
+      "pageId": "md.categories",
+      "module": "Master Data",
+      "route": "/master/categories",
+      "title": "Item Categories",
+      "template": "masterList",
+      "status": "INTERACTIVE",
+      "permissions": [
+        "demo.user"
+      ],
+      "enterpriseGrid": false,
+      "editor": false
+    },
+    {
+      "pageId": "md.warehouses",
+      "module": "Master Data",
+      "route": "/master/warehouses",
+      "title": "Warehouses",
+      "template": "masterList",
+      "status": "INTERACTIVE",
+      "permissions": [
+        "demo.user"
+      ],
+      "enterpriseGrid": false,
+      "editor": false
+    },
+    {
+      "pageId": "md.units",
+      "module": "Master Data",
+      "route": "/master/units",
+      "title": "Units",
+      "template": "masterList",
+      "status": "INTERACTIVE",
+      "permissions": [
+        "demo.user"
+      ],
+      "enterpriseGrid": false,
+      "editor": false
+    },
+    {
+      "pageId": "md.pricelists",
+      "module": "Master Data",
+      "route": "/master/pricelists",
+      "title": "Price Lists",
+      "template": "masterList",
+      "status": "INTERACTIVE",
+      "permissions": [
+        "demo.user"
+      ],
+      "enterpriseGrid": false,
+      "editor": false
+    },
+    {
+      "pageId": "md.currencies",
+      "module": "Master Data",
+      "route": "/master/currencies",
+      "title": "Currencies",
+      "template": "masterList",
+      "status": "INTERACTIVE",
+      "permissions": [
+        "demo.user"
+      ],
+      "enterpriseGrid": false,
+      "editor": false
+    },
+    {
+      "pageId": "md.employees",
+      "module": "Master Data",
+      "route": "/master/employees",
+      "title": "Employees",
+      "template": "masterList",
+      "status": "INTERACTIVE",
+      "permissions": [
+        "demo.user"
+      ],
+      "enterpriseGrid": false,
+      "editor": false
+    },
+    {
+      "pageId": "md.departments",
+      "module": "Master Data",
+      "route": "/master/departments",
+      "title": "Departments",
+      "template": "masterList",
+      "status": "INTERACTIVE",
+      "permissions": [
+        "demo.user"
+      ],
+      "enterpriseGrid": false,
+      "editor": false
+    },
+    {
+      "pageId": "sales.quotations",
+      "module": "Sales",
+      "route": "/sales/quotations",
+      "title": "Sales Quotations",
+      "template": "documentList",
+      "status": "INTERACTIVE",
+      "permissions": [
+        "demo.user"
+      ],
+      "enterpriseGrid": false,
+      "editor": false
+    },
+    {
+      "pageId": "sales.orders",
+      "module": "Sales",
+      "route": "/sales/orders",
+      "title": "Sales Orders",
+      "template": "documentList",
+      "status": "INTERACTIVE",
+      "permissions": [
+        "demo.user"
+      ],
+      "enterpriseGrid": true,
+      "editor": true
+    },
+    {
+      "pageId": "sales.deliveries",
+      "module": "Sales",
+      "route": "/sales/deliveries",
+      "title": "Deliveries",
+      "template": "documentList",
+      "status": "INTERACTIVE",
+      "permissions": [
+        "demo.user"
+      ],
+      "enterpriseGrid": false,
+      "editor": true
+    },
+    {
+      "pageId": "sales.returns",
+      "module": "Sales",
+      "route": "/sales/returns",
+      "title": "Sales Returns",
+      "template": "documentList",
+      "status": "INTERACTIVE",
+      "permissions": [
+        "demo.user"
+      ],
+      "enterpriseGrid": false,
+      "editor": false
+    },
+    {
+      "pageId": "sales.ar",
+      "module": "Sales",
+      "route": "/sales/ar-invoices",
+      "title": "AR Invoices",
+      "template": "documentList",
+      "status": "INTERACTIVE",
+      "permissions": [
+        "demo.user"
+      ],
+      "enterpriseGrid": false,
+      "editor": true
+    },
+    {
+      "pageId": "sales.analysis",
+      "module": "Sales",
+      "route": "/sales/analysis",
+      "title": "Sales Analysis",
+      "template": "report",
+      "status": "PREVIEW",
+      "permissions": [
+        "demo.user"
+      ],
+      "enterpriseGrid": false,
+      "editor": false
+    },
+    {
+      "pageId": "pur.requests",
+      "module": "Purchasing",
+      "route": "/purchasing/requests",
+      "title": "Purchase Requests",
+      "template": "documentList",
+      "status": "INTERACTIVE",
+      "permissions": [
+        "demo.user"
+      ],
+      "enterpriseGrid": false,
+      "editor": false
+    },
+    {
+      "pageId": "pur.quotations",
+      "module": "Purchasing",
+      "route": "/purchasing/quotations",
+      "title": "Purchase Quotations",
+      "template": "documentList",
+      "status": "INTERACTIVE",
+      "permissions": [
+        "demo.user"
+      ],
+      "enterpriseGrid": false,
+      "editor": false
+    },
+    {
+      "pageId": "pur.orders",
+      "module": "Purchasing",
+      "route": "/purchasing/orders",
+      "title": "Purchase Orders",
+      "template": "documentList",
+      "status": "INTERACTIVE",
+      "permissions": [
+        "demo.user"
+      ],
+      "enterpriseGrid": true,
+      "editor": true
+    },
+    {
+      "pageId": "pur.gr",
+      "module": "Purchasing",
+      "route": "/purchasing/goods-receipts",
+      "title": "Goods Receipts",
+      "template": "documentList",
+      "status": "INTERACTIVE",
+      "permissions": [
+        "demo.user"
+      ],
+      "enterpriseGrid": false,
+      "editor": true
+    },
+    {
+      "pageId": "pur.returns",
+      "module": "Purchasing",
+      "route": "/purchasing/returns",
+      "title": "Purchase Returns",
+      "template": "documentList",
+      "status": "INTERACTIVE",
+      "permissions": [
+        "demo.user"
+      ],
+      "enterpriseGrid": false,
+      "editor": false
+    },
+    {
+      "pageId": "pur.ap",
+      "module": "Purchasing",
+      "route": "/purchasing/ap-invoices",
+      "title": "AP Invoices",
+      "template": "documentList",
+      "status": "INTERACTIVE",
+      "permissions": [
+        "demo.user"
+      ],
+      "enterpriseGrid": false,
+      "editor": true
+    },
+    {
+      "pageId": "pur.analysis",
+      "module": "Purchasing",
+      "route": "/purchasing/analysis",
+      "title": "Purchasing Analysis",
+      "template": "report",
+      "status": "PREVIEW",
+      "permissions": [
+        "demo.user"
+      ],
+      "enterpriseGrid": false,
+      "editor": false
+    },
+    {
+      "pageId": "inv.balance",
+      "module": "Inventory",
+      "route": "/inventory/balance",
+      "title": "Inventory Balance",
+      "template": "masterList",
+      "status": "INTERACTIVE",
+      "permissions": [
+        "demo.user"
+      ],
+      "enterpriseGrid": true,
+      "editor": false
+    },
+    {
+      "pageId": "inv.txns",
+      "module": "Inventory",
+      "route": "/inventory/transactions",
+      "title": "Inventory Transactions",
+      "template": "masterList",
+      "status": "INTERACTIVE",
+      "permissions": [
+        "demo.user"
+      ],
+      "enterpriseGrid": true,
+      "editor": false
+    },
+    {
+      "pageId": "inv.transfers",
+      "module": "Inventory",
+      "route": "/inventory/transfers",
+      "title": "Inventory Transfers",
+      "template": "documentList",
+      "status": "INTERACTIVE",
+      "permissions": [
+        "demo.user"
+      ],
+      "enterpriseGrid": false,
+      "editor": false
+    },
+    {
+      "pageId": "inv.counting",
+      "module": "Inventory",
+      "route": "/inventory/counting",
+      "title": "Inventory Counting",
+      "template": "documentList",
+      "status": "INTERACTIVE",
+      "permissions": [
+        "demo.user"
+      ],
+      "enterpriseGrid": false,
+      "editor": false
+    },
+    {
+      "pageId": "inv.adjustments",
+      "module": "Inventory",
+      "route": "/inventory/adjustments",
+      "title": "Inventory Adjustments",
+      "template": "documentList",
+      "status": "INTERACTIVE",
+      "permissions": [
+        "demo.user"
+      ],
+      "enterpriseGrid": false,
+      "editor": false
+    },
+    {
+      "pageId": "inv.batches",
+      "module": "Inventory",
+      "route": "/inventory/batches",
+      "title": "Batch Management",
+      "template": "masterList",
+      "status": "INTERACTIVE",
+      "permissions": [
+        "demo.user"
+      ],
+      "enterpriseGrid": false,
+      "editor": false
+    },
+    {
+      "pageId": "inv.serials",
+      "module": "Inventory",
+      "route": "/inventory/serials",
+      "title": "Serial Numbers",
+      "template": "masterList",
+      "status": "INTERACTIVE",
+      "permissions": [
+        "demo.user"
+      ],
+      "enterpriseGrid": false,
+      "editor": false
+    },
+    {
+      "pageId": "inv.alerts",
+      "module": "Inventory",
+      "route": "/inventory/alerts",
+      "title": "Inventory Alerts",
+      "template": "masterList",
+      "status": "INTERACTIVE",
+      "permissions": [
+        "demo.user"
+      ],
+      "enterpriseGrid": false,
+      "editor": false
+    },
+    {
+      "pageId": "inv.valuation",
+      "module": "Inventory",
+      "route": "/inventory/valuation",
+      "title": "Inventory Valuation",
+      "template": "report",
+      "status": "PREVIEW",
+      "permissions": [
+        "demo.user"
+      ],
+      "enterpriseGrid": false,
+      "editor": false
+    },
+    {
+      "pageId": "fin.coa",
+      "module": "Finance",
+      "route": "/finance/accounts",
+      "title": "Chart of Accounts",
+      "template": "masterList",
+      "status": "INTERACTIVE",
+      "permissions": [
+        "demo.user"
+      ],
+      "enterpriseGrid": false,
+      "editor": false
+    },
+    {
+      "pageId": "fin.journals",
+      "module": "Finance",
+      "route": "/finance/journals",
+      "title": "Journal Entries",
+      "template": "documentList",
+      "status": "INTERACTIVE",
+      "permissions": [
+        "demo.user"
+      ],
+      "enterpriseGrid": false,
+      "editor": false
+    },
+    {
+      "pageId": "fin.gl",
+      "module": "Finance",
+      "route": "/finance/gl",
+      "title": "General Ledger",
+      "template": "masterList",
+      "status": "INTERACTIVE",
+      "permissions": [
+        "demo.user"
+      ],
+      "enterpriseGrid": false,
+      "editor": false
+    },
+    {
+      "pageId": "fin.tb",
+      "module": "Finance",
+      "route": "/finance/trial-balance",
+      "title": "Trial Balance",
+      "template": "masterList",
+      "status": "INTERACTIVE",
+      "permissions": [
+        "demo.user"
+      ],
+      "enterpriseGrid": false,
+      "editor": false
+    },
+    {
+      "pageId": "fin.ar",
+      "module": "Finance",
+      "route": "/finance/ar",
+      "title": "Accounts Receivable",
+      "template": "documentList",
+      "status": "INTERACTIVE",
+      "permissions": [
+        "demo.user"
+      ],
+      "enterpriseGrid": true,
+      "editor": false
+    },
+    {
+      "pageId": "fin.ap",
+      "module": "Finance",
+      "route": "/finance/ap",
+      "title": "Accounts Payable",
+      "template": "documentList",
+      "status": "INTERACTIVE",
+      "permissions": [
+        "demo.user"
+      ],
+      "enterpriseGrid": true,
+      "editor": false
+    },
+    {
+      "pageId": "fin.ip",
+      "module": "Finance",
+      "route": "/finance/incoming-payments",
+      "title": "Incoming Payments",
+      "template": "documentList",
+      "status": "INTERACTIVE",
+      "permissions": [
+        "demo.user"
+      ],
+      "enterpriseGrid": false,
+      "editor": false
+    },
+    {
+      "pageId": "fin.op",
+      "module": "Finance",
+      "route": "/finance/outgoing-payments",
+      "title": "Outgoing Payments",
+      "template": "documentList",
+      "status": "INTERACTIVE",
+      "permissions": [
+        "demo.user"
+      ],
+      "enterpriseGrid": false,
+      "editor": false
+    },
+    {
+      "pageId": "fin.banks",
+      "module": "Finance",
+      "route": "/finance/banks",
+      "title": "Bank Accounts",
+      "template": "masterList",
+      "status": "INTERACTIVE",
+      "permissions": [
+        "demo.user"
+      ],
+      "enterpriseGrid": false,
+      "editor": false
+    },
+    {
+      "pageId": "fin.periods",
+      "module": "Finance",
+      "route": "/finance/periods",
+      "title": "Fiscal Periods",
+      "template": "masterList",
+      "status": "INTERACTIVE",
+      "permissions": [
+        "demo.user"
+      ],
+      "enterpriseGrid": false,
+      "editor": false
+    },
+    {
+      "pageId": "fin.bs",
+      "module": "Finance",
+      "route": "/finance/balance-sheet",
+      "title": "Balance Sheet",
+      "template": "report",
+      "status": "PREVIEW",
+      "permissions": [
+        "demo.user"
+      ],
+      "enterpriseGrid": false,
+      "editor": false
+    },
+    {
+      "pageId": "fin.is",
+      "module": "Finance",
+      "route": "/finance/income-statement",
+      "title": "Income Statement",
+      "template": "report",
+      "status": "PREVIEW",
+      "permissions": [
+        "demo.user"
+      ],
+      "enterpriseGrid": false,
+      "editor": false
+    },
+    {
+      "pageId": "fin.cf",
+      "module": "Finance",
+      "route": "/finance/cash-flow",
+      "title": "Cash Flow Statement",
+      "template": "report",
+      "status": "PREVIEW",
+      "permissions": [
+        "demo.user"
+      ],
+      "enterpriseGrid": false,
+      "editor": false
+    },
+    {
+      "pageId": "mfg.bom",
+      "module": "Manufacturing",
+      "route": "/mfg/bom",
+      "title": "BOM",
+      "template": "documentList",
+      "status": "INTERACTIVE",
+      "permissions": [
+        "demo.user"
+      ],
+      "enterpriseGrid": false,
+      "editor": "bom"
+    },
+    {
+      "pageId": "mfg.bomEditor",
+      "module": "Manufacturing",
+      "route": "/mfg/bom-editor",
+      "title": "BOM Editor",
+      "template": "bomEditor",
+      "status": "INTERACTIVE",
+      "permissions": [
+        "demo.user"
+      ],
+      "enterpriseGrid": false,
+      "editor": false
+    },
+    {
+      "pageId": "mfg.orders",
+      "module": "Manufacturing",
+      "route": "/mfg/orders",
+      "title": "Production Orders",
+      "template": "documentList",
+      "status": "INTERACTIVE",
+      "permissions": [
+        "demo.user"
+      ],
+      "enterpriseGrid": true,
+      "editor": false
+    },
+    {
+      "pageId": "mfg.issues",
+      "module": "Manufacturing",
+      "route": "/mfg/issues",
+      "title": "Production Issues",
+      "template": "documentList",
+      "status": "INTERACTIVE",
+      "permissions": [
+        "demo.user"
+      ],
+      "enterpriseGrid": false,
+      "editor": false
+    },
+    {
+      "pageId": "mfg.returns",
+      "module": "Manufacturing",
+      "route": "/mfg/returns",
+      "title": "Production Returns",
+      "template": "documentList",
+      "status": "INTERACTIVE",
+      "permissions": [
+        "demo.user"
+      ],
+      "enterpriseGrid": false,
+      "editor": false
+    },
+    {
+      "pageId": "mfg.receipts",
+      "module": "Manufacturing",
+      "route": "/mfg/receipts",
+      "title": "Production Receipts",
+      "template": "documentList",
+      "status": "INTERACTIVE",
+      "permissions": [
+        "demo.user"
+      ],
+      "enterpriseGrid": false,
+      "editor": false
+    },
+    {
+      "pageId": "mfg.mrp",
+      "module": "Manufacturing",
+      "route": "/mfg/mrp",
+      "title": "MRP Workbench",
+      "template": "mrp",
+      "status": "INTERACTIVE",
+      "permissions": [
+        "demo.user"
+      ],
+      "enterpriseGrid": false,
+      "editor": false
+    },
+    {
+      "pageId": "mfg.cost",
+      "module": "Manufacturing",
+      "route": "/mfg/cost",
+      "title": "Production Cost",
+      "template": "report",
+      "status": "PREVIEW",
+      "permissions": [
+        "demo.user"
+      ],
+      "enterpriseGrid": false,
+      "editor": false
+    },
+    {
+      "pageId": "mfg.progress",
+      "module": "Manufacturing",
+      "route": "/mfg/progress",
+      "title": "Production Progress",
+      "template": "report",
+      "status": "PREVIEW",
+      "permissions": [
+        "demo.user"
+      ],
+      "enterpriseGrid": false,
+      "editor": false
+    },
+    {
+      "pageId": "crm.leads",
+      "module": "CRM",
+      "route": "/crm/leads",
+      "title": "Leads",
+      "template": "masterList",
+      "status": "INTERACTIVE",
+      "permissions": [
+        "demo.user"
+      ],
+      "enterpriseGrid": false,
+      "editor": false
+    },
+    {
+      "pageId": "crm.opps",
+      "module": "CRM",
+      "route": "/crm/opportunities",
+      "title": "Opportunities",
+      "template": "masterList",
+      "status": "INTERACTIVE",
+      "permissions": [
+        "demo.user"
+      ],
+      "enterpriseGrid": false,
+      "editor": false
+    },
+    {
+      "pageId": "crm.activities",
+      "module": "CRM",
+      "route": "/crm/activities",
+      "title": "Activities",
+      "template": "masterList",
+      "status": "INTERACTIVE",
+      "permissions": [
+        "demo.user"
+      ],
+      "enterpriseGrid": false,
+      "editor": false
+    },
+    {
+      "pageId": "crm.visits",
+      "module": "CRM",
+      "route": "/crm/visits",
+      "title": "Customer Visits",
+      "template": "masterList",
+      "status": "INTERACTIVE",
+      "permissions": [
+        "demo.user"
+      ],
+      "enterpriseGrid": false,
+      "editor": false
+    },
+    {
+      "pageId": "crm.pipeline",
+      "module": "CRM",
+      "route": "/crm/pipeline",
+      "title": "Sales Pipeline",
+      "template": "report",
+      "status": "PREVIEW",
+      "permissions": [
+        "demo.user"
+      ],
+      "enterpriseGrid": false,
+      "editor": false
+    },
+    {
+      "pageId": "crm.forecast",
+      "module": "CRM",
+      "route": "/crm/forecast",
+      "title": "Sales Forecast",
+      "template": "report",
+      "status": "PREVIEW",
+      "permissions": [
+        "demo.user"
+      ],
+      "enterpriseGrid": false,
+      "editor": false
+    },
+    {
+      "pageId": "rpt.sales",
+      "module": "Reports",
+      "route": "/reports/sales",
+      "title": "Sales Reports",
+      "template": "report",
+      "status": "PREVIEW",
+      "permissions": [
+        "demo.user"
+      ],
+      "enterpriseGrid": false,
+      "editor": false
+    },
+    {
+      "pageId": "rpt.purchasing",
+      "module": "Reports",
+      "route": "/reports/purchasing",
+      "title": "Purchasing Reports",
+      "template": "report",
+      "status": "PREVIEW",
+      "permissions": [
+        "demo.user"
+      ],
+      "enterpriseGrid": false,
+      "editor": false
+    },
+    {
+      "pageId": "rpt.inventory",
+      "module": "Reports",
+      "route": "/reports/inventory",
+      "title": "Inventory Reports",
+      "template": "report",
+      "status": "PREVIEW",
+      "permissions": [
+        "demo.user"
+      ],
+      "enterpriseGrid": false,
+      "editor": false
+    },
+    {
+      "pageId": "rpt.finance",
+      "module": "Reports",
+      "route": "/reports/finance",
+      "title": "Finance Reports",
+      "template": "report",
+      "status": "PREVIEW",
+      "permissions": [
+        "demo.user"
+      ],
+      "enterpriseGrid": false,
+      "editor": false
+    },
+    {
+      "pageId": "rpt.mfg",
+      "module": "Reports",
+      "route": "/reports/manufacturing",
+      "title": "Manufacturing Reports",
+      "template": "report",
+      "status": "PREVIEW",
+      "permissions": [
+        "demo.user"
+      ],
+      "enterpriseGrid": false,
+      "editor": false
+    },
+    {
+      "pageId": "rpt.customer",
+      "module": "Reports",
+      "route": "/reports/customer",
+      "title": "Customer Analytics",
+      "template": "report",
+      "status": "PREVIEW",
+      "permissions": [
+        "demo.user"
+      ],
+      "enterpriseGrid": false,
+      "editor": false
+    },
+    {
+      "pageId": "rpt.exec",
+      "module": "Reports",
+      "route": "/reports/executive",
+      "title": "Executive Analytics",
+      "template": "report",
+      "status": "PREVIEW",
+      "permissions": [
+        "demo.user"
+      ],
+      "enterpriseGrid": false,
+      "editor": false
+    },
+    {
+      "pageId": "sys.users",
+      "module": "System",
+      "route": "/system/users",
+      "title": "Users",
+      "template": "masterList",
+      "status": "INTERACTIVE",
+      "permissions": [
+        "demo.user"
+      ],
+      "enterpriseGrid": false,
+      "editor": false
+    },
+    {
+      "pageId": "sys.roles",
+      "module": "System",
+      "route": "/system/roles",
+      "title": "Roles",
+      "template": "masterList",
+      "status": "INTERACTIVE",
+      "permissions": [
+        "demo.user"
+      ],
+      "enterpriseGrid": false,
+      "editor": false
+    },
+    {
+      "pageId": "sys.permissions",
+      "module": "System",
+      "route": "/system/permissions",
+      "title": "Permissions",
+      "template": "masterList",
+      "status": "INTERACTIVE",
+      "permissions": [
+        "demo.user"
+      ],
+      "enterpriseGrid": false,
+      "editor": false
+    },
+    {
+      "pageId": "sys.companies",
+      "module": "System",
+      "route": "/system/companies",
+      "title": "Companies",
+      "template": "masterList",
+      "status": "INTERACTIVE",
+      "permissions": [
+        "demo.user"
+      ],
+      "enterpriseGrid": false,
+      "editor": false
+    },
+    {
+      "pageId": "sys.departments",
+      "module": "System",
+      "route": "/system/departments",
+      "title": "Departments",
+      "template": "masterList",
+      "status": "INTERACTIVE",
+      "permissions": [
+        "demo.user"
+      ],
+      "enterpriseGrid": false,
+      "editor": false
+    },
+    {
+      "pageId": "sys.workflows",
+      "module": "System",
+      "route": "/system/workflows",
+      "title": "Workflows",
+      "template": "masterList",
+      "status": "INTERACTIVE",
+      "permissions": [
+        "demo.user"
+      ],
+      "enterpriseGrid": false,
+      "editor": false
+    },
+    {
+      "pageId": "sys.customFields",
+      "module": "System",
+      "route": "/system/custom-fields",
+      "title": "Custom Fields",
+      "template": "masterList",
+      "status": "INTERACTIVE",
+      "permissions": [
+        "demo.user"
+      ],
+      "enterpriseGrid": false,
+      "editor": false
+    },
+    {
+      "pageId": "sys.forms",
+      "module": "System",
+      "route": "/system/forms",
+      "title": "Form Configuration",
+      "template": "masterList",
+      "status": "INTERACTIVE",
+      "permissions": [
+        "demo.user"
+      ],
+      "enterpriseGrid": false,
+      "editor": false
+    },
+    {
+      "pageId": "sys.numbering",
+      "module": "System",
+      "route": "/system/numbering",
+      "title": "Numbering Series",
+      "template": "masterList",
+      "status": "INTERACTIVE",
+      "permissions": [
+        "demo.user"
+      ],
+      "enterpriseGrid": false,
+      "editor": false
+    },
+    {
+      "pageId": "sys.settings",
+      "module": "System",
+      "route": "/system/settings",
+      "title": "System Settings",
+      "template": "settings",
+      "status": "INTERACTIVE",
+      "permissions": [
+        "demo.user"
+      ],
+      "enterpriseGrid": false,
+      "editor": false
+    },
+    {
+      "pageId": "sys.audit",
+      "module": "System",
+      "route": "/system/audit",
+      "title": "Audit Logs",
+      "template": "masterList",
+      "status": "INTERACTIVE",
+      "permissions": [
+        "demo.user"
+      ],
+      "enterpriseGrid": false,
+      "editor": false
+    },
+    {
+      "pageId": "sys.importExport",
+      "module": "System",
+      "route": "/system/import-export",
+      "title": "Import Export",
+      "template": "importExport",
+      "status": "INTERACTIVE",
+      "permissions": [
+        "demo.user"
+      ],
+      "enterpriseGrid": false,
+      "editor": false
+    }
+  ]
+}

@@ -143,6 +143,27 @@ class BitOps {
 
     @Native(library = "jnative_crypto", symbol = "jnative_bit_ushr")
     static native int ushr(int a, int n);
+
+    @Native(library = "jnative_crypto", symbol = "jnative_bit_and64")
+    static native long and64(long a, long b);
+
+    @Native(library = "jnative_crypto", symbol = "jnative_bit_or64")
+    static native long or64(long a, long b);
+
+    @Native(library = "jnative_crypto", symbol = "jnative_bit_xor64")
+    static native long xor64(long a, long b);
+
+    @Native(library = "jnative_crypto", symbol = "jnative_bit_not64")
+    static native long not64(long a);
+
+    @Native(library = "jnative_crypto", symbol = "jnative_bit_shl64")
+    static native long shl64(long a, int n);
+
+    @Native(library = "jnative_crypto", symbol = "jnative_bit_ushr64")
+    static native long ushr64(long a, int n);
+
+    @Native(library = "jnative_crypto", symbol = "jnative_bit_shr64")
+    static native long shr64(long a, int n);
 }
 
 class SecureRandomNative {
@@ -737,10 +758,14 @@ class Hmac {
 }
 
 class Password {
-    static int DEFAULT_ITERATIONS = 500;
+    /**
+     * Versioned PBKDF2-HMAC-SHA256 default. Format: pbkdf2_sha256$N$saltHex$dkHex.
+     * Raised from legacy 500 for Music Auth / security baseline; verify still accepts older N.
+     * Prefer Argon2id (RH-3) when available via C ABI.
+     */
+    static int DEFAULT_ITERATIONS = 10000;
+    static int LEGACY_ITERATIONS = 500;
     static int MAX_PASSWORD_CHARS = 1024;
-    /* 500 is a GC-stable default for the managed PBKDF2 loop under HTTP load.
-     * Higher counts (e.g. 5k+) currently risk native crashes; prefer Argon2id via C ABI next. */
 
     static JnFuture hash(EventLoop loop, String password) {
         PasswordHashSupplier sup = new PasswordHashSupplier();
@@ -793,6 +818,23 @@ class Password {
         byte[] expected = CryptoHex.decode(rest2.substringFrom(p2 + 1));
         byte[] actual = pbkdf2(Bytes.fromString(password), salt, iterations, expected.length);
         return ConstantTime.equalBytes(actual, expected);
+    }
+
+    /** Non-zero when encoded hash should be upgraded to current DEFAULT_ITERATIONS. */
+    static int needsRehash(String encoded) {
+        if (encoded == null || encoded.indexOf("pbkdf2_sha256$") != 0) {
+            return 1;
+        }
+        String rest = encoded.substringFrom(14);
+        int p1 = rest.indexOf("$");
+        if (p1 < 0) {
+            return 1;
+        }
+        int iterations = CryptoParse.intFromString(rest.substring(0, p1));
+        if (iterations < DEFAULT_ITERATIONS) {
+            return 1;
+        }
+        return 0;
     }
 
     static byte[] pbkdf2(byte[] password, byte[] salt, int iterations, int dkLen) {

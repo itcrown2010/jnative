@@ -48,6 +48,16 @@ Array metadata uses flags:
 
 Managed and native worlds must not be mixed without an explicit bridge (FFI / CString / File copy).
 
-## Non-moving
+## GC movement (default GC2)
 
-Managed pointers remain stable for object lifetime (GC is non-moving). Do **not** rely on this for FFI into Java objects — use temporary CString / copies.
+Default collector is **GC2** — see [gc-current-design.md](gc-current-design.md).
+
+| Heap region | Pointer stability |
+|---|---|
+| Young | **May relocate** on minor/major GC |
+| Old / large | Stable until freed (non-moving mark-sweep) |
+| `@Stack` / native malloc | Not GC-moved |
+
+Language references are updated via precise root slots. Do **not** pass raw managed object addresses to FFI across safepoints — use `CString` / `NativeMemory` / handle indirection.
+
+Legacy `JNATIVE_GC=marksweep` is fully non-moving but is **not** the default.

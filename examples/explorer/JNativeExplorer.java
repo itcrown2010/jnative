@@ -648,6 +648,7 @@ class ExplorerWindow {
 
         SplitPane split = new SplitPane(Orientation.HORIZONTAL);
         split.setPrefSize(800, 480);
+        split.vgrow = 1;
         split.prefHeight = 480;
         split.setDividerPosition(0.22);
         split.setFirst(tree);

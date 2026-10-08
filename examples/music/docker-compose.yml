@@ -1,0 +1,20 @@
+# Local PostgreSQL for JNative Music validation.
+# SCRAM is not yet supported (RH-1) — force md5 password encryption.
+services:
+  pg:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: music
+      POSTGRES_PASSWORD: music
+      POSTGRES_DB: music
+    command:
+      - postgres
+      - -c
+      - password_encryption=md5
+    ports:
+      - "5433:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U music -d music"]
+      interval: 3s
+      timeout: 3s
+      retries: 20

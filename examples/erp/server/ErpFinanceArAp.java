@@ -7,45 +7,54 @@ class ErpFinanceArAp {
         if (totalAmount <= 0L) {
             return null;
         }
-        try {
-            long now = AsyncClockNative.wallMillis();
-            long seq = ErpDb.nextDocNo(companyId, "AR");
-            String no = "AR-" + CryptoParse.longToString(seq);
-            String ins = "INSERT INTO ar_invoices(company_id, customer_id, invoice_number, invoice_date, due_date, currency, total_amount, paid_amount, open_amount, status, source_delivery_id, created_at) VALUES ("
-                    + CryptoParse.longToString(companyId) + ","
-                    + CryptoParse.longToString(customerId) + ",'"
-                    + no + "',"
-                    + CryptoParse.longToString(invoiceDate) + ","
-                    + CryptoParse.longToString(dueDate) + ",'USD',"
-                    + CryptoParse.longToString(totalAmount) + ",0,"
-                    + CryptoParse.longToString(totalAmount) + ",'"
-                    + InvoiceStatus.DRAFT + "',"
-                    + CryptoParse.longToString(sourceDeliveryId) + ","
-                    + CryptoParse.longToString(now) + ")";
-            ErpDb.exec(ins, new ArrayList<Object>());
-            ArrayList<Object> qp = new ArrayList<Object>();
-            qp.add(CryptoParse.longToString(companyId));
-            qp.add(no);
-            Object idObj = ErpDb.queryOne(
-                    "SELECT id FROM ar_invoices WHERE company_id=? AND invoice_number=?", qp, new LongMapper());
-            ArInvoiceDto d = new ArInvoiceDto();
-            d.id = ErpNum.asLong(idObj);
-            d.customerId = customerId;
-            d.invoiceNumber = no;
-            d.invoiceDate = invoiceDate;
-            d.dueDate = dueDate;
-            d.totalAmount = totalAmount;
-            d.paidAmount = 0L;
-            d.openAmount = totalAmount;
-            d.status = InvoiceStatus.DRAFT;
-            return d;
-        } catch (Exception ex) {
-            System.out.println("AR_CREATE_EX");
-            if (ex.getMessage() != null) {
-                System.out.println(ex.getMessage());
+        int attempt = 0;
+        while (attempt < 2) {
+            try {
+                long now = AsyncClockNative.wallMillis();
+                long seq = ErpDb.nextDocNo(companyId, "AR");
+                String no = "AR-" + CryptoParse.longToString(seq);
+                String ins = "INSERT INTO ar_invoices(company_id, customer_id, invoice_number, invoice_date, due_date, currency, total_amount, paid_amount, open_amount, status, source_delivery_id, created_at) VALUES ("
+                        + CryptoParse.longToString(companyId) + ","
+                        + CryptoParse.longToString(customerId) + ",'"
+                        + no + "',"
+                        + CryptoParse.longToString(invoiceDate) + ","
+                        + CryptoParse.longToString(dueDate) + ",'USD',"
+                        + CryptoParse.longToString(totalAmount) + ",0,"
+                        + CryptoParse.longToString(totalAmount) + ",'"
+                        + InvoiceStatus.DRAFT + "',"
+                        + CryptoParse.longToString(sourceDeliveryId) + ","
+                        + CryptoParse.longToString(now) + ")";
+                ErpDb.exec(ins, new ArrayList<Object>());
+                ArrayList<Object> qp = new ArrayList<Object>();
+                qp.add(CryptoParse.longToString(companyId));
+                qp.add(no);
+                Object idObj = ErpDb.queryOne(
+                        "SELECT id FROM ar_invoices WHERE company_id=? AND invoice_number=?", qp, new LongMapper());
+                ArInvoiceDto d = new ArInvoiceDto();
+                d.id = ErpNum.asLong(idObj);
+                d.customerId = customerId;
+                d.invoiceNumber = no;
+                d.invoiceDate = invoiceDate;
+                d.dueDate = dueDate;
+                d.totalAmount = totalAmount;
+                d.paidAmount = 0L;
+                d.openAmount = totalAmount;
+                d.status = InvoiceStatus.DRAFT;
+                return d;
+            } catch (Exception ex) {
+                if (attempt == 0 && ErpPosting.isPgWireError(ex) != 0) {
+                    ErpDb.reconnect();
+                    attempt = attempt + 1;
+                    continue;
+                }
+                System.out.println("AR_CREATE_EX");
+                if (ex.getMessage() != null) {
+                    System.out.println(ex.getMessage());
+                }
+                return null;
             }
-            return null;
         }
+        return null;
     }
 
     static PostResultDto postArInvoice(long companyId, long userId, long invoiceId) {
@@ -76,45 +85,54 @@ class ErpFinanceArAp {
         if (totalAmount <= 0L) {
             return null;
         }
-        try {
-            long now = AsyncClockNative.wallMillis();
-            long seq = ErpDb.nextDocNo(companyId, "AP");
-            String no = "AP-" + CryptoParse.longToString(seq);
-            String ins = "INSERT INTO ap_invoices(company_id, supplier_id, invoice_number, invoice_date, due_date, currency, total_amount, paid_amount, open_amount, status, source_gr_id, created_at) VALUES ("
-                    + CryptoParse.longToString(companyId) + ","
-                    + CryptoParse.longToString(supplierId) + ",'"
-                    + no + "',"
-                    + CryptoParse.longToString(invoiceDate) + ","
-                    + CryptoParse.longToString(dueDate) + ",'USD',"
-                    + CryptoParse.longToString(totalAmount) + ",0,"
-                    + CryptoParse.longToString(totalAmount) + ",'"
-                    + InvoiceStatus.DRAFT + "',"
-                    + CryptoParse.longToString(sourceGrId) + ","
-                    + CryptoParse.longToString(now) + ")";
-            ErpDb.exec(ins, new ArrayList<Object>());
-            ArrayList<Object> qp = new ArrayList<Object>();
-            qp.add(CryptoParse.longToString(companyId));
-            qp.add(no);
-            Object idObj = ErpDb.queryOne(
-                    "SELECT id FROM ap_invoices WHERE company_id=? AND invoice_number=?", qp, new LongMapper());
-            ApInvoiceDto d = new ApInvoiceDto();
-            d.id = ErpNum.asLong(idObj);
-            d.supplierId = supplierId;
-            d.invoiceNumber = no;
-            d.invoiceDate = invoiceDate;
-            d.dueDate = dueDate;
-            d.totalAmount = totalAmount;
-            d.paidAmount = 0L;
-            d.openAmount = totalAmount;
-            d.status = InvoiceStatus.DRAFT;
-            return d;
-        } catch (Exception ex) {
-            System.out.println("AP_CREATE_EX");
-            if (ex.getMessage() != null) {
-                System.out.println(ex.getMessage());
+        int attempt = 0;
+        while (attempt < 2) {
+            try {
+                long now = AsyncClockNative.wallMillis();
+                long seq = ErpDb.nextDocNo(companyId, "AP");
+                String no = "AP-" + CryptoParse.longToString(seq);
+                String ins = "INSERT INTO ap_invoices(company_id, supplier_id, invoice_number, invoice_date, due_date, currency, total_amount, paid_amount, open_amount, status, source_gr_id, created_at) VALUES ("
+                        + CryptoParse.longToString(companyId) + ","
+                        + CryptoParse.longToString(supplierId) + ",'"
+                        + no + "',"
+                        + CryptoParse.longToString(invoiceDate) + ","
+                        + CryptoParse.longToString(dueDate) + ",'USD',"
+                        + CryptoParse.longToString(totalAmount) + ",0,"
+                        + CryptoParse.longToString(totalAmount) + ",'"
+                        + InvoiceStatus.DRAFT + "',"
+                        + CryptoParse.longToString(sourceGrId) + ","
+                        + CryptoParse.longToString(now) + ")";
+                ErpDb.exec(ins, new ArrayList<Object>());
+                ArrayList<Object> qp = new ArrayList<Object>();
+                qp.add(CryptoParse.longToString(companyId));
+                qp.add(no);
+                Object idObj = ErpDb.queryOne(
+                        "SELECT id FROM ap_invoices WHERE company_id=? AND invoice_number=?", qp, new LongMapper());
+                ApInvoiceDto d = new ApInvoiceDto();
+                d.id = ErpNum.asLong(idObj);
+                d.supplierId = supplierId;
+                d.invoiceNumber = no;
+                d.invoiceDate = invoiceDate;
+                d.dueDate = dueDate;
+                d.totalAmount = totalAmount;
+                d.paidAmount = 0L;
+                d.openAmount = totalAmount;
+                d.status = InvoiceStatus.DRAFT;
+                return d;
+            } catch (Exception ex) {
+                if (attempt == 0 && ErpPosting.isPgWireError(ex) != 0) {
+                    ErpDb.reconnect();
+                    attempt = attempt + 1;
+                    continue;
+                }
+                System.out.println("AP_CREATE_EX");
+                if (ex.getMessage() != null) {
+                    System.out.println(ex.getMessage());
+                }
+                return null;
             }
-            return null;
         }
+        return null;
     }
 
     static PostResultDto postApInvoice(long companyId, long userId, long invoiceId) {
@@ -141,32 +159,7 @@ class ErpFinanceArAp {
     }
 
     static PostResultDto runPostWork(DbTransactionWork work) {
-        try {
-            JnFuture f = Erp.db.transaction(work);
-            FutureBlocker.blockingWait(f);
-            if (f.getError() != null) {
-                throw f.getError();
-            }
-            Object v = f.getValue();
-            if (v == null) {
-                PostResultDto bad = new PostResultDto();
-                bad.ok = 0;
-                bad.code = "POST_NULL";
-                bad.message = "null";
-                return bad;
-            }
-            return (PostResultDto) v;
-        } catch (Exception ex) {
-            PostResultDto bad = new PostResultDto();
-            bad.ok = 0;
-            bad.code = "POST_FAILED";
-            if (ex.getMessage() != null) {
-                bad.message = ex.getMessage();
-            } else {
-                bad.message = "failed";
-            }
-            return bad;
-        }
+        return ErpPosting.runPostingWork(work);
     }
 
     static long bankLedgerAccountConn(DbConnection conn, long companyId, long bankAccountId) {

@@ -69,6 +69,8 @@ int32_t jnative_fs_stream_read(int64_t fd, void *buf, int32_t len);
 int32_t jnative_fs_stream_write(int64_t fd, const void *buf, int32_t len);
 int32_t jnative_fs_stream_close(int64_t fd);
 int32_t jnative_fs_stream_fsync(int64_t fd);
+/** Seek to absolute byte offset. Returns 0 on success, -1 on error. */
+int32_t jnative_fs_stream_seek(int64_t fd, int64_t offset);
 
 /** Symlink: 1 if path is a symlink. */
 int32_t jnative_fs_is_symlink(const char *path);

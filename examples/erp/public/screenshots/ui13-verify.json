@@ -1,0 +1,126 @@
+{
+  "ok": [
+    "Customer Grid mounted",
+    "Sales Order Grid mounted",
+    "Inventory Grid mounted",
+    "AR Grid mounted",
+    "Advanced Filter opened",
+    "Saved Views manager",
+    "Column Manager",
+    "multi-click sort toggle",
+    "select page: Current page selected (3)",
+    "select all results: ALL filtered results selected (3) - DEMO",
+    "grouping by status",
+    "open AR row (drill/editor path)",
+    "Global Search categories=2",
+    "keyboard arrow/escape on grid row",
+    "CSV page export download: md.customers-page-DEMO.csv",
+    "perf measured: {\"mountMs\":82,\"scrollMs\":0,\"pageSize\":20}",
+    "perf n=100 queryMs=0 pageRows=50",
+    "perf n=1000 queryMs=0 pageRows=50",
+    "perf n=10000 queryMs=1 pageRows=50",
+    "perf n=100000 queryMs=13 pageRows=50",
+    "viewport 1366x768",
+    "viewport 1440x900",
+    "viewport 1920x1080"
+  ],
+  "fail": [],
+  "perf": {
+    "n_100": {
+      "n": 100,
+      "pageRowsRenderedCap": 50,
+      "total": 100,
+      "queryMs": 0,
+      "filterMs": 0,
+      "sortMs": 0,
+      "filterInternalMs": 0,
+      "filteredTotal": 20,
+      "memory": {
+        "usedJSHeapMB": 10,
+        "totalJSHeapMB": 10
+      },
+      "strategy": "memory-paging"
+    },
+    "n_1000": {
+      "n": 1000,
+      "pageRowsRenderedCap": 50,
+      "total": 1000,
+      "queryMs": 0,
+      "filterMs": 0,
+      "sortMs": 0,
+      "filterInternalMs": 0,
+      "filteredTotal": 200,
+      "memory": {
+        "usedJSHeapMB": 10,
+        "totalJSHeapMB": 10
+      },
+      "strategy": "memory-paging"
+    },
+    "n_10000": {
+      "n": 10000,
+      "pageRowsRenderedCap": 50,
+      "total": 10000,
+      "queryMs": 1,
+      "filterMs": 2,
+      "sortMs": 1,
+      "filterInternalMs": 2,
+      "filteredTotal": 2000,
+      "memory": {
+        "usedJSHeapMB": 10,
+        "totalJSHeapMB": 10
+      },
+      "strategy": "memory-paging+no-full-DOM"
+    },
+    "n_100000": {
+      "n": 100000,
+      "pageRowsRenderedCap": 50,
+      "total": 100000,
+      "queryMs": 13,
+      "filterMs": 11,
+      "sortMs": 7,
+      "filterInternalMs": 8,
+      "filteredTotal": 20000,
+      "memory": {
+        "usedJSHeapMB": 10,
+        "totalJSHeapMB": 10
+      },
+      "strategy": "memory-paging+no-full-DOM"
+    },
+    "mount_1000": {
+      "mountMs": 82,
+      "scrollMs": 0,
+      "pageSize": 20
+    }
+  },
+  "screenshots": [
+    "ui13-customer-grid.png",
+    "ui13-sales-order-grid.png",
+    "ui13-inventory-grid.png",
+    "ui13-ar-grid.png",
+    "ui13-advanced-filter.png",
+    "ui13-saved-views.png",
+    "ui13-column-manager.png",
+    "ui13-global-search.png",
+    "ui13-viewport-1366.png",
+    "ui13-viewport-1440.png",
+    "ui13-viewport-1920.png"
+  ],
+  "viewports": [
+    {
+      "w": 1366,
+      "h": 768,
+      "name": "ui13-viewport-1366.png"
+    },
+    {
+      "w": 1440,
+      "h": 900,
+      "name": "ui13-viewport-1440.png"
+    },
+    {
+      "w": 1920,
+      "h": 1080,
+      "name": "ui13-viewport-1920.png"
+    }
+  ],
+  "stampHint": "JNATIVE_ONE_UI_1_3_PASS"
+}

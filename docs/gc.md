@@ -1,14 +1,19 @@
 # JNative GC
 
-**0.13 default:** generational GC2 — see [gc2.md](gc2.md).
+**Canonical design (code truth):** [gc-current-design.md](gc-current-design.md)  
+**Operational overview:** [gc2.md](gc2.md)
+
+**Default (production):** GC2 — precise · STW · **young moving (Cheney)** · old/large non-moving mark-sweep · multi-thread aware.
 
 Legacy mark-sweep (`JNATIVE_GC=marksweep`) remains available:
 
-## Algorithm (legacy marksweep)
+## Algorithm (legacy marksweep only)
 
 ```text
 Precise · Stop-the-world · Mark-Sweep · Non-moving · Multi-thread aware
 ```
+
+Do **not** describe the default collector as non-moving.
 
 See `docs/safepoints.md`.
 

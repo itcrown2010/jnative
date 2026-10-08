@@ -60,11 +60,102 @@ static JnUiMenuTarget *g_menu_target = nil;
 
 @interface JnUiButton : NSButton
 @property(nonatomic, assign) int32_t jnHandleId;
+@property(nonatomic, assign) int32_t jnFilled;
+@property(nonatomic, assign) int32_t jnBgRgba;
+@property(nonatomic, assign) int32_t jnFgRgba;
+@property(nonatomic, assign) int32_t jnRadius;
+@property(nonatomic, assign) int32_t jnHover;
+@property(nonatomic, assign) int32_t jnPressed;
+- (void)jnApplyFilledVisual;
 @end
 @implementation JnUiButton
 - (void)jnClicked:(id)sender {
     (void)sender;
     jnative_ui_emit_event(self.jnHandleId, JN_UI_EVENT_CLICK);
+}
+- (void)updateTrackingAreas {
+    [super updateTrackingAreas];
+    for (NSTrackingArea *a in [self.trackingAreas copy]) {
+        [self removeTrackingArea:a];
+    }
+    if (self.jnFilled != 0) {
+        NSTrackingAreaOptions opts = NSTrackingMouseEnteredAndExited | NSTrackingActiveInKeyWindow | NSTrackingInVisibleRect;
+        NSTrackingArea *area = [[NSTrackingArea alloc] initWithRect:self.bounds
+                                                            options:opts
+                                                              owner:self
+                                                           userInfo:nil];
+        [self addTrackingArea:area];
+    }
+}
+- (void)mouseEntered:(NSEvent *)event {
+    (void)event;
+    self.jnHover = 1;
+    [self jnApplyFilledVisual];
+}
+- (void)mouseExited:(NSEvent *)event {
+    (void)event;
+    self.jnHover = 0;
+    self.jnPressed = 0;
+    [self jnApplyFilledVisual];
+}
+- (void)mouseDown:(NSEvent *)event {
+    if (self.jnFilled != 0) {
+        self.jnPressed = 1;
+        [self jnApplyFilledVisual];
+    }
+    [super mouseDown:event];
+    if (self.jnFilled != 0) {
+        self.jnPressed = 0;
+        [self jnApplyFilledVisual];
+    }
+}
+static NSColor *jn_color_from_rgba(int32_t rgba) {
+    CGFloat a = ((rgba >> 24) & 0xFF) / 255.0;
+    CGFloat r = ((rgba >> 16) & 0xFF) / 255.0;
+    CGFloat g = ((rgba >> 8) & 0xFF) / 255.0;
+    CGFloat b = (rgba & 0xFF) / 255.0;
+    return [NSColor colorWithCalibratedRed:r green:g blue:b alpha:a];
+}
+static int32_t jn_lighten_rgba(int32_t rgba, int delta) {
+    int r = ((rgba >> 16) & 0xFF) + delta;
+    int g = ((rgba >> 8) & 0xFF) + delta;
+    int b = (rgba & 0xFF) + delta;
+    int a = (rgba >> 24) & 0xFF;
+    if (r > 255) r = 255;
+    if (g > 255) g = 255;
+    if (b > 255) b = 255;
+    if (r < 0) r = 0;
+    if (g < 0) g = 0;
+    if (b < 0) b = 0;
+    return (a << 24) | (r << 16) | (g << 8) | b;
+}
+- (void)jnApplyFilledVisual {
+    if (self.jnFilled == 0) {
+        return;
+    }
+    self.wantsLayer = YES;
+    [self setBordered:NO];
+    [self setButtonType:NSButtonTypeMomentaryChange];
+    int32_t bg = self.jnBgRgba;
+    if (self.jnPressed != 0) {
+        bg = jn_lighten_rgba(bg, -28);
+    } else if (self.jnHover != 0) {
+        bg = jn_lighten_rgba(bg, 18);
+    }
+    self.layer.backgroundColor = jn_color_from_rgba(bg).CGColor;
+    self.layer.cornerRadius = (CGFloat)(self.jnRadius > 0 ? self.jnRadius : 14);
+    self.layer.masksToBounds = YES;
+    NSMutableDictionary *attrs = [NSMutableDictionary dictionary];
+    attrs[NSForegroundColorAttributeName] = jn_color_from_rgba(self.jnFgRgba);
+    NSFont *font = self.font;
+    if (font == nil) {
+        font = [NSFont systemFontOfSize:22.0 weight:NSFontWeightMedium];
+    }
+    attrs[NSFontAttributeName] = font;
+    NSAttributedString *title = [[NSAttributedString alloc] initWithString:self.title ?: @""
+                                                               attributes:attrs];
+    [self setAttributedTitle:title];
+    [self setAlignment:NSTextAlignmentCenter];
 }
 @end
 
@@ -1031,7 +1122,13 @@ void jnative_ui_platform_set_title(int32_t handleId, const char *title) {
 
 void jnative_ui_platform_set_text(int32_t handleId, const char *text) {
     id obj = (handleId > 0 && handleId < JN_UI_MAX) ? g_peers[handleId] : nil;
-    if ([obj isKindOfClass:[NSButton class]]) {
+    if ([obj isKindOfClass:[JnUiButton class]]) {
+        JnUiButton *btn = (JnUiButton *)obj;
+        [btn setTitle:jn_nsstring(text)];
+        if (btn.jnFilled != 0) {
+            [btn jnApplyFilledVisual];
+        }
+    } else if ([obj isKindOfClass:[NSButton class]]) {
         [(NSButton *)obj setTitle:jn_nsstring(text)];
     } else if ([obj isKindOfClass:[NSTextField class]]) {
         [(NSTextField *)obj setStringValue:jn_nsstring(text)];
@@ -1047,16 +1144,18 @@ void jnative_ui_platform_set_bounds(int32_t handleId, int32_t x, int32_t y, int3
         CGFloat useH = h;
         CGFloat useX = x;
         CGFloat useY = y;
-        /* Keep intrinsic button height so the title stays vertically centered.
-           Width stays on the layout slot so neighbors do not overlap. */
+        /* Default push buttons keep intrinsic height centered in the slot.
+           Filled (styled) buttons honor the full layout cell for calculator keys. */
         if ([view isKindOfClass:[JnUiButton class]]) {
-            NSButton *btn = (NSButton *)view;
-            NSSize fit = [btn fittingSize];
-            if (fit.height > 1.0) {
-                if (useH > fit.height) {
-                    useY = y + (CGFloat)((int)((useH - fit.height) * 0.5));
+            JnUiButton *btn = (JnUiButton *)view;
+            if (btn.jnFilled == 0) {
+                NSSize fit = [btn fittingSize];
+                if (fit.height > 1.0) {
+                    if (useH > fit.height) {
+                        useY = y + (CGFloat)((int)((useH - fit.height) * 0.5));
+                    }
+                    useH = fit.height;
                 }
-                useH = fit.height;
             }
         }
         /* JNative layout uses top-left origin; AppKit uses bottom-left. */
@@ -1069,10 +1168,9 @@ void jnative_ui_platform_set_bounds(int32_t handleId, int32_t x, int32_t y, int3
             jn_size_scroll_document((NSScrollView *)view);
         }
     } else if ([obj isKindOfClass:[NSWindow class]]) {
-        NSRect f = [(NSWindow *)obj frame];
-        f.size.width = w;
-        f.size.height = h;
-        [(NSWindow *)obj setFrame:f display:YES];
+        /* JNative sizes are content-area sizes, not full frame (title bar). */
+        NSWindow *win = (NSWindow *)obj;
+        [win setContentSize:NSMakeSize((CGFloat)w, (CGFloat)h)];
     }
 }
 
@@ -1498,5 +1596,108 @@ void jnative_ui_platform_set_control_style(int32_t peerId, int32_t style) {
         NSTextField *lab = (NSTextField *)obj;
         [lab setFont:[NSFont systemFontOfSize:12.0]];
         [lab setTextColor:[NSColor secondaryLabelColor]];
+    }
+}
+
+void jnative_ui_platform_set_visual(int32_t peerId, int32_t bg_rgba, int32_t fg_rgba,
+                                    int32_t corner_radius, int32_t font_size, int32_t text_align) {
+    if (!g_cocoa_active || peerId <= 0 || peerId >= JN_UI_MAX) {
+        return;
+    }
+    /* VISUAL_KEEP = 1 — must not collide with opaque white (0xFFFFFFFF). */
+    const int32_t KEEP = 1;
+    id obj = g_peers[peerId];
+    if ([obj isKindOfClass:[JnUiButton class]]) {
+        JnUiButton *btn = (JnUiButton *)obj;
+        btn.jnFilled = 1;
+        if (bg_rgba != KEEP) {
+            btn.jnBgRgba = bg_rgba;
+        }
+        if (fg_rgba != KEEP) {
+            btn.jnFgRgba = fg_rgba;
+        } else if (btn.jnFgRgba == 0) {
+            btn.jnFgRgba = (int32_t)0xFFFFFFFF;
+        }
+        if (corner_radius >= 0) {
+            btn.jnRadius = corner_radius;
+        }
+        if (font_size > 0) {
+            [btn setFont:[NSFont systemFontOfSize:(CGFloat)font_size weight:NSFontWeightMedium]];
+        }
+        if (text_align == 0) {
+            [btn setAlignment:NSTextAlignmentLeft];
+        } else if (text_align == 2) {
+            [btn setAlignment:NSTextAlignmentRight];
+        } else if (text_align == 1) {
+            [btn setAlignment:NSTextAlignmentCenter];
+        }
+        [btn jnApplyFilledVisual];
+        [btn updateTrackingAreas];
+        return;
+    }
+    if ([obj isKindOfClass:[NSTextField class]]) {
+        NSTextField *lab = (NSTextField *)obj;
+        if (fg_rgba != KEEP) {
+            [lab setTextColor:jn_color_from_rgba(fg_rgba)];
+        }
+        if (font_size > 0) {
+            CGFloat wt = NSFontWeightRegular;
+            if (font_size >= 40) {
+                wt = NSFontWeightMedium;
+            }
+            [lab setFont:[NSFont monospacedDigitSystemFontOfSize:(CGFloat)font_size
+                                                          weight:wt]];
+        }
+        if (text_align == 0) {
+            [lab setAlignment:NSTextAlignmentLeft];
+        } else if (text_align == 1) {
+            [lab setAlignment:NSTextAlignmentCenter];
+        } else if (text_align == 2) {
+            [lab setAlignment:NSTextAlignmentRight];
+        }
+        if (bg_rgba != KEEP) {
+            lab.wantsLayer = YES;
+            lab.drawsBackground = NO;
+            lab.layer.backgroundColor = jn_color_from_rgba(bg_rgba).CGColor;
+            if (corner_radius >= 0) {
+                lab.layer.cornerRadius = (CGFloat)corner_radius;
+            }
+        }
+        return;
+    }
+    if ([obj isKindOfClass:[NSView class]]) {
+        NSView *view = (NSView *)obj;
+        if (bg_rgba != KEEP) {
+            view.wantsLayer = YES;
+            view.layer.backgroundColor = jn_color_from_rgba(bg_rgba).CGColor;
+            if (corner_radius >= 0) {
+                view.layer.cornerRadius = (CGFloat)corner_radius;
+            }
+        }
+    }
+}
+
+void jnative_ui_platform_window_set_min_size(int32_t windowId, int32_t w, int32_t h) {
+    if (!g_cocoa_active || windowId <= 0 || windowId >= JN_UI_MAX) {
+        return;
+    }
+    id obj = g_peers[windowId];
+    if ([obj isKindOfClass:[NSWindow class]]) {
+        NSWindow *win = (NSWindow *)obj;
+        [win setContentMinSize:NSMakeSize((CGFloat)w, (CGFloat)h)];
+    }
+}
+
+void jnative_ui_platform_button_flash(int32_t peerId, int32_t pressed) {
+    if (!g_cocoa_active || peerId <= 0 || peerId >= JN_UI_MAX) {
+        return;
+    }
+    id obj = g_peers[peerId];
+    if ([obj isKindOfClass:[JnUiButton class]]) {
+        JnUiButton *btn = (JnUiButton *)obj;
+        if (btn.jnFilled != 0) {
+            btn.jnPressed = pressed != 0 ? 1 : 0;
+            [btn jnApplyFilledVisual];
+        }
     }
 }

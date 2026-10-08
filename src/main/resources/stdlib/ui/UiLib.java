@@ -172,6 +172,15 @@ class UiNative {
     @Native(symbol = "jnative_ui_set_enabled")
     static native void setEnabled(int id, int enabled);
 
+    @Native(symbol = "jnative_ui_set_visual")
+    static native void setVisual(int id, int bgRgba, int fgRgba, int cornerRadius, int fontSize, int textAlign);
+
+    @Native(symbol = "jnative_ui_window_set_min_size")
+    static native void windowSetMinSize(int windowId, int w, int h);
+
+    @Native(symbol = "jnative_ui_button_flash")
+    static native void buttonFlash(int id, int pressed);
+
     @Native(symbol = "jnative_ui_focus")
     static native void focus(int id);
 
@@ -866,6 +875,15 @@ class Component {
     ContextMenu contextMenu;
     int isCanvasPeer;
     int mousePressedFlag;
+    /** StackPane placement: 0=fill, 1=trailing (right), 2=leading (left). */
+    int stackPlacement;
+    /** VBox vertical grow: 0=pack, 1=consume leftover height. */
+    int vgrow;
+    int bgRgba;
+    int fgRgba;
+    int cornerRadius;
+    int fontSizePt;
+    int textAlign;
     EventHandler<MouseEvent> mouseDownHandler;
     EventHandler<MouseEvent> mouseUpHandler;
     EventHandler<MouseEvent> mouseMoveHandler;
@@ -891,6 +909,14 @@ class Component {
         layoutDirty = 0;
         isCanvasPeer = 0;
         mousePressedFlag = 0;
+        stackPlacement = 0;
+        vgrow = 0;
+        /* 1 = leave unchanged (must not collide with opaque white 0xFFFFFFFF / -1). */
+        bgRgba = 1;
+        fgRgba = 1;
+        cornerRadius = -1;
+        fontSizePt = -1;
+        textAlign = -1;
         actionHandlers = new ArrayList<EventHandler<ActionEvent>>();
         keyHandlers = new ArrayList<EventHandler<KeyEvent>>();
         mouseHandlers = new ArrayList<EventHandler<MouseEvent>>();
@@ -992,6 +1018,9 @@ class Component {
             } else if (this instanceof GridPane) {
                 GridPane gp = (GridPane) this;
                 gp.layout();
+            } else if (this instanceof StackPane) {
+                StackPane spn = (StackPane) this;
+                spn.layout();
             } else if (this instanceof TabPane) {
                 TabPane tp = (TabPane) this;
                 tp.layout();
@@ -1014,6 +1043,71 @@ class Component {
         prefHeight = h;
         width = w;
         height = h;
+    }
+
+    /** Pack 0xAARRGGBB as signed int (channel values 0..255). */
+    static int rgba(int r, int g, int b, int a) {
+        int out = 0;
+        out = out + a * 16777216;
+        out = out + r * 65536;
+        out = out + g * 256;
+        out = out + b;
+        return out;
+    }
+
+    void setVisual(int bg, int fg, int radius, int fontPt, int align) {
+        ensureAlive("Component.setVisual");
+        bgRgba = bg;
+        fgRgba = fg;
+        cornerRadius = radius;
+        fontSizePt = fontPt;
+        textAlign = align;
+        if (nativeId > 0) {
+            UiNative.setVisual(nativeId, bg, fg, radius, fontPt, align);
+        }
+    }
+
+    /** Sentinel for setVisual channels: leave existing peer value untouched. */
+    static int VISUAL_KEEP = 1;
+
+    void setBackgroundRgba(int rgba) {
+        ensureAlive("Component.setBackgroundRgba");
+        bgRgba = rgba;
+        if (nativeId > 0) {
+            UiNative.setVisual(nativeId, rgba, VISUAL_KEEP, cornerRadius, -1, -1);
+        }
+    }
+
+    void setForegroundRgba(int rgba) {
+        ensureAlive("Component.setForegroundRgba");
+        fgRgba = rgba;
+        if (nativeId > 0) {
+            UiNative.setVisual(nativeId, VISUAL_KEEP, rgba, -1, fontSizePt, textAlign);
+        }
+    }
+
+    void setCornerRadius(int radius) {
+        ensureAlive("Component.setCornerRadius");
+        cornerRadius = radius;
+        if (nativeId > 0) {
+            UiNative.setVisual(nativeId, bgRgba, fgRgba, radius, -1, -1);
+        }
+    }
+
+    void setFontSize(int pt) {
+        ensureAlive("Component.setFontSize");
+        fontSizePt = pt;
+        if (nativeId > 0) {
+            UiNative.setVisual(nativeId, VISUAL_KEEP, fgRgba, -1, pt, textAlign);
+        }
+    }
+
+    void setTextAlign(int align) {
+        ensureAlive("Component.setTextAlign");
+        textAlign = align;
+        if (nativeId > 0) {
+            UiNative.setVisual(nativeId, VISUAL_KEEP, fgRgba, -1, fontSizePt, align);
+        }
     }
 
     void requestLayout() {
@@ -1375,15 +1469,13 @@ class VBox extends Container {
         if (availW < 0) {
             availW = 0;
         }
-        /* Stretch only a child that asks for substantial height (split/editor).
-           Never fall back to stretching thin chrome — during incremental add()
-           the toolbar alone would be filled to the container height and leave
-           a permanent Y-flip gap once the real content is attached. */
+        /* Stretch only children that opt in via vgrow (avoids Cocoa Y-flip gaps
+           when a GridPane/keypad is given leftover height it does not fill). */
         int stretchIndex = -1;
         int j = childCount - 1;
         while (j >= 0) {
             if (children[j].visible != 0) {
-                if (children[j].preferredHeight() >= 80) {
+                if (children[j].vgrow != 0) {
                     stretchIndex = j;
                     j = -1;
                 }
@@ -1626,16 +1718,6 @@ class GridPane extends Container {
     void layout() {
         layoutDirty = 0;
         UiMetrics.layoutPasses = UiMetrics.layoutPasses + 1;
-        int i = 0;
-        while (i < childCount) {
-            Component c = children[i];
-            int cx = padding + cols[i] * (cellW + spacing);
-            int cy = padding + rows[i] * (cellH + spacing);
-            int cw = colSpans[i] * cellW + (colSpans[i] - 1) * spacing;
-            int ch = rowSpans[i] * cellH + (rowSpans[i] - 1) * spacing;
-            c.setBounds(cx, cy, cw, ch);
-            i = i + 1;
-        }
         int colGaps = 0;
         if (gridCols > 0) {
             colGaps = (gridCols - 1) * spacing;
@@ -1644,13 +1726,100 @@ class GridPane extends Container {
         if (gridRows > 0) {
             rowGaps = (gridRows - 1) * spacing;
         }
-        width = padding * 2 + gridCols * cellW + colGaps;
-        height = padding * 2 + gridRows * cellH + rowGaps;
-        prefWidth = width;
-        prefHeight = height;
+        int naturalW = padding * 2 + gridCols * cellW + colGaps;
+        int naturalH = padding * 2 + gridRows * cellH + rowGaps;
+        prefWidth = naturalW;
+        prefHeight = naturalH;
+        /* Expand column width to fill parent; keep row height at cellH so
+           leftover vertical space does not Y-flip keys to the bottom. */
+        int layoutW = width;
+        if (layoutW < naturalW) {
+            layoutW = naturalW;
+        }
+        width = layoutW;
+        height = naturalH;
+        int useCellW = cellW;
+        int useCellH = cellH;
+        if (gridCols > 0) {
+            int avail = layoutW - padding * 2 - colGaps;
+            if (avail > gridCols * cellW) {
+                useCellW = avail / gridCols;
+            }
+        }
         if (nativeId > 0) {
             UiNative.setBounds(nativeId, x, y, width, height);
         }
+        int i = 0;
+        while (i < childCount) {
+            Component c = children[i];
+            int cx = padding + cols[i] * (useCellW + spacing);
+            int cy = padding + rows[i] * (useCellH + spacing);
+            int cw = colSpans[i] * useCellW + (colSpans[i] - 1) * spacing;
+            int ch = rowSpans[i] * useCellH + (rowSpans[i] - 1) * spacing;
+            c.setBounds(cx, cy, cw, ch);
+            i = i + 1;
+        }
+    }
+}
+
+/** Overlapping children. Later children paint above earlier ones. */
+class StackPane extends Container {
+    StackPane() {
+        nativeId = UiNative.createPanel(0);
+        UiHandleRegistry.put(nativeId, this);
+        spacing = 0;
+        padding = 0;
+    }
+
+    void layout() {
+        layoutDirty = 0;
+        UiMetrics.layoutPasses = UiMetrics.layoutPasses + 1;
+        if (nativeId > 0) {
+            UiNative.setBounds(nativeId, x, y, width, height);
+        }
+        int i = 0;
+        while (i < childCount) {
+            Component c = children[i];
+            if (c.visible == 0) {
+                c.setBounds(0, 0, 0, 0);
+            } else {
+                int cw = width;
+                int ch = height;
+                int cx = 0;
+                int cy = 0;
+                if (c.stackPlacement == 1) {
+                    cw = c.prefWidth;
+                    if (cw < 1) {
+                        cw = 280;
+                    }
+                    if (cw > width) {
+                        cw = width;
+                    }
+                    cx = width - cw;
+                } else {
+                    if (c.stackPlacement == 2) {
+                        cw = c.prefWidth;
+                        if (cw < 1) {
+                            cw = 280;
+                        }
+                        if (cw > width) {
+                            cw = width;
+                        }
+                        cx = 0;
+                    } else {
+                        /* Fill width; height = preferred (top-aligned) when set. */
+                        int ph = c.preferredHeight();
+                        if (ph > 0 && ph < height) {
+                            ch = ph;
+                        }
+                    }
+                }
+                c.setBounds(cx, cy, cw, ch);
+            }
+            i = i + 1;
+        }
+        prefWidth = width;
+        prefHeight = height;
     }
 }
 
@@ -1882,14 +2051,22 @@ class Label extends Control {
         UiHandleRegistry.put(nativeId, this);
         UiNative.setText(nativeId, text);
     }
+
+    void setDisplayStyle(int fontPt, int align, int fg) {
+        ensureAlive("Label.setDisplayStyle");
+        setPrefSize(prefWidth, fontPt + 12);
+        setVisual(VISUAL_KEEP, fg, -1, fontPt, align);
+    }
 }
 
 class Button extends Control {
     int chromeStyle;
+    int filledStyle;
 
     Button(String t) {
         text = t;
         chromeStyle = 0;
+        filledStyle = 0;
         /* Slot size for layout; Cocoa keeps intrinsic bezel via fittingSize. */
         prefHeight = 28;
         height = 28;
@@ -1898,6 +2075,20 @@ class Button extends Control {
         nativeId = UiNative.createButton(0, text);
         UiHandleRegistry.put(nativeId, this);
         UiNative.setText(nativeId, text);
+    }
+
+    /** Filled rounded button (honor layout cell size; hover/pressed via peer). */
+    void setFilledStyle(int bg, int fg, int radius, int fontPt) {
+        ensureAlive("Button.setFilledStyle");
+        filledStyle = 1;
+        setVisual(bg, fg, radius, fontPt, 1);
+    }
+
+    void flashPressed(int on) {
+        ensureAlive("Button.flashPressed");
+        if (nativeId > 0 && filledStyle != 0) {
+            UiNative.buttonFlash(nativeId, on);
+        }
     }
 
     /** Content-sized width — avoid identical oversized gray pills. */
@@ -3179,6 +3370,14 @@ class Window extends Component {
         if (content != null) {
             content.setBounds(0, 0, width, height);
             content.layout();
+        }
+    }
+
+    void setContentMinSize(int w, int h) {
+        ensureAlive("Window.setContentMinSize");
+        setMinSize(w, h);
+        if (nativeId > 0) {
+            UiNative.windowSetMinSize(nativeId, w, h);
         }
     }
 

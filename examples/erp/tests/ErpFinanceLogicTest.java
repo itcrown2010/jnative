@@ -266,8 +266,17 @@ class ErpFinanceLogicTest {
             System.out.println("FAIL AR create");
             return 0;
         }
-        if (okPost(ErpFinanceArAp.postArInvoice(companyId, 0L, ar.id)) == 0) {
+        PostResultDto arPost = ErpFinanceArAp.postArInvoice(companyId, 0L, ar.id);
+        if (okPost(arPost) == 0) {
             System.out.println("FAIL AR post");
+            if (arPost != null) {
+                if (arPost.code != null) {
+                    System.out.println(arPost.code);
+                }
+                if (arPost.message != null) {
+                    System.out.println(arPost.message);
+                }
+            }
             return 0;
         }
         long rev = creditNet("4000");
@@ -324,8 +333,17 @@ class ErpFinanceLogicTest {
         pa1.invoiceId = ap.id;
         pa1.allocatedAmount = 2000L;
         op1.allocations.add(pa1);
-        if (okPost(ErpFinanceArAp.postOutgoingPayment(companyId, 0L, op1)) == 0) {
+        PostResultDto op1r = ErpFinanceArAp.postOutgoingPayment(companyId, 0L, op1);
+        if (okPost(op1r) == 0) {
             System.out.println("FAIL OP1");
+            if (op1r != null) {
+                if (op1r.code != null) {
+                    System.out.println(op1r.code);
+                }
+                if (op1r.message != null) {
+                    System.out.println(op1r.message);
+                }
+            }
             return 0;
         }
 
@@ -423,6 +441,10 @@ class ErpFinanceLogicTest {
 
         /* Over-allocation against closed AR */
         ArInvoiceDto ar2 = ErpFinanceArAp.createArInvoice(companyId, customerId, 100L, now, now, 0L);
+        if (ar2 == null) {
+            System.out.println("FAIL AR2 create");
+            return 0;
+        }
         ErpFinanceArAp.postArInvoice(companyId, 0L, ar2.id);
         IncomingPaymentRequest over = new IncomingPaymentRequest();
         over.customerId = customerId;

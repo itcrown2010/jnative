@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>JNative Music</title>
+  <style>
+    :root {
+      --bg: #f4f7f4;
+      --panel: #ffffff;
+      --ink: #14201a;
+      --muted: #5d6f66;
+      --accent: #1f8a4c;
+      --accent-soft: #d8f3e3;
+      --line: #d5e0d9;
+      --player: #0f3d24;
+      --player-ink: #e8f8ee;
+      --danger: #b42318;
+      --radius: 14px;
+      --font: "Iowan Old Style", "Palatino Linotype", Palatino, "Book Antiqua", Georgia, serif;
+      --ui: "Avenir Next", "Segoe UI", sans-serif;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: var(--ui);
+      color: var(--ink);
+      background:
+        radial-gradient(1200px 500px at 10% -10%, #c8ecd6 0%, transparent 55%),
+        linear-gradient(180deg, #eef6f0 0%, var(--bg) 40%, #e7efe9 100%);
+    }
+    #app { min-height: 100vh; padding-bottom: 96px; }
+    .shell { max-width: 1180px; margin: 0 auto; padding: 20px 24px 0; }
+    header.top {
+      display: flex; align-items: center; gap: 18px;
+      padding: 10px 0 18px;
+    }
+    .brand {
+      font-family: var(--font);
+      font-size: 1.85rem;
+      letter-spacing: -0.03em;
+      color: var(--player);
+      font-weight: 700;
+      white-space: nowrap;
+    }
+    .nav { display: flex; gap: 8px; flex-wrap: wrap; }
+    .nav button, .btn {
+      border: 1px solid var(--line);
+      background: var(--panel);
+      color: var(--ink);
+      border-radius: 999px;
+      padding: 8px 14px;
+      cursor: pointer;
+      font: inherit;
+    }
+    .nav button.active, .btn.primary {
+      background: var(--accent);
+      border-color: var(--accent);
+      color: white;
+    }
+    .search {
+      flex: 1;
+      min-width: 180px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      padding: 10px 16px;
+      font: inherit;
+      background: rgba(255,255,255,0.85);
+    }
+    .user { margin-left: auto; color: var(--muted); font-size: 0.92rem; }
+    main { display: grid; gap: 18px; }
+    .panel {
+      background: rgba(255,255,255,0.78);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      padding: 16px 18px;
+      backdrop-filter: blur(6px);
+    }
+    .panel h2 {
+      margin: 0 0 12px;
+      font-family: var(--font);
+      font-size: 1.35rem;
+      letter-spacing: -0.02em;
+    }
+    .cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 12px; }
+    .card {
+      background: var(--accent-soft);
+      border-radius: 12px;
+      padding: 12px;
+      min-height: 110px;
+      cursor: pointer;
+      border: 1px solid transparent;
+    }
+    .card:hover { border-color: var(--accent); }
+    .card .t { font-weight: 650; }
+    .card .s { color: var(--muted); font-size: 0.85rem; margin-top: 6px; }
+    table.tracks { width: 100%; border-collapse: collapse; }
+    table.tracks th, table.tracks td {
+      text-align: left; padding: 10px 8px; border-bottom: 1px solid var(--line);
+      font-size: 0.95rem;
+    }
+    table.tracks tr:hover td { background: #f3faf6; }
+    table.tracks button.play {
+      border: 0; background: var(--accent); color: #fff;
+      border-radius: 999px; width: 34px; height: 34px; cursor: pointer;
+    }
+    .hidden { display: none !important; }
+    .login-box label { display: block; margin: 8px 0; }
+    .login-box input {
+      width: 100%; padding: 10px 12px; border-radius: 10px;
+      border: 1px solid var(--line); font: inherit;
+    }
+    .error { color: var(--danger); min-height: 1.2em; }
+    #bottom-player {
+      position: fixed; left: 0; right: 0; bottom: 0;
+      height: 88px;
+      background: linear-gradient(90deg, #0c2f1c, var(--player) 40%, #145c34);
+      color: var(--player-ink);
+      display: grid;
+      grid-template-columns: 1.2fr 1.6fr 1fr;
+      gap: 16px;
+      align-items: center;
+      padding: 0 22px;
+      box-shadow: 0 -10px 30px rgba(15, 61, 36, 0.25);
+      z-index: 40;
+    }
+    #bottom-player .meta .title { font-weight: 700; }
+    #bottom-player .meta .sub { opacity: 0.8; font-size: 0.85rem; }
+    #bottom-player .controls { display: flex; flex-direction: column; gap: 8px; align-items: center; }
+    #bottom-player .controls .row { display: flex; gap: 10px; align-items: center; }
+    #bottom-player button {
+      border: 0; background: rgba(255,255,255,0.12); color: inherit;
+      border-radius: 999px; width: 40px; height: 40px; cursor: pointer;
+    }
+    #bottom-player button#btn-play { width: 48px; height: 48px; background: var(--accent); }
+    #seek {
+      width: min(420px, 100%);
+      accent-color: #7dffa8;
+    }
+    #volume { width: 110px; accent-color: #7dffa8; }
+    .lyrics .line.active { color: #7dffa8; font-weight: 700; }
+    #wasm-root { min-height: 0; }
+  </style>
+</head>
+<body>
+  <div id="jn-bridge" data-cmd="" data-playing="0" data-time="0" data-duration="0" data-ended="0"
+       data-fetch-status="" data-fetch-done="" aria-hidden="true"></div>
+  <pre id="boot-data" class="hidden"></pre>
+  <pre id="page-data" class="hidden"></pre>
+
+  <div id="app">
+    <div class="shell">
+      <header class="top">
+        <div class="brand">JNative Music</div>
+        <nav class="nav" id="main-nav">
+          <button type="button" data-route="home" class="active">Home</button>
+          <button type="button" data-route="search">Search</button>
+          <button type="button" data-route="charts">Charts</button>
+          <button type="button" data-route="mymusic">My Music</button>
+          <button type="button" data-route="login">Login</button>
+        </nav>
+        <input id="search-input" class="search" type="search" placeholder="Search tracks, albums, artists">
+        <div class="user" id="user-label">Guest</div>
+      </header>
+
+      <main>
+        <section id="view-home" class="panel">
+          <h2>Home</h2>
+          <div id="home-albums" class="cards"></div>
+          <h2 style="margin-top:18px">Recommended</h2>
+          <table class="tracks"><thead><tr><th></th><th>Title</th><th>Artist</th><th>Album</th></tr></thead>
+            <tbody id="home-tracks"></tbody></table>
+        </section>
+
+        <section id="view-search" class="panel hidden">
+          <h2>Search</h2>
+          <div id="search-status" class="error"></div>
+          <table class="tracks"><thead><tr><th></th><th>Title</th><th>Artist</th></tr></thead>
+            <tbody id="search-tracks"></tbody></table>
+        </section>
+
+        <section id="view-charts" class="panel hidden">
+          <h2>Charts</h2>
+          <table class="tracks"><thead><tr><th></th><th>Title</th><th>Plays</th></tr></thead>
+            <tbody id="charts-tracks"></tbody></table>
+        </section>
+
+        <section id="view-mymusic" class="panel hidden">
+          <h2>My Music</h2>
+          <h3>Favorites</h3>
+          <table class="tracks"><tbody id="fav-tracks"></tbody></table>
+          <h3>Recently Played</h3>
+          <table class="tracks"><tbody id="hist-tracks"></tbody></table>
+          <h3>Playlists</h3>
+          <div id="my-playlists" class="cards"></div>
+        </section>
+
+        <section id="view-album" class="panel hidden">
+          <h2 id="album-title">Album</h2>
+          <table class="tracks"><tbody id="album-tracks"></tbody></table>
+        </section>
+
+        <section id="view-artist" class="panel hidden">
+          <h2 id="artist-title">Artist</h2>
+          <div id="artist-albums" class="cards"></div>
+          <table class="tracks"><tbody id="artist-tracks"></tbody></table>
+        </section>
+
+        <section id="view-playlist" class="panel hidden">
+          <h2 id="playlist-title">Playlist</h2>
+          <table class="tracks"><tbody id="playlist-tracks"></tbody></table>
+        </section>
+
+        <section id="view-login" class="panel hidden login-box">
+          <h2>Sign in</h2>
+          <label>Email <input id="login-email" value="music@jnative.dev"></label>
+          <label>Password <input id="login-password" type="password" value="music1234"></label>
+          <button type="button" class="btn primary" id="btn-login">Login</button>
+          <p id="login-error" class="error"></p>
+        </section>
+
+        <section id="view-lyrics" class="panel lyrics hidden">
+          <h2>Lyrics</h2>
+          <div id="lyrics-lines"></div>
+        </section>
+
+        <div id="wasm-root"></div>
+      </main>
+    </div>
+
+    <div id="bottom-player">
+      <div class="meta">
+        <div class="title" id="player-title">Nothing playing</div>
+        <div class="sub" id="player-sub">JNative Music</div>
+      </div>
+      <div class="controls">
+        <div class="row">
+          <button type="button" id="btn-prev" title="Previous">⏮</button>
+          <button type="button" id="btn-play" title="Play">▶</button>
+          <button type="button" id="btn-next" title="Next">⏭</button>
+          <button type="button" id="btn-repeat" title="Repeat">🔁</button>
+        </div>
+        <input id="seek" type="range" min="0" max="1000" value="0">
+      </div>
+      <div class="row" style="justify-content:flex-end;display:flex;gap:10px;align-items:center;">
+        <span id="player-time">0:00</span>
+        <input id="volume" type="range" min="0" max="100" value="80">
+      </div>
+    </div>
+  </div>
+
+  <script src="/audio-bridge.js"></script>
+</body>
+</html>

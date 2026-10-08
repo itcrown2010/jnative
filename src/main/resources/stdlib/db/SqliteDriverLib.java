@@ -110,7 +110,7 @@ class SqliteConnectSupplier implements BlockingSupplier {
     }
 }
 
-class SQLiteConnection {
+class SQLiteConnection implements DatabaseBackend {
     EventLoop loop;
     NativePtr db;
     int closed;
@@ -119,7 +119,7 @@ class SQLiteConnection {
         closed = 0;
     }
 
-    JnFuture query(String sql, ArrayList<Object> params) {
+    public JnFuture query(String sql, ArrayList<Object> params) {
         SqliteQuerySupplier sup = new SqliteQuerySupplier();
         sup.conn = this;
         sup.sql = sql;
@@ -129,7 +129,7 @@ class SQLiteConnection {
         return Async.blockingOnLoop(loop, sup);
     }
 
-    JnFuture queryOne(String sql, ArrayList<Object> params, RowMapper mapper) {
+    public JnFuture queryOne(String sql, ArrayList<Object> params, RowMapper mapper) {
         SqliteQuerySupplier sup = new SqliteQuerySupplier();
         sup.conn = this;
         sup.sql = sql;
@@ -139,7 +139,7 @@ class SQLiteConnection {
         return Async.blockingOnLoop(loop, sup);
     }
 
-    JnFuture execute(String sql, ArrayList<Object> params) {
+    public JnFuture execute(String sql, ArrayList<Object> params) {
         SqliteExecuteSupplier sup = new SqliteExecuteSupplier();
         sup.conn = this;
         sup.sql = sql;
@@ -147,19 +147,19 @@ class SQLiteConnection {
         return Async.blockingOnLoop(loop, sup);
     }
 
-    JnFuture beginTransaction() {
+    public JnFuture beginTransaction() {
         return execute("BEGIN", null);
     }
 
-    JnFuture commit() {
+    public JnFuture commit() {
         return execute("COMMIT", null);
     }
 
-    JnFuture rollback() {
+    public JnFuture rollback() {
         return execute("ROLLBACK", null);
     }
 
-    void release() {
+    public void release() {
         if (closed != 0) {
             return;
         }
@@ -170,7 +170,7 @@ class SQLiteConnection {
         }
     }
 
-    int isBroken() {
+    public int isBroken() {
         return closed;
     }
 
@@ -198,7 +198,7 @@ class SQLiteConnection {
         NativeMemory.free(stmtSlot);
         checkRc(rc, "prepare");
         if (stmt == NativePtr.NULL) {
-            throw new QueryException("prepare returned null stmt");
+            throw new QueryException("prepare returned null stmt: " + errorMessage());
         }
         bindAll(stmt, params);
         return stmt;

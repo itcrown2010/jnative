@@ -118,19 +118,53 @@ class ErpLogicTest {
         return r.ok;
     }
 
+    static void failPost(String label, PostResultDto r) {
+        System.out.println("FAIL " + label);
+        if (r == null) {
+            System.out.println("null result");
+            return;
+        }
+        if (r.code != null) {
+            System.out.println(r.code);
+        }
+        if (r.message != null) {
+            System.out.println(r.message);
+        }
+    }
+
     static int runScenario(int pass) {
+        ErpDb.reconnect();
         ArrayList<Object> poLines = new ArrayList<Object>();
         PoLineInput pl = new PoLineInput();
         pl.itemId = itemId;
         pl.quantity = 100;
         pl.unitPriceCents = 100L;
         poLines.add(pl);
-        PurchaseOrderDto po = ErpPurchasing.createDraft(companyId, supplierId, poLines);
-        if (po == null) {
+        PurchaseOrderDto po = null;
+        try {
+            po = ErpPurchasing.createDraft(companyId, supplierId, poLines);
+        } catch (Exception ex) {
+            System.out.println("FAIL po_create");
+            if (ex.getMessage() != null) {
+                System.out.println(ex.getMessage());
+            }
             return 0;
         }
-        po = ErpPurchasing.approve(companyId, po.id);
+        if (po == null) {
+            System.out.println("FAIL po_create null");
+            return 0;
+        }
+        try {
+            po = ErpPurchasing.approve(companyId, po.id);
+        } catch (Exception ex) {
+            System.out.println("FAIL po_approve");
+            if (ex.getMessage() != null) {
+                System.out.println(ex.getMessage());
+            }
+            return 0;
+        }
         if (po == null || po.lines == null || po.lines.size() == 0) {
+            System.out.println("FAIL po_approve lines");
             return 0;
         }
         OrderLineDto poLine = (OrderLineDto) po.lines.get(0);
@@ -138,50 +172,57 @@ class ErpLogicTest {
         PostGoodsReceiptRequest gr1 = new PostGoodsReceiptRequest();
         gr1.purchaseOrderId = po.id;
         gr1.warehouseId = warehouseId;
-        gr1.idempotencyKey = "gr-1";
+        gr1.idempotencyKey = "gr-1-" + companyCode;
         gr1.lines = new ArrayList<Object>();
         PostLineRequest gl1 = new PostLineRequest();
         gl1.orderLineId = poLine.id;
         gl1.quantity = 60;
         gr1.lines.add(gl1);
         if (okPost(ErpPosting.postGoodsReceipt(companyId, gr1)) == 0) {
+            System.out.println("FAIL gr1");
             pass = 0;
         }
 
         PostGoodsReceiptRequest gr2 = new PostGoodsReceiptRequest();
         gr2.purchaseOrderId = po.id;
         gr2.warehouseId = warehouseId;
-        gr2.idempotencyKey = "gr-2";
+        gr2.idempotencyKey = "gr-2-" + companyCode;
         gr2.lines = new ArrayList<Object>();
         PostLineRequest gl2 = new PostLineRequest();
         gl2.orderLineId = poLine.id;
         gl2.quantity = 40;
         gr2.lines.add(gl2);
         if (okPost(ErpPosting.postGoodsReceipt(companyId, gr2)) == 0) {
+            System.out.println("FAIL gr2");
             pass = 0;
         }
 
-        if (stockQty() != 100) {
+        int stockAfterGr = stockQty();
+        if (stockAfterGr != 100) {
+            System.out.println("FAIL stock_after_gr=" + String.valueOf(stockAfterGr));
             pass = 0;
         }
 
         if (okPost(ErpPosting.postGoodsReceipt(companyId, gr1)) == 0) {
+            System.out.println("FAIL gr1_idempotent_replay");
             pass = 0;
         }
         if (stockQty() != 100) {
+            System.out.println("FAIL stock_after_idempotent");
             pass = 0;
         }
 
         PostGoodsReceiptRequest overGr = new PostGoodsReceiptRequest();
         overGr.purchaseOrderId = po.id;
         overGr.warehouseId = warehouseId;
-        overGr.idempotencyKey = "gr-over";
+        overGr.idempotencyKey = "gr-over-" + companyCode;
         overGr.lines = new ArrayList<Object>();
         PostLineRequest gol = new PostLineRequest();
         gol.orderLineId = poLine.id;
         gol.quantity = 1;
         overGr.lines.add(gol);
         if (okPost(ErpPosting.postGoodsReceipt(companyId, overGr)) != 0) {
+            System.out.println("FAIL over_gr_should_reject");
             pass = 0;
         }
 
@@ -191,12 +232,31 @@ class ErpLogicTest {
         sl.quantity = 30;
         sl.unitPriceCents = 200L;
         soLines.add(sl);
-        SalesOrderDto so = ErpSales.createDraft(companyId, customerId, soLines);
-        if (so == null) {
+        SalesOrderDto so = null;
+        try {
+            so = ErpSales.createDraft(companyId, customerId, soLines);
+        } catch (Exception ex) {
+            System.out.println("FAIL so_create");
+            if (ex.getMessage() != null) {
+                System.out.println(ex.getMessage());
+            }
             return 0;
         }
-        so = ErpSales.approve(companyId, so.id);
+        if (so == null) {
+            System.out.println("FAIL so_create null");
+            return 0;
+        }
+        try {
+            so = ErpSales.approve(companyId, so.id);
+        } catch (Exception ex) {
+            System.out.println("FAIL so_approve");
+            if (ex.getMessage() != null) {
+                System.out.println(ex.getMessage());
+            }
+            return 0;
+        }
         if (so == null || so.lines == null || so.lines.size() == 0) {
+            System.out.println("FAIL so_approve lines");
             return 0;
         }
         OrderLineDto soLine = (OrderLineDto) so.lines.get(0);
@@ -204,43 +264,49 @@ class ErpLogicTest {
         PostDeliveryRequest dl1 = new PostDeliveryRequest();
         dl1.salesOrderId = so.id;
         dl1.warehouseId = warehouseId;
-        dl1.idempotencyKey = "dl-1";
+        dl1.idempotencyKey = "dl-1-" + companyCode;
         dl1.lines = new ArrayList<Object>();
         PostLineRequest d1 = new PostLineRequest();
         d1.orderLineId = soLine.id;
         d1.quantity = 10;
         dl1.lines.add(d1);
-        if (okPost(ErpPosting.postDelivery(companyId, dl1)) == 0) {
+        PostResultDto dl1r = ErpPosting.postDelivery(companyId, dl1);
+        if (okPost(dl1r) == 0) {
+            failPost("dl1", dl1r);
             pass = 0;
         }
 
         PostDeliveryRequest dl2 = new PostDeliveryRequest();
         dl2.salesOrderId = so.id;
         dl2.warehouseId = warehouseId;
-        dl2.idempotencyKey = "dl-2";
+        dl2.idempotencyKey = "dl-2-" + companyCode;
         dl2.lines = new ArrayList<Object>();
         PostLineRequest d2 = new PostLineRequest();
         d2.orderLineId = soLine.id;
         d2.quantity = 20;
         dl2.lines.add(d2);
         if (okPost(ErpPosting.postDelivery(companyId, dl2)) == 0) {
+            System.out.println("FAIL dl2");
             pass = 0;
         }
 
-        if (stockQty() != 70) {
+        int stockFinal = stockQty();
+        if (stockFinal != 70) {
+            System.out.println("FAIL stock_final=" + String.valueOf(stockFinal));
             pass = 0;
         }
 
         PostDeliveryRequest overDl = new PostDeliveryRequest();
         overDl.salesOrderId = so.id;
         overDl.warehouseId = warehouseId;
-        overDl.idempotencyKey = "dl-over";
+        overDl.idempotencyKey = "dl-over-" + companyCode;
         overDl.lines = new ArrayList<Object>();
         PostLineRequest dol = new PostLineRequest();
         dol.orderLineId = soLine.id;
         dol.quantity = 1;
         overDl.lines.add(dol);
         if (okPost(ErpPosting.postDelivery(companyId, overDl)) != 0) {
+            System.out.println("FAIL over_dl_should_reject");
             pass = 0;
         }
 

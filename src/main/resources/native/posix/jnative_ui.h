@@ -196,6 +196,16 @@ void jnative_ui_platform_items_changed(int32_t id);
 void jnative_ui_platform_table_set_columns(int32_t id, const char *titles_tsv);
 /** Control chrome: 0=default, 1=toolbar, 2=breadcrumb, 3=sidebar item. */
 void jnative_ui_platform_set_control_style(int32_t id, int32_t style);
+/** Visual style: bg/fg as 0xAARRGGBB (-1 = leave), radius px (-1 leave), fontSize pt (-1 leave), align 0=L 1=C 2=R (-1 leave). */
+void jnative_ui_set_visual(int32_t id, int32_t bg_rgba, int32_t fg_rgba,
+                           int32_t corner_radius, int32_t font_size, int32_t text_align);
+void jnative_ui_platform_set_visual(int32_t id, int32_t bg_rgba, int32_t fg_rgba,
+                                    int32_t corner_radius, int32_t font_size, int32_t text_align);
+void jnative_ui_window_set_min_size(int32_t windowId, int32_t w, int32_t h);
+void jnative_ui_platform_window_set_min_size(int32_t windowId, int32_t w, int32_t h);
+/** Flash pressed visual feedback (filled buttons). */
+void jnative_ui_button_flash(int32_t id, int32_t pressed);
+void jnative_ui_platform_button_flash(int32_t id, int32_t pressed);
 int32_t jnative_ui_platform_get_scale_percent(int32_t windowId);
 int32_t jnative_ui_platform_system_dark(void);
 int32_t jnative_ui_platform_context_menu_show(int32_t menuId, int32_t screenX, int32_t screenY);

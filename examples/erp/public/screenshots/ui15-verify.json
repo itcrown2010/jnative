@@ -1,0 +1,151 @@
+{
+  "ok": [
+    "login shell",
+    "density compact=28px comfortable=36px",
+    "light theme active",
+    "DEMO MODE banner",
+    "visual ui15-executive-dashboard.png",
+    "visual ui15-customer-list.png",
+    "visual ui15-customer-detail.png",
+    "visual ui15-sales-order-editor.png",
+    "visual ui15-purchase-order-editor.png",
+    "visual ui15-inventory-balance.png",
+    "visual ui15-journal-entry.png",
+    "visual ui15-bom-editor.png",
+    "visual ui15-demo-center.png",
+    "visual ui15-settings.png",
+    "demo scenario executive: Executive Dashboard",
+    "demo scenario sales: Sales Orders",
+    "demo scenario purchasing: Purchase Orders",
+    "demo scenario inventory: Inventory Balance",
+    "demo scenario finance: Journal Entries",
+    "demo scenario manufacturing: BOM Editor",
+    "Ctrl+S invoked on document editor",
+    "perf measured: {\"switchMs\":53,\"gridScrollMs\":0,\"filterOpenMs\":0,\"docOpenMs\":0}",
+    "a11y banner role + focusable=181",
+    "viewport 1366",
+    "viewport 1440",
+    "viewport 1920"
+  ],
+  "fail": [],
+  "perf": {
+    "firstLoadMs": 529,
+    "nav_dash.executive": 314,
+    "nav_md.customers": 318,
+    "nav_sales.orders": 304,
+    "nav_pur.orders": 320,
+    "nav_inv.balance": 321,
+    "nav_fin.journals": 316,
+    "nav_mfg.bomEditor": 304,
+    "nav_demo.center": 303,
+    "nav_sys.settings": 303,
+    "switchMs": 53,
+    "gridScrollMs": 0,
+    "filterOpenMs": 0,
+    "docOpenMs": 0
+  },
+  "screenshots": [
+    "ui15-executive-dashboard.png",
+    "ui15-customer-list.png",
+    "ui15-customer-detail.png",
+    "ui15-sales-order-editor.png",
+    "ui15-purchase-order-editor.png",
+    "ui15-inventory-balance.png",
+    "ui15-journal-entry.png",
+    "ui15-bom-editor.png",
+    "ui15-demo-center.png",
+    "ui15-settings.png",
+    "ui15-viewport-1366.png",
+    "ui15-viewport-1440.png",
+    "ui15-viewport-1920.png"
+  ],
+  "a11y": {
+    "issues": [],
+    "unlabeledSample": 0,
+    "focusable": 181,
+    "contrastSample": "rgb(26, 39, 51)",
+    "density": "comfortable"
+  },
+  "demos": [
+    {
+      "id": "executive",
+      "title": "Executive Dashboard"
+    },
+    {
+      "id": "sales",
+      "title": "Sales Orders"
+    },
+    {
+      "id": "purchasing",
+      "title": "Purchase Orders"
+    },
+    {
+      "id": "inventory",
+      "title": "Inventory Balance"
+    },
+    {
+      "id": "finance",
+      "title": "Journal Entries"
+    },
+    {
+      "id": "manufacturing",
+      "title": "BOM Editor"
+    }
+  ],
+  "visual": {
+    "ui15-executive-dashboard.png": {
+      "bytes": 163747,
+      "ok": true
+    },
+    "ui15-customer-list.png": {
+      "bytes": 191618,
+      "ok": true
+    },
+    "ui15-customer-detail.png": {
+      "bytes": 118308,
+      "ok": true
+    },
+    "ui15-sales-order-editor.png": {
+      "bytes": 155958,
+      "ok": true
+    },
+    "ui15-purchase-order-editor.png": {
+      "bytes": 161950,
+      "ok": true
+    },
+    "ui15-inventory-balance.png": {
+      "bytes": 196293,
+      "ok": true
+    },
+    "ui15-journal-entry.png": {
+      "bytes": 114270,
+      "ok": true
+    },
+    "ui15-bom-editor.png": {
+      "bytes": 112049,
+      "ok": true
+    },
+    "ui15-demo-center.png": {
+      "bytes": 152265,
+      "ok": true
+    },
+    "ui15-settings.png": {
+      "bytes": 116349,
+      "ok": true
+    },
+    "ui15-viewport-1366.png": {
+      "bytes": 194942,
+      "ok": true
+    },
+    "ui15-viewport-1440.png": {
+      "bytes": 208514,
+      "ok": true
+    },
+    "ui15-viewport-1920.png": {
+      "bytes": 217413,
+      "ok": true
+    }
+  },
+  "wasm": "BLOCKED (public SPA acceptance; wasm32-browser not full ERP UI)",
+  "stampHint": "JNATIVE_ONE_UI_1_5_PASS"
+}

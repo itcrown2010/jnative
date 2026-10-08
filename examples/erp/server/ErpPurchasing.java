@@ -6,7 +6,11 @@ class ErpPurchasing {
         work.lines = lines;
         JnFuture f = Erp.db.transaction(work);
         FutureBlocker.blockingWait(f);
+        if (f.getError() != null) {
+            throw new TransactionException("PO create failed");
+        }
         long id = ErpNum.asLong(f.getValue());
+        ErpDb.reconnect();
         return loadPo(companyId, id);
     }
 
@@ -16,7 +20,11 @@ class ErpPurchasing {
         work.poId = poId;
         JnFuture f = Erp.db.transaction(work);
         FutureBlocker.blockingWait(f);
+        if (f.getError() != null) {
+            throw new TransactionException("PO approve failed");
+        }
         long id = ErpNum.asLong(f.getValue());
+        ErpDb.reconnect();
         return loadPo(companyId, id);
     }
 

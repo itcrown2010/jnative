@@ -148,14 +148,32 @@ public final class StdlibIncluder {
                 || sourceText.contains("Math ")
                 || sourceText.contains("(Math)")
                 || sourceText.contains("jnative.lang.Math")
-                || sourceText.contains("jnative.math");
+                || sourceText.contains("jnative.math")
+                || needsDecimal(sourceText);
+    }
+
+    public static boolean needsDecimal(String sourceText) {
+        if (sourceText == null) {
+            return false;
+        }
+        if (sourceText.contains("// JNative Decimal Core")) {
+            return false;
+        }
+        return sourceText.contains("Decimal.")
+                || sourceText.contains("new Decimal(")
+                || sourceText.contains("Decimal ")
+                || sourceText.contains("jnative.math.Decimal");
     }
 
     public static String prependMathStdlib(String userSource) throws IOException {
         if (userSource.contains("// JNative Math stdlib")) {
             return userSource;
         }
-        return load("stdlib/math/MathLib.java") + "\n\n" + userSource;
+        String math = load("stdlib/math/MathLib.java");
+        if (needsDecimal(userSource) || userSource.contains("Decimal")) {
+            math = math + "\n\n" + load("stdlib/math/DecimalLib.java");
+        }
+        return math + "\n\n" + userSource;
     }
 
     public static boolean needsCollections(String sourceText) {
@@ -222,8 +240,6 @@ public final class StdlibIncluder {
                 || sourceText.contains("new TextDocument(")
                 || sourceText.contains("TextDocument.load(")
                 || sourceText.contains("new PieceTable(")
-                || sourceText.contains("Clipboard.setText")
-                || sourceText.contains("Clipboard.getText")
                 || sourceText.contains("JNativeSyntaxTokenizer")
                 || sourceText.contains("UndoManager")
                 || sourceText.contains("TextSearch.")
@@ -234,6 +250,26 @@ public final class StdlibIncluder {
                 || sourceText.contains("EditorDiagnostic.")
                 || sourceText.contains("StudioApplication")
                 || sourceText.contains("jnative.studio");
+    }
+
+    /** Text clipboard only — does not pull Editor/Graphics (avoids Point/Size/Rect clash with UI). */
+    public static boolean needsClipboard(String sourceText) {
+        if (sourceText == null) {
+            return false;
+        }
+        return sourceText.contains("Clipboard.setText")
+                || sourceText.contains("Clipboard.getText");
+    }
+
+    public static String prependClipboardStdlib(String userSource) throws IOException {
+        if (userSource.contains("// JNative Clipboard (text)")) {
+            return userSource;
+        }
+        /* Full EditorLib already defines Clipboard. */
+        if (userSource.contains("class Clipboard ")) {
+            return userSource;
+        }
+        return load("stdlib/editor/ClipboardLib.java") + "\n\n" + userSource;
     }
 
     public static boolean needsJson(String sourceText) {
@@ -277,9 +313,11 @@ public final class StdlibIncluder {
         return sourceText.contains("jnative.db")
                 || sourceText.contains("Database.connect")
                 || sourceText.contains("Database.connectWithConfig")
+                || sourceText.contains("DatabaseConfig")
                 || sourceText.contains("DatabaseUrl")
                 || sourceText.contains("RowMapper")
                 || sourceText.contains("DbConnection")
+                || sourceText.contains("DbQueryResult")
                 || sourceText.contains("ConnectionPool")
                 || sourceText.contains("DatabaseDriver")
                 || sourceText.contains("DbByteBuffer")
@@ -291,8 +329,11 @@ public final class StdlibIncluder {
                 || sourceText.contains("PgConnection")
                 || sourceText.contains("PgMessageReader")
                 || sourceText.contains("DbSqliteBootstrap")
+                || sourceText.contains("DbPgBootstrap")
                 || sourceText.contains("Migrator")
-                || sourceText.contains("PgProtocolTestKit");
+                || sourceText.contains("PgProtocolTestKit")
+                || sourceText.contains("postgresql://")
+                || sourceText.contains("sqlite:");
     }
 
     public static boolean needsAsync(String sourceText) {
@@ -575,12 +616,11 @@ public final class StdlibIncluder {
         }
         String block = load("stdlib/db/DbLib.java")
                 + "\n\n" + load("stdlib/db/SqliteDriverLib.java")
-                + "\n\n" + load("stdlib/db/DbMigrateLib.java");
-        /* TimeLib is inserted separately via insertTimeStdlib / needsTime. */
-        if (mergedSource.contains("DbPgBootstrap.register")
-                || mergedSource.contains("new PostgreSQLDriver")) {
-            block = block + "\n\n" + load("stdlib/db/PgDriverLib.java");
-        }
+                + "\n\n" + load("stdlib/db/DbMigrateLib.java")
+                /* Always ship PG driver with DB stdlib — DbBootstrap registers both.
+                   (Previously gated on DbPgBootstrap.register in user source, so
+                   postgresql:// URLs failed with "no driver registered".) */
+                + "\n\n" + load("stdlib/db/PgDriverLib.java");
         int userIdx = indexOfPrimaryPublicClass(mergedSource);
         if (userIdx > 0) {
             return mergedSource.substring(0, userIdx) + block + "\n\n" + mergedSource.substring(userIdx);
@@ -622,15 +662,20 @@ public final class StdlibIncluder {
         String text = userSource;
         boolean wantStudio = needsStudio(userSource);
         boolean wantEditor = needsEditor(userSource) || wantStudio;
+        boolean wantClipboard = needsClipboard(userSource);
         boolean wantGraphics = needsGraphics(userSource) || wantEditor;
-        boolean wantUi = needsUi(userSource) || wantGraphics || wantEditor || wantStudio;
+        boolean wantUi = needsUi(userSource) || wantGraphics || wantEditor || wantStudio || wantClipboard;
         boolean wantWeb = needsWeb(userSource);
         boolean wantJson = needsJson(userSource) || wantStudio || wantWeb;
-        boolean wantIo = needsIo(userSource) || wantStudio || wantWeb;
+        /* HttpConnection streaming Range uses FileInputStream from StreamLib. */
+        boolean wantIo = needsIo(userSource) || wantStudio || wantWeb
+                || needsHttp(userSource) || needsHttp2(userSource);
         boolean wantBrowser = needsBrowser(userSource);
         boolean wantDatabase = needsDatabase(userSource);
         boolean wantCrypto = needsCrypto(userSource) || wantWeb || needsHttp(userSource) || needsHttp2(userSource)
-                || needsTls(userSource);
+                || needsTls(userSource)
+                || userSource.contains("BitOps.")
+                || needsDecimal(userSource);
         boolean wantRpc = needsRpc(userSource);
         boolean wantTime = needsTime(userSource);
         boolean wantAsync = needsAsync(userSource) || wantWeb || wantDatabase || wantCrypto || wantBrowser || wantRpc
@@ -673,6 +718,8 @@ public final class StdlibIncluder {
         // Editor after Graphics so CodeEditor can extend Canvas.
         if (wantEditor || needsEditor(text)) {
             text = prependEditorStdlib(text);
+        } else if (wantClipboard || needsClipboard(text)) {
+            text = prependClipboardStdlib(text);
         }
         if (wantStudio || needsStudio(text)) {
             text = prependStudioStdlib(text);

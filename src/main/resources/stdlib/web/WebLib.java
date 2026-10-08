@@ -482,6 +482,47 @@ class WebUtil {
         return n * sign;
     }
 
+    static long parseLongOr(String s, long def) {
+        if (s == null || s.length() == 0) {
+            return def;
+        }
+        long n = 0L;
+        int i = 0;
+        int sign = 1;
+        if (s.charAt(0) == 45) {
+            sign = -1;
+            i = 1;
+        }
+        int ok = 0;
+        while (i < s.length()) {
+            int c = s.charAt(i);
+            if (c < 48 || c > 57) {
+                return def;
+            }
+            int digit = c - 48;
+            long d = 0L;
+            int di = 0;
+            while (di < digit) {
+                d = d + 1L;
+                di = di + 1;
+            }
+            n = n * 10L + d;
+            ok = 1;
+            i = i + 1;
+        }
+        if (ok == 0) {
+            return def;
+        }
+        if (sign < 0) {
+            return 0L - n;
+        }
+        return n;
+    }
+
+    static String longToString(long v) {
+        return HttpUtil.longToString(v);
+    }
+
     static long monoMillis() {
         return WebClockNative.monoMillis();
     }
@@ -546,8 +587,12 @@ class ResponseBody {
     int kind;
     byte[] bytes;
     String path;
+    long rangeStart;
+    long rangeEnd;
+    long totalSize;
     static int KIND_BYTES = 1;
     static int KIND_FILE = 2;
+    static int KIND_FILE_RANGE = 3;
 
     static ResponseBody ofBytes(byte[] data) {
         ResponseBody b = new ResponseBody();
@@ -570,9 +615,55 @@ class ResponseBody {
         return b;
     }
 
+    static ResponseBody ofFileRange(String filePath, long start, long endInclusive, long total) {
+        ResponseBody b = new ResponseBody();
+        b.kind = KIND_FILE_RANGE;
+        b.path = filePath;
+        b.rangeStart = start;
+        b.rangeEnd = endInclusive;
+        b.totalSize = total;
+        return b;
+    }
+
     byte[] materialize() {
         if (kind == KIND_FILE) {
             return File.readBytes(path);
+        }
+        if (kind == KIND_FILE_RANGE) {
+            /* Fallback for non-streaming senders (e.g. HTTP/2); prefer HttpConnection stream. */
+            FileInputStream in = new FileInputStream(path);
+            in.seek(rangeStart);
+            long left = rangeEnd - rangeStart + 1L;
+            if (left < 0L) {
+                left = 0L;
+            }
+            if (left > 8388608L) {
+                in.close();
+                throw new IllegalResponseStateException("range too large to materialize");
+            }
+            ByteBuf acc = new ByteBuf();
+            byte[] chunk = new byte[65536];
+            while (left > 0L) {
+                int want = 65536;
+                if (left < 65536L) {
+                    want = HttpUtil.smallLongToInt(left);
+                }
+                int n = in.read(chunk, 0, want);
+                if (n <= 0) {
+                    left = 0L;
+                } else {
+                    byte[] part = new byte[n];
+                    int j = 0;
+                    while (j < n) {
+                        part[j] = chunk[j];
+                        j = j + 1;
+                    }
+                    acc.appendBytes(part);
+                    left = left - HttpUtil.intToLong(n);
+                }
+            }
+            in.close();
+            return acc.toArray();
         }
         if (bytes == null) {
             return new byte[0];
@@ -653,12 +744,35 @@ class WebResponse {
         committed = 1;
     }
 
+    /** Stream a closed byte range without reading the whole file into memory. */
+    void fileRange(String path, String contentType, long start, long endInclusive, long total) {
+        ensureOpen();
+        headers.set("Content-Type", contentType);
+        body = ResponseBody.ofFileRange(path, start, endInclusive, total);
+        committed = 1;
+    }
+
     HttpResponse toHttp() {
-        byte[] data = new byte[0];
-        if (body != null) {
-            data = body.materialize();
+        HttpResponse r = null;
+        if (body != null && body.kind == ResponseBody.KIND_FILE_RANGE) {
+            r = HttpResponse.fileStream(statusCode, body.path, body.rangeStart, body.rangeEnd, body.totalSize);
+        } else {
+            if (body != null && body.kind == ResponseBody.KIND_FILE) {
+                long total = File.size(body.path);
+                long end = total - 1L;
+                if (end < 0L) {
+                    end = -1L;
+                }
+                r = HttpResponse.fileStream(statusCode, body.path, 0L, end, total);
+                r.streamKind = HttpResponse.STREAM_FILE;
+            } else {
+                byte[] data = new byte[0];
+                if (body != null) {
+                    data = body.materialize();
+                }
+                r = HttpResponse.bytesStatus(statusCode, data);
+            }
         }
-        HttpResponse r = HttpResponse.bytesStatus(statusCode, data);
         int i = 0;
         while (i < headers.count) {
             r.headers.set(headers.names[i], headers.values[i]);
@@ -858,6 +972,14 @@ class WebContext {
 
     void bytes(byte[] data) {
         response.bytes(data);
+    }
+
+    void fileBody(String path, String contentType) {
+        response.fileBody(path, contentType);
+    }
+
+    void fileRange(String path, String contentType, long start, long endInclusive, long total) {
+        response.fileRange(path, contentType, start, endInclusive, total);
     }
 
     String form(String name) {
@@ -1263,6 +1385,15 @@ class MimeTypes {
         if (ends(lower, ".wasm") != 0) {
             return "application/wasm";
         }
+        if (ends(lower, ".wav") != 0) {
+            return "audio/wav";
+        }
+        if (ends(lower, ".mp3") != 0) {
+            return "audio/mpeg";
+        }
+        if (ends(lower, ".ogg") != 0) {
+            return "audio/ogg";
+        }
         return "application/octet-stream";
     }
 
@@ -1275,6 +1406,108 @@ class MimeTypes {
             return 1;
         }
         return 0;
+    }
+}
+
+/**
+ * Generic HTTP Range streaming helper (64-bit offsets).
+ * Supports bytes=a-b, bytes=a-, bytes=-suffix; rejects multi-range.
+ */
+class MediaStreamer {
+    static int OK = 1;
+    static int INVALID = 0;
+
+    static int serveFile(WebContext ctx, String path, String contentType) {
+        if (!File.exists(path)) {
+            ctx.status(404).text("Not Found");
+            return 1;
+        }
+        long total = File.size(path);
+        ctx.setHeader("Accept-Ranges", "bytes");
+        String range = ctx.getHeader("Range");
+        if (range != null && range.length() > 0) {
+            return serveRange(ctx, path, contentType, total, range);
+        }
+        ctx.status(200);
+        ctx.fileBody(path, contentType);
+        return 1;
+    }
+
+    static int serveRange(WebContext ctx, String path, String contentType, long total, String rangeHeader) {
+        if (rangeHeader == null || rangeHeader.startsWith("bytes=") == false) {
+            ctx.status(416);
+            ctx.setHeader("Content-Range", "bytes */" + WebUtil.longToString(total));
+            ctx.text("");
+            return 1;
+        }
+        String spec = rangeHeader.substringFrom(6).trim();
+        if (spec.indexOf(",") >= 0) {
+            ctx.status(416);
+            ctx.setHeader("Content-Range", "bytes */" + WebUtil.longToString(total));
+            ctx.text("");
+            return 1;
+        }
+        int dash = spec.indexOf("-");
+        if (dash < 0) {
+            ctx.status(416);
+            ctx.setHeader("Content-Range", "bytes */" + WebUtil.longToString(total));
+            ctx.text("");
+            return 1;
+        }
+        String left = spec.substring(0, dash);
+        String right = "";
+        if (dash + 1 < spec.length()) {
+            right = spec.substringFrom(dash + 1);
+        }
+        long start = 0L;
+        long end = total - 1L;
+        int ok = 1;
+        if (left.length() == 0) {
+            /* suffix: bytes=-N */
+            if (right.length() == 0) {
+                ok = 0;
+            } else {
+                long suffix = WebUtil.parseLongOr(right, -1L);
+                if (suffix <= 0L) {
+                    ok = 0;
+                } else {
+                    if (suffix > total) {
+                        suffix = total;
+                    }
+                    start = total - suffix;
+                    end = total - 1L;
+                }
+            }
+        } else {
+            start = WebUtil.parseLongOr(left, -1L);
+            if (start < 0L) {
+                ok = 0;
+            } else {
+                if (right.length() == 0) {
+                    end = total - 1L;
+                } else {
+                    end = WebUtil.parseLongOr(right, -1L);
+                    if (end < 0L) {
+                        ok = 0;
+                    }
+                }
+            }
+        }
+        if (ok == 0 || total <= 0L || start >= total || start > end) {
+            ctx.status(416);
+            ctx.setHeader("Content-Range", "bytes */" + WebUtil.longToString(total));
+            ctx.text("");
+            return 1;
+        }
+        if (end >= total) {
+            end = total - 1L;
+        }
+        ctx.status(206);
+        ctx.setHeader("Accept-Ranges", "bytes");
+        ctx.setHeader("Content-Range", "bytes " + WebUtil.longToString(start) + "-"
+                + WebUtil.longToString(end) + "/" + WebUtil.longToString(total));
+        ctx.fileRange(path, contentType, start, end, total);
+        return 1;
     }
 }
 
@@ -1916,10 +2149,12 @@ class WebApp {
                     return 1;
                 }
                 if (!File.exists(safe)) {
-                    return 0;
+                    /* Try next mount (e.g. "/" public then "/wasm" artifacts). */
+                    i = i + 1;
+                    continue;
                 }
-                byte[] data = File.readBytes(safe);
-                String etag = "\"" + String.valueOf(data.length) + "-" + String.valueOf(safe.hashCode()) + "\"";
+                long total = File.size(safe);
+                String etag = "\"" + WebUtil.longToString(total) + "-" + String.valueOf(safe.hashCode()) + "\"";
                 String inm = ctx.getHeader("If-None-Match");
                 if (inm != null && inm.equals(etag)) {
                     ctx.status(304).setHeader("ETag", etag).text("");
@@ -1927,34 +2162,12 @@ class WebApp {
                 }
                 ctx.setHeader("ETag", etag);
                 ctx.setHeader("Accept-Ranges", "bytes");
+                String ctype = MimeTypes.ofPath(safe);
                 String range = ctx.getHeader("Range");
-                if (range != null && range.startsWith("bytes=")) {
-                    String spec = range.substringFrom(6);
-                    int dash = spec.indexOf("-");
-                    if (dash >= 0) {
-                        int start = WebUtil.parseIntOr(spec.substring(0, dash), 0);
-                        int end = data.length - 1;
-                        if (dash + 1 < spec.length()) {
-                            end = WebUtil.parseIntOr(spec.substringFrom(dash + 1), end);
-                        }
-                        if (start < 0) {
-                            start = 0;
-                        }
-                        if (end >= data.length) {
-                            end = data.length - 1;
-                        }
-                        if (start <= end) {
-                            int len = end - start + 1;
-                            byte[] part = Bytes.slice(data, start, start + len);
-                            ctx.status(206);
-                            ctx.setHeader("Content-Range", "bytes " + start + "-" + end + "/" + data.length);
-                            ctx.setHeader("Content-Type", MimeTypes.ofPath(safe));
-                            ctx.response.bytes(part);
-                            return 1;
-                        }
-                    }
+                if (range != null && range.length() > 0) {
+                    return MediaStreamer.serveRange(ctx, safe, ctype, total, range);
                 }
-                ctx.response.fileBody(safe, MimeTypes.ofPath(safe));
+                ctx.response.fileBody(safe, ctype);
                 return 1;
             }
             i = i + 1;

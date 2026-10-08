@@ -1,0 +1,63 @@
+{
+  "ok": [
+    "SalesOrder editor open: Sales Order | EDIT",
+    "PurchaseOrder editor open: Purchase Order | EDIT",
+    "Delivery editor open: Delivery | EDIT",
+    "GoodsReceipt editor open: Goods Receipt | EDIT",
+    "ARInvoice editor open: AR Invoice | EDIT",
+    "APInvoice editor open: AP Invoice | EDIT",
+    "CREATE Sales Order opened",
+    "BusinessPartnerSelector select",
+    "ItemSelector select",
+    "live calc footer: Subtotal CNY 400.00 Tax CNY 52.00 Total CNY 452.00",
+    "copy row -> 2 lines",
+    "paste TSV -> 3 lines",
+    "delete line",
+    "keyboard Tab from qty cell",
+    "save draft toast: DEMO draft saved to MockDataProvider + sessionStorage (not formal DB)",
+    "unsaved dialog dismissed - editor still open",
+    "close with unsaved accepted",
+    "calc exclusive half-up: {\"qty\":10,\"unitPriceCents\":8000,\"discountBps\":1000,\"taxBps\":1300,\"discountCents\":8000,\"netCents\":72000,\"taxCents\":9360,\"lineAmountCents\":81360}",
+    "perf 10 lines: {\"n\":10,\"renderMs\":1,\"calcMs\":0,\"inputMs\":0,\"scrollMs\":2,\"wallMs\":3}",
+    "perf 100 lines: {\"n\":100,\"renderMs\":3,\"calcMs\":0,\"inputMs\":0,\"scrollMs\":16,\"wallMs\":21}",
+    "perf 500 lines: {\"n\":500,\"renderMs\":16,\"calcMs\":0,\"inputMs\":2,\"scrollMs\":90,\"wallMs\":116}"
+  ],
+  "fail": [],
+  "perf": {
+    "lines_10": {
+      "n": 10,
+      "renderMs": 1,
+      "calcMs": 0,
+      "inputMs": 0,
+      "scrollMs": 2,
+      "wallMs": 3
+    },
+    "lines_100": {
+      "n": 100,
+      "renderMs": 3,
+      "calcMs": 0,
+      "inputMs": 0,
+      "scrollMs": 16,
+      "wallMs": 21
+    },
+    "lines_500": {
+      "n": 500,
+      "renderMs": 16,
+      "calcMs": 0,
+      "inputMs": 2,
+      "scrollMs": 90,
+      "wallMs": 116
+    }
+  },
+  "screenshots": [
+    "ui12-sales-order-editor.png",
+    "ui12-purchase-order-editor.png",
+    "ui12-delivery-editor.png",
+    "ui12-goods-receipt-editor.png",
+    "ui12-ar-invoice-editor.png",
+    "ui12-ap-invoice-editor.png",
+    "ui12-business-partner-selector.png",
+    "ui12-item-selector.png"
+  ],
+  "stampHint": "JNATIVE_ONE_UI_1_2_PASS"
+}

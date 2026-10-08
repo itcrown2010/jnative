@@ -18,8 +18,10 @@ import java.util.concurrent.TimeUnit;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * Round 4 Async integrity.
- * Note: AsyncTcp* remains a shared thread-pool façade over blocking TcpSocket (not kqueue fd I/O).
+ * Round 4 Async integrity / RH-1 truth.
+ * AsyncTcp* is a BLOCKING-ADAPTER: Async.blockingOnLoop + shared ThreadPoolExecutor
+ * over blocking TcpSocket. EventLoop PollNative/kqueue is NOT used for these fds
+ * (EventLoop.registerFd has no production callers). Not event-driven async I/O.
  * Cancel-vs-completion is proven at JnFuture level (single terminal state).
  */
 class AsyncIoRound4EndToEndTest {

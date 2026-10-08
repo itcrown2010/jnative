@@ -114,6 +114,7 @@ class WorkbenchWindow {
         split.setFirst(tree);
         split.setSecond(table);
         split.setPrefSize(940, 520);
+        split.vgrow = 1;
 
         status = new Label("Ready pool=" + virt.poolSize
                 + " data=" + virt.dataSize

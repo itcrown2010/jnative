@@ -1,4 +1,73 @@
 class ErpPosting {
+    static int isPgWireError(Exception ex) {
+        if (ex == null || ex.getMessage() == null) {
+            return 0;
+        }
+        String msg = ex.getMessage();
+        if (msg.indexOf("08P01") >= 0) {
+            return 1;
+        }
+        if (msg.indexOf("invalid message format") >= 0) {
+            return 1;
+        }
+        /* SQLite native driver transient prepare/bind failures after long sessions */
+        if (msg.indexOf("prepare returned null") >= 0) {
+            return 1;
+        }
+        if (msg.indexOf("incomplete input") >= 0) {
+            return 1;
+        }
+        if (msg.indexOf("bind_text failed") >= 0) {
+            return 1;
+        }
+        if (msg.indexOf("not an error") >= 0) {
+            return 1;
+        }
+        return 0;
+    }
+
+    static PostResultDto runPostingWork(DbTransactionWork work) {
+        int attempt = 0;
+        while (attempt < 2) {
+            try {
+                JnFuture f = Erp.db.transaction(work);
+                FutureBlocker.blockingWait(f);
+                if (f.getError() != null) {
+                    throw f.getError();
+                }
+                Object v = f.getValue();
+                if (v == null) {
+                    PostResultDto bad = new PostResultDto();
+                    bad.ok = 0;
+                    bad.code = "POST_NULL";
+                    bad.message = "transaction returned null";
+                    return bad;
+                }
+                return (PostResultDto) v;
+            } catch (Exception ex) {
+                if (attempt == 0 && isPgWireError(ex) != 0) {
+                    ErpDb.reconnect();
+                    attempt = attempt + 1;
+                    continue;
+                }
+                PostResultDto bad = new PostResultDto();
+                bad.ok = 0;
+                bad.code = "POST_FAILED";
+                if (ex.getMessage() != null) {
+                    bad.message = ex.getMessage();
+                } else {
+                    bad.message = "post failed";
+                }
+                return bad;
+            }
+        }
+        PostResultDto bad = new PostResultDto();
+        bad.ok = 0;
+        bad.code = "POST_FAILED";
+        bad.message = "post failed";
+        return bad;
+    }
+
     static PostResultDto postGoodsReceipt(long companyId, PostGoodsReceiptRequest req) {
         if (req.idempotencyKey == null || req.idempotencyKey.length() == 0) {
             PostResultDto bad = new PostResultDto();
@@ -10,32 +79,7 @@ class ErpPosting {
         GrPostWork work = new GrPostWork();
         work.companyId = companyId;
         work.req = req;
-        try {
-            JnFuture f = Erp.db.transaction(work);
-            FutureBlocker.blockingWait(f);
-            if (f.getError() != null) {
-                throw f.getError();
-            }
-            Object v = f.getValue();
-            if (v == null) {
-                PostResultDto bad = new PostResultDto();
-                bad.ok = 0;
-                bad.code = "POST_NULL";
-                bad.message = "transaction returned null";
-                return bad;
-            }
-            return (PostResultDto) v;
-        } catch (Exception ex) {
-            PostResultDto bad = new PostResultDto();
-            bad.ok = 0;
-            bad.code = "POST_FAILED";
-            if (ex.getMessage() != null) {
-                bad.message = ex.getMessage();
-            } else {
-                bad.message = "post failed";
-            }
-            return bad;
-        }
+        return runPostingWork(work);
     }
 
     static PostResultDto postDelivery(long companyId, PostDeliveryRequest req) {
@@ -49,32 +93,7 @@ class ErpPosting {
         DlPostWork work = new DlPostWork();
         work.companyId = companyId;
         work.req = req;
-        try {
-            JnFuture f = Erp.db.transaction(work);
-            FutureBlocker.blockingWait(f);
-            if (f.getError() != null) {
-                throw f.getError();
-            }
-            Object v = f.getValue();
-            if (v == null) {
-                PostResultDto bad = new PostResultDto();
-                bad.ok = 0;
-                bad.code = "POST_NULL";
-                bad.message = "transaction returned null";
-                return bad;
-            }
-            return (PostResultDto) v;
-        } catch (Exception ex) {
-            PostResultDto bad = new PostResultDto();
-            bad.ok = 0;
-            bad.code = "POST_FAILED";
-            if (ex.getMessage() != null) {
-                bad.message = ex.getMessage();
-            } else {
-                bad.message = "post failed";
-            }
-            return bad;
-        }
+        return runPostingWork(work);
     }
 
     static String cachedIdempotencyConn(DbConnection conn, long companyId, String key) {

@@ -162,6 +162,18 @@ __attribute__((weak)) void jnative_ui_platform_set_control_style(int32_t id, int
     (void)id;
     (void)style;
 }
+__attribute__((weak)) void jnative_ui_platform_set_visual(
+        int32_t id, int32_t bg_rgba, int32_t fg_rgba,
+        int32_t corner_radius, int32_t font_size, int32_t text_align) {
+    (void)id; (void)bg_rgba; (void)fg_rgba;
+    (void)corner_radius; (void)font_size; (void)text_align;
+}
+__attribute__((weak)) void jnative_ui_platform_window_set_min_size(int32_t windowId, int32_t w, int32_t h) {
+    (void)windowId; (void)w; (void)h;
+}
+__attribute__((weak)) void jnative_ui_platform_button_flash(int32_t id, int32_t pressed) {
+    (void)id; (void)pressed;
+}
 __attribute__((weak)) void jnative_ui_platform_table_set_columns(
         int32_t id, const char *titles_tsv) {
     (void)id; (void)titles_tsv;
@@ -429,6 +441,31 @@ void jnative_ui_set_value_i32(int32_t id, int32_t value) {
     if (g_platform_active && !g_headless
             && (p->kind == JN_UI_KIND_BUTTON || p->kind == JN_UI_KIND_LABEL)) {
         jnative_ui_platform_set_control_style(id, value);
+    }
+}
+
+void jnative_ui_set_visual(int32_t id, int32_t bg_rgba, int32_t fg_rgba,
+                           int32_t corner_radius, int32_t font_size, int32_t text_align) {
+    JnUiPeer *p = peer(id);
+    if (p == NULL) return;
+    if (g_platform_active && !g_headless) {
+        jnative_ui_platform_set_visual(id, bg_rgba, fg_rgba, corner_radius, font_size, text_align);
+    }
+}
+
+void jnative_ui_window_set_min_size(int32_t windowId, int32_t w, int32_t h) {
+    JnUiPeer *p = peer(windowId);
+    if (p == NULL) return;
+    if (g_platform_active && !g_headless) {
+        jnative_ui_platform_window_set_min_size(windowId, w, h);
+    }
+}
+
+void jnative_ui_button_flash(int32_t id, int32_t pressed) {
+    JnUiPeer *p = peer(id);
+    if (p == NULL) return;
+    if (g_platform_active && !g_headless) {
+        jnative_ui_platform_button_flash(id, pressed);
     }
 }
 int32_t jnative_ui_get_value_i32(int32_t id) {

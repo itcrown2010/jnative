@@ -6,7 +6,11 @@ class ErpSales {
         work.lines = lines;
         JnFuture f = Erp.db.transaction(work);
         FutureBlocker.blockingWait(f);
+        if (f.getError() != null) {
+            throw new TransactionException("SO create failed");
+        }
         long id = ErpNum.asLong(f.getValue());
+        ErpDb.reconnect();
         return loadSo(companyId, id);
     }
 
@@ -16,7 +20,11 @@ class ErpSales {
         work.soId = soId;
         JnFuture f = Erp.db.transaction(work);
         FutureBlocker.blockingWait(f);
+        if (f.getError() != null) {
+            throw new TransactionException("SO approve failed");
+        }
         long id = ErpNum.asLong(f.getValue());
+        ErpDb.reconnect();
         return loadSo(companyId, id);
     }
 

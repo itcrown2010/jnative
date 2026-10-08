@@ -68,7 +68,7 @@ class PgMessageReader {
     }
 
     void clear() {
-        buf.clear();
+        buf.setPosition(0);
         buf.setLimit(0);
     }
 
@@ -148,30 +148,33 @@ class PgHex {
         if (data == null) {
             return "";
         }
-        char[] out = new char[data.length * 2];
-        int o = 0;
+        String hex = "";
         int i = 0;
         while (i < data.length) {
             int v = DbByteUtil.unsignedByte(data[i]);
-            out[o] = nibble(BitOps.ushr(v, 4));
-            out[o + 1] = nibble(BitOps.and(v, 15));
-            o = o + 2;
+            hex = hex + nibble(BitOps.ushr(v, 4)) + nibble(BitOps.and(v, 15));
             i = i + 1;
-        }
-        String hex = "";
-        int k = 0;
-        while (k < out.length) {
-            hex = hex + out[k];
-            k = k + 1;
         }
         return hex;
     }
 
-    static char nibble(int n) {
-        if (n < 10) {
-            return (char)(48 + n);
-        }
-        return (char)(87 + n);
+    static String nibble(int n) {
+        if (n == 0) { return "0"; }
+        if (n == 1) { return "1"; }
+        if (n == 2) { return "2"; }
+        if (n == 3) { return "3"; }
+        if (n == 4) { return "4"; }
+        if (n == 5) { return "5"; }
+        if (n == 6) { return "6"; }
+        if (n == 7) { return "7"; }
+        if (n == 8) { return "8"; }
+        if (n == 9) { return "9"; }
+        if (n == 10) { return "a"; }
+        if (n == 11) { return "b"; }
+        if (n == 12) { return "c"; }
+        if (n == 13) { return "d"; }
+        if (n == 14) { return "e"; }
+        return "f";
     }
 }
 
@@ -382,6 +385,28 @@ class PgWire {
         return frontendMsg(PgMsg.QUERY, sql);
     }
 
+    static String bindQuestions(String sql, ArrayList<Object> params) {
+        String out = "";
+        int i = 0;
+        int p = 0;
+        while (i < sql.length()) {
+            int c = sql.charAt(i);
+            if (c == 63) {
+                Object val = null;
+                if (params != null && p < params.size()) {
+                    val = params.get(p);
+                }
+                p = p + 1;
+                out = out + PgParam.literal(val);
+                i = i + 1;
+            } else {
+                out = out + sql.substring(i, i + 1);
+                i = i + 1;
+            }
+        }
+        return out;
+    }
+
     static byte[] frontendMsg(int tag, String body) {
         DbByteBuffer b = new DbByteBuffer(body.length() + 16);
         b.putByte(tag);
@@ -396,7 +421,7 @@ class PgWire {
         return raw;
     }
 
-    static byte[] extendedQuery(String sql, ArrayList params) {
+    static byte[] extendedQuery(String sql, ArrayList<Object> params) {
         DbByteBuffer b = new DbByteBuffer(sql.length() + 256);
         int parseOff = b.getLimit();
         b.putByte(PgMsg.PARSE);
@@ -423,10 +448,6 @@ class PgWire {
         }
         b.putInt16(0);
         patchMsg(b, bindOff);
-        b.putByte(PgMsg.DESCRIBE);
-        b.putInt32(5);
-        b.putByte(80);
-        b.putCString("");
         b.putByte(PgMsg.EXECUTE);
         b.putInt32(9);
         b.putCString("");
@@ -437,7 +458,8 @@ class PgWire {
     }
 
     static void patchMsg(DbByteBuffer b, int off) {
-        int len = b.getLimit() - off;
+        /* PostgreSQL length excludes the tag byte. */
+        int len = b.getLimit() - off - 1;
         b.data[off + 1] = DbByteUtil.byteAt(len, 3);
         b.data[off + 2] = DbByteUtil.byteAt(len, 2);
         b.data[off + 3] = DbByteUtil.byteAt(len, 1);
@@ -454,8 +476,8 @@ class PgWire {
 
 class PgCast {
     static AsyncTcpSocket asTcpSocket(Object v) {
+        AsyncTcpSocket src = (AsyncTcpSocket)v;
         AsyncTcpSocket out = new AsyncTcpSocket();
-        AsyncTcpSocket src = v;
         out.loop = src.loop;
         out.socket = src.socket;
         return out;
@@ -496,7 +518,36 @@ class PgParam {
     }
 
     static String format(Object val) {
-        return String.valueOf(val);
+        if (val instanceof String) {
+            return (String)val;
+        }
+        if (val instanceof DbBindInt) {
+            DbBindInt bi = (DbBindInt)val;
+            return DbParseUtil.intToString(bi.value);
+        }
+        if (val instanceof PgBytesParam) {
+            return "";
+        }
+        return "";
+    }
+
+    static String literal(Object val) {
+        if (val == null) {
+            return "NULL";
+        }
+        String text = format(val);
+        String esc = "";
+        int i = 0;
+        while (i < text.length()) {
+            int c = text.charAt(i);
+            if (c == 39) {
+                esc = esc + "''";
+            } else {
+                esc = esc + text.substring(i, i + 1);
+            }
+            i = i + 1;
+        }
+        return "'" + esc + "'";
     }
 }
 
@@ -637,11 +688,11 @@ class PgConnection implements DatabaseBackend {
         busy = 1;
         JnFuture out = JnFuture.createPending(loop);
         byte[] req;
-        if (params == null || params.size() == 0) {
-            req = PgWire.simpleQuery(sql);
-        } else {
-            req = PgWire.extendedQuery(sql, params);
+        String sendSql = sql;
+        if (params != null && params.size() > 0) {
+            sendSql = PgWire.bindQuestions(sql, params);
         }
+        req = PgWire.simpleQuery(sendSql);
         PgQueryState qs = new PgQueryState();
         qs.conn = this;
         qs.out = out;
@@ -706,7 +757,7 @@ class PgQueryOneMap implements Function<Object, Object> {
     }
 
     public Object apply(Object v) {
-        DbQueryResult res = v;
+        DbQueryResult res = (DbQueryResult)v;
         if (res.rows.size() == 0) {
             return null;
         }
@@ -716,8 +767,8 @@ class PgQueryOneMap implements Function<Object, Object> {
 
 class PgExecuteMap implements Function<Object, Object> {
     public Object apply(Object v) {
-        DbQueryResult res = v;
-        return res.affectedRows;
+        DbQueryResult res = (DbQueryResult)v;
+        return res;
     }
 }
 
@@ -873,6 +924,11 @@ class PgReadLoop {
         }
         if (msg.tag == PgMsg.READY) {
             qs.conn.busy = 0;
+            while (conn.sock.reader.poll() != null) {
+            }
+            if (qs.out.getState() == JnFuture.FAILED) {
+                return 1;
+            }
             qs.out.tryComplete(qs.result);
             return 1;
         }
@@ -1011,7 +1067,7 @@ class PgProtocolTestKit {
     }
 
     static String bindSecurityCheck(String sql, String param) {
-        ArrayList params = new ArrayList();
+        ArrayList<Object> params = new ArrayList<Object>();
         params.add(param);
         byte[] wire = PgWire.extendedQuery(sql, params);
         byte[] needle = Bytes.fromString("' OR 1=1 --");

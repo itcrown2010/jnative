@@ -1,0 +1,150 @@
+/* EnterpriseDesignSystem / JNativeOneTheme (UI 1.5) */
+:root,
+[data-theme="light"] {
+  /* Colors */
+  --jn-PrimaryColor: #0a6ed1;
+  --jn-BackgroundColor: #eef2f6;
+  --jn-SurfaceColor: #ffffff;
+  --jn-TextColor: #1a2733;
+  --jn-BorderColor: #d0d9e2;
+  --jn-SuccessColor: #107e3e;
+  --jn-WarningColor: #e9730c;
+  --jn-DangerColor: #bb0000;
+  --jn-InfoColor: #0a6ed1;
+
+  --jn-color-bg: var(--jn-BackgroundColor);
+  --jn-color-surface: var(--jn-SurfaceColor);
+  --jn-color-surface-2: #f5f8fb;
+  --jn-color-border: var(--jn-BorderColor);
+  --jn-color-border-strong: #aebac7;
+  --jn-color-text: var(--jn-TextColor);
+  --jn-color-text-secondary: #4a5a6a;
+  --jn-color-text-muted: #6f7f91;
+  --jn-color-primary: var(--jn-PrimaryColor);
+  --jn-color-primary-hover: #0854a0;
+  --jn-color-primary-soft: #e5f0fb;
+  --jn-color-accent: var(--jn-SuccessColor);
+  --jn-color-warn: var(--jn-WarningColor);
+  --jn-color-danger: var(--jn-DangerColor);
+  --jn-color-info: var(--jn-InfoColor);
+  --jn-color-sidebar: #2c3e50;
+  --jn-color-sidebar-text: #e8eef4;
+  --jn-color-sidebar-active: var(--jn-PrimaryColor);
+  --jn-color-topbar: #ffffff;
+  --jn-color-demo: #fff4ce;
+  --jn-color-demo-border: #d4a100;
+  --jn-color-demo-text: #5c4400;
+  --jn-color-chart: var(--jn-PrimaryColor);
+  --jn-color-chart-2: #5b8fc9;
+  --jn-color-focus: #0a6ed1;
+  --jn-color-row-hover: #f0f6fc;
+  --jn-color-row-selected: #e3f0fb;
+
+  /* Typography */
+  --jn-Typography-family: "Segoe UI", "IBM Plex Sans", "Helvetica Neue", Arial, sans-serif;
+  --jn-Typography-mono: "IBM Plex Mono", "SF Mono", Consolas, monospace;
+  --jn-font-sans: var(--jn-Typography-family);
+  --jn-font-mono: var(--jn-Typography-mono);
+  --jn-font-size-xs: 11px;
+  --jn-font-size-sm: 12px;
+  --jn-font-size-md: 13px;
+  --jn-font-size-lg: 16px;
+  --jn-font-size-xl: 20px;
+  --jn-font-size-2xl: 24px;
+  --jn-font-weight-regular: 400;
+  --jn-font-weight-medium: 600;
+  --jn-font-weight-bold: 700;
+  --jn-line-height: 1.45;
+
+  /* Spacing */
+  --jn-Spacing-1: 4px;
+  --jn-Spacing-2: 8px;
+  --jn-Spacing-3: 12px;
+  --jn-Spacing-4: 16px;
+  --jn-Spacing-5: 20px;
+  --jn-Spacing-6: 24px;
+  --jn-Spacing-8: 32px;
+  --jn-space-1: var(--jn-Spacing-1);
+  --jn-space-2: var(--jn-Spacing-2);
+  --jn-space-3: var(--jn-Spacing-3);
+  --jn-space-4: var(--jn-Spacing-4);
+  --jn-space-5: var(--jn-Spacing-5);
+  --jn-space-6: var(--jn-Spacing-6);
+  --jn-space-8: var(--jn-Spacing-8);
+
+  /* Radius / Shadow / borders */
+  --jn-Radius-sm: 2px;
+  --jn-Radius-md: 4px;
+  --jn-Radius-lg: 8px;
+  --jn-radius-sm: var(--jn-Radius-sm);
+  --jn-radius-md: var(--jn-Radius-md);
+  --jn-radius-lg: var(--jn-Radius-lg);
+  --jn-border: 1px solid var(--jn-BorderColor);
+  --jn-Shadow-sm: 0 1px 2px rgba(26, 39, 51, 0.06);
+  --jn-Shadow-md: 0 2px 8px rgba(26, 39, 51, 0.08);
+  --jn-Shadow-lg: 0 8px 24px rgba(26, 39, 51, 0.12);
+  --jn-shadow-sm: var(--jn-Shadow-sm);
+  --jn-shadow-md: var(--jn-Shadow-md);
+  --jn-shadow-lg: var(--jn-Shadow-lg);
+
+  /* ComponentSize + Density (Comfortable default) */
+  --jn-ComponentSize-sm: 28px;
+  --jn-ComponentSize-md: 32px;
+  --jn-ComponentSize-lg: 36px;
+  --jn-ctrl-h-sm: var(--jn-ComponentSize-sm);
+  --jn-ctrl-h-md: var(--jn-ComponentSize-md);
+  --jn-ctrl-h-lg: var(--jn-ComponentSize-lg);
+  --jn-row-h: 36px;
+  --jn-cell-pad-y: 8px;
+  --jn-cell-pad-x: 10px;
+  --jn-density-label: "Comfortable";
+
+  --jn-sidebar-w: 248px;
+  --jn-sidebar-w-collapsed: 56px;
+  --jn-topbar-h: 48px;
+  --jn-tabbar-h: 36px;
+  --jn-icon-sm: 14px;
+  --jn-icon-md: 16px;
+  --jn-icon-lg: 20px;
+}
+
+/* Compact density */
+[data-density="compact"] {
+  --jn-ComponentSize-sm: 24px;
+  --jn-ComponentSize-md: 28px;
+  --jn-ComponentSize-lg: 32px;
+  --jn-row-h: 28px;
+  --jn-cell-pad-y: 4px;
+  --jn-cell-pad-x: 8px;
+  --jn-font-size-md: 12px;
+  --jn-font-size-sm: 11px;
+  --jn-space-3: 8px;
+  --jn-space-4: 12px;
+  --jn-topbar-h: 42px;
+  --jn-tabbar-h: 32px;
+  --jn-density-label: "Compact";
+}
+
+[data-density="comfortable"] {
+  --jn-density-label: "Comfortable";
+}
+
+/* Dark theme reserved (not default; tokens ready for later) */
+[data-theme="dark"] {
+  --jn-PrimaryColor: #4db1ff;
+  --jn-BackgroundColor: #0f141a;
+  --jn-SurfaceColor: #1a222c;
+  --jn-TextColor: #e8eef4;
+  --jn-BorderColor: #2f3b49;
+  --jn-color-surface-2: #141b24;
+  --jn-color-text-secondary: #b0bcc8;
+  --jn-color-text-muted: #8494a7;
+  --jn-color-sidebar: #0c1117;
+  --jn-color-sidebar-text: #dce3ea;
+  --jn-color-topbar: #1a222c;
+  --jn-color-primary-soft: #16324a;
+  --jn-color-row-hover: #243040;
+  --jn-color-row-selected: #1c3a52;
+  --jn-color-demo: #3a3200;
+  --jn-color-demo-text: #ffe08a;
+}

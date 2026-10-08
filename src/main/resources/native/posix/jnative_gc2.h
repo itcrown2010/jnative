@@ -11,8 +11,8 @@ extern "C" {
  * JNative 0.13 GC2 — generational heap with TLAB + young semi-space copying
  * and malloc-backed old/large mark-sweep.
  *
- * When JNATIVE_GC=marksweep (or unset legacy), LLVM IR mark-sweep remains.
- * When JNATIVE_GC=generational (default in 0.13), these entry points are used.
+ * Default (unset / "generational" / unknown): GC2 enabled.
+ * JNATIVE_GC=marksweep: GC2 disabled; LLVM IR legacy mark-sweep is used.
  */
 
 #define JN_GC_HEADER_SIZE 32

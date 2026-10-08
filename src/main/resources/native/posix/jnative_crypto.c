@@ -1,5 +1,7 @@
 /* JNative crypto runtime (0.25) — CSPRNG + integer bitwise helpers for SHA/HMAC. */
 #include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 #if defined(_WIN32)
@@ -72,3 +74,30 @@ int32_t jnative_bit_xor(int32_t a, int32_t b) { return a ^ b; }
 int32_t jnative_bit_not(int32_t a) { return ~a; }
 int32_t jnative_bit_shl(int32_t a, int32_t n) { return a << (n & 31); }
 int32_t jnative_bit_ushr(int32_t a, int32_t n) { return (int32_t)(((uint32_t)a) >> (n & 31)); }
+
+int64_t jnative_bit_and64(int64_t a, int64_t b) { return a & b; }
+int64_t jnative_bit_or64(int64_t a, int64_t b) { return a | b; }
+int64_t jnative_bit_xor64(int64_t a, int64_t b) { return a ^ b; }
+int64_t jnative_bit_not64(int64_t a) { return ~a; }
+int64_t jnative_bit_shl64(int64_t a, int32_t n) { return a << (n & 63); }
+int64_t jnative_bit_ushr64(int64_t a, int32_t n) {
+    return (int64_t)(((uint64_t)a) >> (n & 63));
+}
+int64_t jnative_bit_shr64(int64_t a, int32_t n) { return a >> (n & 63); }
+
+char *jnative_double_to_string(double v) {
+    char buf[128];
+    snprintf(buf, sizeof(buf), "%.15g", v);
+    return strdup(buf);
+}
+
+double jnative_string_to_double(const char *s) {
+    if (s == NULL) {
+        return 0.0;
+    }
+    return strtod(s, NULL);
+}
+
+void jnative_crypto_free(void *p) {
+    free(p);
+}

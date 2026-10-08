@@ -1,0 +1,1962 @@
+{
+  "ok": [
+    "docs audit: {\"jnative-one-ui-1.1.md\":\"OK\",\"jnative-one-ui-1.2.md\":\"OK\",\"jnative-one-ui-1.3.md\":\"OK\",\"jnative-one-ui-1.4.md\":\"OK\",\"jnative-one-ui-1.5.md\":\"OK\"}",
+    "login shell",
+    "PageRegistry coverage 86/86",
+    "menu sidebar+topbar",
+    "breadcrumb",
+    "hash / direct navigate",
+    "workspace tabs chrome present",
+    "button probes ok registry=18",
+    "form fields=8 closed=true",
+    "doc editor SalesOrder",
+    "doc editor PurchaseOrder",
+    "doc editor Delivery",
+    "doc editor GoodsReceipt",
+    "doc editor ARInvoice",
+    "doc editor APInvoice",
+    "grid search/sort/pagination present",
+    "selectors x5 open+search+escape",
+    "modal open/focus/escape",
+    "purchase chain stock=100",
+    "sales chain stock=70",
+    "finance margin=900",
+    "journals balanced",
+    "inventory transfer+adjust",
+    "manufacturing issue+receipt CLOSED",
+    "DemoStateStore KPI consistency",
+    "executive dashboard from DemoStateStore",
+    "perf measured {\"n100\":{\"genMs\":0,\"queryMs\":0,\"filterMs\":0,\"sortMs\":0,\"total\":100,\"heapMb\":10,\"heapDeltaMb\":0},\"n1000\":{\"genMs\":0,\"queryMs\":1,\"filterMs\":0,\"sortMs\":1,\"total\":1000,\"heapMb\":10,\"heapDeltaMb\":0},\"n10000\":{\"genMs\":2,\"queryMs\":3,\"filterMs\":2,\"sortMs\":3,\"total\":10000,\"heapMb\":10,\"heapDeltaMb\":0},\"n100000\":{\"queryMs\":29,\"filterMs\":10,\"sortMs\":28,\"heapMb\":10},\"pageSwitchMs\":34}",
+    "keyboard Tab/Shift+Tab/Ctrl+S/Escape",
+    "a11y focusable=201 labels=5",
+    "visual ui16-dashboard.png",
+    "visual ui16-customer-list.png",
+    "visual ui16-customer-detail.png",
+    "visual ui16-sales-order-editor.png",
+    "visual ui16-purchase-order-editor.png",
+    "visual ui16-inventory-balance.png",
+    "visual ui16-journal-entry.png",
+    "visual ui16-bom-editor.png",
+    "visual ui16-mrp-workbench.png",
+    "visual ui16-demo-center.png",
+    "visual ui16-settings.png",
+    "viewport 1366",
+    "viewport 1440",
+    "viewport 1920"
+  ],
+  "fail": [],
+  "issues": [],
+  "matrix": [
+    {
+      "Module": "Workbench",
+      "Page": "Executive Dashboard",
+      "pageId": "dash.executive",
+      "Route": "/dashboard",
+      "Implemented": true,
+      "LoadTest": "PASS",
+      "InteractionTest": "CORE",
+      "VisualTest": "PASS",
+      "WorkflowTest": "PASS",
+      "Status": "INTERACTIVE"
+    },
+    {
+      "Module": "Workbench",
+      "Page": "Sales Dashboard",
+      "pageId": "dash.sales",
+      "Route": "/dashboard/sales",
+      "Implemented": true,
+      "LoadTest": "PASS",
+      "InteractionTest": "CORE",
+      "VisualTest": "N/A",
+      "WorkflowTest": "N/A",
+      "Status": "INTERACTIVE"
+    },
+    {
+      "Module": "Workbench",
+      "Page": "Purchasing Dashboard",
+      "pageId": "dash.purchasing",
+      "Route": "/dashboard/purchasing",
+      "Implemented": true,
+      "LoadTest": "PASS",
+      "InteractionTest": "CORE",
+      "VisualTest": "N/A",
+      "WorkflowTest": "N/A",
+      "Status": "INTERACTIVE"
+    },
+    {
+      "Module": "Workbench",
+      "Page": "Inventory Dashboard",
+      "pageId": "dash.inventory",
+      "Route": "/dashboard/inventory",
+      "Implemented": true,
+      "LoadTest": "PASS",
+      "InteractionTest": "CORE",
+      "VisualTest": "N/A",
+      "WorkflowTest": "N/A",
+      "Status": "INTERACTIVE"
+    },
+    {
+      "Module": "Workbench",
+      "Page": "Finance Dashboard",
+      "pageId": "dash.finance",
+      "Route": "/dashboard/finance",
+      "Implemented": true,
+      "LoadTest": "PASS",
+      "InteractionTest": "CORE",
+      "VisualTest": "N/A",
+      "WorkflowTest": "N/A",
+      "Status": "INTERACTIVE"
+    },
+    {
+      "Module": "Workbench",
+      "Page": "Manufacturing Dashboard",
+      "pageId": "dash.manufacturing",
+      "Route": "/dashboard/manufacturing",
+      "Implemented": true,
+      "LoadTest": "PASS",
+      "InteractionTest": "CORE",
+      "VisualTest": "N/A",
+      "WorkflowTest": "N/A",
+      "Status": "INTERACTIVE"
+    },
+    {
+      "Module": "Workbench",
+      "Page": "Demo Center",
+      "pageId": "demo.center",
+      "Route": "/demo",
+      "Implemented": true,
+      "LoadTest": "PASS",
+      "InteractionTest": "CORE",
+      "VisualTest": "PASS",
+      "WorkflowTest": "N/A",
+      "Status": "INTERACTIVE"
+    },
+    {
+      "Module": "Master Data",
+      "Page": "Customers",
+      "pageId": "md.customers",
+      "Route": "/master/customers",
+      "Implemented": true,
+      "LoadTest": "PASS",
+      "InteractionTest": "CORE",
+      "VisualTest": "PASS",
+      "WorkflowTest": "PASS",
+      "Status": "INTERACTIVE"
+    },
+    {
+      "Module": "Master Data",
+      "Page": "Suppliers",
+      "pageId": "md.suppliers",
+      "Route": "/master/suppliers",
+      "Implemented": true,
+      "LoadTest": "PASS",
+      "InteractionTest": "CORE",
+      "VisualTest": "N/A",
+      "WorkflowTest": "PASS",
+      "Status": "INTERACTIVE"
+    },
+    {
+      "Module": "Master Data",
+      "Page": "Items",
+      "pageId": "md.items",
+      "Route": "/master/items",
+      "Implemented": true,
+      "LoadTest": "PASS",
+      "InteractionTest": "CORE",
+      "VisualTest": "N/A",
+      "WorkflowTest": "N/A",
+      "Status": "INTERACTIVE"
+    },
+    {
+      "Module": "Master Data",
+      "Page": "Item Categories",
+      "pageId": "md.categories",
+      "Route": "/master/categories",
+      "Implemented": true,
+      "LoadTest": "PASS",
+      "InteractionTest": "BASIC",
+      "VisualTest": "N/A",
+      "WorkflowTest": "N/A",
+      "Status": "INTERACTIVE"
+    },
+    {
+      "Module": "Master Data",
+      "Page": "Warehouses",
+      "pageId": "md.warehouses",
+      "Route": "/master/warehouses",
+      "Implemented": true,
+      "LoadTest": "PASS",
+      "InteractionTest": "BASIC",
+      "VisualTest": "N/A",
+      "WorkflowTest": "N/A",
+      "Status": "INTERACTIVE"
+    },
+    {
+      "Module": "Master Data",
+      "Page": "Units",
+      "pageId": "md.units",
+      "Route": "/master/units",
+      "Implemented": true,
+      "LoadTest": "PASS",
+      "InteractionTest": "BASIC",
+      "VisualTest": "N/A",
+      "WorkflowTest": "N/A",
+      "Status": "INTERACTIVE"
+    },
+    {
+      "Module": "Master Data",
+      "Page": "Price Lists",
+      "pageId": "md.pricelists",
+      "Route": "/master/pricelists",
+      "Implemented": true,
+      "LoadTest": "PASS",
+      "InteractionTest": "BASIC",
+      "VisualTest": "N/A",
+      "WorkflowTest": "N/A",
+      "Status": "INTERACTIVE"
+    },
+    {
+      "Module": "Master Data",
+      "Page": "Currencies",
+      "pageId": "md.currencies",
+      "Route": "/master/currencies",
+      "Implemented": true,
+      "LoadTest": "PASS",
+      "InteractionTest": "BASIC",
+      "VisualTest": "N/A",
+      "WorkflowTest": "N/A",
+      "Status": "INTERACTIVE"
+    },
+    {
+      "Module": "Master Data",
+      "Page": "Employees",
+      "pageId": "md.employees",
+      "Route": "/master/employees",
+      "Implemented": true,
+      "LoadTest": "PASS",
+      "InteractionTest": "BASIC",
+      "VisualTest": "N/A",
+      "WorkflowTest": "N/A",
+      "Status": "INTERACTIVE"
+    },
+    {
+      "Module": "Master Data",
+      "Page": "Departments",
+      "pageId": "md.departments",
+      "Route": "/master/departments",
+      "Implemented": true,
+      "LoadTest": "PASS",
+      "InteractionTest": "BASIC",
+      "VisualTest": "N/A",
+      "WorkflowTest": "N/A",
+      "Status": "INTERACTIVE"
+    },
+    {
+      "Module": "Sales",
+      "Page": "Sales Quotations",
+      "pageId": "sales.quotations",
+      "Route": "/sales/quotations",
+      "Implemented": true,
+      "LoadTest": "PASS",
+      "InteractionTest": "BASIC",
+      "VisualTest": "N/A",
+      "WorkflowTest": "N/A",
+      "Status": "INTERACTIVE"
+    },
+    {
+      "Module": "Sales",
+      "Page": "Sales Orders",
+      "pageId": "sales.orders",
+      "Route": "/sales/orders",
+      "Implemented": true,
+      "LoadTest": "PASS",
+      "InteractionTest": "CORE",
+      "VisualTest": "PASS",
+      "WorkflowTest": "PASS",
+      "Status": "INTERACTIVE"
+    },
+    {
+      "Module": "Sales",
+      "Page": "Deliveries",
+      "pageId": "sales.deliveries",
+      "Route": "/sales/deliveries",
+      "Implemented": true,
+      "LoadTest": "PASS",
+      "InteractionTest": "CORE",
+      "VisualTest": "N/A",
+      "WorkflowTest": "PASS",
+      "Status": "INTERACTIVE"
+    },
+    {
+      "Module": "Sales",
+      "Page": "Sales Returns",
+      "pageId": "sales.returns",
+      "Route": "/sales/returns",
+      "Implemented": true,
+      "LoadTest": "PASS",
+      "InteractionTest": "BASIC",
+      "VisualTest": "N/A",
+      "WorkflowTest": "N/A",
+      "Status": "INTERACTIVE"
+    },
+    {
+      "Module": "Sales",
+      "Page": "AR Invoices",
+      "pageId": "sales.ar",
+      "Route": "/sales/ar-invoices",
+      "Implemented": true,
+      "LoadTest": "PASS",
+      "InteractionTest": "CORE",
+      "VisualTest": "N/A",
+      "WorkflowTest": "PASS",
+      "Status": "INTERACTIVE"
+    },
+    {
+      "Module": "Sales",
+      "Page": "Sales Analysis",
+      "pageId": "sales.analysis",
+      "Route": "/sales/analysis",
+      "Implemented": true,
+      "LoadTest": "PASS",
+      "InteractionTest": "BASIC",
+      "VisualTest": "N/A",
+      "WorkflowTest": "N/A",
+      "Status": "PREVIEW"
+    },
+    {
+      "Module": "Purchasing",
+      "Page": "Purchase Requests",
+      "pageId": "pur.requests",
+      "Route": "/purchasing/requests",
+      "Implemented": true,
+      "LoadTest": "PASS",
+      "InteractionTest": "BASIC",
+      "VisualTest": "N/A",
+      "WorkflowTest": "N/A",
+      "Status": "INTERACTIVE"
+    },
+    {
+      "Module": "Purchasing",
+      "Page": "Purchase Quotations",
+      "pageId": "pur.quotations",
+      "Route": "/purchasing/quotations",
+      "Implemented": true,
+      "LoadTest": "PASS",
+      "InteractionTest": "BASIC",
+      "VisualTest": "N/A",
+      "WorkflowTest": "N/A",
+      "Status": "INTERACTIVE"
+    },
+    {
+      "Module": "Purchasing",
+      "Page": "Purchase Orders",
+      "pageId": "pur.orders",
+      "Route": "/purchasing/orders",
+      "Implemented": true,
+      "LoadTest": "PASS",
+      "InteractionTest": "CORE",
+      "VisualTest": "PASS",
+      "WorkflowTest": "PASS",
+      "Status": "INTERACTIVE"
+    },
+    {
+      "Module": "Purchasing",
+      "Page": "Goods Receipts",
+      "pageId": "pur.gr",
+      "Route": "/purchasing/goods-receipts",
+      "Implemented": true,
+      "LoadTest": "PASS",
+      "InteractionTest": "CORE",
+      "VisualTest": "N/A",
+      "WorkflowTest": "PASS",
+      "Status": "INTERACTIVE"
+    },
+    {
+      "Module": "Purchasing",
+      "Page": "Purchase Returns",
+      "pageId": "pur.returns",
+      "Route": "/purchasing/returns",
+      "Implemented": true,
+      "LoadTest": "PASS",
+      "InteractionTest": "BASIC",
+      "VisualTest": "N/A",
+      "WorkflowTest": "N/A",
+      "Status": "INTERACTIVE"
+    },
+    {
+      "Module": "Purchasing",
+      "Page": "AP Invoices",
+      "pageId": "pur.ap",
+      "Route": "/purchasing/ap-invoices",
+      "Implemented": true,
+      "LoadTest": "PASS",
+      "InteractionTest": "CORE",
+      "VisualTest": "N/A",
+      "WorkflowTest": "PASS",
+      "Status": "INTERACTIVE"
+    },
+    {
+      "Module": "Purchasing",
+      "Page": "Purchasing Analysis",
+      "pageId": "pur.analysis",
+      "Route": "/purchasing/analysis",
+      "Implemented": true,
+      "LoadTest": "PASS",
+      "InteractionTest": "BASIC",
+      "VisualTest": "N/A",
+      "WorkflowTest": "N/A",
+      "Status": "PREVIEW"
+    },
+    {
+      "Module": "Inventory",
+      "Page": "Inventory Balance",
+      "pageId": "inv.balance",
+      "Route": "/inventory/balance",
+      "Implemented": true,
+      "LoadTest": "PASS",
+      "InteractionTest": "CORE",
+      "VisualTest": "PASS",
+      "WorkflowTest": "PASS",
+      "Status": "INTERACTIVE"
+    },
+    {
+      "Module": "Inventory",
+      "Page": "Inventory Transactions",
+      "pageId": "inv.txns",
+      "Route": "/inventory/transactions",
+      "Implemented": true,
+      "LoadTest": "PASS",
+      "InteractionTest": "CORE",
+      "VisualTest": "N/A",
+      "WorkflowTest": "PASS",
+      "Status": "INTERACTIVE"
+    },
+    {
+      "Module": "Inventory",
+      "Page": "Inventory Transfers",
+      "pageId": "inv.transfers",
+      "Route": "/inventory/transfers",
+      "Implemented": true,
+      "LoadTest": "PASS",
+      "InteractionTest": "BASIC",
+      "VisualTest": "N/A",
+      "WorkflowTest": "PASS",
+      "Status": "INTERACTIVE"
+    },
+    {
+      "Module": "Inventory",
+      "Page": "Inventory Counting",
+      "pageId": "inv.counting",
+      "Route": "/inventory/counting",
+      "Implemented": true,
+      "LoadTest": "PASS",
+      "InteractionTest": "BASIC",
+      "VisualTest": "N/A",
+      "WorkflowTest": "N/A",
+      "Status": "INTERACTIVE"
+    },
+    {
+      "Module": "Inventory",
+      "Page": "Inventory Adjustments",
+      "pageId": "inv.adjustments",
+      "Route": "/inventory/adjustments",
+      "Implemented": true,
+      "LoadTest": "PASS",
+      "InteractionTest": "BASIC",
+      "VisualTest": "N/A",
+      "WorkflowTest": "PASS",
+      "Status": "INTERACTIVE"
+    },
+    {
+      "Module": "Inventory",
+      "Page": "Batch Management",
+      "pageId": "inv.batches",
+      "Route": "/inventory/batches",
+      "Implemented": true,
+      "LoadTest": "PASS",
+      "InteractionTest": "BASIC",
+      "VisualTest": "N/A",
+      "WorkflowTest": "N/A",
+      "Status": "INTERACTIVE"
+    },
+    {
+      "Module": "Inventory",
+      "Page": "Serial Numbers",
+      "pageId": "inv.serials",
+      "Route": "/inventory/serials",
+      "Implemented": true,
+      "LoadTest": "PASS",
+      "InteractionTest": "BASIC",
+      "VisualTest": "N/A",
+      "WorkflowTest": "N/A",
+      "Status": "INTERACTIVE"
+    },
+    {
+      "Module": "Inventory",
+      "Page": "Inventory Alerts",
+      "pageId": "inv.alerts",
+      "Route": "/inventory/alerts",
+      "Implemented": true,
+      "LoadTest": "PASS",
+      "InteractionTest": "BASIC",
+      "VisualTest": "N/A",
+      "WorkflowTest": "N/A",
+      "Status": "INTERACTIVE"
+    },
+    {
+      "Module": "Inventory",
+      "Page": "Inventory Valuation",
+      "pageId": "inv.valuation",
+      "Route": "/inventory/valuation",
+      "Implemented": true,
+      "LoadTest": "PASS",
+      "InteractionTest": "BASIC",
+      "VisualTest": "N/A",
+      "WorkflowTest": "N/A",
+      "Status": "PREVIEW"
+    },
+    {
+      "Module": "Finance",
+      "Page": "Chart of Accounts",
+      "pageId": "fin.coa",
+      "Route": "/finance/accounts",
+      "Implemented": true,
+      "LoadTest": "PASS",
+      "InteractionTest": "BASIC",
+      "VisualTest": "N/A",
+      "WorkflowTest": "N/A",
+      "Status": "INTERACTIVE"
+    },
+    {
+      "Module": "Finance",
+      "Page": "Journal Entries",
+      "pageId": "fin.journals",
+      "Route": "/finance/journals",
+      "Implemented": true,
+      "LoadTest": "PASS",
+      "InteractionTest": "BASIC",
+      "VisualTest": "PASS",
+      "WorkflowTest": "PASS",
+      "Status": "INTERACTIVE"
+    },
+    {
+      "Module": "Finance",
+      "Page": "General Ledger",
+      "pageId": "fin.gl",
+      "Route": "/finance/gl",
+      "Implemented": true,
+      "LoadTest": "PASS",
+      "InteractionTest": "BASIC",
+      "VisualTest": "N/A",
+      "WorkflowTest": "N/A",
+      "Status": "INTERACTIVE"
+    },
+    {
+      "Module": "Finance",
+      "Page": "Trial Balance",
+      "pageId": "fin.tb",
+      "Route": "/finance/trial-balance",
+      "Implemented": true,
+      "LoadTest": "PASS",
+      "InteractionTest": "BASIC",
+      "VisualTest": "N/A",
+      "WorkflowTest": "PASS",
+      "Status": "INTERACTIVE"
+    },
+    {
+      "Module": "Finance",
+      "Page": "Accounts Receivable",
+      "pageId": "fin.ar",
+      "Route": "/finance/ar",
+      "Implemented": true,
+      "LoadTest": "PASS",
+      "InteractionTest": "CORE",
+      "VisualTest": "N/A",
+      "WorkflowTest": "PASS",
+      "Status": "INTERACTIVE"
+    },
+    {
+      "Module": "Finance",
+      "Page": "Accounts Payable",
+      "pageId": "fin.ap",
+      "Route": "/finance/ap",
+      "Implemented": true,
+      "LoadTest": "PASS",
+      "InteractionTest": "CORE",
+      "VisualTest": "N/A",
+      "WorkflowTest": "PASS",
+      "Status": "INTERACTIVE"
+    },
+    {
+      "Module": "Finance",
+      "Page": "Incoming Payments",
+      "pageId": "fin.ip",
+      "Route": "/finance/incoming-payments",
+      "Implemented": true,
+      "LoadTest": "PASS",
+      "InteractionTest": "BASIC",
+      "VisualTest": "N/A",
+      "WorkflowTest": "N/A",
+      "Status": "INTERACTIVE"
+    },
+    {
+      "Module": "Finance",
+      "Page": "Outgoing Payments",
+      "pageId": "fin.op",
+      "Route": "/finance/outgoing-payments",
+      "Implemented": true,
+      "LoadTest": "PASS",
+      "InteractionTest": "BASIC",
+      "VisualTest": "N/A",
+      "WorkflowTest": "N/A",
+      "Status": "INTERACTIVE"
+    },
+    {
+      "Module": "Finance",
+      "Page": "Bank Accounts",
+      "pageId": "fin.banks",
+      "Route": "/finance/banks",
+      "Implemented": true,
+      "LoadTest": "PASS",
+      "InteractionTest": "BASIC",
+      "VisualTest": "N/A",
+      "WorkflowTest": "N/A",
+      "Status": "INTERACTIVE"
+    },
+    {
+      "Module": "Finance",
+      "Page": "Fiscal Periods",
+      "pageId": "fin.periods",
+      "Route": "/finance/periods",
+      "Implemented": true,
+      "LoadTest": "PASS",
+      "InteractionTest": "BASIC",
+      "VisualTest": "N/A",
+      "WorkflowTest": "N/A",
+      "Status": "INTERACTIVE"
+    },
+    {
+      "Module": "Finance",
+      "Page": "Balance Sheet",
+      "pageId": "fin.bs",
+      "Route": "/finance/balance-sheet",
+      "Implemented": true,
+      "LoadTest": "PASS",
+      "InteractionTest": "BASIC",
+      "VisualTest": "N/A",
+      "WorkflowTest": "N/A",
+      "Status": "PREVIEW"
+    },
+    {
+      "Module": "Finance",
+      "Page": "Income Statement",
+      "pageId": "fin.is",
+      "Route": "/finance/income-statement",
+      "Implemented": true,
+      "LoadTest": "PASS",
+      "InteractionTest": "BASIC",
+      "VisualTest": "N/A",
+      "WorkflowTest": "N/A",
+      "Status": "PREVIEW"
+    },
+    {
+      "Module": "Finance",
+      "Page": "Cash Flow Statement",
+      "pageId": "fin.cf",
+      "Route": "/finance/cash-flow",
+      "Implemented": true,
+      "LoadTest": "PASS",
+      "InteractionTest": "BASIC",
+      "VisualTest": "N/A",
+      "WorkflowTest": "N/A",
+      "Status": "PREVIEW"
+    },
+    {
+      "Module": "Manufacturing",
+      "Page": "BOM",
+      "pageId": "mfg.bom",
+      "Route": "/mfg/bom",
+      "Implemented": true,
+      "LoadTest": "PASS",
+      "InteractionTest": "CORE",
+      "VisualTest": "N/A",
+      "WorkflowTest": "N/A",
+      "Status": "INTERACTIVE"
+    },
+    {
+      "Module": "Manufacturing",
+      "Page": "BOM Editor",
+      "pageId": "mfg.bomEditor",
+      "Route": "/mfg/bom-editor",
+      "Implemented": true,
+      "LoadTest": "PASS",
+      "InteractionTest": "CORE",
+      "VisualTest": "PASS",
+      "WorkflowTest": "PASS",
+      "Status": "INTERACTIVE"
+    },
+    {
+      "Module": "Manufacturing",
+      "Page": "Production Orders",
+      "pageId": "mfg.orders",
+      "Route": "/mfg/orders",
+      "Implemented": true,
+      "LoadTest": "PASS",
+      "InteractionTest": "CORE",
+      "VisualTest": "N/A",
+      "WorkflowTest": "PASS",
+      "Status": "INTERACTIVE"
+    },
+    {
+      "Module": "Manufacturing",
+      "Page": "Production Issues",
+      "pageId": "mfg.issues",
+      "Route": "/mfg/issues",
+      "Implemented": true,
+      "LoadTest": "PASS",
+      "InteractionTest": "BASIC",
+      "VisualTest": "N/A",
+      "WorkflowTest": "PASS",
+      "Status": "INTERACTIVE"
+    },
+    {
+      "Module": "Manufacturing",
+      "Page": "Production Returns",
+      "pageId": "mfg.returns",
+      "Route": "/mfg/returns",
+      "Implemented": true,
+      "LoadTest": "PASS",
+      "InteractionTest": "BASIC",
+      "VisualTest": "N/A",
+      "WorkflowTest": "N/A",
+      "Status": "INTERACTIVE"
+    },
+    {
+      "Module": "Manufacturing",
+      "Page": "Production Receipts",
+      "pageId": "mfg.receipts",
+      "Route": "/mfg/receipts",
+      "Implemented": true,
+      "LoadTest": "PASS",
+      "InteractionTest": "BASIC",
+      "VisualTest": "N/A",
+      "WorkflowTest": "PASS",
+      "Status": "INTERACTIVE"
+    },
+    {
+      "Module": "Manufacturing",
+      "Page": "MRP Workbench",
+      "pageId": "mfg.mrp",
+      "Route": "/mfg/mrp",
+      "Implemented": true,
+      "LoadTest": "PASS",
+      "InteractionTest": "CORE",
+      "VisualTest": "PASS",
+      "WorkflowTest": "N/A",
+      "Status": "INTERACTIVE"
+    },
+    {
+      "Module": "Manufacturing",
+      "Page": "Production Cost",
+      "pageId": "mfg.cost",
+      "Route": "/mfg/cost",
+      "Implemented": true,
+      "LoadTest": "PASS",
+      "InteractionTest": "BASIC",
+      "VisualTest": "N/A",
+      "WorkflowTest": "N/A",
+      "Status": "PREVIEW"
+    },
+    {
+      "Module": "Manufacturing",
+      "Page": "Production Progress",
+      "pageId": "mfg.progress",
+      "Route": "/mfg/progress",
+      "Implemented": true,
+      "LoadTest": "PASS",
+      "InteractionTest": "BASIC",
+      "VisualTest": "N/A",
+      "WorkflowTest": "N/A",
+      "Status": "PREVIEW"
+    },
+    {
+      "Module": "CRM",
+      "Page": "Leads",
+      "pageId": "crm.leads",
+      "Route": "/crm/leads",
+      "Implemented": true,
+      "LoadTest": "PASS",
+      "InteractionTest": "BASIC",
+      "VisualTest": "N/A",
+      "WorkflowTest": "N/A",
+      "Status": "INTERACTIVE"
+    },
+    {
+      "Module": "CRM",
+      "Page": "Opportunities",
+      "pageId": "crm.opps",
+      "Route": "/crm/opportunities",
+      "Implemented": true,
+      "LoadTest": "PASS",
+      "InteractionTest": "BASIC",
+      "VisualTest": "N/A",
+      "WorkflowTest": "N/A",
+      "Status": "INTERACTIVE"
+    },
+    {
+      "Module": "CRM",
+      "Page": "Activities",
+      "pageId": "crm.activities",
+      "Route": "/crm/activities",
+      "Implemented": true,
+      "LoadTest": "PASS",
+      "InteractionTest": "BASIC",
+      "VisualTest": "N/A",
+      "WorkflowTest": "N/A",
+      "Status": "INTERACTIVE"
+    },
+    {
+      "Module": "CRM",
+      "Page": "Customer Visits",
+      "pageId": "crm.visits",
+      "Route": "/crm/visits",
+      "Implemented": true,
+      "LoadTest": "PASS",
+      "InteractionTest": "BASIC",
+      "VisualTest": "N/A",
+      "WorkflowTest": "N/A",
+      "Status": "INTERACTIVE"
+    },
+    {
+      "Module": "CRM",
+      "Page": "Sales Pipeline",
+      "pageId": "crm.pipeline",
+      "Route": "/crm/pipeline",
+      "Implemented": true,
+      "LoadTest": "PASS",
+      "InteractionTest": "BASIC",
+      "VisualTest": "N/A",
+      "WorkflowTest": "N/A",
+      "Status": "PREVIEW"
+    },
+    {
+      "Module": "CRM",
+      "Page": "Sales Forecast",
+      "pageId": "crm.forecast",
+      "Route": "/crm/forecast",
+      "Implemented": true,
+      "LoadTest": "PASS",
+      "InteractionTest": "BASIC",
+      "VisualTest": "N/A",
+      "WorkflowTest": "N/A",
+      "Status": "PREVIEW"
+    },
+    {
+      "Module": "Reports",
+      "Page": "Sales Reports",
+      "pageId": "rpt.sales",
+      "Route": "/reports/sales",
+      "Implemented": true,
+      "LoadTest": "PASS",
+      "InteractionTest": "BASIC",
+      "VisualTest": "N/A",
+      "WorkflowTest": "N/A",
+      "Status": "PREVIEW"
+    },
+    {
+      "Module": "Reports",
+      "Page": "Purchasing Reports",
+      "pageId": "rpt.purchasing",
+      "Route": "/reports/purchasing",
+      "Implemented": true,
+      "LoadTest": "PASS",
+      "InteractionTest": "BASIC",
+      "VisualTest": "N/A",
+      "WorkflowTest": "N/A",
+      "Status": "PREVIEW"
+    },
+    {
+      "Module": "Reports",
+      "Page": "Inventory Reports",
+      "pageId": "rpt.inventory",
+      "Route": "/reports/inventory",
+      "Implemented": true,
+      "LoadTest": "PASS",
+      "InteractionTest": "BASIC",
+      "VisualTest": "N/A",
+      "WorkflowTest": "N/A",
+      "Status": "PREVIEW"
+    },
+    {
+      "Module": "Reports",
+      "Page": "Finance Reports",
+      "pageId": "rpt.finance",
+      "Route": "/reports/finance",
+      "Implemented": true,
+      "LoadTest": "PASS",
+      "InteractionTest": "BASIC",
+      "VisualTest": "N/A",
+      "WorkflowTest": "N/A",
+      "Status": "PREVIEW"
+    },
+    {
+      "Module": "Reports",
+      "Page": "Manufacturing Reports",
+      "pageId": "rpt.mfg",
+      "Route": "/reports/manufacturing",
+      "Implemented": true,
+      "LoadTest": "PASS",
+      "InteractionTest": "BASIC",
+      "VisualTest": "N/A",
+      "WorkflowTest": "N/A",
+      "Status": "PREVIEW"
+    },
+    {
+      "Module": "Reports",
+      "Page": "Customer Analytics",
+      "pageId": "rpt.customer",
+      "Route": "/reports/customer",
+      "Implemented": true,
+      "LoadTest": "PASS",
+      "InteractionTest": "BASIC",
+      "VisualTest": "N/A",
+      "WorkflowTest": "N/A",
+      "Status": "PREVIEW"
+    },
+    {
+      "Module": "Reports",
+      "Page": "Executive Analytics",
+      "pageId": "rpt.exec",
+      "Route": "/reports/executive",
+      "Implemented": true,
+      "LoadTest": "PASS",
+      "InteractionTest": "BASIC",
+      "VisualTest": "N/A",
+      "WorkflowTest": "N/A",
+      "Status": "PREVIEW"
+    },
+    {
+      "Module": "System",
+      "Page": "Users",
+      "pageId": "sys.users",
+      "Route": "/system/users",
+      "Implemented": true,
+      "LoadTest": "PASS",
+      "InteractionTest": "BASIC",
+      "VisualTest": "N/A",
+      "WorkflowTest": "N/A",
+      "Status": "INTERACTIVE"
+    },
+    {
+      "Module": "System",
+      "Page": "Roles",
+      "pageId": "sys.roles",
+      "Route": "/system/roles",
+      "Implemented": true,
+      "LoadTest": "PASS",
+      "InteractionTest": "BASIC",
+      "VisualTest": "N/A",
+      "WorkflowTest": "N/A",
+      "Status": "INTERACTIVE"
+    },
+    {
+      "Module": "System",
+      "Page": "Permissions",
+      "pageId": "sys.permissions",
+      "Route": "/system/permissions",
+      "Implemented": true,
+      "LoadTest": "PASS",
+      "InteractionTest": "BASIC",
+      "VisualTest": "N/A",
+      "WorkflowTest": "N/A",
+      "Status": "INTERACTIVE"
+    },
+    {
+      "Module": "System",
+      "Page": "Companies",
+      "pageId": "sys.companies",
+      "Route": "/system/companies",
+      "Implemented": true,
+      "LoadTest": "PASS",
+      "InteractionTest": "BASIC",
+      "VisualTest": "N/A",
+      "WorkflowTest": "N/A",
+      "Status": "INTERACTIVE"
+    },
+    {
+      "Module": "System",
+      "Page": "Departments",
+      "pageId": "sys.departments",
+      "Route": "/system/departments",
+      "Implemented": true,
+      "LoadTest": "PASS",
+      "InteractionTest": "BASIC",
+      "VisualTest": "N/A",
+      "WorkflowTest": "N/A",
+      "Status": "INTERACTIVE"
+    },
+    {
+      "Module": "System",
+      "Page": "Workflows",
+      "pageId": "sys.workflows",
+      "Route": "/system/workflows",
+      "Implemented": true,
+      "LoadTest": "PASS",
+      "InteractionTest": "BASIC",
+      "VisualTest": "N/A",
+      "WorkflowTest": "N/A",
+      "Status": "INTERACTIVE"
+    },
+    {
+      "Module": "System",
+      "Page": "Custom Fields",
+      "pageId": "sys.customFields",
+      "Route": "/system/custom-fields",
+      "Implemented": true,
+      "LoadTest": "PASS",
+      "InteractionTest": "BASIC",
+      "VisualTest": "N/A",
+      "WorkflowTest": "N/A",
+      "Status": "INTERACTIVE"
+    },
+    {
+      "Module": "System",
+      "Page": "Form Configuration",
+      "pageId": "sys.forms",
+      "Route": "/system/forms",
+      "Implemented": true,
+      "LoadTest": "PASS",
+      "InteractionTest": "BASIC",
+      "VisualTest": "N/A",
+      "WorkflowTest": "N/A",
+      "Status": "INTERACTIVE"
+    },
+    {
+      "Module": "System",
+      "Page": "Numbering Series",
+      "pageId": "sys.numbering",
+      "Route": "/system/numbering",
+      "Implemented": true,
+      "LoadTest": "PASS",
+      "InteractionTest": "BASIC",
+      "VisualTest": "N/A",
+      "WorkflowTest": "N/A",
+      "Status": "INTERACTIVE"
+    },
+    {
+      "Module": "System",
+      "Page": "System Settings",
+      "pageId": "sys.settings",
+      "Route": "/system/settings",
+      "Implemented": true,
+      "LoadTest": "PASS",
+      "InteractionTest": "CORE",
+      "VisualTest": "PASS",
+      "WorkflowTest": "N/A",
+      "Status": "INTERACTIVE"
+    },
+    {
+      "Module": "System",
+      "Page": "Audit Logs",
+      "pageId": "sys.audit",
+      "Route": "/system/audit",
+      "Implemented": true,
+      "LoadTest": "PASS",
+      "InteractionTest": "BASIC",
+      "VisualTest": "N/A",
+      "WorkflowTest": "N/A",
+      "Status": "INTERACTIVE"
+    },
+    {
+      "Module": "System",
+      "Page": "Import Export",
+      "pageId": "sys.importExport",
+      "Route": "/system/import-export",
+      "Implemented": true,
+      "LoadTest": "PASS",
+      "InteractionTest": "BASIC",
+      "VisualTest": "N/A",
+      "WorkflowTest": "N/A",
+      "Status": "INTERACTIVE"
+    }
+  ],
+  "workflows": {
+    "purchaseStock": 100,
+    "finalStockBeforeOps": 70,
+    "invOps": {
+      "transfer": {
+        "id": "TRmuzkpetodmw7",
+        "docNo": "TR-1791466174283",
+        "fromWh": "WH-MAIN",
+        "toWh": "WH-FG2",
+        "sku": "FG-DEMO-A",
+        "qty": 5,
+        "status": "POSTED",
+        "demo": true
+      },
+      "adjust": {
+        "balance": {
+          "id": "IBmuzkpetimarl",
+          "warehouse": "WH-MAIN",
+          "sku": "FG-DEMO-A",
+          "name": "Demo Widget A",
+          "qty": 63,
+          "unitCost": 50,
+          "value": 3150
+        },
+        "txn": {
+          "id": "ITmuzkpetov6bk",
+          "date": "2026-10-08",
+          "type": "ADJUSTMENT",
+          "sku": "FG-DEMO-A",
+          "qty": -2,
+          "unitCost": 50,
+          "value": -100,
+          "ref": "ADJ-1791466174284",
+          "warehouse": "WH-MAIN",
+          "sourceDocType": "",
+          "sourceDocId": "",
+          "demo": true
+        },
+        "unitCost": 50
+      },
+      "mainQty": 63,
+      "fg2Qty": 5,
+      "expectedMain": 63,
+      "expectedFg2": 5
+    },
+    "mfg": {
+      "mo": {
+        "itemSku": "FG-DEMO-A",
+        "qty": 10,
+        "completedQty": 10,
+        "status": "CLOSED",
+        "warehouse": "WH-MAIN",
+        "id": "MOmuzkpeto8t1e",
+        "docNo": "MO-9001"
+      },
+      "issue": {
+        "id": "PImuzkpetp0srg",
+        "docNo": "PI-174285",
+        "productionOrderId": "MOmuzkpeto8t1e",
+        "date": "2026-10-08",
+        "value": 280,
+        "status": "POSTED",
+        "demo": true
+      },
+      "receipt": {
+        "id": "PRmuzkpetpvj8d",
+        "docNo": "PR-174285",
+        "productionOrderId": "MOmuzkpeto8t1e",
+        "date": "2026-10-08",
+        "qty": 10,
+        "status": "POSTED",
+        "demo": true
+      },
+      "rm1Qty": 190,
+      "rm2Qty": 210,
+      "fgQty": 73,
+      "status": "CLOSED"
+    },
+    "stockOk": true,
+    "valueOk": true,
+    "marginOk": true,
+    "unbalanced": 0,
+    "soCount": 1,
+    "poCount": 1,
+    "kpisMatch": true,
+    "mfgClosed": true,
+    "invOpsOk": true,
+    "arOpen": 0,
+    "apOpen": 0,
+    "purchase": {
+      "supplier": {
+        "id": "Smuzkpetidpsn",
+        "code": "SUP-GOLD",
+        "status": "ACTIVE",
+        "paymentTerms": "Net 30",
+        "name": "Golden Supplier"
+      },
+      "po": {
+        "supplierId": "Smuzkpetidpsn",
+        "supplierName": "Golden Supplier",
+        "status": "APPROVED",
+        "lines": [
+          {
+            "sku": "FG-DEMO-A",
+            "name": "Demo Widget A",
+            "qty": 100,
+            "price": 50,
+            "amount": 5000
+          }
+        ],
+        "id": "POmuzkpeti3km9",
+        "docNo": "PO-5201",
+        "date": "2026-10-08",
+        "total": 5000
+      },
+      "gr": {
+        "id": "GRmuzkpetikvlj",
+        "docNo": "GR-5301",
+        "purchaseOrderId": "POmuzkpeti3km9",
+        "supplierId": "Smuzkpetidpsn",
+        "supplierName": "Golden Supplier",
+        "sourceDocNo": "PO-5201",
+        "date": "2026-10-08",
+        "status": "POSTED",
+        "warehouseId": "W1",
+        "warehouseCode": "WH-MAIN",
+        "qty": 100,
+        "lines": [
+          {
+            "id": "GRLmuzkpetjkap2",
+            "itemId": "I-GOLD",
+            "sku": "FG-DEMO-A",
+            "name": "Demo Widget A",
+            "qty": 100,
+            "price": 50,
+            "amount": 5000,
+            "uom": "EA"
+          }
+        ],
+        "references": {
+          "source": "PO-5201",
+          "targets": []
+        },
+        "demo": true
+      },
+      "ap": {
+        "id": "APmuzkpetjpd41",
+        "docNo": "AP-5501",
+        "supplierId": "Smuzkpetidpsn",
+        "supplierName": "Golden Supplier",
+        "date": "2026-10-08",
+        "dueDate": "2026-10-08",
+        "status": "OPEN",
+        "currency": "CNY",
+        "total": 5000,
+        "openAmount": 5000,
+        "lines": [
+          {
+            "id": "APLmuzkpetjrlis",
+            "itemId": "I-GOLD",
+            "sku": "FG-DEMO-A",
+            "name": "Demo Widget A",
+            "qty": 100,
+            "price": 50,
+            "amount": 5000
+          }
+        ],
+        "references": {
+          "source": "GR-5301",
+          "targets": []
+        },
+        "demo": true
+      },
+      "pay": {
+        "id": "OPmuzkpetk28s2",
+        "docNo": "OP-174280",
+        "supplierName": "Golden Supplier",
+        "date": "2026-10-08",
+        "amount": 5000,
+        "status": "POSTED",
+        "apInvoiceId": "APmuzkpetjpd41",
+        "demo": true
+      },
+      "stock": 100,
+      "stockValue": 5000
+    },
+    "sales": {
+      "customer": {
+        "id": "Cmuzkpetk8um4",
+        "code": "CUS-GOLD",
+        "status": "ACTIVE",
+        "country": "CN",
+        "creditLimit": 100000,
+        "name": "Golden Customer"
+      },
+      "so": {
+        "customerId": "Cmuzkpetk8um4",
+        "customerName": "Golden Customer",
+        "status": "APPROVED",
+        "lines": [
+          {
+            "sku": "FG-DEMO-A",
+            "name": "Demo Widget A",
+            "qty": 30,
+            "price": 80,
+            "amount": 2400
+          }
+        ],
+        "id": "SOmuzkpetlmm1r",
+        "docNo": "SO-2001",
+        "date": "2026-10-08",
+        "total": 2400
+      },
+      "dl": {
+        "id": "DLmuzkpetlx7st",
+        "docNo": "DL-3001",
+        "salesOrderId": "SOmuzkpetlmm1r",
+        "customerId": "Cmuzkpetk8um4",
+        "customerName": "Golden Customer",
+        "sourceDocNo": "SO-2001",
+        "date": "2026-10-08",
+        "status": "POSTED",
+        "warehouseId": "W1",
+        "warehouseCode": "WH-MAIN",
+        "qty": 30,
+        "lines": [
+          {
+            "id": "DLLmuzkpetlg9pg",
+            "itemId": "I-GOLD",
+            "sku": "FG-DEMO-A",
+            "name": "Demo Widget A",
+            "qty": 30,
+            "uom": "EA",
+            "unitCost": 50,
+            "price": 80
+          }
+        ],
+        "references": {
+          "source": "SO-2001",
+          "targets": []
+        },
+        "demo": true
+      },
+      "ar": {
+        "id": "ARmuzkpetms8qu",
+        "docNo": "AR-4001",
+        "customerId": "Cmuzkpetk8um4",
+        "customerName": "Golden Customer",
+        "date": "2026-10-08",
+        "dueDate": "2026-10-08",
+        "status": "OPEN",
+        "currency": "CNY",
+        "total": 2400,
+        "openAmount": 2400,
+        "lines": [
+          {
+            "id": "ARLmuzkpetm7bbs",
+            "itemId": "I-GOLD",
+            "sku": "FG-DEMO-A",
+            "name": "Demo Widget A",
+            "qty": 30,
+            "price": 80,
+            "amount": 2400
+          }
+        ],
+        "references": {
+          "source": "DL-3001",
+          "targets": []
+        },
+        "demo": true
+      },
+      "pay": {
+        "id": "IPmuzkpetmcaqj",
+        "docNo": "IP-174282",
+        "customerName": "Golden Customer",
+        "date": "2026-10-08",
+        "amount": 2400,
+        "status": "POSTED",
+        "arInvoiceId": "ARmuzkpetms8qu",
+        "demo": true
+      },
+      "stock": 70,
+      "stockValue": 3500,
+      "cogs": 1500,
+      "revenue": 2400,
+      "margin": 900,
+      "kpis": {
+        "salesAmount": 2400,
+        "purchaseAmount": 5000,
+        "inventoryValue": 509870,
+        "arOpen": 0,
+        "apOpen": 0,
+        "pendingApproval": 0,
+        "pendingDelivery": 1,
+        "openSalesOrders": 1,
+        "openPurchaseOrders": 1
+      }
+    }
+  },
+  "buttons": {
+    "scan": {
+      "registry": [
+        {
+          "id": "shell.density",
+          "selector": "#btn-density",
+          "page": "shell",
+          "category": "shell",
+          "description": "Toggle density",
+          "required": true
+        },
+        {
+          "id": "shell.demoCenter",
+          "selector": "#btn-demo-center",
+          "page": "shell",
+          "category": "shell",
+          "description": "Open Demo Center",
+          "required": true
+        },
+        {
+          "id": "shell.resetDemo",
+          "selector": "#btn-reset-demo",
+          "page": "shell",
+          "category": "shell",
+          "description": "Reset Demo Data",
+          "required": true
+        },
+        {
+          "id": "shell.notif",
+          "selector": "#btn-notif",
+          "page": "shell",
+          "category": "shell",
+          "description": "Notifications",
+          "required": true
+        },
+        {
+          "id": "shell.collapse",
+          "selector": "#btn-collapse",
+          "page": "shell",
+          "category": "shell",
+          "description": "Collapse sidebar",
+          "required": true
+        },
+        {
+          "id": "grid.new",
+          "selector": "[data-g=\"new\"]",
+          "page": "enterpriseGrid",
+          "category": "grid",
+          "description": "New record",
+          "required": true
+        },
+        {
+          "id": "grid.filter",
+          "selector": "[data-g=\"filter\"]",
+          "page": "enterpriseGrid",
+          "category": "grid",
+          "description": "Advanced filter",
+          "required": true
+        },
+        {
+          "id": "grid.refresh",
+          "selector": "[data-g=\"refresh\"]",
+          "page": "enterpriseGrid",
+          "category": "grid",
+          "description": "Refresh grid",
+          "required": true
+        },
+        {
+          "id": "grid.columns",
+          "selector": "[data-g=\"columns\"]",
+          "page": "enterpriseGrid",
+          "category": "grid",
+          "description": "Column manager",
+          "required": true
+        },
+        {
+          "id": "grid.applyQuick",
+          "selector": "[data-g=\"apply-quick\"]",
+          "page": "enterpriseGrid",
+          "category": "grid",
+          "description": "Apply quick filter",
+          "required": true
+        },
+        {
+          "id": "list.new",
+          "selector": "[data-action=\"new\"]",
+          "page": "list",
+          "category": "list",
+          "description": "New",
+          "required": true
+        },
+        {
+          "id": "list.refresh",
+          "selector": "[data-action=\"refresh\"]",
+          "page": "list",
+          "category": "list",
+          "description": "Refresh",
+          "required": true
+        },
+        {
+          "id": "list.applyFilter",
+          "selector": "[data-action=\"apply-filter\"]",
+          "page": "list",
+          "category": "list",
+          "description": "Apply filter",
+          "required": true
+        },
+        {
+          "id": "doc.save",
+          "selector": "[data-action=\"save\"]",
+          "page": "documentEditor",
+          "category": "document",
+          "description": "Save document",
+          "required": true
+        },
+        {
+          "id": "settings.save",
+          "selector": "[data-save]",
+          "page": "sys.settings",
+          "category": "settings",
+          "description": "Save settings",
+          "required": true
+        },
+        {
+          "id": "demo.startSales",
+          "selector": "[data-start=\"sales\"]",
+          "page": "demo.center",
+          "category": "demo",
+          "description": "Start sales demo",
+          "required": true
+        },
+        {
+          "id": "mrp.run",
+          "selector": "[data-run]",
+          "page": "mfg.mrp",
+          "category": "mfg",
+          "description": "Run MRP",
+          "required": true
+        },
+        {
+          "id": "bom.save",
+          "selector": "[data-save]",
+          "page": "mfg.bomEditor",
+          "category": "mfg",
+          "description": "Save BOM",
+          "required": true
+        }
+      ],
+      "found": [
+        {
+          "id": "shell.density",
+          "page": "shell",
+          "category": "shell",
+          "description": "Toggle density",
+          "disabled": false,
+          "hasHandlerHint": true,
+          "text": "Comfortable"
+        },
+        {
+          "id": "shell.demoCenter",
+          "page": "shell",
+          "category": "shell",
+          "description": "Open Demo Center",
+          "disabled": false,
+          "hasHandlerHint": true,
+          "text": "Demo Center"
+        },
+        {
+          "id": "shell.resetDemo",
+          "page": "shell",
+          "category": "shell",
+          "description": "Reset Demo Data",
+          "disabled": false,
+          "hasHandlerHint": true,
+          "text": "Reset Demo Data"
+        },
+        {
+          "id": "shell.notif",
+          "page": "shell",
+          "category": "shell",
+          "description": "Notifications",
+          "disabled": false,
+          "hasHandlerHint": true,
+          "text": "?"
+        },
+        {
+          "id": "shell.collapse",
+          "page": "shell",
+          "category": "shell",
+          "description": "Collapse sidebar",
+          "disabled": false,
+          "hasHandlerHint": true,
+          "text": "="
+        },
+        {
+          "id": "grid.new",
+          "page": "enterpriseGrid",
+          "category": "grid",
+          "description": "New record",
+          "disabled": false,
+          "hasHandlerHint": true,
+          "text": "New"
+        },
+        {
+          "id": "grid.filter",
+          "page": "enterpriseGrid",
+          "category": "grid",
+          "description": "Advanced filter",
+          "disabled": false,
+          "hasHandlerHint": true,
+          "text": "Advanced Filter"
+        },
+        {
+          "id": "grid.refresh",
+          "page": "enterpriseGrid",
+          "category": "grid",
+          "description": "Refresh grid",
+          "disabled": false,
+          "hasHandlerHint": true,
+          "text": "Refresh"
+        },
+        {
+          "id": "grid.columns",
+          "page": "enterpriseGrid",
+          "category": "grid",
+          "description": "Column manager",
+          "disabled": false,
+          "hasHandlerHint": true,
+          "text": "Columns"
+        },
+        {
+          "id": "grid.applyQuick",
+          "page": "enterpriseGrid",
+          "category": "grid",
+          "description": "Apply quick filter",
+          "disabled": false,
+          "hasHandlerHint": true,
+          "text": "Apply"
+        }
+      ],
+      "missing": []
+    },
+    "probes": [
+      {
+        "id": "shell.density",
+        "ok": true,
+        "reason": "responded"
+      },
+      {
+        "id": "grid.filter",
+        "ok": true,
+        "reason": "responded"
+      },
+      {
+        "id": "grid.columns",
+        "ok": true,
+        "reason": "responded"
+      }
+    ],
+    "registryCount": 18
+  },
+  "selectors": {
+    "CustomerSelector": {
+      "open": true,
+      "search": true
+    },
+    "SupplierSelector": {
+      "open": true,
+      "search": true
+    },
+    "ItemSelector": {
+      "open": true,
+      "search": true
+    },
+    "WarehouseSelector": {
+      "open": true,
+      "search": true
+    },
+    "AccountSelector": {
+      "open": true,
+      "search": true
+    }
+  },
+  "forms": {
+    "ok": true,
+    "hasValidationCue": true,
+    "fields": 8,
+    "closed": true
+  },
+  "docs": {
+    "SalesOrder": {
+      "open": true,
+      "hasHeader": true,
+      "hasLines": true,
+      "hasToolbar": true,
+      "defOk": true,
+      "actions": [
+        "save",
+        "submit",
+        "approve",
+        "reject",
+        "copy",
+        "cancel",
+        "close"
+      ]
+    },
+    "PurchaseOrder": {
+      "open": true,
+      "hasHeader": true,
+      "hasLines": true,
+      "hasToolbar": true,
+      "defOk": true,
+      "actions": [
+        "save",
+        "submit",
+        "approve",
+        "reject",
+        "copy",
+        "cancel",
+        "close"
+      ]
+    },
+    "Delivery": {
+      "open": true,
+      "hasHeader": true,
+      "hasLines": true,
+      "hasToolbar": true,
+      "defOk": true,
+      "actions": [
+        "save",
+        "submit",
+        "approve",
+        "copy",
+        "cancel",
+        "close"
+      ]
+    },
+    "GoodsReceipt": {
+      "open": true,
+      "hasHeader": true,
+      "hasLines": true,
+      "hasToolbar": true,
+      "defOk": true,
+      "actions": [
+        "save",
+        "submit",
+        "approve",
+        "copy",
+        "cancel",
+        "close"
+      ]
+    },
+    "ARInvoice": {
+      "open": true,
+      "hasHeader": true,
+      "hasLines": true,
+      "hasToolbar": true,
+      "defOk": true,
+      "actions": [
+        "save",
+        "submit",
+        "approve",
+        "reject",
+        "copy",
+        "cancel",
+        "close"
+      ]
+    },
+    "APInvoice": {
+      "open": true,
+      "hasHeader": true,
+      "hasLines": true,
+      "hasToolbar": true,
+      "defOk": true,
+      "actions": [
+        "save",
+        "submit",
+        "approve",
+        "reject",
+        "copy",
+        "cancel",
+        "close"
+      ]
+    }
+  },
+  "grid": {
+    "search": true,
+    "sort": true,
+    "pagination": true,
+    "fixedCol": true,
+    "colResize": true,
+    "batchSelect": true,
+    "hasGrid": true
+  },
+  "menu": {
+    "clicks": 2,
+    "tabs": true,
+    "close": true,
+    "hash": true,
+    "breadcrumb": true,
+    "sidebar": true,
+    "topbar": true
+  },
+  "keyboard": {
+    "tab": true,
+    "shiftTab": true,
+    "ctrlS": true,
+    "escape": true,
+    "imeNote": "no composition-breaking handlers added"
+  },
+  "a11y": {
+    "issues": [],
+    "focusable": 201,
+    "labels": 5,
+    "contrast": "rgb(26, 39, 51)",
+    "bg": "rgb(238, 242, 246)",
+    "density": "compact"
+  },
+  "perf": {
+    "firstLoadMs": 1057,
+    "n100": {
+      "genMs": 0,
+      "queryMs": 0,
+      "filterMs": 0,
+      "sortMs": 0,
+      "total": 100,
+      "heapMb": 10,
+      "heapDeltaMb": 0
+    },
+    "n1000": {
+      "genMs": 0,
+      "queryMs": 1,
+      "filterMs": 0,
+      "sortMs": 1,
+      "total": 1000,
+      "heapMb": 10,
+      "heapDeltaMb": 0
+    },
+    "n10000": {
+      "genMs": 2,
+      "queryMs": 3,
+      "filterMs": 2,
+      "sortMs": 3,
+      "total": 10000,
+      "heapMb": 10,
+      "heapDeltaMb": 0
+    },
+    "n100000": {
+      "genMs": 48,
+      "queryMs": 29,
+      "filterMs": 10,
+      "sortMs": 28,
+      "total": 100000,
+      "heapMb": 10,
+      "heapDeltaMb": 0
+    },
+    "pageSwitchMs": 34,
+    "scrollMs": 3
+  },
+  "screenshots": [
+    "ui16-dashboard.png",
+    "ui16-customer-list.png",
+    "ui16-customer-detail.png",
+    "ui16-sales-order-editor.png",
+    "ui16-purchase-order-editor.png",
+    "ui16-inventory-balance.png",
+    "ui16-journal-entry.png",
+    "ui16-bom-editor.png",
+    "ui16-mrp-workbench.png",
+    "ui16-demo-center.png",
+    "ui16-settings.png",
+    "ui16-viewport-1366.png",
+    "ui16-viewport-1440.png",
+    "ui16-viewport-1920.png"
+  ],
+  "visual": {
+    "ui16-dashboard.png": {
+      "bytes": 166903,
+      "ok": true
+    },
+    "ui16-customer-list.png": {
+      "bytes": 222957,
+      "ok": true
+    },
+    "ui16-customer-detail.png": {
+      "bytes": 123317,
+      "ok": true
+    },
+    "ui16-sales-order-editor.png": {
+      "bytes": 163540,
+      "ok": true
+    },
+    "ui16-purchase-order-editor.png": {
+      "bytes": 163686,
+      "ok": true
+    },
+    "ui16-inventory-balance.png": {
+      "bytes": 207744,
+      "ok": true
+    },
+    "ui16-journal-entry.png": {
+      "bytes": 161424,
+      "ok": true
+    },
+    "ui16-bom-editor.png": {
+      "bytes": 109710,
+      "ok": true
+    },
+    "ui16-mrp-workbench.png": {
+      "bytes": 108838,
+      "ok": true
+    },
+    "ui16-demo-center.png": {
+      "bytes": 148146,
+      "ok": true
+    },
+    "ui16-settings.png": {
+      "bytes": 106438,
+      "ok": true
+    },
+    "ui16-viewport-1366.png": {
+      "bytes": 161219,
+      "ok": true
+    },
+    "ui16-viewport-1440.png": {
+      "bytes": 155645,
+      "ok": true
+    },
+    "ui16-viewport-1920.png": {
+      "bytes": 178135,
+      "ok": true
+    }
+  },
+  "viewports": [
+    {
+      "w": 1366,
+      "h": 768,
+      "name": "ui16-viewport-1366.png",
+      "scrollW": 1366,
+      "clientW": 1366,
+      "appOk": true
+    },
+    {
+      "w": 1440,
+      "h": 900,
+      "name": "ui16-viewport-1440.png",
+      "scrollW": 1440,
+      "clientW": 1440,
+      "appOk": true
+    },
+    {
+      "w": 1920,
+      "h": 1080,
+      "name": "ui16-viewport-1920.png",
+      "scrollW": 1920,
+      "clientW": 1920,
+      "appOk": true
+    }
+  ],
+  "wasm": "BLOCKED (ErpApp.java probe only; acceptance surface = public/ SPA)",
+  "docsAudit": {
+    "jnative-one-ui-1.1.md": "OK",
+    "jnative-one-ui-1.2.md": "OK",
+    "jnative-one-ui-1.3.md": "OK",
+    "jnative-one-ui-1.4.md": "OK",
+    "jnative-one-ui-1.5.md": "OK"
+  },
+  "stampHint": "JNATIVE_ONE_UI_1_6_PASS",
+  "browserMeta": {
+    "browser": "Chromium (Playwright)",
+    "os": "darwin",
+    "build": "examples/erp/public SPA",
+    "runtimeErrors": [],
+    "consoleErrors": []
+  },
+  "coverage": {
+    "total": 86,
+    "loaded": 86,
+    "fail": []
+  }
+}

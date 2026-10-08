@@ -721,6 +721,17 @@ int32_t jnative_fs_stream_fsync(int64_t fd) {
     }
 }
 
+int32_t jnative_fs_stream_seek(int64_t fd, int64_t offset) {
+    if (fd < 0 || offset < 0) {
+        return -1;
+    }
+    off_t r = lseek((int)fd, (off_t)offset, SEEK_SET);
+    if (r < 0) {
+        return -1;
+    }
+    return 0;
+}
+
 int32_t jnative_fs_is_symlink(const char *path) {
     if (path == NULL) {
         return 0;

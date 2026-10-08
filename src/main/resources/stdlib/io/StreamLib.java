@@ -302,6 +302,9 @@ class StreamNative {
     @Native(symbol = "jnative_fs_stream_fsync")
     static native int fsync(long fd);
 
+    @Native(symbol = "jnative_fs_stream_seek")
+    static native int seek(long fd, long offset);
+
     static int MODE_READ = 0;
     static int MODE_WRITE_TRUNC = 1;
     static int MODE_APPEND = 2;
@@ -664,6 +667,16 @@ class FileInputStream extends InputStream {
         StreamNative.copyFromNative(nb, b, off, n);
         NativeMemory.free(nb);
         return n;
+    }
+
+    void seek(long offset) {
+        ensureOpen();
+        if (offset < 0L) {
+            throw new IOException("seek negative: " + path);
+        }
+        if (StreamNative.seek(fd, offset) != 0) {
+            throw new IOException("seek failed: " + path);
+        }
     }
 
     void close() {

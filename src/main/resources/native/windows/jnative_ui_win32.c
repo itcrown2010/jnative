@@ -513,3 +513,17 @@ void jnative_ui_platform_set_control_style(int32_t id, int32_t style) {
     (void)id;
     (void)style;
 }
+
+void jnative_ui_platform_set_visual(int32_t id, int32_t bg_rgba, int32_t fg_rgba,
+                                    int32_t corner_radius, int32_t font_size, int32_t text_align) {
+    (void)id; (void)bg_rgba; (void)fg_rgba;
+    (void)corner_radius; (void)font_size; (void)text_align;
+}
+
+void jnative_ui_platform_window_set_min_size(int32_t windowId, int32_t w, int32_t h) {
+    (void)windowId; (void)w; (void)h;
+}
+
+void jnative_ui_platform_button_flash(int32_t id, int32_t pressed) {
+    (void)id; (void)pressed;
+}

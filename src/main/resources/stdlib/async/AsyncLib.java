@@ -1147,19 +1147,26 @@ class AsyncTcpConnectSupplier implements BlockingSupplier {
     }
 }
 
+// RH-1 truth: AsyncTcpSocket is a BLOCKING-ADAPTER over TcpSocket, NOT event-driven I/O.
+// Every connect/read/write runs on Async.sharedPool via Async.blockingOnLoop.
+// Waiting for socket data occupies a pool worker thread. EventLoop PollNative/kqueue
+// is NOT used for these fds (EventLoop.registerFd has no production callers).
+// Do not market as non-blocking async networking. Release tier: Experimental.
 class AsyncTcpSocket {
     EventLoop loop;
     TcpSocket socket;
 
+    // Blocking connect on the shared pool; completes as a JnFuture.
     static JnFuture connect(EventLoop loop, String host, int port) {
         return Async.blockingOnLoop(loop, new AsyncTcpConnectSupplier(loop, host, port));
     }
 
-    /** Charter alias for connect. */
+    // Alias for connect — still a blocking-adapter (not fd-async).
     static JnFuture connectAsync(EventLoop loop, String host, int port) {
         return AsyncTcpSocket.connect(loop, host, port);
     }
 
+    // Blocking write on the shared pool.
     JnFuture writeAll(byte[] data) {
         AsyncTcpWriteSupplier sup = new AsyncTcpWriteSupplier();
         sup.socket = socket;
@@ -1167,16 +1174,19 @@ class AsyncTcpSocket {
         return Async.blockingOnLoop(loop, sup);
     }
 
+    // Alias for writeAll — blocking-adapter.
     JnFuture writeAsync(byte[] data) {
         return writeAll(data);
     }
 
+    // Blocking read-to-EOF on the shared pool.
     JnFuture readAll() {
         AsyncTcpReadAllSupplier sup = new AsyncTcpReadAllSupplier();
         sup.socket = socket;
         return Async.blockingOnLoop(loop, sup);
     }
 
+    // Alias for readAll — blocking-adapter.
     JnFuture readAsync() {
         return readAll();
     }

@@ -380,6 +380,64 @@ class HttpUtil {
     static byte[] ascii(String s) {
         return Bytes.fromString(s);
     }
+
+    static String longToString(long v) {
+        if (v == 0L) {
+            return "0";
+        }
+        int neg = 0;
+        long n = v;
+        if (n < 0L) {
+            neg = 1;
+            n = 0L - n;
+        }
+        String out = "";
+        while (n > 0L) {
+            long rem = n - (n / 10L) * 10L;
+            int digit = 0;
+            while (rem > 0L) {
+                digit = digit + 1;
+                rem = rem - 1L;
+            }
+            out = String.valueOf(digit) + out;
+            n = n / 10L;
+        }
+        if (neg != 0) {
+            out = "-" + out;
+        }
+        return out;
+    }
+
+    /** Convert a small non-negative long to int (loop; for chunk sizes). */
+    static int smallLongToInt(long v) {
+        if (v <= 0L) {
+            return 0;
+        }
+        int out = 0;
+        while (v > 0L && out < 2147483647) {
+            out = out + 1;
+            v = v - 1L;
+        }
+        return out;
+    }
+
+    static long intToLong(int v) {
+        long out = 0L;
+        int n = v;
+        if (n < 0) {
+            n = 0 - n;
+            while (n > 0) {
+                out = out + 1L;
+                n = n - 1;
+            }
+            return 0L - out;
+        }
+        while (n > 0) {
+            out = out + 1L;
+            n = n - 1;
+        }
+        return out;
+    }
 }
 
 class HttpRequest {
@@ -434,6 +492,15 @@ class HttpResponse {
     String reasonPhrase;
     HttpHeaders headers;
     byte[] body;
+    /** 0 = in-memory body; 1 = stream whole file; 2 = stream byte range [fileStart,fileEnd]. */
+    int streamKind;
+    String streamPath;
+    long fileStart;
+    long fileEnd;
+    long fileTotal;
+    static int STREAM_NONE = 0;
+    static int STREAM_FILE = 1;
+    static int STREAM_RANGE = 2;
 
     static HttpResponse text(String body) {
         return textStatus(200, body);
@@ -445,6 +512,7 @@ class HttpResponse {
         r.reasonPhrase = HttpResponse.reasonFor(status);
         r.headers = new HttpHeaders();
         r.headers.set("Content-Type", "text/plain; charset=utf-8");
+        r.streamKind = STREAM_NONE;
         if (body == null) {
             r.body = new byte[0];
         } else {
@@ -459,11 +527,32 @@ class HttpResponse {
         r.reasonPhrase = HttpResponse.reasonFor(status);
         r.headers = new HttpHeaders();
         r.headers.set("Content-Type", "application/octet-stream");
+        r.streamKind = STREAM_NONE;
         if (body == null) {
             r.body = new byte[0];
         } else {
             r.body = body;
         }
+        return r;
+    }
+
+    static HttpResponse fileStream(int status, String path, long start, long endInclusive, long total) {
+        HttpResponse r = new HttpResponse();
+        r.statusCode = status;
+        r.reasonPhrase = HttpResponse.reasonFor(status);
+        r.headers = new HttpHeaders();
+        r.headers.set("Content-Type", "application/octet-stream");
+        r.body = new byte[0];
+        r.streamKind = STREAM_RANGE;
+        r.streamPath = path;
+        r.fileStart = start;
+        r.fileEnd = endInclusive;
+        r.fileTotal = total;
+        long len = endInclusive - start + 1L;
+        if (len < 0L) {
+            len = 0L;
+        }
+        r.headers.set("Content-Length", HttpUtil.longToString(len));
         return r;
     }
 
@@ -492,6 +581,9 @@ class HttpResponse {
         if (status == 303) {
             return "See Other";
         }
+        if (status == 206) {
+            return "Partial Content";
+        }
         if (status == 304) {
             return "Not Modified";
         }
@@ -506,6 +598,9 @@ class HttpResponse {
         }
         if (status == 404) {
             return "Not Found";
+        }
+        if (status == 416) {
+            return "Range Not Satisfiable";
         }
         if (status == 501) {
             return "Not Implemented";
@@ -1396,7 +1491,20 @@ class HttpConnection {
         buf.appendBytes(HttpUtil.ascii(response.reasonPhrase));
         buf.appendBytes(HttpUtil.crlf());
         if (!response.headers.contains("Content-Length")) {
-            response.headers.set("Content-Length", String.valueOf(response.body.length));
+            if (response.streamKind == HttpResponse.STREAM_RANGE
+                    || response.streamKind == HttpResponse.STREAM_FILE) {
+                long len = response.fileEnd - response.fileStart + 1L;
+                if (len < 0L) {
+                    len = 0L;
+                }
+                response.headers.set("Content-Length", HttpUtil.longToString(len));
+            } else {
+                int blen = 0;
+                if (response.body != null) {
+                    blen = response.body.length;
+                }
+                response.headers.set("Content-Length", String.valueOf(blen));
+            }
         }
         if (!response.headers.contains("Connection")) {
             response.headers.set("Connection", "close");
@@ -1410,8 +1518,60 @@ class HttpConnection {
             i = i + 1;
         }
         buf.appendBytes(HttpUtil.crlf());
-        buf.appendBytes(response.body);
         writeBytes(buf.toArray());
+        if (response.streamKind == HttpResponse.STREAM_RANGE
+                || response.streamKind == HttpResponse.STREAM_FILE) {
+            sendFileRange(response.streamPath, response.fileStart, response.fileEnd);
+        } else {
+            if (response.body != null && response.body.length > 0) {
+                writeBytes(response.body);
+            }
+        }
+    }
+
+    /** Stream file bytes via seek + bounded reads; never materializes the whole file. */
+    void sendFileRange(String path, long start, long endInclusive) {
+        if (path == null) {
+            return;
+        }
+        long remaining = endInclusive - start + 1L;
+        if (remaining <= 0L) {
+            return;
+        }
+        FileInputStream in = null;
+        try {
+            in = new FileInputStream(path);
+            in.seek(start);
+            int chunkCap = 65536;
+            byte[] chunk = new byte[chunkCap];
+            while (remaining > 0L) {
+                int want = chunkCap;
+                if (remaining < 65536L) {
+                    want = HttpUtil.smallLongToInt(remaining);
+                }
+                int n = in.read(chunk, 0, want);
+                if (n <= 0) {
+                    remaining = 0L;
+                } else {
+                    byte[] part = new byte[n];
+                    int j = 0;
+                    while (j < n) {
+                        part[j] = chunk[j];
+                        j = j + 1;
+                    }
+                    writeBytes(part);
+                    remaining = remaining - HttpUtil.intToLong(n);
+                }
+            }
+        } catch (Exception ex) {
+            /* peer disconnect / IO error: stop streaming and close FD in finally */
+        }
+        if (in != null) {
+            try {
+                in.close();
+            } catch (Exception closeEx) {
+            }
+        }
     }
 
     void close() {

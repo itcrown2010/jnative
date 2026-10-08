@@ -85,6 +85,23 @@ public class ErpServer {
             System.out.println(ErpProductConfig.publicVersionJson());
             exitProcess(0);
         }
+        if (args.length > 0 && args[0].equals("--integration-test")) {
+            Erp.loop = new EventLoop();
+            try {
+                ErpDb.setup(Erp.loop);
+                int pass = ErpIntegrationLogicTest.runAll();
+                if (pass != 0) {
+                    exitProcess(0);
+                }
+                exitProcess(1);
+            } catch (Exception ex) {
+                System.out.println("FAIL integration exception");
+                if (ex.getMessage() != null) {
+                    System.out.println(ex.getMessage());
+                }
+                exitProcess(2);
+            }
+        }
         if (args.length > 0 && args[0].equals("--integrity-check")) {
             ErpProductConfig.load();
             Erp.loop = new EventLoop();

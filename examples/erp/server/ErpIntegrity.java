@@ -1,13 +1,18 @@
 /**
- * ERP Integrity Check — inventory vs movements, simple AR/AP/GL balance probes.
- * Feature freeze: read-only diagnostics.
+ * ERP Integrity Checker (1.6) — read-only. Never mutates ledgers.
+ * Prints PASS / FAIL / SKIP (NOT_APPLICABLE) / NOT_VERIFIED per check.
  */
 class ErpIntegrity {
     static int runAll(long companyId) {
         int pass = 1;
-        pass = checkInvBalance(companyId, pass);
-        pass = checkJournalBalance(companyId, pass);
         pass = checkSchemaMigration(pass);
+        pass = checkInvBalance(companyId, pass);
+        pass = checkNoNegativeInventory(companyId, pass);
+        pass = checkJournalBalance(companyId, pass);
+        pass = checkPoFulfillment(companyId, pass);
+        pass = checkSoFulfillment(companyId, pass);
+        pass = checkArOpen(companyId, pass);
+        pass = checkApOpen(companyId, pass);
         if (pass != 0) {
             System.out.println("PASS integrity");
         } else {
@@ -21,17 +26,13 @@ class ErpIntegrity {
         p.add("004_enterprise");
         Object v = ErpDb.queryOne("SELECT version FROM schema_migrations WHERE version=?", p, new StringMapper());
         if (v == null) {
-            System.out.println("FAIL integrity: schema_migrations missing 004_enterprise");
+            System.out.println("FAIL integrity:migration missing 004_enterprise");
             return 0;
         }
-        System.out.println("OK integrity migration");
+        System.out.println("PASS integrity:migration");
         return pass;
     }
 
-    /**
-     * For each balance row: sum of inventory_transactions quantity_delta should equal quantity_on_hand.
-     * Empty company (no balances) is OK.
-     */
     static int checkInvBalance(long companyId, int pass) {
         ArrayList<Object> p = new ArrayList<Object>();
         p.add(CryptoParse.longToString(companyId));
@@ -53,20 +54,32 @@ class ErpIntegrity {
             long s = ErpNum.asLong(sum);
             long q = 0L + qoh;
             if (s != q) {
-                System.out.println("FAIL integrity inv wh=" + CryptoParse.longToString(wh)
-                        + " item=" + CryptoParse.longToString(item)
-                        + " qoh=" + String.valueOf(qoh)
-                        + " sumDelta=" + CryptoParse.longToString(s));
+                System.out.println("FAIL integrity:inventory_balance_vs_txn wh="
+                        + CryptoParse.longToString(wh) + " item=" + CryptoParse.longToString(item)
+                        + " qoh=" + String.valueOf(qoh) + " sumDelta=" + CryptoParse.longToString(s));
                 return 0;
             }
             i = i + 1;
         }
-        System.out.println("OK integrity inventory rows=" + String.valueOf(bal.rows.size()));
+        System.out.println("PASS integrity:inventory_balance_vs_txn rows=" + String.valueOf(bal.rows.size()));
+        return pass;
+    }
+
+    static int checkNoNegativeInventory(long companyId, int pass) {
+        ArrayList<Object> p = new ArrayList<Object>();
+        p.add(CryptoParse.longToString(companyId));
+        Object n = ErpDb.queryOne(
+                "SELECT COUNT(*) FROM inventory_balances WHERE company_id=? AND quantity_on_hand < 0", p,
+                new LongMapper());
+        if (ErpNum.asLong(n) > 0L) {
+            System.out.println("FAIL integrity:negative_inventory count=" + CryptoParse.longToString(ErpNum.asLong(n)));
+            return 0;
+        }
+        System.out.println("PASS integrity:negative_inventory");
         return pass;
     }
 
     static int checkJournalBalance(long companyId, int pass) {
-        /* If journal tables absent, skip without fail */
         try {
             ArrayList<Object> p = new ArrayList<Object>();
             p.add(CryptoParse.longToString(companyId));
@@ -76,19 +89,135 @@ class ErpIntegrity {
             int i = 0;
             while (i < r.rows.size()) {
                 Row row = r.rows.get(i);
-                long d = row.getLong(1);
-                long c = row.getLong(2);
-                if (d != c) {
-                    System.out.println("FAIL integrity journal unbalanced id="
+                if (row.getLong(1) != row.getLong(2)) {
+                    System.out.println("FAIL integrity:journal_balance id="
                             + CryptoParse.longToString(row.getLong(0)));
                     return 0;
                 }
                 i = i + 1;
             }
-            System.out.println("OK integrity journals checked=" + String.valueOf(r.rows.size()));
+            System.out.println("PASS integrity:journal_balance entries=" + String.valueOf(r.rows.size()));
             return pass;
         } catch (Exception ex) {
-            System.out.println("SKIP integrity journals (table/query unavailable)");
+            System.out.println("SKIP integrity:journal_balance NOT_APPLICABLE");
+            ErpDb.reconnect();
+            return pass;
+        }
+    }
+
+    static int checkPoFulfillment(long companyId, int pass) {
+        try {
+            ArrayList<Object> p = new ArrayList<Object>();
+            p.add(CryptoParse.longToString(companyId));
+            DbQueryResult r = ErpDb.query(
+                    "SELECT id, quantity, received_qty FROM purchase_order_lines WHERE company_id=?", p);
+            int i = 0;
+            while (i < r.rows.size()) {
+                Row row = r.rows.get(i);
+                int qty = row.getInt(1);
+                int recv = row.getInt(2);
+                if (recv < 0 || recv > qty) {
+                    System.out.println("FAIL integrity:po_fulfillment line="
+                            + CryptoParse.longToString(row.getLong(0))
+                            + " qty=" + String.valueOf(qty) + " recv=" + String.valueOf(recv));
+                    return 0;
+                }
+                i = i + 1;
+            }
+            System.out.println("PASS integrity:po_fulfillment lines=" + String.valueOf(r.rows.size()));
+            return pass;
+        } catch (Exception ex) {
+            System.out.println("SKIP integrity:po_fulfillment NOT_APPLICABLE");
+            ErpDb.reconnect();
+            return pass;
+        }
+    }
+
+    static int checkSoFulfillment(long companyId, int pass) {
+        try {
+            ArrayList<Object> p = new ArrayList<Object>();
+            p.add(CryptoParse.longToString(companyId));
+            DbQueryResult r = ErpDb.query(
+                    "SELECT id, quantity, delivered_qty FROM sales_order_lines WHERE company_id=?", p);
+            int i = 0;
+            while (i < r.rows.size()) {
+                Row row = r.rows.get(i);
+                int qty = row.getInt(1);
+                int del = row.getInt(2);
+                if (del < 0 || del > qty) {
+                    System.out.println("FAIL integrity:so_fulfillment line="
+                            + CryptoParse.longToString(row.getLong(0))
+                            + " qty=" + String.valueOf(qty) + " del=" + String.valueOf(del));
+                    return 0;
+                }
+                i = i + 1;
+            }
+            System.out.println("PASS integrity:so_fulfillment lines=" + String.valueOf(r.rows.size()));
+            return pass;
+        } catch (Exception ex) {
+            System.out.println("SKIP integrity:so_fulfillment NOT_APPLICABLE");
+            ErpDb.reconnect();
+            return pass;
+        }
+    }
+
+    static int checkArOpen(long companyId, int pass) {
+        try {
+            ArrayList<Object> p = new ArrayList<Object>();
+            p.add(CryptoParse.longToString(companyId));
+            DbQueryResult r = ErpDb.query(
+                    "SELECT id, total_amount, paid_amount, open_amount FROM ar_invoices WHERE company_id=?", p);
+            int i = 0;
+            while (i < r.rows.size()) {
+                Row row = r.rows.get(i);
+                long total = row.getLong(1);
+                long paid = row.getLong(2);
+                long open = row.getLong(3);
+                if (paid + open != total) {
+                    System.out.println("FAIL integrity:ar_open id=" + CryptoParse.longToString(row.getLong(0)));
+                    return 0;
+                }
+                if (open < 0L || paid < 0L) {
+                    System.out.println("FAIL integrity:ar_negative id=" + CryptoParse.longToString(row.getLong(0)));
+                    return 0;
+                }
+                i = i + 1;
+            }
+            System.out.println("PASS integrity:ar_open invoices=" + String.valueOf(r.rows.size()));
+            return pass;
+        } catch (Exception ex) {
+            System.out.println("SKIP integrity:ar_open NOT_APPLICABLE");
+            ErpDb.reconnect();
+            return pass;
+        }
+    }
+
+    static int checkApOpen(long companyId, int pass) {
+        try {
+            ArrayList<Object> p = new ArrayList<Object>();
+            p.add(CryptoParse.longToString(companyId));
+            DbQueryResult r = ErpDb.query(
+                    "SELECT id, total_amount, paid_amount, open_amount FROM ap_invoices WHERE company_id=?", p);
+            int i = 0;
+            while (i < r.rows.size()) {
+                Row row = r.rows.get(i);
+                long total = row.getLong(1);
+                long paid = row.getLong(2);
+                long open = row.getLong(3);
+                if (paid + open != total) {
+                    System.out.println("FAIL integrity:ap_open id=" + CryptoParse.longToString(row.getLong(0)));
+                    return 0;
+                }
+                if (open < 0L || paid < 0L) {
+                    System.out.println("FAIL integrity:ap_negative id=" + CryptoParse.longToString(row.getLong(0)));
+                    return 0;
+                }
+                i = i + 1;
+            }
+            System.out.println("PASS integrity:ap_open invoices=" + String.valueOf(r.rows.size()));
+            return pass;
+        } catch (Exception ex) {
+            System.out.println("SKIP integrity:ap_open NOT_APPLICABLE");
             ErpDb.reconnect();
             return pass;
         }

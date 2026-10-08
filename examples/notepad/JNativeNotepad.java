@@ -73,6 +73,7 @@ class NotepadWindow {
         editor.setLineNumbersVisible(false);
         editor.setSyntaxHighlighting(false);
         editor.setPrefSize(860, 520);
+        editor.vgrow = 1;
         editor.setText("");
         editor.getDocument().markSaved();
 
