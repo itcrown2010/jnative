@@ -1,0 +1,31 @@
+# JNative One — ApplicationConfig template (source via: set -a; source this file; set +a)
+# Copy to /etc/jnative-one/jnative-one.conf or $PREFIX/etc/jnative-one.conf
+# NEVER commit real secrets.
+
+JNATIVE_ONE_VERSION=1.5.0-productization
+JNATIVE_ONE_TARGET=linux-x86_64   # aspirational package target — verify before shipping
+JNATIVE_ONE_BUILD_TIME=
+
+# DatabaseConfig
+DATABASE_URL=postgresql://jnative_erp@127.0.0.1:5432/jnative_erp
+
+# Application listen (Security: bind loopback unless behind TLS terminator)
+ERP_LISTEN=127.0.0.1:18700
+ERP_LISTEN_HOST=127.0.0.1
+ERP_LISTEN_PORT=18700
+
+# StorageConfig / BackupConfig
+ERP_STORAGE_PATH=/var/lib/jnative-one/storage
+ERP_BACKUP_PATH=/var/lib/jnative-one/backups
+ERP_PUBLIC=/opt/jnative-one/public
+ERP_STATIC_WASM=/opt/jnative-one/wasm
+
+# LoggingConfig
+ERP_LOG_LEVEL=info
+
+# SecurityConfig
+# ERP_DEMO_MODE=0   # set 1 only for non-production demo resets
+# ERP_TLS handled by reverse proxy in v1
+
+# Setup lock (written by setup-wizard after completion)
+# ERP_SETUP_COMPLETED=1

@@ -4,7 +4,8 @@
 **Evidence basis:** source, `src/test` (79 classes, ~810 `@Test`, 40 native e2e), app validation reports, Round1–4 docs, host runs on **macOS arm64**.  
 **Not evidence:** README marketing, roadmaps, TODOs, class names alone.
 
-**Decision:** [`JNATIVE_1_0_NOT_READY`](jnative-1.0-readiness.md) — see [1.0-release-blockers.md](1.0-release-blockers.md).
+**Decision:** [`JNATIVE_1_0_NOT_READY`](jnative-1.0-readiness.md) — see [1.0-release-blockers.md](1.0-release-blockers.md).  
+**RH-1:** [`JNATIVE_RH1_PARTIAL`](rh1-runtime-truth.md) — GC truth PASS; AsyncTcp not event-driven; Tx×await SQLite PASS / PG OPEN.
 
 ---
 

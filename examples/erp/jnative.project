@@ -1,0 +1,25 @@
+{
+  "name": "erp",
+  "modules": {
+    "shared": { "kind": "lib", "src": "shared" },
+    "server": { "kind": "server", "src": "server", "dependsOn": ["shared", "tests"] },
+    "browser": { "kind": "browser", "src": "browser", "dependsOn": ["shared"] },
+    "tests": { "kind": "lib", "src": "tests", "dependsOn": ["shared"] }
+  },
+  "targets": [
+    {
+      "name": "server",
+      "triple": "native",
+      "module": "server",
+      "main": "ErpServer",
+      "output": ".jnative/build/erp-server"
+    },
+    {
+      "name": "browser",
+      "triple": "wasm32-browser",
+      "module": "browser",
+      "main": "ErpApp",
+      "output": ".jnative/build/browser"
+    }
+  ]
+}
