@@ -81,9 +81,17 @@ public final class Toolchain {
     }
 
     public List<String> linkCommand(Path llFile, Path output, int optLevel) {
+        return linkCommand(llFile, output, optLevel, true);
+    }
+
+    public List<String> linkCommand(Path llFile, Path output, int optLevel, boolean debugSymbols) {
         List<String> cmd = new ArrayList<>();
         cmd.add(clang.toString());
         cmd.add("-O" + Math.max(0, Math.min(3, optLevel)));
+        if (debugSymbols) {
+            /* DWARF for lldb/gdb crash diagnosis (Runtime Stability 0.8). */
+            cmd.add("-g");
+        }
         cmd.add(llFile.toAbsolutePath().toString());
         cmd.add("-o");
         cmd.add(output.toAbsolutePath().toString());

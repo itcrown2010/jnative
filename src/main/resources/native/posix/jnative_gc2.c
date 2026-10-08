@@ -332,9 +332,11 @@ static void fill_tlab_waste_range(uint8_t *top, uint8_t *end) {
     size_t waste = (size_t)(end - top);
     st_tlab_waste += waste;
     if (waste < JN_GC_HEADER_SIZE) {
-        if (end > g_eden_high) {
-            g_eden_high = end;
-        }
+        /*
+         * Cannot install a filler header. Leave the bytes beyond the last
+         * real object unused — do NOT advance g_eden_high into uninitialized
+         * memory (that caused false "corrupt young header" under verify).
+         */
         return;
     }
     GcHeader *fill = (GcHeader *)top;
@@ -846,6 +848,18 @@ int jn_gc2_verify_heap(void) {
     jn_gc2_init();
     if (!g_enabled) {
         return 1;
+    }
+    /*
+     * TLAB bump regions leave uninitialized gaps until waste is filled.
+     * Verify must fill waste first (same as minor GC) or it reports false
+     * "corrupt young header" (Runtime Stability 0.8 regression).
+     */
+    jn_foreach_tlab(fill_tlab_waste_cb, NULL);
+    {
+        uint8_t *mtop = jn_tlab_max_top();
+        if (mtop != NULL && mtop > g_eden_high) {
+            g_eden_high = mtop;
+        }
     }
     /* Young eden */
     for (uint8_t *q = g_from; q != NULL && q < g_eden_high; ) {

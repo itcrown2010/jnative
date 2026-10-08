@@ -44,6 +44,12 @@ public final class CompilerOptions {
     private final List<String> linkLibraries = new ArrayList<>();
     private final List<Path> extraNativeSources = new ArrayList<>();
     private final List<String> extraLinkFlags = new ArrayList<>();
+    private BuildProfile buildProfile = BuildProfile.RELEASE;
+    private SanitizeMode sanitizeMode = SanitizeMode.NONE;
+    /** Emit DWARF (-g). Default true for crash diagnostics (0.8). */
+    private boolean debugSymbols = true;
+    /** Run llvm-as / clang IR verify on generated .ll before link. */
+    private boolean verifyLlvmIr = true;
 
     public String target() {
         return target;
@@ -276,6 +282,66 @@ public final class CompilerOptions {
     public void addExtraLinkFlag(String flag) {
         if (flag != null && !flag.isBlank()) {
             extraLinkFlags.add(flag);
+        }
+    }
+
+    public BuildProfile buildProfile() {
+        return buildProfile;
+    }
+
+    public void setBuildProfile(BuildProfile buildProfile) {
+        this.buildProfile = buildProfile == null ? BuildProfile.RELEASE : buildProfile;
+        if (this.buildProfile == BuildProfile.DEBUG && optLevel > 1) {
+            setOptLevel(0);
+        }
+    }
+
+    public SanitizeMode sanitizeMode() {
+        return sanitizeMode;
+    }
+
+    public void setSanitizeMode(SanitizeMode sanitizeMode) {
+        this.sanitizeMode = sanitizeMode == null ? SanitizeMode.NONE : sanitizeMode;
+        applySanitizeFlags();
+    }
+
+    public boolean debugSymbols() {
+        return debugSymbols;
+    }
+
+    public void setDebugSymbols(boolean debugSymbols) {
+        this.debugSymbols = debugSymbols;
+    }
+
+    public boolean verifyLlvmIr() {
+        return verifyLlvmIr;
+    }
+
+    public void setVerifyLlvmIr(boolean verifyLlvmIr) {
+        this.verifyLlvmIr = verifyLlvmIr;
+    }
+
+    /** Apply clang sanitizer / frame-pointer flags into extraLinkFlags (idempotent tags). */
+    public void applySanitizeFlags() {
+        /* Remove prior sanitizer markers then re-add. */
+        extraLinkFlags.removeIf(f -> f != null && (
+                f.startsWith("-fsanitize=")
+                        || "-fno-omit-frame-pointer".equals(f)
+                        || "-fno-optimize-sibling-calls".equals(f)));
+        if (sanitizeMode == SanitizeMode.NONE) {
+            return;
+        }
+        debugSymbols = true;
+        addExtraLinkFlag("-fno-omit-frame-pointer");
+        switch (sanitizeMode) {
+            case ASAN -> addExtraLinkFlag("-fsanitize=address");
+            case UBSAN -> addExtraLinkFlag("-fsanitize=undefined");
+            case ASAN_UBSAN -> {
+                addExtraLinkFlag("-fsanitize=address");
+                addExtraLinkFlag("-fsanitize=undefined");
+            }
+            case TSAN -> addExtraLinkFlag("-fsanitize=thread");
+            default -> { }
         }
     }
 

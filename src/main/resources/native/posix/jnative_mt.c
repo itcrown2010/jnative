@@ -104,8 +104,12 @@ JNThreadState *jn_thread_current(void) {
     return (JNThreadState *)pthread_getspecific(tls_key);
 }
 
+/* Runtime Stability 0.8 — crash diagnostics (async-signal-safe handlers). */
+extern void jn_crash_install_handlers(void);
+
 void jn_thread_attach_main(void) {
     jn_mt_init();
+    jn_crash_install_handlers();
     if (jn_thread_current() != NULL) {
         return;
     }

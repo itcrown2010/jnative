@@ -409,6 +409,18 @@ public final class JNativeCompiler {
             llFile = Files.createTempFile("jnative-", ".ll");
             Files.writeString(llFile, llvmIr, StandardCharsets.UTF_8);
 
+            if (options.verifyLlvmIr()) {
+                io.jnative.backend.LlvmIrFileVerifier.Result vr =
+                        io.jnative.backend.LlvmIrFileVerifier.verify(llFile, toolchain.get());
+                if (!vr.ok()) {
+                    reporter.error(SourceLocation.UNKNOWN,
+                            "LLVM IR verify failed via " + vr.tool()
+                                    + " (exit " + vr.exitCode() + ")"
+                                    + (vr.output().isBlank() ? "" : "\n" + vr.output()));
+                    return new CompileResult(false, ast, ir, llvmIr, null, reporter.diagnostics());
+                }
+            }
+
             nativeDir = Files.createTempDirectory("jnative-native-");
             String irText = IrPrinter.print(ir);
             boolean includeUi = irText.contains("jnative_ui_");
@@ -486,9 +498,16 @@ public final class JNativeCompiler {
                     && toolchain.get().platform() == Platform.WINDOWS_X86_64) {
                 linkFlags.add("-Wl,--subsystem,windows");
             }
+            options.applySanitizeFlags();
+            java.util.List<String> finalFlags = new java.util.ArrayList<>(options.extraLinkFlags());
+            for (String f : linkFlags) {
+                if (!finalFlags.contains(f)) {
+                    finalFlags.add(f);
+                }
+            }
             NativeLinker.LinkResult linkResult = linker.link(
                     llFile, output, libs, options.libraryPaths(), extraSources,
-                    options.optLevel(), linkFlags);
+                    options.optLevel(), finalFlags, options.debugSymbols());
             if (!linkResult.success()) {
                 reporter.error(SourceLocation.UNKNOWN,
                         "clang failed with exit code " + linkResult.exitCode()

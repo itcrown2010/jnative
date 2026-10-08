@@ -45,6 +45,26 @@ public final class CliArguments {
                 case "--emit-escape-analysis" -> options.setEmitEscapeAnalysis(true);
                 case "--explain-opt" -> options.setExplainOpt(true);
                 case "--verify-ir" -> options.setVerifyIr(true);
+                case "--verify-llvm" -> options.setVerifyLlvmIr(true);
+                case "--no-verify-llvm" -> options.setVerifyLlvmIr(false);
+                case "--debug" -> {
+                    options.setBuildProfile(io.jnative.compiler.BuildProfile.DEBUG);
+                    options.setDebugSymbols(true);
+                    options.setOptLevel(0);
+                }
+                case "--release" -> {
+                    options.setBuildProfile(io.jnative.compiler.BuildProfile.RELEASE);
+                    if (options.optLevel() < 2) {
+                        options.setOptLevel(2);
+                    }
+                }
+                case "--sanitize" -> {
+                    if (i + 1 >= args.length) {
+                        throw new IllegalArgumentException("missing value after --sanitize");
+                    }
+                    options.setSanitizeMode(parseSanitize(args[++i]));
+                }
+                case "--no-debug-symbols" -> options.setDebugSymbols(false);
                 case "--keep-temps" -> options.setKeepTemps(true);
                 case "--headless" -> options.setHeadless(true);
                 case "--ui-backend" -> {
@@ -111,6 +131,10 @@ public final class CliArguments {
                         options.setGcStress(v == null || v.isBlank() ? "1" : v);
                         continue;
                     }
+                    if (arg.startsWith("--sanitize=")) {
+                        options.setSanitizeMode(parseSanitize(arg.substring("--sanitize=".length())));
+                        continue;
+                    }
                     if (arg.startsWith("-O") && arg.length() == 3 && Character.isDigit(arg.charAt(2))) {
                         options.setOptLevel(arg.charAt(2) - '0');
                         continue;
@@ -126,6 +150,23 @@ public final class CliArguments {
             }
         }
         return options;
+    }
+
+    private static io.jnative.compiler.SanitizeMode parseSanitize(String raw) {
+        if (raw == null || raw.isBlank() || "none".equalsIgnoreCase(raw)) {
+            return io.jnative.compiler.SanitizeMode.NONE;
+        }
+        String v = raw.trim().toLowerCase();
+        return switch (v) {
+            case "address", "asan" -> io.jnative.compiler.SanitizeMode.ASAN;
+            case "undefined", "ubsan" -> io.jnative.compiler.SanitizeMode.UBSAN;
+            case "address,undefined", "undefined,address", "asan+ubsan", "asan_ubsan" ->
+                    io.jnative.compiler.SanitizeMode.ASAN_UBSAN;
+            case "thread", "tsan" -> io.jnative.compiler.SanitizeMode.TSAN;
+            default -> throw new IllegalArgumentException(
+                    "unknown --sanitize mode: " + raw
+                            + " (expected address|undefined|address,undefined|thread|none)");
+        };
     }
 
     public static String helpText() {
