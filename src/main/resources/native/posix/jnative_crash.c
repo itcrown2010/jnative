@@ -1,3 +1,4 @@
+/* Author: 张晓达 */
 /*
  * RuntimeCrashDiagnostics — minimal async-signal-safe crash path.
  */

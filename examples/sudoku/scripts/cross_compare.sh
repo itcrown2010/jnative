@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# Author: 张晓达
 # Same action sequence on native core tests binary path vs fresh WASM — compare boards.
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"

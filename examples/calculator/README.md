@@ -1,5 +1,7 @@
 # JNative Calculator
 
+作者：张晓达
+
 Native desktop calculator (Standard / Scientific / Programmer).  
 **No** JVM / Swing / JavaFX / Electron / WebView at runtime.
 

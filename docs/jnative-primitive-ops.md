@@ -1,5 +1,7 @@
 # 基础类型 cast / 三元 / 位运算 / 移位（2026-10-09）
 
+作者：张晓达
+
 ## 前置
 
 多编译单元回归：`MultiUnitCompileTest` + `PackageAndAccessTest` 通过。

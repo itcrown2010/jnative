@@ -1,5 +1,7 @@
 # JNative Calendar Milestone A Report
 
+作者：张晓达
+
 **Status:** `NEXA_CALENDAR_MILESTONE_A_PASS`  
 **Date:** 2026-10-07  
 **Scope:** UI polish → MiniCalendar → calendar colors/toggles → today/selected → event cards → popover → editor. Stop before Week/Day deep work.

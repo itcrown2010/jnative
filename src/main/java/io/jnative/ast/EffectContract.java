@@ -5,6 +5,7 @@ import io.jnative.diagnostics.SourceLocation;
 /**
  * Declared effect contracts on a method: {@code @NoGC}, {@code @NoThrow}, {@code @NoBlock},
  * {@code @Deterministic}.
+ * @author 张晓达
  */
 public record EffectContract(
         boolean noGc,

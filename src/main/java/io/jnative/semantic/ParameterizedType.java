@@ -6,6 +6,7 @@ import java.util.stream.Collectors;
 
 /**
  * Instantiation of a generic class/interface: {@code Box<String>}, {@code Box<int>}.
+ * @author 张晓达
  */
 public record ParameterizedType(ReferenceTypeSymbol raw, List<JType> typeArguments) implements JType {
 

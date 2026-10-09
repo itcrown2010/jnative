@@ -1,5 +1,7 @@
 # JNative Explorer Validation Report
 
+作者：张晓达
+
 **Application:** JNative Explorer (`examples/explorer`)  
 **Host verification:** macOS arm64 native Mach-O (this machine)  
 **Windows:** Win32 `jnative_fs` backend implemented; PE EXE requires Windows host / cross toolchain  

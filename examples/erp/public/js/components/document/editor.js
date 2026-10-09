@@ -1,3 +1,4 @@
+// Author: 张晓达
 /**
  * DocumentEditor - Enterprise document editor (UI 1.2).
  * Modes: CREATE | EDIT | VIEW

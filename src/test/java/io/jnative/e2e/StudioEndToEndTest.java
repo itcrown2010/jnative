@@ -21,7 +21,9 @@ import java.util.concurrent.TimeUnit;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-/** JNative 0.21 Studio / JSON / Path / Process e2e. */
+/** JNative 0.21 Studio / JSON / Path / Process e2e.
+ * @author 张晓达
+ */
 class StudioEndToEndTest {
 
     @TempDir

@@ -1,6 +1,8 @@
 package io.jnative.pkg;
 
-/** Foundation for publisher signatures (verification hooks for future Registry transparency). */
+/** Foundation for publisher signatures (verification hooks for future Registry transparency).
+ * @author 张晓达
+ */
 public final class PackageSignature {
     private final String algorithm;
     private final String publicKeyId;

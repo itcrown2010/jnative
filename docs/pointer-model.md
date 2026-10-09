@@ -1,5 +1,7 @@
 # Pointer Model (0.8)
 
+作者：张晓达
+
 ## NativePtr&lt;T&gt;
 
 Compiler-recognized typed native pointer (not full Java generics).

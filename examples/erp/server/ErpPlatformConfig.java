@@ -1,5 +1,6 @@
 /**
  * Settings + audit events. Sensitive values never returned in clear text lists.
+ * @author 张晓达
  */
 class ErpPlatformConfig {
     static void setSetting(long companyId, long userId, String key, String type, String value, int sensitive) {

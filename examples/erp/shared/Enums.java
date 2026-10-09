@@ -1,3 +1,6 @@
+/**
+ * @author 张晓达
+ */
 class DocStatus {
     static String DRAFT = "DRAFT";
     static String APPROVED = "APPROVED";

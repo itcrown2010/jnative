@@ -3,6 +3,7 @@ package io.jnative.backend.llvm.runtime;
 /**
  * Explicit exception propagation (0.6/0.9). State is thread-local via {@code jn_tls_ex_*}.
  * Throwable layout: {@code { ClassMeta* @0, message* @8, cause* @16, suppressed* @24 }} (32 bytes).
+ * @author 张晓达
  */
 public final class ExceptionRuntimeEmitter {
     private final StringBuilder sb;

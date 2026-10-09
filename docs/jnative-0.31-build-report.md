@@ -1,5 +1,7 @@
 # JNative 0.31 Production Networking Build Report
 
+作者：张晓达
+
 **Version:** 0.31  
 **Theme:** TLS / HTTPS / HTTP/2 — Native Server production networking  
 **Direction:** Java-like language → JNative Compiler → IR → LLVM/WASM → Runtime. **No JVM/JAR/JNI target.**

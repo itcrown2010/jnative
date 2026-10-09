@@ -1,5 +1,7 @@
 # JNative 0.13 Build Report — GC2
 
+作者：张晓达
+
 ## Summary
 
 - Version **0.13**

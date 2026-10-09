@@ -24,6 +24,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * {@code DbConnection} — the same ownership model {@code TransactionFlatMap} uses.
  *
  * PostgreSQL {@code pg_backend_pid()} live e2e remains blocked (B-P0-05).
+ * @author 张晓达
  */
 class SqliteTxAwaitAffinityEndToEndTest {
 

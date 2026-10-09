@@ -7,6 +7,7 @@
  *   0 = OK
  *   1 = division by zero
  *   2 = overflow / out of range
+ * @author 张晓达
  */
 public class CalcEngine {
     // Constants as methods — wasm32-browser static initializers are zero.

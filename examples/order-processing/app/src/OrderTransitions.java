@@ -1,6 +1,8 @@
 package com.demo.order;
 
-/** Enum + switch state machine (explicit codes, not ordinal persistence). */
+/** Enum + switch state machine (explicit codes, not ordinal persistence).
+ * @author 张晓达
+ */
 public class OrderTransitions {
     public static boolean canTransition(OrderStatus from, OrderStatus to) {
         switch (from) {

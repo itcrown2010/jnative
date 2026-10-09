@@ -1,3 +1,6 @@
+/**
+ * @author 张晓达
+ */
 class MathUtils {
     static int clamp(int value, int min, int max) {
         if (value < min) {

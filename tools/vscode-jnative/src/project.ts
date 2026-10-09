@@ -1,3 +1,4 @@
+// Author: 张晓达
 import * as vscode from 'vscode';
 import {
   discoverProjectsUnder,

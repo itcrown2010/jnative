@@ -4,7 +4,9 @@ import io.jnative.diagnostics.SourceLocation;
 
 import java.util.List;
 
-/** Classic {@code switch} statement (not switch expression / arrow syntax). */
+/** Classic {@code switch} statement (not switch expression / arrow syntax).
+ * @author 张晓达
+ */
 public record SwitchStatement(
         Expression selector,
         List<SwitchSection> sections,

@@ -3,7 +3,9 @@ package io.jnative.processor;
 import java.util.ArrayList;
 import java.util.List;
 
-/** Escape hatch + structured builders for generated JNative source. */
+/** Escape hatch + structured builders for generated JNative source.
+ * @author 张晓达
+ */
 public final class CodeGenerator {
     private final List<GeneratedArtifact> artifacts = new ArrayList<>();
     private final String processorName;

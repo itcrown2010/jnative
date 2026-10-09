@@ -1,5 +1,7 @@
 # JNative Desktop UI Architecture Audit
 
+作者：张晓达
+
 **Audit date:** 2026-10-07  
 **Scope:** `stdlib/ui/UiLib.java` · `native/posix/jnative_ui.{h,c}` · `jnative_ui_cocoa.m` · `jnative_ui_win32.c` · `examples/explorer` · `examples/ui-workbench`  
 **Evidence rule:** class existence ≠ Working；以源码实装 + 编译/dogfood 为准。

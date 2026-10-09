@@ -3,6 +3,7 @@ package io.jnative.semantic;
 /**
  * Typed native pointer {@code NativePtr<T>}. Machine pointer — not a GC-managed object.
  * GC must never treat a NativePtr value as ClassMetadata*.
+ * @author 张晓达
  */
 public final class NativePtrType implements JType {
     /** Untyped / void* — {@code NativePtr} or {@code NativePtr<Void>}. */

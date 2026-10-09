@@ -10,6 +10,7 @@ import jnative.json.*;
  * Mode:
  *   server  — listen :18280 and mount generated RPC routes
  *   client  — call generated client against base URL
+ * @author 张晓达
  */
 
 @Rpc("/api/users")

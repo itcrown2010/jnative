@@ -5,6 +5,7 @@ import io.jnative.ast.MethodCallExpression;
 /**
  * Desugared Iterable enhanced-for: {@code iterator()} once, then {@code hasNext}/{@code next} per iteration.
  * Array enhanced-for does not use this record (IR lowers arrays directly).
+ * @author 张晓达
  */
 public record EnhancedForDesugar(
         MethodCallExpression iteratorCall,

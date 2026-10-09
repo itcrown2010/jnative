@@ -7,6 +7,7 @@ import java.util.List;
 /**
  * Method invocation. {@code receiver == null} means static / unqualified call.
  * {@code typeArguments} supports compiler-recognized forms like {@code Native.allocate<Point>()}.
+ * @author 张晓达
  */
 public record MethodCallExpression(
         Expression receiver,

@@ -14,6 +14,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * Rebuilds float-calc from source and runs the Node WASM verify script.
+ * @author 张晓达
  */
 public class WasmBrowserFloatTest {
 

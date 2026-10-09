@@ -15,7 +15,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-/** Scalar-replace non-escaping primitive-only objects with constructor argument values. */
+/** Scalar-replace non-escaping primitive-only objects with constructor argument values.
+ * @author 张晓达
+ */
 public final class ScalarReplacementPass implements OptimizationPass {
     @Override
     public String name() {

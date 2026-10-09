@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# Author: 张晓达
 # Pilot 12-step acceptance (SQLite by default; set DATABASE_URL for PG).
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/../../.." && pwd)"

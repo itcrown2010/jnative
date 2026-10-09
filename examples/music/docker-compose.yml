@@ -1,3 +1,4 @@
+# Author: 张晓达
 # Local PostgreSQL for JNative Music validation.
 # SCRAM is not yet supported (RH-1) — force md5 password encryption.
 services:

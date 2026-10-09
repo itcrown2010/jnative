@@ -1,5 +1,7 @@
 # JNative 0.16 Build Report — Collections Framework
 
+作者：张晓达
+
 ## Summary
 
 - Collections shipped as **JNative library code** (`stdlib/collections/CollectionsLib.java`), not compiler intrinsics

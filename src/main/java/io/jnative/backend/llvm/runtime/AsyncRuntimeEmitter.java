@@ -14,6 +14,7 @@ package io.jnative.backend.llvm.runtime;
  *
  * <p>Continuations are registered on the awaited Future; completion schedules
  * {@code resumeFn(frame)} via a drain queue (avoids recursive stack blow-up).
+ * @author 张晓达
  */
 public final class AsyncRuntimeEmitter {
     private final StringBuilder sb;

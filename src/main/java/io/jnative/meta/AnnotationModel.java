@@ -7,6 +7,9 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Optional;
 
+/**
+ * @author 张晓达
+ */
 public final class AnnotationModel {
     private final TypeId type;
     private final Map<String, String> stringAttributes;

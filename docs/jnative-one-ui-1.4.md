@@ -1,5 +1,7 @@
 # JNative One — UI 1.4 Full ERP UI Coverage & Interactive Demo
 
+作者：张晓达
+
 **Date:** 2026-10-08  
 **Principles:** UI FIRST · Unified DemoStateStore · No new formal ERP backend modules  
 **Stamp:** `JNATIVE_ONE_UI_1_4_PASS`

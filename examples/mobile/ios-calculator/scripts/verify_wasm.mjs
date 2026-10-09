@@ -1,3 +1,4 @@
+// Author: 张晓达
 /**
  * Drive CalcEngine WASM exports — no mirrored calculator logic.
  */

@@ -32,6 +32,7 @@ import java.util.regex.Pattern;
  * targets = ["web", "android", "ios"]
  * capabilities = ["platform.getName", "storage.get", "storage.set", "storage.remove"]
  * </pre>
+ * @author 张晓达
  */
 public final class MobileConfig {
 

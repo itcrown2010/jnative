@@ -1,3 +1,6 @@
+/**
+ * @author 张晓达
+ */
 public class Methods {
     static int add(int a, int b) {
         return a + b;

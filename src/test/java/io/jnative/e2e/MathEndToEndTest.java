@@ -15,7 +15,9 @@ import java.util.concurrent.TimeUnit;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-/** Core Round 1 — Math stdlib native e2e (no primitive casts). */
+/** Core Round 1 — Math stdlib native e2e (no primitive casts).
+ * @author 张晓达
+ */
 class MathEndToEndTest {
 
     @TempDir

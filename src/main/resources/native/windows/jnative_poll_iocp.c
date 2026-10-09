@@ -1,3 +1,4 @@
+/* Author: 张晓达 */
 /*
  * JNative 0.23 — Windows IOCP poller.
  * PARTIAL: stub only — does NOT fake IOCP with select().

@@ -1,6 +1,7 @@
 /**
  * Enterprise authorization: MODULE.RESOURCE.ACTION + data scope OWN/DEPARTMENT/COMPANY.
  * Server-side only — UI hide is not authorization.
+ * @author 张晓达
  */
 class ErpPlatformAuth {
     static void ensureSeed(long companyId) {

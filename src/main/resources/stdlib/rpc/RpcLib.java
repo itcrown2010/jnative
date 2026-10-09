@@ -2,6 +2,9 @@
 // NOT compiler intrinsics. Generated stubs call into this library.
 // No generic methods — avoid GenericLowering cycles.
 
+/**
+ * @author 张晓达
+ */
 class RpcException extends RuntimeException {
     String code;
     int status;

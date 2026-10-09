@@ -1,6 +1,9 @@
 // JNative Studio application library (0.21) — ordinary JNative app code.
 // Depends on: collections, ui, graphics, editor, json, io (StdlibIncluder).
 
+/**
+ * @author 张晓达
+ */
 class ProjectNodeKind {
     static int PROJECT = 1;
     static int DIRECTORY = 2;

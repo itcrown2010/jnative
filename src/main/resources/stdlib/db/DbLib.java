@@ -1,5 +1,8 @@
 // JNative Database stdlib (0.24) — jnative.db core: URL parsing, pool, metrics, driver SPI.
 
+/**
+ * @author 张晓达
+ */
 class DatabaseException extends RuntimeException {
     DatabaseException(String message) {
         super(message);

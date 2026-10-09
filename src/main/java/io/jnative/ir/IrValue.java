@@ -20,7 +20,9 @@ public sealed interface IrValue permits IrValue.Temp, IrValue.Param, IrValue.Loc
         }
     }
 
-    /** Stack slot / alloca for mutable locals. */
+    /** Stack slot / alloca for mutable locals.
+ * @author 张晓达
+ */
     record Local(String identifier, IrType type) implements IrValue {
         @Override
         public String name() {

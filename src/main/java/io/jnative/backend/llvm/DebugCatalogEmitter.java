@@ -14,6 +14,7 @@ import java.util.Map;
 /**
  * Sidecar JSON describing runtime layouts for LLDB formatters.
  * Written next to the executable when {@code --debug} is enabled.
+ * @author 张晓达
  */
 public final class DebugCatalogEmitter {
     private DebugCatalogEmitter() {

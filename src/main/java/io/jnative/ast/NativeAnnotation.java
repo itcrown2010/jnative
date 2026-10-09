@@ -7,6 +7,7 @@ import java.util.Optional;
 /**
  * Compiler-recognized {@code @Native} attributes.
  * {@code effects} is a trusted contract string: PURE, NO_BLOCK, MAY_BLOCK, UNKNOWN (default).
+ * @author 张晓达
  */
 public record NativeAnnotation(
         Optional<String> symbol,

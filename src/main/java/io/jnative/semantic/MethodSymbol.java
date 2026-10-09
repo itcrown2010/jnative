@@ -7,6 +7,9 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
+/**
+ * @author 张晓达
+ */
 public final class MethodSymbol {
     private final ReferenceTypeSymbol owner;
     private final String name;

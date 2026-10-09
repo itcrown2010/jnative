@@ -4,6 +4,9 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 
+/**
+ * @author 张晓达
+ */
 public final class CompilerOptions {
     private Path sourceFile;
     /** When set, compile these units independently (multi-CU); {@link #sourceFile()} is the entry/main. */

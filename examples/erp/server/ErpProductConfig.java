@@ -1,6 +1,7 @@
 /**
  * Productization 1.5 — config from environment (file via shell export).
  * Sensitive values must never be logged.
+ * @author 张晓达
  */
 class ErpProductConfig {
     static String version = "1.6.0-pilot";

@@ -2,6 +2,7 @@ package io.jnative.backend.llvm.runtime;
 
 /**
  * Array runtime. Layout: { ClassMetadata* @0, i32 length @8, padding to 16, elements... }
+ * @author 张晓达
  */
 public final class ArrayRuntimeEmitter {
     private final StringBuilder sb;

@@ -20,6 +20,9 @@ import java.util.concurrent.TimeUnit;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+/**
+ * @author 张晓达
+ */
 class SwitchEnumEndToEndTest {
 
     @Test

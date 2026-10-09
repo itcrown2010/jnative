@@ -174,7 +174,9 @@ class Http2Codec {
     }
 }
 
-/** Minimal HPACK encoder for static-table indexed literals (request/response basics). */
+/** Minimal HPACK encoder for static-table indexed literals (request/response basics).
+ * @author 张晓达
+ */
 class HpackEncoder {
     static byte[] encodeRequest(String method, String path, String host, String scheme) {
         ByteBuf b = new ByteBuf();

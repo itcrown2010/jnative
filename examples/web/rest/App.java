@@ -1,6 +1,9 @@
 import jnative.web.*;
 import jnative.json.*;
 
+/**
+ * @author 张晓达
+ */
 public class App {
     public static void main(String[] args) {
         Stores.items = new ItemStore();

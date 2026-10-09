@@ -1,5 +1,8 @@
 package com.demo.greet;
 
+/**
+ * @author 张晓达
+ */
 public interface Greeter {
     int greet(int n);
 }

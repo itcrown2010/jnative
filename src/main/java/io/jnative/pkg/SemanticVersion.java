@@ -9,6 +9,7 @@ import java.util.regex.Pattern;
 
 /**
  * Semantic version: major.minor.patch[-pre][+build]
+ * @author 张晓达
  */
 public final class SemanticVersion implements Comparable<SemanticVersion> {
     private static final Pattern RE = Pattern.compile(

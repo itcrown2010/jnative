@@ -1,3 +1,4 @@
+// Author: 张晓达
 /**
  * UI 1.6 — Full UI Acceptance & UX Hardening (Chromium).
  * No fabricated timings. WASM SPA status recorded honestly.

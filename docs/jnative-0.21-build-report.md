@@ -1,5 +1,7 @@
 # JNative 0.21 Build Report — JNative Studio / Self-Hosted Native IDE
 
+作者：张晓达
+
 ## Summary
 
 - Product version **0.21**

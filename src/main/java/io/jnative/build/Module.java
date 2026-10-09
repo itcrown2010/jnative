@@ -3,7 +3,9 @@ package io.jnative.build;
 import java.util.ArrayList;
 import java.util.List;
 
-/** One logical module in a JNative project (shared / server / browser / desktop). */
+/** One logical module in a JNative project (shared / server / browser / desktop).
+ * @author 张晓达
+*/
 public final class Module {
     private final String name;
     private final List<String> sourceRoots = new ArrayList<>();

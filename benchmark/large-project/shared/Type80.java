@@ -1,3 +1,6 @@
+/**
+ * @author 张晓达
+ */
 class Type80 {
     int id;
     String name;

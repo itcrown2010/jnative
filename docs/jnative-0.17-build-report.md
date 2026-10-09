@@ -1,5 +1,7 @@
 # JNative 0.17 Build Report — Native UI Foundation
 
+作者：张晓达
+
 ## Summary
 
 - Version **0.17**

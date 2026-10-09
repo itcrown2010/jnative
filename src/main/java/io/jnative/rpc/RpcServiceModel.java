@@ -3,7 +3,9 @@ package io.jnative.rpc;
 import java.util.ArrayList;
 import java.util.List;
 
-/** Compile-time model of one @Rpc service interface. */
+/** Compile-time model of one @Rpc service interface.
+ * @author 张晓达
+ */
 public final class RpcServiceModel {
     private final String interfaceName;
     private final String path;

@@ -1,5 +1,7 @@
 # JNative ERP Enterprise Foundation 1.4
 
+作者：张晓达
+
 **Stamp: `JNATIVE_ERP_ENTERPRISE_1_4_PARTIAL`**
 
 **Date:** 2026-10-08  

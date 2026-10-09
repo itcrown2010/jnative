@@ -15,7 +15,9 @@ import java.util.concurrent.TimeUnit;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-/** Core Round 1 — String / StringBuilder native e2e. */
+/** Core Round 1 — String / StringBuilder native e2e.
+ * @author 张晓达
+ */
 class StringEndToEndTest {
 
     @TempDir

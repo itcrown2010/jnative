@@ -19,7 +19,9 @@ import java.util.regex.Pattern;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-/** Generational GC2 / TLAB acceptance tests. */
+/** Generational GC2 / TLAB acceptance tests.
+ * @author 张晓达
+ */
 class Gc2EndToEndTest {
 
     @TempDir

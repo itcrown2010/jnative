@@ -1,5 +1,7 @@
 # RH-1 Runtime Truth — Report
 
+作者：张晓达
+
 **Date:** 2026-10-08  
 **Phase:** Release Hardening RH-1  
 **Feature freeze:** ON  

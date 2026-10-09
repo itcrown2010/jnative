@@ -1,3 +1,4 @@
+/* Author: 张晓达 */
 #ifndef JNATIVE_PROC_H
 #define JNATIVE_PROC_H
 

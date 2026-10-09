@@ -1,5 +1,7 @@
 # JNative 0.8 — Runtime Stability & Crash Hardening
 
+作者：张晓达
+
 **Date:** 2026-10-08  
 **Platform of record:** macOS arm64 + system clang + lldb  
 **Stamp:** `JNATIVE_RUNTIME_0_8_PARTIAL`

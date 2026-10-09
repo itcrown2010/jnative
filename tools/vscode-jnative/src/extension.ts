@@ -1,3 +1,4 @@
+// Author: 张晓达
 import * as vscode from 'vscode';
 import { disposeAllDiagnostics } from './diagnostics';
 import { isLspRunning, startLanguageServer, stopLanguageServer } from './lspClient';

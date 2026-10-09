@@ -1,5 +1,7 @@
 # JNative Architecture Debt (1.0 Audit)
 
+作者：张晓达
+
 **Audit date:** 2026-10-08  
 **Companion:** [platform-status.md](platform-status.md) · [1.0-release-blockers.md](1.0-release-blockers.md)  
 **Method:** ripgrep + source reading for TODO/FIXME/stub/fake/unsupported; cross-check tests.

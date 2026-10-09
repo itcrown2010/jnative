@@ -7,6 +7,7 @@ import java.util.List;
 
 /**
  * Per-file syntax product for IDE analysis (frontend only).
+ * @author 张晓达
  */
 public final class SyntaxTree {
     private final String fileName;

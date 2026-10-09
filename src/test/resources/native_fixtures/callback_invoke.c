@@ -1,3 +1,4 @@
+/* Author: 张晓达 */
 typedef int (*callback_t)(int);
 
 int invoke_callback(callback_t callback, int value) {

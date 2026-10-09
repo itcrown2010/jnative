@@ -10,6 +10,7 @@ import java.util.Optional;
 
 /**
  * Locates clang/LLVM tools on the host system.
+ * @author 张晓达
  */
 public final class Toolchain {
     private final Platform platform;

@@ -1,6 +1,8 @@
 package io.jnative.meta;
 
-/** Stable Compiler Extension API version for annotation processors (0.32). */
+/** Stable Compiler Extension API version for annotation processors (0.32).
+ * @author 张晓达
+ */
 public final class MetaApiVersion {
     public static final int CURRENT = 1;
     public static final String NAME = "JNATIVE_PROCESSOR_API_VERSION";

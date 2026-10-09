@@ -1,5 +1,7 @@
 # JNative Memory Model (0.8 / 0.9)
 
+作者：张晓达
+
 Concurrent access rules (volatile / Mutex / Atomic / start-join) are in
 [concurrency-memory-model.md](concurrency-memory-model.md).
 

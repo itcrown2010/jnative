@@ -8,6 +8,7 @@ import java.util.List;
 
 /**
  * Resolved callable: SAM object layout + code/env symbols for IR lowering.
+ * @author 张晓达
  */
 public final class CallableBinding {
     private final ClassSymbol samClass;

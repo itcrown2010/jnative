@@ -1,5 +1,7 @@
 # Stack allocation (managed objects)
 
+作者：张晓达
+
 `StackAllocationPass` (enabled at `-O2`+) rewrites remaining `NO_ESCAPE` `NewObject` instructions to **stack-managed** storage.
 
 ## Distinct from `@Stack NativeStruct`

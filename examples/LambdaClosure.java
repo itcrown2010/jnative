@@ -2,7 +2,9 @@ interface IntUnary {
     int apply(int value);
 }
 
-/** Escape + capture env + GC smoke (see docs/jnative-closures.md). */
+/** Escape + capture env + GC smoke (see docs/jnative-closures.md).
+ * @author 张晓达
+ */
 public class LambdaClosure {
     static IntUnary addBy(int base) {
         return value -> value + base;

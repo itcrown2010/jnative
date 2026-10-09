@@ -9,6 +9,7 @@ import java.util.Set;
 
 /**
  * Package / project manifest model (from jnative.toml or JSON subset).
+ * @author 张晓达
  */
 public final class PackageManifest {
     private PackageId id = PackageId.parse("jnative/app");

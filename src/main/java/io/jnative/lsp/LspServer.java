@@ -26,6 +26,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * Minimal stdio Language Server for JNative frontend diagnostics.
  * Protocol messages go on stdout; all logs go to stderr.
  * Analyze-only — never links or runs programs.
+ * @author 张晓达
  */
 public final class LspServer {
     private final InputStream in;

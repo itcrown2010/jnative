@@ -24,6 +24,7 @@ import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * WASM lowering for new integer ops; browser target must reject println clearly.
+ * @author 张晓达
  */
 class WasmPrimitiveOpsLoweringTest {
 

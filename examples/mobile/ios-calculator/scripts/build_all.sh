@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# Author: 张晓达
 # Entry point:
 #   CalcEngine.java → WASM/Web → sync iOS → simulator .app → verify WASM
 set -euo pipefail

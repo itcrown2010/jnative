@@ -1,5 +1,7 @@
 # GC verifier
 
+作者：张晓达
+
 `JNATIVE_GC_VERIFY=1` enables post-minor checks:
 
 - No root slot points into the abandoned from-space

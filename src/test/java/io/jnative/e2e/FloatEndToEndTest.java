@@ -22,6 +22,7 @@ import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * float/double semantics: literals, promotion, ops, casts, NaN/Inf/-0 — native vs javac.
+ * @author 张晓达
  */
 class FloatEndToEndTest {
 

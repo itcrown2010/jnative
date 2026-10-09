@@ -1,3 +1,4 @@
+-- Author: 张晓达
 CREATE INDEX IF NOT EXISTS idx_events_calendar_start ON events(calendar_id, start_time);
 CREATE INDEX IF NOT EXISTS idx_events_range ON events(start_time, end_time);
 CREATE INDEX IF NOT EXISTS idx_tasks_user_due ON tasks(user_id, due_at);

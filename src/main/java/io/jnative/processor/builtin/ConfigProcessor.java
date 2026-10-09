@@ -11,6 +11,9 @@ import io.jnative.processor.SourceFileBuilder;
 
 import java.util.Set;
 
+/**
+ * @author 张晓达
+ */
 public class ConfigProcessor implements AnnotationProcessor {
     @Override
     public String name() {

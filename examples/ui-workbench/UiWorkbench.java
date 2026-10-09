@@ -2,6 +2,7 @@ import jnative.ui.*;
 
 /**
  * Minimal IDE-shaped layout proving Desktop UI foundation is reusable.
+ * @author 张晓达
  */
 public class UiWorkbench {
     public static void main(String[] args) {

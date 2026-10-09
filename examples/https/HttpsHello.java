@@ -3,6 +3,9 @@
 // Certs: jnative cert dev --out examples/https/certs
 // Run:   ./https-hello
 
+/**
+ * @author 张晓达
+ */
 class HelloRootHandler implements WebHandler {
     public void handle(WebContext ctx) {
         ctx.text("Hello HTTPS");

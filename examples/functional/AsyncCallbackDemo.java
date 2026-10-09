@@ -2,6 +2,7 @@
  * Async task + Future callbacks on a dedicated EventLoop.
  * Worker pool runs blocking work; completion callbacks run on the loop thread.
  * Build: java -jar target/jnative.jar build examples/functional/AsyncCallbackDemo.java -o build/AsyncCallbackDemo
+ * @author 张晓达
  */
 class Box {
     int n;

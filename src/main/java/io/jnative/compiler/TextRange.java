@@ -4,6 +4,7 @@ import io.jnative.diagnostics.SourceLocation;
 
 /**
  * Stable source range for IDE navigation (line/column, 1-based like {@link SourceLocation}).
+ * @author 张晓达
  */
 public record TextRange(String file, int startLine, int startColumn, int endLine, int endColumn) {
 

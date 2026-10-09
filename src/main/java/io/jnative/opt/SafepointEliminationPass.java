@@ -5,7 +5,9 @@ import io.jnative.ir.IrFunction;
 import io.jnative.ir.IrInstruction;
 import io.jnative.semantic.FunctionEffects;
 
-/** Remove safepoint polls from no-GC / omit-safepoint functions. */
+/** Remove safepoint polls from no-GC / omit-safepoint functions.
+ * @author 张晓达
+ */
 public final class SafepointEliminationPass implements OptimizationPass {
     @Override
     public String name() {

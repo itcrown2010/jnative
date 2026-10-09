@@ -1,5 +1,7 @@
 # NativeStruct (0.8)
 
+作者：张晓达
+
 `@NativeStruct` declares an **ABI data layout**, not a managed JNative class.
 
 ```java

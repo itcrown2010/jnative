@@ -5,7 +5,9 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
-/** Result of one incremental or full build generation. */
+/** Result of one incremental or full build generation.
+ * @author 张晓达
+ */
 public final class BuildResult {
     private final boolean success;
     private final long generation;

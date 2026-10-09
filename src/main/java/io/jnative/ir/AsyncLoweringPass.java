@@ -13,6 +13,7 @@ import java.util.Map;
  * <p>Each invocation owns an {@code AsyncFrame} and a distinct result {@code Future}.
  * Incomplete await registers a continuation and returns the <em>method</em> result Future
  * (never the awaited Future). Completion schedules {@code name$async_resume(frame)}.
+ * @author 张晓达
  */
 public final class AsyncLoweringPass {
 

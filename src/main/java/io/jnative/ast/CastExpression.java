@@ -2,6 +2,9 @@ package io.jnative.ast;
 
 import io.jnative.diagnostics.SourceLocation;
 
+/**
+ * @author 张晓达
+ */
 public record CastExpression(
         TypeName type,
         Expression expression,

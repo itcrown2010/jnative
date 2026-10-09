@@ -2,6 +2,7 @@
  * UI event subscription lifecycle (headless).
  * Build: JNATIVE_HEADLESS=1 java -jar target/jnative.jar build examples/functional/UiSubscribeDemo.java -o build/UiSubscribeDemo
  * Run:   JNATIVE_HEADLESS=1 ./build/UiSubscribeDemo
+ * @author 张晓达
  */
 import jnative.ui.*;
 

@@ -1,5 +1,7 @@
 # Write barrier (GC2)
 
+作者：张晓达
+
 After every managed reference store (`StoreField`, reference `StoreElement`), LLVM emits:
 
 ```text

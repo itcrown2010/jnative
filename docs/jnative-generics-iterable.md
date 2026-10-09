@@ -1,5 +1,7 @@
 # Generics type safety and Iterable enhanced-for
 
+作者：张晓达
+
 **Date:** 2026-10-09  
 **Scope:** Language core (no ERP / mobile).
 

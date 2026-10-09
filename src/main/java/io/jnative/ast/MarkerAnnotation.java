@@ -7,6 +7,7 @@ import java.util.Optional;
 /**
  * Marker / value annotation retained for RPC and related metadata (0.28).
  * Distinct from {@link NativeAnnotation} / {@link EffectContract}.
+ * @author 张晓达
  */
 public record MarkerAnnotation(
         String name,

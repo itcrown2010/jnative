@@ -1,6 +1,7 @@
 /**
  * Independent opening documents: stock / AR / AP.
  * Draft → validate → post (idempotent). Never mutate balances outside posting.
+ * @author 张晓达
  */
 class ErpOpening {
     static PostResultDto createStockDraft(long companyId, long userId, long warehouseId, long businessDate,

@@ -3,6 +3,7 @@ import jnative.webui.*;
 /**
  * Browser WASM entry (WebUI). Full calendar UX is also served as public/app.js
  * by the native server for end-to-end REST validation.
+ * @author 张晓达
  */
 public class SchedulerApp {
     public static void main(String[] args) {

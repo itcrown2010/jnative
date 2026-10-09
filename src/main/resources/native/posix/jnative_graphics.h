@@ -1,3 +1,4 @@
+/* Author: 张晓达 */
 #ifndef JNATIVE_GRAPHICS_H
 #define JNATIVE_GRAPHICS_H
 

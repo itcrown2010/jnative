@@ -12,6 +12,7 @@ import java.util.List;
  *   UserApi api = UserApi_Rpc.client();
  *   UserApi remote = UserApi_Rpc.client("https://api.example.com");
  * </pre>
+ * @author 张晓达
  */
 public final class RpcCodeGenerator {
 

@@ -20,6 +20,9 @@ import io.jnative.semantic.VoidType;
 import java.util.List;
 import java.util.stream.Collectors;
 
+/**
+ * @author 张晓达
+ */
 public final class NameMangler {
 
     private NameMangler() {

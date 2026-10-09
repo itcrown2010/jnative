@@ -1,6 +1,8 @@
 package io.jnative.http2;
 
-/** Self-contained HPACK helpers for 0.31 host-side tests (RFC 7540/7541). */
+/** Self-contained HPACK helpers for 0.31 host-side tests (RFC 7540/7541).
+ * @author 张晓达
+ */
 final class Hpack031 {
     private Hpack031() {
     }

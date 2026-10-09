@@ -1,5 +1,6 @@
 /**
  * Trial balance, GL inquiry, AR/AP ageing.
+ * @author 张晓达
  */
 class ErpFinanceReports {
     static ArrayList<Object> chartOfAccounts(long companyId) {

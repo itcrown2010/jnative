@@ -8,6 +8,9 @@ import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+/**
+ * @author 张晓达
+ */
 class BuiltinThreadTest {
     @Test
     void mutexIsBuiltin() {

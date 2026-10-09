@@ -1,5 +1,6 @@
 /**
  * Positions overlapping timed events into columns (week/day view).
+ * @author 张晓达
  */
 class LaidOutEvent {
     EventDto event;

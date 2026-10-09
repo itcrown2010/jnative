@@ -2,6 +2,7 @@ package io.jnative.semantic;
 
 /**
  * Value type representing a {@code @NativeStruct}. Not a managed reference.
+ * @author 张晓达
  */
 public final class NativeStructType implements JType {
     private final NativeStructSymbol symbol;

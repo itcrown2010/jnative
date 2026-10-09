@@ -9,7 +9,9 @@ import java.util.Map;
 import java.util.Queue;
 import java.util.Set;
 
-/** Module dependency DAG with cycle detection. */
+/** Module dependency DAG with cycle detection.
+ * @author 张晓达
+ */
 public final class ModuleGraph {
     private final Map<String, Set<String>> edges = new LinkedHashMap<>();
 

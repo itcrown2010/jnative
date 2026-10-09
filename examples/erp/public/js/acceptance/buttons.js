@@ -1,3 +1,4 @@
+// Author: 张晓达
 /**
  * ButtonActionRegistry - maps actionable UI controls to handlers (UI 1.6).
  * Used by acceptance scans to ensure business buttons are not dead.

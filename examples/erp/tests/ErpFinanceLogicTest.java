@@ -4,6 +4,7 @@
  * AR 2400 → collect 1000+1400 → open 0.
  * AP 5000 → pay 2000+3000 → open 0.
  * Trial balance must balance; journals debit==credit.
+ * @author 张晓达
  */
 class ErpFinanceLogicTest {
     static long companyId = 0L;

@@ -1,4 +1,7 @@
 package com.demo.app;
 
+/**
+ * @author 张晓达
+ */
 public class BaseService {
 }

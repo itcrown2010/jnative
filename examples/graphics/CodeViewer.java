@@ -1,6 +1,9 @@
 import jnative.ui.*;
 import jnative.graphics.*;
 
+/**
+ * @author 张晓达
+ */
 public class CodeViewer {
     public static void main(String[] args) {
         Application app = new Application();

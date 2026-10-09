@@ -1,3 +1,4 @@
+// Author: 张晓达
 import Foundation
 import WebKit
 
@@ -18,7 +19,7 @@ final class BridgeHost: NSObject, WKScriptMessageHandler {
 
     private weak var webView: WKWebView?
     private let defaults = UserDefaults.standard
-    private let prefix = "jnative.calc."
+    private let prefix = "jnative.sudoku."
     private var alive = true
 
     init(webView: WKWebView) {

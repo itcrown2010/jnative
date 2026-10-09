@@ -1,5 +1,7 @@
 # Effects (0.11)
 
+作者：张晓达
+
 JNative tracks **function effects** as a bitset on every callable:
 
 | Flag | Meaning |

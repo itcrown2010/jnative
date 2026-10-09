@@ -2,6 +2,7 @@ package io.jnative.semantic;
 
 /**
  * Compile-time / runtime identity for an interface (not a managed object).
+ * @author 张晓达
  */
 public final class InterfaceMetadata {
     private final InterfaceSymbol interfaceSymbol;

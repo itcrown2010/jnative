@@ -2,6 +2,9 @@ package com.demo.order;
 
 import com.acme.money.MoneyCents;
 
+/**
+ * @author 张晓达
+ */
 public class Order {
     public String id;
     public String note;

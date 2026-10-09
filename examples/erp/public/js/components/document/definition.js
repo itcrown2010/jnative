@@ -1,3 +1,4 @@
+// Author: 张晓达
 /**
  * DocumentUiDefinition - strong typed configs for document editors (UI 1.2).
  * No eval / arbitrary code execution.

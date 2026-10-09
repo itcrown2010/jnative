@@ -7,6 +7,9 @@ import io.jnative.ir.IrModule;
 import java.nio.file.Path;
 import java.util.List;
 
+/**
+ * @author 张晓达
+ */
 public record CompileResult(
         boolean success,
         CompilationUnit ast,

@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# Author: 张晓达
 # jnative-one upgrade — backup → migrate → replace binary → health hint
 set -euo pipefail
 

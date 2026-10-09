@@ -15,6 +15,7 @@ import java.util.Map;
 /**
  * Minimal constraint-based inference for generic method / diamond calls.
  * Constraints: {@code T = X}, {@code T <: X}, {@code X <: T}.
+ * @author 张晓达
  */
 public final class TypeInferenceEngine {
 

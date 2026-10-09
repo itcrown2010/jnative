@@ -1,5 +1,7 @@
 # JNative Core Completion Report — Round 4
 
+作者：张晓达
+
 **Theme:** I/O & Networking Integrity  
 **Date:** 2026-10-08 (initial + closure pass)  
 **Host:** macOS arm64 (Darwin), clang + OpenSSL present  

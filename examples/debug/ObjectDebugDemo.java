@@ -1,6 +1,7 @@
 /**
  * Object / String / array debug showcase for LLDB + VS Code.
  * Stop at the println(probe) line to inspect variables.
+ * @author 张晓达
  */
 class Animal {
     String name;

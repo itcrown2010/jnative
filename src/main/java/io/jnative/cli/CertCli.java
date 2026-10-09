@@ -10,7 +10,9 @@ import java.util.Locale;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-/** `jnative cert` — development TLS certificate helpers (0.31). */
+/** `jnative cert` — development TLS certificate helpers (0.31).
+ * @author 张晓达
+ */
 public final class CertCli {
 
     private static final Pattern PEM_SUBJECT = Pattern.compile("subject\\s*=\\s*(.+)", Pattern.CASE_INSENSITIVE);

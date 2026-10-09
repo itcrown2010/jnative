@@ -1,5 +1,7 @@
 # JNative VS Code 扩展
 
+作者：张晓达
+
 在 VS Code 中创建、编辑、构建并运行 **JNative** 原生控制台程序。
 
 > 编译工具需要 Java；生成的应用运行时 **不需要 JVM**。  
@@ -10,9 +12,17 @@
 1. 构建仓库 CLI：`mvn -q -DskipTests package`（生成 `target/jnative.jar`）。
 2. 安装扩展 VSIX：
 
+先打包（会带上 `vscode-languageclient`，勿加 `--no-dependencies`）：
+
+```bash
+cd tools/vscode-jnative && npm install && npm run package
+```
+
+再安装：
+
 ```bash
 "/Applications/Visual Studio Code.app/Contents/Resources/app/bin/code" \
-  --install-extension tools/vscode-jnative/jnative-0.2.0.vsix
+  --install-extension tools/vscode-jnative/jnative-0.2.1.vsix
 ```
 
 或在 VS Code：扩展视图 → `...` → Install from VSIX。
@@ -111,7 +121,7 @@ npm install
 npm run compile
 npm run lint
 node out/test/runUnit.js          # 单元测试（项目识别 / JSON 报告）
-npx vsce package --no-dependencies
+npm run package
 ```
 
 ## 调试（源码级 MVP）

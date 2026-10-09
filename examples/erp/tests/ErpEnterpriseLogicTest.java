@@ -1,6 +1,7 @@
 /**
  * Enterprise Foundation 1.4 — authorization, isolation, metadata, workflow,
  * reports, CSV IO, settings, audit. Native + PostgreSQL preferred.
+ * @author 张晓达
  */
 class ErpEnterpriseLogicTest {
     static long companyA = 0L;

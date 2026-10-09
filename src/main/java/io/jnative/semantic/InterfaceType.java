@@ -2,6 +2,7 @@ package io.jnative.semantic;
 
 /**
  * Interface reference type (distinct from {@link ClassType}).
+ * @author 张晓达
  */
 public record InterfaceType(InterfaceSymbol interfaceSymbol) implements JType {
 

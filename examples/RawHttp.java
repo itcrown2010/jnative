@@ -1,3 +1,6 @@
+/**
+ * @author 张晓达
+ */
 public class RawHttp {
     public static void main(String[] args) {
         TcpSocket socket = TcpSocket.connect("example.com", 80);

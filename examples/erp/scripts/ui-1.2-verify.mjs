@@ -1,3 +1,4 @@
+// Author: 张晓达
 /**
  * UI 1.2 Document Editor — real browser verification (Playwright).
  * Does not claim WASM SPA. Records measured perf; does not invent numbers.

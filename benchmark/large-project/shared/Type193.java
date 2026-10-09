@@ -1,3 +1,6 @@
+/**
+ * @author 张晓达
+ */
 class Type193 {
     int id;
     String name;

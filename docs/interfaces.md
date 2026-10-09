@@ -1,5 +1,7 @@
 # Interfaces (0.14)
 
+作者：张晓达
+
 JNative 0.14 adds a first-class **InterfaceSymbol** (distinct from ClassSymbol), ITable dispatch, abstract classes, and functional-interface lambda conversion.
 
 ## Syntax

@@ -13,7 +13,9 @@ import io.jnative.processor.builtin.ValidationProcessor;
 import java.util.ArrayList;
 import java.util.List;
 
-/** Discovers processors from explicit registry / package metadata (no classpath scan). */
+/** Discovers processors from explicit registry / package metadata (no classpath scan).
+ * @author 张晓达
+ */
 public final class ProcessorRegistry {
 
     private ProcessorRegistry() {

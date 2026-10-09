@@ -1,4 +1,6 @@
-/** Shared enums as string constants (JNative has limited enum support). */
+/** Shared enums as string constants (JNative has limited enum support).
+ * @author 张晓达
+ */
 class EventStatus {
     static String CONFIRMED = "CONFIRMED";
     static String TENTATIVE = "TENTATIVE";

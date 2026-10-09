@@ -2,6 +2,7 @@
  * wasm32-browser float/double smoke: all arithmetic runs in WASM.
  * UI only parses input text and displays results.
  * f/F suffixes are supported; casts remain for cross-width demos.
+ * @author 张晓达
  */
 public class FloatCalc {
     public static double lastLeft;

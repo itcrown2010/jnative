@@ -20,7 +20,9 @@ import java.util.concurrent.TimeUnit;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-/** Generics type-safety + Iterable enhanced-for. */
+/** Generics type-safety + Iterable enhanced-for.
+ * @author 张晓达
+ */
 class GenericsIterableEndToEndTest {
 
     @Test

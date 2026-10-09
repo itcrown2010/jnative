@@ -7,6 +7,9 @@ import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+/**
+ * @author 张晓达
+ */
 class SemanticAnalyzerTest {
 
     private DiagnosticReporter analyze(String src) {

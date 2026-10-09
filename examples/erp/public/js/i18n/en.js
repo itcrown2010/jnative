@@ -1,3 +1,4 @@
+// Author: 张晓达
 (function (global) {
   var en = {
     "app.title": "JNative One - ERP",

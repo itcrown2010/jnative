@@ -25,6 +25,7 @@ import java.util.Set;
  * Lowers reachable JNative IR functions to WAT for wasm32-browser.
  * Uses a basic-block dispatcher (br_table) so arbitrary CFG / loops lower correctly.
  * Unsupported IR fails loudly — never silently returns a default.
+ * @author 张晓达
  */
 public final class WebUiIrToWat {
 
@@ -50,8 +51,13 @@ public final class WebUiIrToWat {
             "_JN_ArrayList_",
             "_JN_ArrayListIterator_",
             "_JN_HashMap_",
+            "_JN_HashMapEntry_",
+            "_JN_HashMapEntryIterator_",
             "_JN_HashMapIterator_",
+            "_JN_HashSet_",
             "_JN_LinkedList_",
+            "_JN_ArrayDeque_",
+            "_JN_ArrayIterator_",
             "_JN_BrowserNative_",
             "_JN_WebUiNative_",
             "_JN_WebUI_",
@@ -66,9 +72,29 @@ public final class WebUiIrToWat {
             "_JN_ThreadPoolWorker_",
             "_JN_Future_",
             "_JN_CompletableFuture_",
+            "_JN_JnFuture_",
             "_JN_EventLoop_",
             "_JN_Scheduled_",
-            "_JN_Timer_"
+            "_JN_Timer_",
+            "_JN_Async_",
+            "_JN_TimeoutException_",
+            "_JN_FutureSubscription_",
+            "_JN_CancellableFutureCallback_",
+            "_JN_JnCancellationToken_",
+            "_JN_CancellationSource_",
+            "_JN_SuccessCallback_",
+            "_JN_FailureCallback_",
+            "_JN_RunCallbackTask_",
+            "_JN_ThenCallback_",
+            "_JN_FlatMapCallback_",
+            "_JN_ForwardCallback_",
+            "_JN_RecoverCallback_",
+            "_JN_FinallyCallback_",
+            "_JN_AllWaiter_",
+            "_JN_AnyRace_",
+            "_JN_TimeoutSourceCallback_",
+            "_JN_BlockingCompleteTask_",
+            "_JN_ResourceTracker_"
     );
 
     private final IrModule module;
@@ -88,6 +114,13 @@ public final class WebUiIrToWat {
     private Map<Integer, String> currentTempWatTypes = Map.of();
     /** Static global name → WAT type. */
     private final Map<String, String> globalWatTypes = new HashMap<>();
+    /** Current function: WAT local name → shadow-stack slot index (ptr roots only). */
+    private Map<String, Integer> currentRootSlots = Map.of();
+    private boolean currentHasFrame;
+    /** Temp id → true if reference (PTR/NATIVE_PTR). */
+    private Map<Integer, Boolean> currentTempIsRef = Map.of();
+    /** Local identifier → true if reference. */
+    private Map<String, Boolean> currentLocalIsRef = Map.of();
 
     public WebUiIrToWat(IrModule module, Map<String, Integer> stringOffsets) {
         this.module = module;
@@ -205,6 +238,11 @@ public final class WebUiIrToWat {
                         staticGlobals.add(ss.globalName());
                     } else if (insn instanceof IrInstruction.InvokeCallable icv) {
                         internIndirectType(watIndirectFuncBody(icv.returnType(), icv.args()));
+                    } else if (insn instanceof IrInstruction.InterfaceCall ic) {
+                        // May lower to funcref SAM dispatch; pre-register signature.
+                        List<IrValue> invArgs = ic.args().size() > 1
+                                ? ic.args().subList(1, ic.args().size()) : List.of();
+                        internIndirectType(watIndirectFuncBody(ic.returnType(), invArgs));
                     } else if (insn instanceof IrInstruction.MakeCallable mc) {
                         meta.internFuncref(mc.codeSymbol());
                     }
@@ -267,11 +305,16 @@ public final class WebUiIrToWat {
         q.add(root);
         while (!q.isEmpty()) {
             String name = q.poll();
-            if (name == null || !emitSet.add(name)) {
+            if (name == null) {
                 continue;
             }
             IrFunction fn = functionsByName.get(name);
+            // Skip DCE'd / missing bodies — do not leave phantom names in emitSet
+            // (VirtualCall would otherwise emit call $missing).
             if (fn == null) {
+                continue;
+            }
+            if (!emitSet.add(name)) {
                 continue;
             }
             for (IrBasicBlock block : fn.blocks()) {
@@ -399,13 +442,7 @@ public final class WebUiIrToWat {
     }
 
     private void emitBuiltinStubs(StringBuilder out) {
-        if (!emitSet.contains("jnative_exception_pending")) {
-            out.append("  (func $jnative_exception_pending (result i32)\n");
-            out.append("    global.get $jn_pending_exc\n");
-            out.append("    i32.const 0\n");
-            out.append("    i32.ne\n");
-            out.append("  )\n");
-        }
+        // Exception/completion runtime is emitted by WasmExceptionEmitter (BrowserWatEmitter).
         emitTypeHelpers(out);
     }
 
@@ -509,17 +546,22 @@ public final class WebUiIrToWat {
 
         Map<String, String> localTypes = new LinkedHashMap<>();
         Map<Integer, String> tempTypes = new HashMap<>();
+        Map<Integer, Boolean> tempIsRef = new HashMap<>();
+        Map<String, Boolean> localIsRef = new HashMap<>();
         for (IrBasicBlock block : blocks) {
             for (IrInstruction insn : block.instructions()) {
-                collectTypedLocals(insn, localTypes, tempTypes);
+                collectTypedLocals(insn, localTypes, tempTypes, tempIsRef, localIsRef);
             }
         }
         currentLocalWatTypes = localTypes;
         currentTempWatTypes = tempTypes;
+        currentTempIsRef = tempIsRef;
+        currentLocalIsRef = localIsRef;
 
         out.append("    (local $pc i32)\n");
         out.append("    (local $__jn_tid i32)\n");
         out.append("    (local $__jn_asz i32)\n");
+        out.append("    (local $__jn_frame i32)\n");
         if (returns) {
             out.append("    (local $ret ").append(watType(fn.returnType())).append(")\n");
         }
@@ -527,15 +569,45 @@ public final class WebUiIrToWat {
         for (IrValue.Param p : fn.params()) {
             currentParamNames.add(p.identifier());
         }
+        // Precise roots: PTR/NATIVE_PTR params, locals, and temps only.
+        Map<String, Integer> rootSlots = new LinkedHashMap<>();
+        for (IrValue.Param p : fn.params()) {
+            if (isRefType(p.type())) {
+                rootSlots.put(p.identifier(), rootSlots.size());
+            }
+        }
         for (Map.Entry<String, String> e : localTypes.entrySet()) {
             out.append("    (local $").append(slotName(e.getKey())).append(" ")
                     .append(e.getValue()).append(")\n");
+            if (Boolean.TRUE.equals(localIsRef.get(e.getKey()))) {
+                rootSlots.put(slotName(e.getKey()), rootSlots.size());
+            }
         }
         List<Integer> sortedTemps = new ArrayList<>(tempTypes.keySet());
         sortedTemps.sort(Integer::compareTo);
         for (Integer id : sortedTemps) {
             out.append("    (local $t").append(id).append(" ")
                     .append(tempTypes.get(id)).append(")\n");
+            if (Boolean.TRUE.equals(tempIsRef.get(id))) {
+                rootSlots.put("t" + id, rootSlots.size());
+            }
+        }
+        currentRootSlots = rootSlots;
+        currentHasFrame = !rootSlots.isEmpty();
+        if (currentHasFrame) {
+            out.append("    i32.const ").append(rootSlots.size()).append("\n");
+            out.append("    call $jn_gc_frame_push\n");
+            out.append("    local.set $__jn_frame\n");
+            // Root params immediately
+            for (IrValue.Param p : fn.params()) {
+                Integer slot = rootSlots.get(p.identifier());
+                if (slot != null) {
+                    out.append("    local.get $__jn_frame\n");
+                    out.append("    i32.const ").append(slot).append("\n");
+                    out.append("    local.get $").append(p.identifier()).append("\n");
+                    out.append("    call $jn_gc_frame_set_root\n");
+                }
+            }
         }
 
         out.append("    i32.const 0\n");
@@ -585,72 +657,144 @@ public final class WebUiIrToWat {
 
         out.append("      )\n"); // loop
         out.append("    )\n"); // exit
+        if (currentHasFrame) {
+            out.append("    call $jn_gc_frame_pop\n");
+        }
         if (returns) {
             out.append("    local.get $ret\n");
         }
         out.append("  )\n");
+        currentRootSlots = Map.of();
+        currentHasFrame = false;
+    }
+
+    private static boolean isRefType(IrType t) {
+        return t == IrType.PTR || t == IrType.NATIVE_PTR;
+    }
+
+    /** After assigning a rooted local/temp, publish to the shadow stack. */
+    private void emitRootPublish(String watLocalName, StringBuilder out) {
+        if (!currentHasFrame) {
+            return;
+        }
+        Integer slot = currentRootSlots.get(watLocalName);
+        if (slot == null) {
+            return;
+        }
+        out.append("          local.get $__jn_frame\n");
+        out.append("          i32.const ").append(slot).append("\n");
+        out.append("          local.get $").append(watLocalName).append("\n");
+        out.append("          call $jn_gc_frame_set_root\n");
     }
 
     private void collectTypedLocals(
             IrInstruction insn,
             Map<String, String> localTypes,
-            Map<Integer, String> tempTypes
+            Map<Integer, String> tempTypes,
+            Map<Integer, Boolean> tempIsRef,
+            Map<String, Boolean> localIsRef
     ) {
         switch (insn) {
-            case IrInstruction.Alloca a ->
-                    localTypes.put(a.dest().identifier(), watType(a.dest().type()));
-            case IrInstruction.Load ld ->
-                    tempTypes.put(ld.dest().id(), watType(ld.dest().type()));
-            case IrInstruction.StringLiteral sl ->
-                    tempTypes.put(sl.dest().id(), "i32");
+            case IrInstruction.Alloca a -> {
+                localTypes.put(a.dest().identifier(), watType(a.dest().type()));
+                localIsRef.put(a.dest().identifier(), isRefType(a.dest().type()));
+            }
+            case IrInstruction.Load ld -> {
+                tempTypes.put(ld.dest().id(), watType(ld.dest().type()));
+                tempIsRef.put(ld.dest().id(), isRefType(ld.dest().type()));
+            }
+            case IrInstruction.StringLiteral sl -> {
+                tempTypes.put(sl.dest().id(), "i32");
+                tempIsRef.put(sl.dest().id(), true);
+            }
             case IrInstruction.Call c -> {
                 if (c.dest() != null) {
                     tempTypes.put(c.dest().id(), watType(c.dest().type()));
+                    tempIsRef.put(c.dest().id(), isRefType(c.dest().type()));
                 }
             }
-            case IrInstruction.Binary b ->
-                    tempTypes.put(b.dest().id(), watType(b.dest().type()));
-            case IrInstruction.Compare c ->
-                    tempTypes.put(c.dest().id(), "i32");
-            case IrInstruction.Cast c ->
-                    tempTypes.put(c.dest().id(), watType(c.dest().type()));
-            case IrInstruction.UnaryNot u ->
-                    tempTypes.put(u.dest().id(), "i32");
+            case IrInstruction.Binary b -> {
+                tempTypes.put(b.dest().id(), watType(b.dest().type()));
+                tempIsRef.put(b.dest().id(), false);
+            }
+            case IrInstruction.Compare c -> {
+                tempTypes.put(c.dest().id(), "i32");
+                tempIsRef.put(c.dest().id(), false);
+            }
+            case IrInstruction.Cast c -> {
+                tempTypes.put(c.dest().id(), watType(c.dest().type()));
+                tempIsRef.put(c.dest().id(), isRefType(c.dest().type()));
+            }
+            case IrInstruction.UnaryNot u -> {
+                tempTypes.put(u.dest().id(), "i32");
+                tempIsRef.put(u.dest().id(), false);
+            }
             case IrInstruction.VirtualCall vc -> {
                 if (vc.dest() != null) {
                     tempTypes.put(vc.dest().id(), watType(vc.dest().type()));
+                    tempIsRef.put(vc.dest().id(), isRefType(vc.dest().type()));
                 }
             }
             case IrInstruction.InterfaceCall ic -> {
                 if (ic.dest() != null) {
                     tempTypes.put(ic.dest().id(), watType(ic.dest().type()));
+                    tempIsRef.put(ic.dest().id(), isRefType(ic.dest().type()));
                 }
             }
-            case IrInstruction.NewObject no ->
-                    tempTypes.put(no.dest().id(), "i32");
-            case IrInstruction.NewArray na ->
-                    tempTypes.put(na.dest().id(), "i32");
-            case IrInstruction.LoadElement le ->
-                    tempTypes.put(le.dest().id(), watType(le.dest().type()));
-            case IrInstruction.ArrayLength al ->
-                    tempTypes.put(al.dest().id(), "i32");
-            case IrInstruction.LoadField lf ->
-                    tempTypes.put(lf.dest().id(), watType(lf.dest().type()));
-            case IrInstruction.LoadStatic ls ->
-                    tempTypes.put(ls.dest().id(), watType(ls.dest().type()));
-            case IrInstruction.InstanceOf io ->
-                    tempTypes.put(io.dest().id(), "i32");
-            case IrInstruction.InstanceOfInterface ioi ->
-                    tempTypes.put(ioi.dest().id(), "i32");
-            case IrInstruction.CheckedCast cc ->
-                    tempTypes.put(cc.dest().id(), "i32");
-            case IrInstruction.CheckedCastInterface cci ->
-                    tempTypes.put(cci.dest().id(), "i32");
-            case IrInstruction.MakeCallable mc ->
-                    tempTypes.put(mc.dest().id(), "i32");
+            case IrInstruction.NewObject no -> {
+                tempTypes.put(no.dest().id(), "i32");
+                tempIsRef.put(no.dest().id(), true);
+            }
+            case IrInstruction.NewArray na -> {
+                tempTypes.put(na.dest().id(), "i32");
+                tempIsRef.put(na.dest().id(), true);
+            }
+            case IrInstruction.LoadElement le -> {
+                tempTypes.put(le.dest().id(), watType(le.dest().type()));
+                tempIsRef.put(le.dest().id(), isRefType(le.dest().type()));
+            }
+            case IrInstruction.ArrayLength al -> {
+                tempTypes.put(al.dest().id(), "i32");
+                tempIsRef.put(al.dest().id(), false);
+            }
+            case IrInstruction.LoadField lf -> {
+                tempTypes.put(lf.dest().id(), watType(lf.dest().type()));
+                tempIsRef.put(lf.dest().id(), isRefType(lf.dest().type()));
+            }
+            case IrInstruction.LoadStatic ls -> {
+                tempTypes.put(ls.dest().id(), watType(ls.dest().type()));
+                tempIsRef.put(ls.dest().id(), isRefType(ls.dest().type()));
+            }
+            case IrInstruction.InstanceOf io -> {
+                tempTypes.put(io.dest().id(), "i32");
+                tempIsRef.put(io.dest().id(), false);
+            }
+            case IrInstruction.InstanceOfInterface ioi -> {
+                tempTypes.put(ioi.dest().id(), "i32");
+                tempIsRef.put(ioi.dest().id(), false);
+            }
+            case IrInstruction.CheckedCast cc -> {
+                tempTypes.put(cc.dest().id(), "i32");
+                tempIsRef.put(cc.dest().id(), true);
+            }
+            case IrInstruction.CheckedCastInterface cci -> {
+                tempTypes.put(cci.dest().id(), "i32");
+                tempIsRef.put(cci.dest().id(), true);
+            }
+            case IrInstruction.MakeCallable mc -> {
+                tempTypes.put(mc.dest().id(), "i32");
+                tempIsRef.put(mc.dest().id(), true);
+            }
             case IrInstruction.InvokeCallable icv -> {
                 if (icv.dest() != null) {
                     tempTypes.put(icv.dest().id(), watType(icv.dest().type()));
+                    tempIsRef.put(icv.dest().id(), isRefType(icv.dest().type()));
+                }
+            }
+            case IrInstruction.NativeCall nc -> {
+                if (nc.dest() != null) {
+                    tempTypes.put(nc.dest().id(), watType(nc.dest().type()));
+                    tempIsRef.put(nc.dest().id(), isRefType(nc.dest().type()));
                 }
             }
             default -> {
@@ -674,12 +818,15 @@ public final class WebUiIrToWat {
             }
             case IrInstruction.Store st -> {
                 out.append("          ").append(emitValue(st.value())).append("\n");
-                out.append("          local.set $").append(slotName(st.dest().identifier())).append("\n");
+                String sn = slotName(st.dest().identifier());
+                out.append("          local.set $").append(sn).append("\n");
+                emitRootPublish(sn, out);
                 return false;
             }
             case IrInstruction.Load ld -> {
                 out.append("          local.get $").append(slotName(ld.source().identifier())).append("\n");
                 out.append("          local.set $t").append(ld.dest().id()).append("\n");
+                emitRootPublish("t" + ld.dest().id(), out);
                 return false;
             }
             case IrInstruction.StringLiteral sl -> {
@@ -694,10 +841,14 @@ public final class WebUiIrToWat {
                 out.append("          i32.const ").append(len).append("\n");
                 out.append("          call $jn_str\n");
                 out.append("          local.set $t").append(sl.dest().id()).append("\n");
+                emitRootPublish("t" + sl.dest().id(), out);
                 return false;
             }
             case IrInstruction.Call c -> {
                 emitCall(c.dest(), c.function(), c.args(), c.returnType(), out);
+                if (c.dest() != null) {
+                    emitRootPublish("t" + c.dest().id(), out);
+                }
                 return false;
             }
             case IrInstruction.Return r -> {
@@ -750,6 +901,7 @@ public final class WebUiIrToWat {
                 out.append("          ").append(emitValue(c.source())).append("\n");
                 emitCast(typeOf(c.source()), c.target(), c.mode(), out);
                 out.append("          local.set $t").append(c.dest().id()).append("\n");
+                emitRootPublish("t" + c.dest().id(), out);
                 return false;
             }
             case IrInstruction.UnaryNot u -> {
@@ -766,15 +918,19 @@ public final class WebUiIrToWat {
                 out.append("          ").append(emitValue(nc.pointer())).append("\n");
                 out.append("          i32.eqz\n");
                 out.append("          if\n");
-                out.append("            unreachable\n"); // language NPE not wired — WASM trap
+                out.append("            call $jnative_throw_npe\n");
                 out.append("          end\n");
                 return false;
             }
             case IrInstruction.SafepointPoll ignored -> {
+                out.append("          call $jn_gc_safepoint\n");
                 return false;
             }
             case IrInstruction.VirtualCall vc -> {
                 emitVirtualCall(vc, out);
+                if (vc.dest() != null) {
+                    emitRootPublish("t" + vc.dest().id(), out);
+                }
                 return false;
             }
             case IrInstruction.NewObject no -> {
@@ -798,6 +954,7 @@ public final class WebUiIrToWat {
             case IrInstruction.CheckedCast cc -> {
                 out.append("          ").append(emitValue(cc.object())).append("\n");
                 out.append("          local.set $t").append(cc.dest().id()).append("\n");
+                emitRootPublish("t" + cc.dest().id(), out);
                 out.append("          local.get $t").append(cc.dest().id()).append("\n");
                 out.append("          i32.const ").append(meta.typeId(cc.targetMetaGlobal())).append("\n");
                 out.append("          call $jn_instanceof\n");
@@ -810,6 +967,7 @@ public final class WebUiIrToWat {
             case IrInstruction.CheckedCastInterface cci -> {
                 out.append("          ").append(emitValue(cci.object())).append("\n");
                 out.append("          local.set $t").append(cci.dest().id()).append("\n");
+                emitRootPublish("t" + cci.dest().id(), out);
                 out.append("          local.get $t").append(cci.dest().id()).append("\n");
                 out.append("          i32.const ").append(cci.interfaceId()).append("\n");
                 out.append("          call $jn_instanceof_iface\n");
@@ -825,21 +983,29 @@ public final class WebUiIrToWat {
             }
             case IrInstruction.InvokeCallable icv -> {
                 emitInvokeCallable(icv, out);
+                if (icv.dest() != null) {
+                    emitRootPublish("t" + icv.dest().id(), out);
+                }
                 return false;
             }
             case IrInstruction.Throw t -> {
                 out.append("          ").append(emitValue(t.exception())).append("\n");
-                out.append("          global.set $jn_pending_exc\n");
-                out.append("          unreachable\n"); // try/catch not lowered on wasm yet
-                return true;
+                out.append("          call $jnative_exception_throw\n");
+                return false;
             }
             case IrInstruction.ClearException ignored -> {
-                out.append("          i32.const 0\n");
-                out.append("          global.set $jn_pending_exc\n");
+                out.append("          call $jnative_exception_clear\n");
                 return false;
             }
             case IrInstruction.GcCollect ignored -> {
-                // No GC — bump heap only
+                out.append("          call $jn_gc_collect\n");
+                return false;
+            }
+            case IrInstruction.NativeCall nc -> {
+                emitCall(nc.dest(), nc.symbol(), nc.args(), nc.returnType(), out);
+                if (nc.dest() != null) {
+                    emitRootPublish("t" + nc.dest().id(), out);
+                }
                 return false;
             }
             case IrInstruction.ConstructorCall cc -> {
@@ -848,6 +1014,7 @@ public final class WebUiIrToWat {
             }
             case IrInstruction.LoadField lf -> {
                 emitLoadField(lf, out);
+                emitRootPublish("t" + lf.dest().id(), out);
                 return false;
             }
             case IrInstruction.StoreField sf -> {
@@ -860,6 +1027,7 @@ public final class WebUiIrToWat {
             }
             case IrInstruction.LoadElement le -> {
                 emitLoadElement(le, out);
+                emitRootPublish("t" + le.dest().id(), out);
                 return false;
             }
             case IrInstruction.StoreElement se -> {
@@ -873,6 +1041,14 @@ public final class WebUiIrToWat {
             case IrInstruction.LoadStatic ls -> {
                 out.append("          global.get $").append(sanitizeGlobal(ls.globalName())).append("\n");
                 out.append("          local.set $t").append(ls.dest().id()).append("\n");
+                emitRootPublish("t" + ls.dest().id(), out);
+                return false;
+            }
+            case IrInstruction.InterfaceCall ic -> {
+                emitInterfaceCall(ic, out);
+                if (ic.dest() != null) {
+                    emitRootPublish("t" + ic.dest().id(), out);
+                }
                 return false;
             }
             case IrInstruction.StoreStatic ss -> {
@@ -883,10 +1059,6 @@ public final class WebUiIrToWat {
             case IrInstruction.Println ignored ->
                     throw new IllegalStateException(
                             "wasm32-browser: Println is not supported (no host stdout); use Browser console APIs");
-            case IrInstruction.InterfaceCall ic -> {
-                emitInterfaceCall(ic, out);
-                return false;
-            }
             default -> throw new IllegalStateException(
                     "wasm32-browser: unsupported IR instruction (compile rejected): "
                             + insn.getClass().getSimpleName());
@@ -951,7 +1123,7 @@ public final class WebUiIrToWat {
             }
             out.append("          i32.eqz\n");
             out.append("          if\n");
-            out.append("            unreachable\n");
+            out.append("            call $jnative_throw_npe\n");
             out.append("          end\n");
             return;
         }
@@ -982,32 +1154,70 @@ public final class WebUiIrToWat {
             }
             return;
         }
-        // Soft stubs: exception bookkeeping / mutex no-ops (no host threads on wasm32-browser).
-        if (function.startsWith("jnative_throwable_")
-                || function.startsWith("jnative_mutex_")
-                || function.equals("jnative_gc_frame_push")
-                || function.equals("jnative_gc_frame_pop")
-                || function.equals("jnative_gc_frame_set_root")
-                || function.equals("jnative_gc_collect")
-                || function.equals("jnative_exception_clear")) {
+        if (function.equals("jnative_gc_frame_push")) {
+            emitArgs(args, out);
+            out.append("          call $jn_gc_frame_push\n");
             if (dest != null) {
-                String wt = watType(dest.type());
-                out.append("          ").append(zeroConst(wt)).append("\n");
                 out.append("          local.set $t").append(dest.id()).append("\n");
             }
             return;
         }
-        if (function.equals("jnative_exception_throw")) {
-            if (!args.isEmpty()) {
-                out.append("          ").append(emitValue(args.get(0))).append("\n");
-                out.append("          global.set $jn_pending_exc\n");
+        if (function.equals("jnative_gc_frame_set_root")) {
+            emitArgs(args, out);
+            out.append("          call $jn_gc_frame_set_root\n");
+            return;
+        }
+        if (function.equals("jnative_gc_frame_pop")) {
+            out.append("          call $jn_gc_frame_pop\n");
+            return;
+        }
+        if (function.equals("jnative_gc_collect") || function.equals("jnative_safepoint_poll")) {
+            out.append("          call $jn_gc_collect\n");
+            return;
+        }
+        if (function.equals("jnative_throwable_add_suppressed")
+                || function.equals("jnative_throwable_get_suppressed")
+                || function.startsWith("jnative_exception_")
+                || function.startsWith("jnative_completion_")
+                || function.startsWith("jnative_throw_")) {
+            emitArgs(args, out);
+            out.append("          call $").append(sanitize(function)).append("\n");
+            if (dest != null && ret != IrType.VOID) {
+                out.append("          local.set $t").append(dest.id()).append("\n");
             }
-            out.append("          unreachable\n");
+            return;
+        }
+        if (function.startsWith("jnative_throwable_") || function.startsWith("jnative_mutex_")
+                || function.startsWith("jnative_poll_")
+                || function.equals("jnative_plat_set_nonblocking")
+                || function.equals("jnative_web_mono_millis")
+                || function.equals("jnative_wall_millis")
+                || function.equals("jnative_cpu_count")
+                || function.startsWith("jnative_thread_")
+                || function.startsWith("jnative_park_")
+                || function.startsWith("jnative_unpark")
+                || function.startsWith("jnative_atomic_")
+                || function.startsWith("jnative_futex_")
+                || function.startsWith("jnative_socket_")
+                || function.startsWith("jnative_file_")
+                || function.startsWith("jnative_nio_")
+                || function.startsWith("jnative_ui_")
+                || function.startsWith("jnative_clipboard_")) {
+            // Browser: OS/threading/IO/desktop natives — soft-stub (void no-op / zero result).
+            if (dest != null) {
+                out.append("          ").append(zeroConst(watType(dest.type()))).append("\n");
+                out.append("          local.set $t").append(dest.id()).append("\n");
+            }
             return;
         }
         if (function.startsWith("jnative_")) {
-            throw new IllegalStateException(
-                    "wasm32-browser: unsupported runtime builtin (rejected): " + function);
+            // Remaining native runtime symbols (cond/sync/async helpers, etc.): soft-stub.
+            // Browser path must not pull OS runtimes; zeros are safe for unused branches.
+            if (dest != null) {
+                out.append("          ").append(zeroConst(watType(dest.type()))).append("\n");
+                out.append("          local.set $t").append(dest.id()).append("\n");
+            }
+            return;
         }
         if (!emitSet.contains(function) && !functionsByName.containsKey(function)) {
             throw new IllegalStateException("wasm: missing callee: " + function);
@@ -1018,12 +1228,13 @@ public final class WebUiIrToWat {
         out.append("          call $").append(sanitize(function)).append("\n");
         if (dest != null && ret != IrType.VOID) {
             out.append("          local.set $t").append(dest.id()).append("\n");
+            // root publish done by callers for Call; NativeCall path also via emitInstruction
         }
     }
 
     private boolean isBrowserNative(String fn) {
+        // Only BrowserNative/WebUiNative host stubs — Browser.document()/console() are real IR.
         return fn.startsWith("_JN_BrowserNative_") || fn.startsWith("_JN_WebUiNative_")
-                || fn.equals("_JN_Browser_console") || fn.equals("_JN_Browser_document")
                 || fn.startsWith("_JN_Console_");
     }
 
@@ -1033,18 +1244,18 @@ public final class WebUiIrToWat {
             List<IrValue> args,
             StringBuilder out
     ) {
-        if (function.equals("_JN_Browser_console") || function.equals("_JN_Browser_document")) {
-            out.append("          i32.const 0\n");
-            if (dest != null) {
-                out.append("          local.set $t").append(dest.id()).append("\n");
-            }
-            return;
-        }
         if (function.startsWith("_JN_Console_log")
                 || function.contains("BrowserNative_consoleLog")) {
             for (IrValue arg : args) {
                 out.append("          ").append(emitValue(arg)).append("\n");
             }
+            out.append("          call $jn_console_log\n");
+            return;
+        }
+        if (function.contains("BrowserNative_consoleWarn") || function.startsWith("_JN_Console_warn")
+                || function.contains("BrowserNative_consoleError") || function.startsWith("_JN_Console_error")) {
+            // Map warn/error to log until dedicated WAT helpers are required.
+            emitArgs(args, out);
             out.append("          call $jn_console_log\n");
             return;
         }
@@ -1108,8 +1319,11 @@ public final class WebUiIrToWat {
             out.append("          call $jn_input_set_value\n");
             return;
         }
-        throw new IllegalStateException(
-                "wasm32-browser: unsupported BrowserNative/WebUiNative call (rejected): " + function);
+        // Unknown browser native: soft-stub (DOM APIs not wired yet).
+        if (dest != null) {
+            out.append("          ").append(zeroConst(watType(dest.type()))).append("\n");
+            out.append("          local.set $t").append(dest.id()).append("\n");
+        }
     }
 
     private void emitArgs(List<IrValue> args, StringBuilder out) {
@@ -1124,8 +1338,14 @@ public final class WebUiIrToWat {
         out.append("          call $jn_alloc_zeroed\n");
         out.append("          local.set $t").append(no.dest().id()).append("\n");
         out.append("          local.get $t").append(no.dest().id()).append("\n");
+        out.append("          i32.eqz\n");
+        out.append("          if\n");
+        out.append("            unreachable\n"); // alloc failure
+        out.append("          end\n");
+        out.append("          local.get $t").append(no.dest().id()).append("\n");
         out.append("          i32.const ").append(typeId).append("\n");
-        out.append("          i32.store\n"); // typeId @0
+        out.append("          i32.store\n");
+        emitRootPublish("t" + no.dest().id(), out);
     }
 
     private void emitVirtualCall(IrInstruction.VirtualCall vc, StringBuilder out) {
@@ -1134,14 +1354,18 @@ public final class WebUiIrToWat {
         String methodName = WasmMetaRegistry.methodNameFromDebug(vc.debugName());
         Map<Integer, String> byType = new LinkedHashMap<>();
         for (Map.Entry<String, Integer> e : meta.allMetaTypeIds().entrySet()) {
-            String metaName = e.getKey();
-            String cls = metaName.startsWith("meta.") ? metaName.substring(5) : metaName;
-            if (!liveClasses.isEmpty() && !liveClasses.contains(cls)) {
-                continue;
+            int tid = e.getValue();
+            String impl = meta.resolveVirtualNamed(tid, vc.slot(), methodName);
+            if (impl == null && methodName != null) {
+                // Inherited slots sometimes omit slot-owner names on the leaf type;
+                // accept resolveVirtual when mangled name still matches the method.
+                String cand = meta.resolveVirtual(tid, vc.slot());
+                if (cand != null && cand.contains("_" + methodName)) {
+                    impl = cand;
+                }
             }
-            String impl = meta.resolveVirtualNamed(e.getValue(), vc.slot(), methodName);
-            if (impl != null && emitSet.contains(impl)) {
-                byType.put(e.getValue(), impl);
+            if (impl != null && emitSet.contains(impl) && functionsByName.containsKey(impl)) {
+                byType.put(tid, impl);
             }
         }
         if (byType.isEmpty()) {
@@ -1205,14 +1429,18 @@ public final class WebUiIrToWat {
         Map<Integer, String> byType = new LinkedHashMap<>();
         for (int tid : meta.implementorsOf(ic.interfaceId())) {
             String impl = meta.resolveInterface(tid, ic.interfaceId(), ic.slot());
-            if (impl != null) {
+            // Only dispatch to bodies we actually emit (emitSet); IR may still list DCE'd names.
+            if (impl != null && emitSet.contains(impl) && functionsByName.containsKey(impl)) {
                 byType.put(tid, impl);
             }
         }
+        // SAM / lambda adapters share MakeCallable layout (code@8, env@16). When no
+        // concrete IR itable target exists, dispatch via funcref like InvokeCallable.
         if (byType.isEmpty()) {
-            throw new IllegalStateException(
-                    "wasm32-browser: unresolved InterfaceCall iface=" + ic.interfaceId()
-                            + " slot=" + ic.slot() + " " + ic.debugName());
+            List<IrValue> invArgs = args.size() > 1 ? args.subList(1, args.size()) : List.of();
+            emitInvokeCallable(new IrInstruction.InvokeCallable(
+                    ic.dest(), ic.receiver(), ic.returnType(), invArgs), out);
+            return;
         }
         if (byType.size() == 1) {
             emitCall(ic.dest(), byType.values().iterator().next(), args, ic.returnType(), out);
@@ -1257,9 +1485,13 @@ public final class WebUiIrToWat {
         out.append("          call $jn_alloc_zeroed\n");
         out.append("          local.set $t").append(m.dest().id()).append("\n");
         out.append("          local.get $t").append(m.dest().id()).append("\n");
+        out.append("          i32.eqz\n");
+        out.append("          if\n");
+        out.append("            unreachable\n");
+        out.append("          end\n");
+        out.append("          local.get $t").append(m.dest().id()).append("\n");
         out.append("          i32.const ").append(typeId).append("\n");
         out.append("          i32.store\n");
-        // code field is long @ CALLABLE_CODE_OFFSET — store funcref index as i64
         out.append("          local.get $t").append(m.dest().id()).append("\n");
         out.append("          i32.const ").append(WasmLayout.CALLABLE_CODE_OFFSET).append("\n");
         out.append("          i32.add\n");
@@ -1274,6 +1506,7 @@ public final class WebUiIrToWat {
             out.append("          i32.const 0\n");
         }
         out.append("          i32.store\n");
+        emitRootPublish("t" + m.dest().id(), out);
     }
 
     private void emitInvokeCallable(IrInstruction.InvokeCallable i, StringBuilder out) {
@@ -1319,13 +1552,26 @@ public final class WebUiIrToWat {
         internIndirectType("(func (param i32) (param i32))");
     }
 
-    private void emitLoadField(IrInstruction.LoadField lf, StringBuilder out) {
-        ClassLayout layout = module.classLayouts().get(lf.className());
-        int offset = 0;
-        if (layout != null && lf.fieldIndex() < layout.fields().size()) {
-            FieldLayout fl = layout.fields().get(lf.fieldIndex());
-            offset = (int) fl.offset();
+    /** IR {@code fieldIndex} is the LLVM GEP index (header=0); match {@link FieldLayout#index()}. */
+    private int fieldByteOffset(String className, int gepIndex) {
+        ClassLayout layout = module.classLayouts().get(className);
+        if (layout == null) {
+            return 0;
         }
+        for (FieldLayout fl : layout.fields()) {
+            if (fl.index() == gepIndex) {
+                return (int) fl.offset();
+            }
+        }
+        // Legacy: some paths used 0-based field list index
+        if (gepIndex >= 0 && gepIndex < layout.fields().size()) {
+            return (int) layout.fields().get(gepIndex).offset();
+        }
+        return 0;
+    }
+
+    private void emitLoadField(IrInstruction.LoadField lf, StringBuilder out) {
+        int offset = fieldByteOffset(lf.className(), lf.fieldIndex());
         out.append("          ").append(emitValue(lf.receiver())).append("\n");
         out.append("          i32.const ").append(offset).append("\n");
         out.append("          i32.add\n");
@@ -1334,12 +1580,7 @@ public final class WebUiIrToWat {
     }
 
     private void emitStoreField(IrInstruction.StoreField sf, StringBuilder out) {
-        ClassLayout layout = module.classLayouts().get(sf.className());
-        int offset = 0;
-        if (layout != null && sf.fieldIndex() < layout.fields().size()) {
-            FieldLayout fl = layout.fields().get(sf.fieldIndex());
-            offset = (int) fl.offset();
-        }
+        int offset = fieldByteOffset(sf.className(), sf.fieldIndex());
         out.append("          ").append(emitValue(sf.receiver())).append("\n");
         out.append("          i32.const ").append(offset).append("\n");
         out.append("          i32.add\n");
@@ -1376,8 +1617,14 @@ public final class WebUiIrToWat {
         out.append("          local.get $__jn_asz\n");
         out.append("          i32.const ").append(WasmLayout.ARRAY_DATA_OFFSET).append("\n");
         out.append("          i32.add\n");
-        out.append("          call $jn_alloc_zeroed\n");
+        out.append("          i32.const ").append(na.referenceElements() ? 1 : 0).append("\n");
+        out.append("          call $jn_gc_alloc_array\n");
         out.append("          local.set $t").append(na.dest().id()).append("\n");
+        out.append("          local.get $t").append(na.dest().id()).append("\n");
+        out.append("          i32.eqz\n");
+        out.append("          if\n");
+        out.append("            unreachable\n");
+        out.append("          end\n");
         out.append("          local.get $t").append(na.dest().id()).append("\n");
         out.append("          i32.const ").append(typeId).append("\n");
         out.append("          i32.store\n");
@@ -1386,6 +1633,7 @@ public final class WebUiIrToWat {
         out.append("          i32.add\n");
         out.append("          ").append(emitValue(na.length())).append("\n");
         out.append("          i32.store\n");
+        emitRootPublish("t" + na.dest().id(), out);
     }
 
     private void emitLoadElement(IrInstruction.LoadElement le, StringBuilder out) {

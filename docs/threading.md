@@ -1,5 +1,7 @@
 # Threading (0.9)
 
+作者：张晓达
+
 JNative 0.9 maps each managed `Thread` to a **real OS thread** (POSIX `pthread` on macOS/Linux).
 
 ```text

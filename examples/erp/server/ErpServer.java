@@ -6,6 +6,7 @@ import jnative.json.*;
  *
  * Default DB: postgresql://jnative_erp@127.0.0.1:5432/jnative_erp
  * Fallback:    DATABASE_URL=sqlite:./build/erp/erp.db
+ * @author 张晓达
  */
 public class ErpServer {
     @Native(symbol = "exit")

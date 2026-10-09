@@ -1,6 +1,8 @@
 package io.jnative.backend.llvm.runtime;
 
-/** println helpers. String objects store UTF-8 bytes inline at +16. */
+/** println helpers. String objects store UTF-8 bytes inline at +16.
+ * @author 张晓达
+ */
 public final class IoRuntimeEmitter {
     private final StringBuilder sb;
 

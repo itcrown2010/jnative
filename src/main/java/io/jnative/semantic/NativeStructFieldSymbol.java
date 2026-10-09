@@ -5,6 +5,7 @@ import io.jnative.ffi.AbiType;
 
 /**
  * Field of a {@link NativeStructSymbol}. Not a managed {@link FieldSymbol}.
+ * @author 张晓达
  */
 public final class NativeStructFieldSymbol {
     private final NativeStructSymbol owner;

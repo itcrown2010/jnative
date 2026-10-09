@@ -1,5 +1,7 @@
 # JNative GC
 
+作者：张晓达
+
 **Canonical design (code truth):** [gc-current-design.md](gc-current-design.md)  
 **Operational overview:** [gc2.md](gc2.md)
 

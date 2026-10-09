@@ -1,3 +1,4 @@
+-- Author: 张晓达
 -- Finance 1.2 schema (PostgreSQL). Money = integer currency units (no float).
 
 ALTER TABLE items ADD COLUMN IF NOT EXISTS unit_cost_amount BIGINT NOT NULL DEFAULT 0;

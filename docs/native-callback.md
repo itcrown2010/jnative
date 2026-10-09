@@ -1,5 +1,7 @@
 # Native Callback (0.10)
 
+作者：张晓达
+
 `Native.callback(sam)` exports a managed SAM as a C function pointer for FFI.
 
 ## API

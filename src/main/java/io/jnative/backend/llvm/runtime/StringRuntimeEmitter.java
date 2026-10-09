@@ -3,6 +3,7 @@ package io.jnative.backend.llvm.runtime;
 /**
  * String runtime (UTF-16 code units). Core logic in {@code jnative_string.c}.
  * Layout: {@code { ClassMeta* @0, i32 utf16Len @8, uint16 data[] @16 }}.
+ * @author 张晓达
  */
 public final class StringRuntimeEmitter {
     private final StringBuilder sb;

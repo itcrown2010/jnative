@@ -5,7 +5,9 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
-/** Resolved dependency graph (exact versions). */
+/** Resolved dependency graph (exact versions).
+ * @author 张晓达
+ */
 public final class ResolvedDependencyGraph {
     private final Map<PackageId, ResolvedPackage> packages = new LinkedHashMap<>();
     private final List<String> explain = new ArrayList<>();

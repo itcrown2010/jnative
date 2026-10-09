@@ -3,6 +3,7 @@ package com.demo.order;
 /**
  * In-memory index + Unicode file snapshot.
  * ArrayList&lt;Order&gt; for order, HashMap&lt;String, Order&gt; for lookup.
+ * @author 张晓达
  */
 public class OrderStore {
     public ArrayList<Order> orders;

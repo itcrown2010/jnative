@@ -11,7 +11,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
 
-/** Exact resolved graph on disk — jnative.lock (stable ordering, human-diffable). */
+/** Exact resolved graph on disk — jnative.lock (stable ordering, human-diffable).
+ * @author 张晓达
+ */
 public final class Lockfile {
     public static final String FORMAT_VERSION = "1";
 

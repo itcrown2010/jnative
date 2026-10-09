@@ -14,6 +14,7 @@ import java.util.stream.Stream;
 /**
  * Builds web (WASM) then optionally Android/iOS debug artifacts.
  * On failure, does not leave prior successful platform packages as "current".
+ * @author 张晓达
  */
 public final class MobileBuilder {
 

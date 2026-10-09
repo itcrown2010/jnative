@@ -1,5 +1,8 @@
 // JNative Auth (0.25) — Session, Auth, CSRF, RateLimit, SecurityHeaders.
 
+/**
+ * @author 张晓达
+ */
 class UnauthorizedException extends WebException {
     UnauthorizedException(String message) {
         super(401, message);

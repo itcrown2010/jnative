@@ -1,3 +1,4 @@
+/* Author: 张晓达 */
 /* JNative 0.19 — software raster graphics + PNG (zlib). Platform-neutral C ABI. */
 #include "jnative_graphics.h"
 

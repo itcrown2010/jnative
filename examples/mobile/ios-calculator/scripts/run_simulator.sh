@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# Author: 张晓达
 # Install + launch the built simulator .app and capture screenshots when possible.
 set -euo pipefail
 

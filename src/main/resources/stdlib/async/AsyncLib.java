@@ -74,6 +74,7 @@ interface JnFutureCallback {
  * Cancellable wrapper around {@link JnFutureCallback}.
  * cancel() is idempotent; a cancelled callback is skipped (at most once otherwise).
  * Does not force-stop a callback already running on the event loop thread.
+ * @author 张晓达
  */
 class FutureSubscription {
     int cancelled;
@@ -370,10 +371,11 @@ class JnFuture {
     }
 
     void dispatchOneCallback(JnFutureCallback cb) {
-        // Always queue onto the associated loop when present so completions that race
-        // before run() still execute on the loop thread once it starts (or during the
-        // stop-before-run drain). No loop → invoke on the completing thread.
-        if (loop != null) {
+        // Queue onto the loop only while it is running. Completions before EventLoop.run()
+        // (e.g. ErpDb.setup + FutureBlocker.blockingWait) must invoke inline — otherwise
+        // callbacks sit forever in the ready queue and blockingWait deadlocks.
+        // stop()-before-run still drains via EventLoop.run()'s processReady path.
+        if (loop != null && loop.running != 0) {
             RunCallbackTask t = new RunCallbackTask();
             t.cb = cb;
             t.future = this;
@@ -1171,9 +1173,10 @@ class BlockingRunTask implements PoolTask {
     }
 
     void completeBlockingFuture(Object value, Exception error) {
-        // Always hand completion to the loop queue when a loop is bound — avoids
-        // stop()/callback races when the worker finishes before EventLoop.run().
-        if (loop != null) {
+        // Only marshal onto the loop while it is running. Before EventLoop.run(),
+        // complete inline so FutureBlocker.blockingWait (DB migrate/seed, tests) can
+        // observe done without pumping the loop.
+        if (loop != null && loop.running != 0) {
             BlockingCompleteTask done = new BlockingCompleteTask();
             done.future = future;
             done.value = value;
@@ -1443,7 +1446,15 @@ class FutureBlocker {
             if (f.isDone()) {
                 alive = 0;
             } else {
-                Thread.sleep(1);
+                /* Drain ready tasks if wait races a still-idle loop (queued completions). */
+                if (f.loop != null && f.loop.running == 0) {
+                    f.loop.processReady();
+                }
+                if (f.isDone()) {
+                    alive = 0;
+                } else {
+                    Thread.sleep(1);
+                }
             }
         }
     }

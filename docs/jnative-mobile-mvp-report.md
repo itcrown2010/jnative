@@ -1,5 +1,7 @@
 # JNative Mobile MVP — Delivery Report
 
+作者：张晓达
+
 Date: 2026-10-08  
 Host: macOS (darwin), Xcode 26.6, Android SDK at `~/Library/Android/sdk`
 

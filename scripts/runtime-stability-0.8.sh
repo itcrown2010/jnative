@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# Author: 张晓达
 # JNative 0.8 — Runtime Stability runner
 # Usage:
 #   ./scripts/runtime-stability-0.8.sh              # short suite

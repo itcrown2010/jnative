@@ -1,5 +1,7 @@
 # Explorer Capability Audit
 
+作者：张晓达
+
 **Date:** 2026-10-07  
 **Scope:** `examples/explorer` + `jnative.ui` / `jnative.io` / native Cocoa·Win32  
 **Rule:** class existence alone ≠ PASS.

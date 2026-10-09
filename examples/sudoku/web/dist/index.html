@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="zh">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>JNative 数独</title>
+  <link rel="stylesheet" href="./sudoku.css"/>
+</head>
+<body>
+  <div id="app">
+    <h1 id="title">JNative 数独</h1>
+    <div class="toolbar">
+      <button id="btnEasy" type="button">简单</button>
+      <button id="btnMedium" type="button">中等</button>
+      <button id="btnHard" type="button">困难</button>
+      <button id="btnUndo" type="button">撤销</button>
+      <button id="btnRedo" type="button">重做</button>
+      <button id="btnHint" type="button" title="填入一个正确数字">提示</button>
+      <button id="notesBtn" type="button">笔记</button>
+      <button id="btnPause" type="button">暂停</button>
+      <button id="btnSave" type="button">存档</button>
+      <button id="btnLoad" type="button">读档</button>
+      <button id="btnLang" type="button">中/EN</button>
+    </div>
+    <div id="board" class="board" role="grid" aria-label="数独棋盘"></div>
+    <div class="digits">
+      <button id="d1" type="button">1</button>
+      <button id="d2" type="button">2</button>
+      <button id="d3" type="button">3</button>
+      <button id="d4" type="button">4</button>
+      <button id="d5" type="button">5</button>
+      <button id="d6" type="button">6</button>
+      <button id="d7" type="button">7</button>
+      <button id="d8" type="button">8</button>
+      <button id="d9" type="button">9</button>
+      <button id="btnClear" type="button">清除</button>
+    </div>
+    <div id="timer" class="meta">0:00</div>
+    <div id="status" class="status"></div>
+    <div id="platform" class="meta"></div>
+    <div id="lifecycle" class="meta"></div>
+  </div>
+  <script type="module" src="./app-shell.js"></script>
+</body>
+</html>

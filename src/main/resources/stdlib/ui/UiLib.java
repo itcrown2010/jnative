@@ -102,7 +102,9 @@ class KeyCombination {
         return this;
     }
 
-    /** Platform primary modifier: Command on macOS, Control elsewhere. Resolved at match time. */
+    /** Platform primary modifier: Command on macOS, Control elsewhere. Resolved at match time.
+ * @author 张晓达
+ */
     KeyCombination withPrimary() {
         shortcut = 1;
         ctrl = 1;

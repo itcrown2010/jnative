@@ -3,7 +3,9 @@ package io.jnative.opt;
 import java.util.ArrayList;
 import java.util.List;
 
-/** Runs optimization passes in registration order. */
+/** Runs optimization passes in registration order.
+ * @author 张晓达
+ */
 public final class PassManager {
     private final List<OptimizationPass> passes = new ArrayList<>();
 

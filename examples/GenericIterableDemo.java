@@ -3,6 +3,7 @@
  *
  * Strategy: reference type args erase; primitive args specialize (JNative extension).
  * Raw types and wildcards (beyond parsing) are out of scope.
+ * @author 张晓达
  */
 class Item {
     public int quantity;

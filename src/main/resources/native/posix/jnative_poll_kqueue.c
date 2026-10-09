@@ -1,3 +1,4 @@
+/* Author: 张晓达 */
 /*
  * JNative 0.23 — macOS kqueue poller with EVFILT_USER cross-thread wakeup.
  */

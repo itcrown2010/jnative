@@ -12,6 +12,7 @@ import java.util.regex.Pattern;
 /**
  * Source-level dependency graph with typed edges.
  * Heuristic extraction from source text (imports / type names / @Rpc / codecs).
+ * @author 张晓达
  */
 public final class SourceDependencyGraph {
     public record Edge(String from, String to, DependencyKind kind) {

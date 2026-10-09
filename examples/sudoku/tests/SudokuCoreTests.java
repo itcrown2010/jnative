@@ -1,5 +1,6 @@
 /**
  * Headless Sudoku core tests. Built by concatenating with SudokuCore.java.
+ * @author 张晓达
  */
 public class SudokuCoreTests {
     static int passed = 0;

@@ -1,5 +1,7 @@
 # Threading Audit (0.9)
 
+作者：张晓达
+
 Audit of single-thread assumptions before multithreading work.
 
 ## (A) Must become thread-local

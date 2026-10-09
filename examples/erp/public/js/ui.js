@@ -1,3 +1,4 @@
+// Author: 张晓达
 /** Shared UI helpers / components */
 (function (global) {
   function esc(s) {

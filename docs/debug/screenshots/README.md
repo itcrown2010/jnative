@@ -1,5 +1,7 @@
 # 调试截图（可选）
 
+作者：张晓达
+
 本机用 VS Code / Cursor 按 `docs/jnative-native-debug-tutorial.md` 与 `docs/jnative-native-debug-objects.md` 完成 F5 后，可将断点与变量面板截图放于此目录，例如：
 
 - `01-object-string-array.png`

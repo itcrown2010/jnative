@@ -1,5 +1,7 @@
 # JNative Explorer — Milestone 1 Report (Phase A + B + C)
 
+作者：张晓达
+
 **Date:** 2026-10-07  
 **Binary:** `build/explorer/JNativeExplorer` (Mach-O arm64)  
 **Screenshot:** `build/explorer/verify-m1b.png`

@@ -8,6 +8,7 @@ import java.util.List;
 /**
  * Immutable frontend compilation snapshot for IDE consumption.
  * Stops before IR/LLVM — suitable for analysis / navigation / completion.
+ * @author 张晓达
  */
 public final class Compilation {
     private final long version;

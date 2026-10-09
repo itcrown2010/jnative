@@ -11,7 +11,9 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 
-/** Intraprocedural escape analysis for NewObject temps. */
+/** Intraprocedural escape analysis for NewObject temps.
+ * @author 张晓达
+ */
 public final class EscapeAnalysisPass implements OptimizationPass {
     @Override
     public String name() {

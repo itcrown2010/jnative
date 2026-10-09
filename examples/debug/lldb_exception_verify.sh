@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# Author: 张晓达
 # Verify unhandled-exception stop + throw-site user stack (macOS arm64).
 #
 # JNative uses TLS pending-exception propagation (not DWARF unwind). At

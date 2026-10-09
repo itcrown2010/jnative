@@ -1,5 +1,7 @@
 # JNative 0.18 Build Report — Advanced UI Controls
 
+作者：张晓达
+
 ## Summary
 
 - Product version **0.18**

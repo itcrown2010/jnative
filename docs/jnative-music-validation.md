@@ -1,5 +1,7 @@
 # JNative Music Validation Report
 
+作者：张晓达
+
 **Stamp:** `JNATIVE_MUSIC_VALIDATION_PARTIAL`  
 **Date:** 2026-10-08  
 **Does NOT claim:** `JNATIVE_1_0_READY`

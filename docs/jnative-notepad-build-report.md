@@ -1,5 +1,7 @@
 # JNative Notepad Build Report
 
+作者：张晓达
+
 ## Final Status
 
 # A. JNATIVE_NOTEPAD_NATIVE_RUNNING

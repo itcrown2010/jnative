@@ -20,6 +20,7 @@ import java.util.Set;
 
 /**
  * Lex/parse each source unit independently, then run project-level semantic analysis.
+ * @author 张晓达
  */
 public final class MultiUnitFrontend {
     private MultiUnitFrontend() {

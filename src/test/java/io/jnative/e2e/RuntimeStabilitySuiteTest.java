@@ -26,6 +26,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * JNative 0.8 — RuntimeStabilitySuite.
  * Short deterministic stress runs always execute.
  * Long soaks (10m/30m/2h): set {@code JNATIVE_STABILITY_SOAK}; otherwise NOT_RUN (never fake PASS).
+ * @author 张晓达
  */
 @Tag("stability")
 class RuntimeStabilitySuiteTest {

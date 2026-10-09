@@ -4,7 +4,9 @@ import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 
-/** Content-addressed hashing (SHA-256). Prefer over mtime for correctness. */
+/** Content-addressed hashing (SHA-256). Prefer over mtime for correctness.
+ * @author 张晓达
+ */
 public final class ContentHasher {
     private ContentHasher() {
     }

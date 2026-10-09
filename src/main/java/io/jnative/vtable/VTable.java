@@ -8,6 +8,7 @@ import java.util.Optional;
 /**
  * Virtual method table for a class. Slot indices are stable across subclasses
  * for inherited/overridden methods; new virtual methods append slots.
+ * @author 张晓达
  */
 public final class VTable {
     private final ClassSymbol owner;

@@ -10,6 +10,7 @@ import jnative.editor.*;
  * Line numbers + syntax highlight + caret + selection
  * Clipboard / undo / find / open-save / background Build
  * </pre>
+ * @author 张晓达
  */
 public class SourceEditor {
     static CodeEditor editor;

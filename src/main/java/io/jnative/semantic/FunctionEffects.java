@@ -6,6 +6,7 @@ import java.util.List;
 /**
  * Bitset effect summary for callables (JNative 0.11).
  * Effects are inferred in the semantic/effect pass — LLVM must not invent them.
+ * @author 张晓达
  */
 public final class FunctionEffects {
     public static final int ALLOCATES = 1;

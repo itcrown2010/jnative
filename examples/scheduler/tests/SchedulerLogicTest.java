@@ -1,5 +1,6 @@
 /**
  * Native unit tests for Scheduler shared logic (validation, layout, recurrence).
+ * @author 张晓达
  */
 public class SchedulerLogicTest {
     static int failures;

@@ -13,6 +13,7 @@ import java.util.Map;
 
 /**
  * SAM detection for interfaces (considers inheritance; ignores Object-like noise).
+ * @author 张晓达
  */
 public final class FunctionalInterfaceAnalyzer {
 

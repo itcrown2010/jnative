@@ -1,3 +1,4 @@
+-- Author: 张晓达
 -- Finance 1.2 schema (SQLite mirror). Money = integer currency units.
 
 CREATE TABLE IF NOT EXISTS gl_accounts (

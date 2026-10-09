@@ -1,5 +1,8 @@
 package io.jnative.rpc;
 
+/**
+ * @author 张晓达
+ */
 public final class RpcParameterModel {
     private final String name;
     private final String typeName;

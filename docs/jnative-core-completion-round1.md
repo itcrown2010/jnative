@@ -1,5 +1,7 @@
 # JNative Core Completion Report — Round 1
 
+作者：张晓达
+
 **Date:** 2026-10-07 (Round 1) / 2026-10-08 (Round 1.1 Closure)  
 **Host evidence:** macOS arm64 (Darwin), clang present  
 

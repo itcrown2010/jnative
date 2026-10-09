@@ -1,5 +1,8 @@
 import jnative.browser.*;
 
+/**
+ * @author 张晓达
+ */
 class UsersPage {
     public static void main(String[] args) {
         Document document = Browser.document();

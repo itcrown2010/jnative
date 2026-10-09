@@ -13,6 +13,7 @@ import java.util.Set;
 /**
  * Merges bundled JNative stdlib sources into a compilation unit.
  * HTTP / UI / Collections are implemented in JNative (not compiler intrinsics).
+ * @author 张晓达
  */
 public final class StdlibIncluder {
     private StdlibIncluder() {

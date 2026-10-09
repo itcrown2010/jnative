@@ -14,6 +14,7 @@ import static org.junit.jupiter.api.Assertions.*;
 /**
  * Protocol-level tests mirroring PgMessageReader / PgErrorInfo / extended-query bind semantics.
  * (JNative e2e compile of the full db stack is tracked separately — see PARTIAL notes in PgDriverLib.)
+ * @author 张晓达
  */
 class PgProtocolTest {
 

@@ -1,5 +1,7 @@
 # JNative 数独（跨平台示例）
 
+作者：张晓达
+
 同一份 **JNative 游戏核心**（`core/SudokuCore.java`）驱动三个独立 UI：
 
 | 端 | 技术 | 说明 |

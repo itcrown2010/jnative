@@ -1,3 +1,4 @@
+# Author: 张晓达
 # PostgreSQL for JNative ERP (md5 — SCRAM not yet supported in RH-1).
 services:
   pg:

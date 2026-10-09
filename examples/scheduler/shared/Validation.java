@@ -1,3 +1,6 @@
+/**
+ * @author 张晓达
+ */
 class EventValidation {
     static String validateCreate(CreateEventRequest req) {
         if (req == null) {

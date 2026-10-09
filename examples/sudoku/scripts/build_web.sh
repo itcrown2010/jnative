@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# Author: 张晓达
 # Fresh IR→WASM from current SudokuCore.java (never packages stale dist on failure).
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"

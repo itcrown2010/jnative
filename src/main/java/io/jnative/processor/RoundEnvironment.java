@@ -7,6 +7,9 @@ import io.jnative.meta.TypeId;
 import java.util.ArrayList;
 import java.util.List;
 
+/**
+ * @author 张晓达
+ */
 public final class RoundEnvironment {
     private final ProgramModel program;
     private final int round;

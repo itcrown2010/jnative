@@ -18,7 +18,9 @@ import java.util.concurrent.TimeUnit;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-/** Collection / UI subscription / Future callback e2e (O0 + default opt). */
+/** Collection / UI subscription / Future callback e2e (O0 + default opt).
+ * @author 张晓达
+ */
 class FunctionalCallbacksEndToEndTest {
 
     @TempDir

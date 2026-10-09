@@ -9,7 +9,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
-/** Structured process launcher (no shell string concatenation). */
+/** Structured process launcher (no shell string concatenation).
+ * @author 张晓达
+ */
 public final class MobileProcess {
 
     public record Result(int exitCode, String output, boolean timedOut) {

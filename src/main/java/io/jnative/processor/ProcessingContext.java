@@ -12,6 +12,9 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Set;
 
+/**
+ * @author 张晓达
+ */
 public final class ProcessingContext {
     private final ProgramModel program;
     private final RoundEnvironment roundEnv;

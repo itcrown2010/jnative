@@ -17,6 +17,7 @@ import static org.junit.jupiter.api.Assertions.*;
 /**
  * Capability-integration: multipackage order-processing example.
  * Compares JNative -O0 vs default opt; Java-compatible subset separately.
+ * @author 张晓达
  */
 class OrderProcessingEndToEndTest {
 

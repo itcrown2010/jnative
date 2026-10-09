@@ -3,7 +3,9 @@ package io.jnative.backend;
 import java.util.EnumSet;
 import java.util.Set;
 
-/** Compile-time capability matrix for native vs browser targets. */
+/** Compile-time capability matrix for native vs browser targets.
+ * @author 张晓达
+ */
 public enum TargetCapability {
     NATIVE_FFI,
     FILESYSTEM,

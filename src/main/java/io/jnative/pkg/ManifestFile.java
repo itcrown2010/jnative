@@ -15,6 +15,7 @@ import java.util.regex.Pattern;
 /**
  * Minimal TOML-ish loader for jnative.toml (sufficient for package manager).
  * Also accepts a JSON sibling for tests.
+ * @author 张晓达
  */
 public final class ManifestFile {
     private ManifestFile() {

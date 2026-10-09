@@ -1,5 +1,8 @@
 // JNative SQLite driver (0.24) — sqlite3 via @Native FFI, all I/O on worker pool.
 
+/**
+ * @author 张晓达
+ */
 class Sqlite3Native {
     @Native(library = "sqlite3", symbol = "sqlite3_open_v2")
     static native int openV2(String filename, NativePtr ppDb, int flags, String vfs);

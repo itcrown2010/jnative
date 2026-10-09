@@ -1,5 +1,7 @@
 # JNative 1.0 Readiness Audit
 
+作者：张晓达
+
 **Audit date:** 2026-10-08  
 **Auditor role:** evidence-only (source + tests + native e2e + app reports + host runs)  
 **Host used for fresh checks:** macOS arm64 (Darwin), `clang`, OpenSSL present  

@@ -15,6 +15,7 @@ import java.util.stream.Stream;
 /**
  * Bridges resolved packages into the 0.29 build graph as first-class nodes.
  * Compiler receives paths only — never contacts the registry.
+ * @author 张晓达
  */
 public final class BuildGraphPackageIntegration {
     public record PackageBuildNode(

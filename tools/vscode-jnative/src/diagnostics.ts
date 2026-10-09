@@ -1,3 +1,4 @@
+// Author: 张晓达
 import * as path from 'path';
 import * as vscode from 'vscode';
 

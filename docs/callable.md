@@ -1,5 +1,7 @@
 # Callable / Lambda Architecture (0.10)
 
+作者：张晓达
+
 JNative 0.10 adds first-class **SAM callables**: lambdas, method references, and closure capture without a JVM.
 
 ## Pipeline

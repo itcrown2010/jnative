@@ -2,6 +2,7 @@ import jnative.web.*;
 
 /**
  * SSE metrics demo (0.25) — streams connection/memory-ish ticks.
+ * @author 张晓达
  */
 public class App {
     public static void main(String[] args) {

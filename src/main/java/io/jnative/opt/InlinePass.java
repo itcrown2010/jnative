@@ -12,7 +12,9 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-/** Inline small pure/deterministic single-block callees at call sites. */
+/** Inline small pure/deterministic single-block callees at call sites.
+ * @author 张晓达
+ */
 public final class InlinePass implements OptimizationPass {
     private static final int MAX_INSTRUCTIONS = 20;
     private int inlineSeq;

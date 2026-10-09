@@ -6,6 +6,9 @@ import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+/**
+ * @author 张晓达
+ */
 class DiagnosticJsonTest {
 
     @Test

@@ -1,5 +1,7 @@
 # JNative 0.11 Build Report
 
+作者：张晓达
+
 ## 1. Architecture Audit
 
 Effect pipeline (above LLVM):

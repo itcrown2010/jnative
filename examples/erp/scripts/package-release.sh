@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# Author: 张晓达
 # Build release layout + checksums. Does NOT mark the package pilot-ready.
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/../../.." && pwd)"

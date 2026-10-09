@@ -5,7 +5,9 @@ import java.util.EnumSet;
 import java.util.Locale;
 import java.util.Set;
 
-/** Target / platform capabilities required or provided. */
+/** Target / platform capabilities required or provided.
+ * @author 张晓达
+ */
 public enum TargetCapability {
     FILESYSTEM,
     RAW_SOCKET,

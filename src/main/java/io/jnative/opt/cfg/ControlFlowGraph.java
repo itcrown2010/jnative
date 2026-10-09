@@ -12,7 +12,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-/** Control-flow graph with optional dominator tree (iterative). */
+/** Control-flow graph with optional dominator tree (iterative).
+ * @author 张晓达
+ */
 public final class ControlFlowGraph {
     private final IrFunction function;
     private final Map<String, IrBasicBlock> blocksByName = new LinkedHashMap<>();

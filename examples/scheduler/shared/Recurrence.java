@@ -1,6 +1,7 @@
 /**
  * Recurrence engine — stores base event + RRULE-like frequency; expands in range.
  * Does not materialize all future occurrences into the database.
+ * @author 张晓达
  */
 class RecurrenceRule {
     String freq;

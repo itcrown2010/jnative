@@ -18,6 +18,7 @@ import java.util.Map;
  * Builds LLVM debug-info metadata (DWARF via DI*) for source-level debugging.
  * Emits {@code DICompositeType} for user classes (flattened inheritance fields)
  * and typed pointer locals when {@link IrDebugInfo.LocalVar#javaTypeName()} is set.
+ * @author 张晓达
  */
 final class LlvmDiBuilder {
     private final IrDebugInfo info;

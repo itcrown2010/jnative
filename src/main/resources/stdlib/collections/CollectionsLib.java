@@ -9,7 +9,9 @@
 // Null keys unsupported in HashMap; null values allowed.
 // Mutable keys: mutating fields that affect hashCode/equals after put is undefined.
 
-/** Resource that can be used in try-with-resources. */
+/** Resource that can be used in try-with-resources.
+ * @author 张晓达
+ */
 interface AutoCloseable {
     void close();
 }

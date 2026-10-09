@@ -2,7 +2,7 @@
   "name": "jnative",
   "displayName": "JNative",
   "description": "Develop JNative native programs in VS Code (subset of Java → native, no JVM at runtime).",
-  "version": "0.2.0",
+  "version": "0.2.3",
   "publisher": "jnative",
   "engines": {
     "vscode": "^1.85.0"
@@ -223,7 +223,7 @@
     "lint": "tsc -p ./ --noEmit",
     "test": "npm run compile && node ./out/test/runUnit.js",
     "test:vscode": "npm run compile && node ./out/test/runTest.js",
-    "package": "vsce package --no-dependencies"
+    "package": "vsce package"
   },
   "devDependencies": {
     "@types/node": "^20.11.0",

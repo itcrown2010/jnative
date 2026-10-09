@@ -1,4 +1,6 @@
-/** CSV row wrapper (jnative cannot cast to ArrayList). */
+/** CSV row wrapper (jnative cannot cast to ArrayList).
+ * @author 张晓达
+ */
 class CsvRow {
     ArrayList<Object> cells;
 }

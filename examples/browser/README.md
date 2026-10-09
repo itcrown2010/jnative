@@ -1,5 +1,7 @@
 # JNative Browser Examples (0.26)
 
+作者：张晓达
+
 Build:
 
 ```bash
@@ -25,3 +27,12 @@ python3 -m http.server 8766 --directory examples/browser/float-calc/dist
 ```
 
 Arithmetic is executed in WASM (`f32`/`f64`). Contract: `docs/wasm32-browser-float-contract.md`.
+
+## Exceptions / finally / TWR (`exc-stress`)
+
+```bash
+./examples/browser/exc-stress/scripts/verify.sh
+python3 -m http.server 8767 --directory examples/browser/exc-stress/dist
+```
+
+Contract: `docs/wasm32-browser-exceptions.md`.

@@ -8,7 +8,9 @@ import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-/** Additional 0.24 protocol / pool / mapping coverage. */
+/** Additional 0.24 protocol / pool / mapping coverage.
+ * @author 张晓达
+ */
 public class DatabaseStackMoreTest {
 
     @Test void fragmentSizes1() { assertFrag(1); }

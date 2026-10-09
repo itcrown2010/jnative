@@ -35,6 +35,7 @@ import java.util.Set;
 
 /**
  * Semantic analysis for JNative 0.8 (native data model, constructors, arrays, String, RTTI).
+ * @author 张晓达
  */
 public final class SemanticAnalyzer {
     private final DiagnosticReporter reporter;

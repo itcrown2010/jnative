@@ -2,6 +2,7 @@ package io.jnative.semantic;
 
 /**
  * Stable slot within an interface's ITable layout.
+ * @author 张晓达
  */
 public record InterfaceMethodSlot(
         int slot,

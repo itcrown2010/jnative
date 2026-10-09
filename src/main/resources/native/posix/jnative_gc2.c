@@ -1,3 +1,4 @@
+/* Author: 张晓达 */
 /*
  * JNative 0.13 GC2 — TLAB + young semi-space (Cheney) + old mark-sweep.
  */

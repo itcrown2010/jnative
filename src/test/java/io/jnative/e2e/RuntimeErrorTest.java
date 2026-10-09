@@ -17,6 +17,7 @@ import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * Native executables that must fail with non-zero exit and a clear runtime error.
+ * @author 张晓达
  */
 class RuntimeErrorTest {
 

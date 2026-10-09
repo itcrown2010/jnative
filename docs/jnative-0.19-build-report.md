@@ -1,5 +1,7 @@
 # JNative 0.19 Build Report — Graphics / Canvas / 2D Rendering
 
+作者：张晓达
+
 ## Summary
 
 - Product version **0.19**

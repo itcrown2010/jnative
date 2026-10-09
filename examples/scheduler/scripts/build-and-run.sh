@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# Author: 张晓达
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/../../.." && pwd)"
 SCH="$ROOT/examples/scheduler"

@@ -12,6 +12,7 @@ import java.util.concurrent.TimeUnit;
 /**
  * Verifies generated LLVM IR (.ll) before native link.
  * Prefers {@code llvm-as}; falls back to {@code clang -c} IR parse.
+ * @author 张晓达
  */
 public final class LlvmIrFileVerifier {
 

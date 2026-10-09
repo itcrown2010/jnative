@@ -1,6 +1,9 @@
 // JNative PostgreSQL wire protocol driver (0.24) — AsyncTcpSocket, extended query, MD5 auth.
 // 0.31: TLS reserved via SecureTransport / TlsConnection (sslmode=require foundation).
 
+/**
+ * @author 张晓达
+ */
 class PgType {
     static int BOOL = 16;
     static int INT2 = 21;

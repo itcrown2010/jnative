@@ -5,6 +5,7 @@ import io.jnative.diagnostics.SourceLocation;
 /**
  * Enhanced-for: {@code for (T elem : arrayOrIterable) body}.
  * Arrays lower to an index loop; Iterables use {@code iterator()}/{@code hasNext()}/{@code next()}.
+ * @author 张晓达
  */
 public record EnhancedForStatement(
         TypeName elementType,

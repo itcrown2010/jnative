@@ -6,7 +6,10 @@ import io.jnative.ir.IrInstruction;
 import io.jnative.ir.IrModule;
 import io.jnative.ir.IrValue;
 
+import io.jnative.ir.IrType;
+
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -14,17 +17,25 @@ import java.util.Map;
 /**
  * Emits WAT for wasm32-browser from real JNative IR (via {@link WebUiIrToWat}).
  * No fixed-template programs keyed on class names or string literals.
+ * @author 张晓达
  */
 public final class BrowserWatEmitter {
 
     private final Map<String, Integer> stringData = new LinkedHashMap<>();
-    private int dataCursor = 1024;
+    private int dataCursor = WasmLayout.DATA_MIN;
 
     public String emit(IrModule ir) {
         collectStrings(ir);
+        if (dataCursor >= WasmLayout.DATA_MAX) {
+            throw new IllegalStateException(
+                    "wasm32-browser: string data overflow into shadow/GC region (cursor="
+                            + dataCursor + " max=" + WasmLayout.DATA_MAX + ")");
+        }
         WebUiIrToWat lowering = new WebUiIrToWat(ir, stringData);
         lowering.collect();
         WasmMetaRegistry meta = lowering.meta();
+        WasmGcEmitter gc = new WasmGcEmitter(meta);
+        WasmExceptionEmitter exc = new WasmExceptionEmitter(meta);
 
         StringBuilder wat = new StringBuilder();
         wat.append("(module\n");
@@ -37,11 +48,9 @@ public final class BrowserWatEmitter {
                 .append(WasmLayout.MEMORY_MAX_PAGES).append(")\n");
         int tableSize = Math.max(1, meta.funcrefSymbols().size());
         wat.append("  (table $jn_funcref ").append(tableSize).append(" funcref)\n");
-        wat.append("  (global $heap (mut i32) (i32.const ").append(dataCursor + 64).append("))\n");
-        wat.append("  (global $jn_pending_exc (mut i32) (i32.const 0))\n");
-        wat.append("  (global $jn_cb_next (mut i32) (i32.const 1))\n");
-        // callback id → callable ptr (fixed slots in linear memory via globals array would be large;
-        // use a small bump table of i32 pairs in reserved low memory — see jn_register_dom_callback)
+        gc.emitGlobals(wat);
+        exc.emitGlobals(wat);
+        List<String> staticRefGlobals = new ArrayList<>();
         for (String g : lowering.staticGlobals()) {
             String gt = lowering.globalWatType(g);
             String zero = switch (gt) {
@@ -50,33 +59,72 @@ public final class BrowserWatEmitter {
                 case "f64" -> "f64.const 0x0p0";
                 default -> "i32.const 0";
             };
-            wat.append("  (global $").append(WebUiIrToWat.sanitizeGlobal(g))
+            String watName = WebUiIrToWat.sanitizeGlobal(g);
+            wat.append("  (global $").append(watName)
                     .append(" (mut ").append(gt).append(") (").append(zero).append("))\n");
+            if ("i32".equals(gt) && isReferenceStatic(ir, g)) {
+                staticRefGlobals.add(watName);
+            }
         }
         emitData(wat);
-        emitRuntime(wat);
+        // Type/static tracers before mark helpers that call them
+        gc.emitTypeAndStaticTracers(wat, staticRefGlobals);
+        gc.emitRuntime(wat);
+        emitStringAndDomRuntime(wat);
+        exc.emitRuntime(wat);
         lowering.emitAll(wat);
         emitFuncrefElem(wat, meta, lowering);
         emitCallbackExport(wat, meta, lowering);
         wat.append("  (func (export \"jnative_start\")\n");
         if (lowering.emittedFunctions().contains("jnative_clinit")) {
             wat.append("    call $jnative_clinit\n");
+            wat.append("    call $jnative_exception_pending\n");
+            wat.append("    if\n");
+            wat.append("      call $jnative_exception_uncaught\n");
+            wat.append("      return\n");
+            wat.append("    end\n");
         }
         if (lowering.emittedFunctions().contains("jn_main")) {
             wat.append("    i32.const 0\n");
             wat.append("    call $jn_main\n");
+            wat.append("    call $jnative_exception_pending\n");
+            wat.append("    if\n");
+            wat.append("      call $jnative_exception_uncaught\n");
+            wat.append("    end\n");
         }
         wat.append("  )\n");
         wat.append("  (func (export \"jn_bump\") (param $n i32) (result i32)\n");
         wat.append("    local.get $n\n");
-        wat.append("    call $jn_alloc_zeroed\n");
+        wat.append("    call $jn_alloc_opaque\n");
         wat.append("  )\n");
         wat.append("  (func (export \"jn_release_callback\") (param $id i32)\n");
         wat.append("    local.get $id\n");
         wat.append("    call $jn_unregister_dom_callback\n");
         wat.append("  )\n");
+        wat.append("  (export \"jn_host_root_retain\" (func $jn_host_root_retain))\n");
+        wat.append("  (export \"jn_host_root_release\" (func $jn_host_root_release))\n");
+        wat.append("  (export \"jn_host_root_get\" (func $jn_host_root_get))\n");
+        wat.append("  (export \"jn_gc_collect\" (func $jn_gc_collect))\n");
+        wat.append("  (func (export \"jn_gc_stats\") (result i32 i32 i32 i32 i32 i32 i32)\n");
+        wat.append("    call $jn_gc_stats_alloc_bytes\n");
+        wat.append("    call $jn_gc_stats_live_bytes\n");
+        wat.append("    call $jn_gc_stats_free_bytes\n");
+        wat.append("    call $jn_gc_stats_heap_cap\n");
+        wat.append("    call $jn_gc_stats_gc_count\n");
+        wat.append("    call $jn_gc_stats_host_roots\n");
+        wat.append("    call $jn_gc_stats_alloc_fail\n");
+        wat.append("  )\n");
         wat.append(")\n");
         return wat.toString();
+    }
+
+    private static boolean isReferenceStatic(IrModule ir, String globalName) {
+        for (IrModule.StaticField sf : ir.staticFields()) {
+            if (sf.globalName().equals(globalName)) {
+                return sf.isReference() || sf.type() == IrType.PTR;
+            }
+        }
+        return false;
     }
 
     private void emitFuncrefElem(StringBuilder wat, WasmMetaRegistry meta, WebUiIrToWat lowering) {
@@ -156,6 +204,11 @@ public final class BrowserWatEmitter {
             }
         }
         wat.append("    call_indirect $jn_funcref (type $").append(domType).append(")\n");
+        // Uncaught language exceptions surface to JS; traps remain traps.
+        wat.append("    call $jnative_exception_pending\n");
+        wat.append("    if\n");
+        wat.append("      call $jnative_exception_uncaught\n");
+        wat.append("    end\n");
         wat.append("  )\n");
     }
 
@@ -211,6 +264,7 @@ public final class BrowserWatEmitter {
         wat.append("  (import \"jnative\" \"input_value\" (func $js_input_value (param i32) (result i32)))\n");
         wat.append("  (import \"jnative\" \"input_set_value\" (func $js_input_set_value (param i32 i32 i32)))\n");
         wat.append("  (import \"jnative\" \"memory_grew\" (func $js_memory_grew))\n");
+        wat.append("  (import \"jnative\" \"report_uncaught\" (func $js_report_uncaught (param i32 i32)))\n");
     }
 
     private void emitData(StringBuilder wat) {
@@ -224,97 +278,15 @@ public final class BrowserWatEmitter {
         }
     }
 
-    private void emitRuntime(StringBuilder wat) {
+    /** String helpers + DOM glue (allocation via GC {@code $jn_alloc}). */
+    private void emitStringAndDomRuntime(StringBuilder wat) {
         wat.append("""
-                  ;; bump allocator with memory.grow; no GC
-                  (func $jn_alloc (param $n i32) (result i32)
-                    (local $p i32) (local $end i32) (local $need i32) (local $pages i32) (local $cur i32)
-                    local.get $n
-                    i32.const 0
-                    i32.le_s
-                    if
-                      i32.const 1
-                      local.set $n
-                    end
-                    global.get $heap
-                    local.set $p
-                    local.get $p
-                    local.get $n
-                    i32.const 7
-                    i32.add
-                    i32.const -8
-                    i32.and
-                    i32.add
-                    local.set $end
-                    ;; overflow?
-                    local.get $end
-                    local.get $p
-                    i32.lt_u
-                    if
-                      unreachable
-                    end
-                    memory.size
-                    i32.const 16
-                    i32.shl
-                    local.set $cur
-                    local.get $end
-                    local.get $cur
-                    i32.gt_u
-                    if
-                      local.get $end
-                      local.get $cur
-                      i32.sub
-                      i32.const 65535
-                      i32.add
-                      i32.const 16
-                      i32.shr_u
-                      local.set $pages
-                      local.get $pages
-                      memory.grow
-                      i32.const -1
-                      i32.eq
-                      if
-                        unreachable
-                      end
-                      call $js_memory_grew
-                    end
-                    local.get $end
-                    global.set $heap
-                    local.get $p
-                  )
-                  (func $jn_alloc_zeroed (param $n i32) (result i32)
-                    (local $p i32) (local $i i32)
-                    local.get $n
-                    call $jn_alloc
-                    local.set $p
-                    i32.const 0
-                    local.set $i
-                    (block $done
-                      (loop $z
-                        local.get $i
-                        local.get $n
-                        i32.ge_u
-                        br_if $done
-                        local.get $p
-                        local.get $i
-                        i32.add
-                        i32.const 0
-                        i32.store8
-                        local.get $i
-                        i32.const 1
-                        i32.add
-                        local.set $i
-                        br $z
-                      )
-                    )
-                    local.get $p
-                  )
                   (func $jn_str (param $off i32) (param $len i32) (result i32)
                     (local $p i32) (local $i i32)
                     local.get $len
                     i32.const 4
                     i32.add
-                    call $jn_alloc
+                    call $jn_alloc_opaque
                     local.set $p
                     local.get $p
                     local.get $len
@@ -549,7 +521,7 @@ public final class BrowserWatEmitter {
                     i32.add
                     i32.const 4
                     i32.add
-                    call $jn_alloc
+                    call $jn_alloc_opaque
                     local.set $p
                     local.get $p
                     local.get $la
@@ -660,7 +632,7 @@ public final class BrowserWatEmitter {
                     i32.add
                     i32.const 4
                     i32.add
-                    call $jn_alloc
+                    call $jn_alloc_opaque
                     local.set $p
                     local.get $p
                     local.get $len

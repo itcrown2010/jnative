@@ -5,6 +5,7 @@ import io.jnative.diagnostics.SourceLocation;
 /**
  * Single-type import {@code import com.acme.Foo;}.
  * Static and wildcard imports are rejected by the parser with diagnostics.
+ * @author 张晓达
  */
 public record ImportDeclaration(
         String qualifiedType,

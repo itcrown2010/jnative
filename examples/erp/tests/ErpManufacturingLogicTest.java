@@ -1,5 +1,6 @@
 /**
  * Manufacturing 1.3: SmartDevice-A BOM explode + issue + partial receipts 60+40.
+ * @author 张晓达
  */
 class ErpManufacturingLogicTest {
     static long companyId = 0L;

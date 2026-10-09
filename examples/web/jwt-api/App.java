@@ -4,6 +4,7 @@ import jnative.json.*;
 /**
  * JWT API demo (0.25) — login returns HS256 JWT; Bearer protects /api/profile.
  * Secret from JWT_SECRET env (dev fallback only for local smoke).
+ * @author 张晓达
  */
 public class App {
     public static void main(String[] args) {

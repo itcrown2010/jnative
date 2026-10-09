@@ -10,7 +10,9 @@ import io.jnative.processor.SourceFileBuilder;
 
 import java.util.Set;
 
-/** Shared Native/WASM validation codegen from {@code @Validated} + field constraints. */
+/** Shared Native/WASM validation codegen from {@code @Validated} + field constraints.
+ * @author 张晓达
+ */
 public class ValidationProcessor implements AnnotationProcessor {
     @Override
     public String name() {

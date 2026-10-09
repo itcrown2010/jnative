@@ -15,7 +15,9 @@ import java.util.concurrent.TimeUnit;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-/** Round 2 — Time minimum profile native e2e. */
+/** Round 2 — Time minimum profile native e2e.
+ * @author 张晓达
+ */
 class TimeEndToEndTest {
 
     @TempDir

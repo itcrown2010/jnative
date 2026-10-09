@@ -15,7 +15,9 @@ import java.util.concurrent.TimeUnit;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-/** Round 1.1 — break / continue native e2e + negative compile. */
+/** Round 1.1 — break / continue native e2e + negative compile.
+ * @author 张晓达
+ */
 class LoopControlEndToEndTest {
 
     @TempDir

@@ -1,6 +1,7 @@
 /**
  * In-app Chinese tutorials for pilot flows (content UTF-8 via JSON unicode escapes).
  * Practice materials: FG-PRACTICE-A / WH-PRACTICE.
+ * @author 张晓达
  */
 class ErpHelp {
     static String tutorialsJson() {

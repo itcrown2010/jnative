@@ -536,7 +536,9 @@ class DecimalDigits {
     }
 }
 
-/** Tiny double↔string helpers used only at Decimal scientific boundary. */
+/** Tiny double↔string helpers used only at Decimal scientific boundary.
+ * @author 张晓达
+ */
 class DoubleParse {
     @Native(symbol = "jnative_double_to_string")
     static native NativePtr formatNative(double v);

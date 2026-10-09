@@ -1,6 +1,8 @@
 package io.jnative.ffi;
 
-/** System V AMD64 (Linux/macOS x86_64). */
+/** System V AMD64 (Linux/macOS x86_64).
+ * @author 张晓达
+ */
 public final class X86_64SystemVAbi implements TargetAbi {
     public static final X86_64SystemVAbi INSTANCE = new X86_64SystemVAbi();
 

@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# Author: 张晓达
 # Verify object / String / array display via LLDB + JNative formatters (macOS arm64).
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"

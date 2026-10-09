@@ -1,5 +1,7 @@
 # JNative Explorer
 
+作者：张晓达
+
 Native desktop file manager (JNative → IR → LLVM → Mach-O / PE).  
 **No** JVM / Swing / Electron at runtime.
 

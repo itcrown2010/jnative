@@ -84,7 +84,9 @@ class ResourceEndToEndTest {
                 """, "0\n2\n1\n");
     }
 
-    /** Allocation + Exception + GC + TWR cleanup. */
+    /** Allocation + Exception + GC + TWR cleanup.
+ * @author 张晓达
+ */
     @Test
     void fourWayIntersection() throws Exception {
         assertStdout("""

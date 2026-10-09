@@ -18,6 +18,7 @@ import static org.junit.jupiter.api.Assertions.*;
 /**
  * End-to-end coverage for third-party pure source packages (.jnpkg):
  * local registry → lock → cache → compile → native run.
+ * @author 张晓达
  */
 class SourceLibPackageIntegrationTest {
 

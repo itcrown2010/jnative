@@ -1,5 +1,7 @@
 # Escape analysis
 
+作者：张晓达
+
 `EscapeAnalysisPass` classifies each `NewObject` temp intraprocedurally:
 
 `NO_ESCAPE`, `ARG_ESCAPE`, `RETURN_ESCAPE`, `GLOBAL_ESCAPE`, `THREAD_ESCAPE`, `NATIVE_ESCAPE`, `UNKNOWN`.

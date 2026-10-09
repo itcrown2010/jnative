@@ -4,6 +4,9 @@
 // Compile-time: annotations → processors → generated source/schema → semantic → IR → LLVM
 // Runtime: direct generated factories / codecs / validators — NO JVM reflection.
 
+/**
+ * @author 张晓达
+ */
 @Config("appdb")
 class AppDatabaseConfig {
     String host;

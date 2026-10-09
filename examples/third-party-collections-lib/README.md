@@ -1,5 +1,7 @@
 # 第三方源码包：`acme/stats`（装箱 + ArrayList/HashMap）
 
+作者：张晓达
+
 验证 JNative 包管理 + `ArrayList<Integer>` / `HashMap<String, Integer>` / 增强 for / 中文键。
 
 最终产物为原生二进制；**不**使用宿主 JVM 集合作运行时。

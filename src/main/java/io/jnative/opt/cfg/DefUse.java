@@ -11,7 +11,9 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-/** Def-use chains for temps within one function. */
+/** Def-use chains for temps within one function.
+ * @author 张晓达
+ */
 public final class DefUse {
     private final IrFunction function;
     private final Map<IrValue.Temp, DefSite> definitions = new HashMap<>();

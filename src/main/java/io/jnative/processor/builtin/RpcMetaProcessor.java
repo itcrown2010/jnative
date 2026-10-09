@@ -16,6 +16,7 @@ import java.util.Set;
 /**
  * Bridges 0.28 {@link RpcAnalyzer}/{@link RpcCodeGenerator} onto the unified Meta API.
  * Still emits ordinary JNative source — no reflection.
+ * @author 张晓达
  */
 public class RpcMetaProcessor implements AnnotationProcessor {
     @Override

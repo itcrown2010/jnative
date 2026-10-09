@@ -4,6 +4,9 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
 
+/**
+ * @author 张晓达
+ */
 public final class Scope {
     private final Scope parent;
     private final Map<String, Symbol> symbols = new HashMap<>();

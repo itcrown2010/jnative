@@ -4,7 +4,9 @@ import io.jnative.compiler.CompilerOptions;
 import io.jnative.ir.IrModule;
 import io.jnative.semantic.TypedCompilationUnit;
 
-/** Selects and runs optimization passes for a given -O level. */
+/** Selects and runs optimization passes for a given -O level.
+ * @author 张晓达
+ */
 public final class OptimizationPipeline {
 
     private OptimizationPipeline() {

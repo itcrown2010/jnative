@@ -23,6 +23,7 @@ import java.util.zip.ZipOutputStream;
 
 /**
  * .jnpkg archive (zip) with path-traversal / zip-bomb protections.
+ * @author 张晓达
  */
 public final class PackageArchive {
     public static final int MAX_FILES = 10_000;

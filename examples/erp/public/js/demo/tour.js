@@ -1,3 +1,4 @@
+// Author: 张晓达
 /**
  * DemoTourEngine - highlight + step coachmarks (UI 1.5).
  * IME-safe: ignores composing keys.

@@ -3,7 +3,9 @@ package io.jnative.opt;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
-/** Counters and optional explanation for --opt-report. */
+/** Counters and optional explanation for --opt-report.
+ * @author 张晓达
+ */
 public final class OptimizationReport {
     private final Map<String, Integer> counters = new LinkedHashMap<>();
     private final StringBuilder explain = new StringBuilder();

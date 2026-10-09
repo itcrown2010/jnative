@@ -1,3 +1,4 @@
+// Author: 张晓达
 import * as fs from 'fs';
 import * as path from 'path';
 import { ChildProcess } from 'child_process';
@@ -8,7 +9,7 @@ import {
   parseBuildReport,
   parseTextDiagnostics,
 } from './diagnostics';
-import { JNativeProject } from './project';
+import { findProjectForFile, JNativeProject } from './project';
 import {
   promptMissingToolchain,
   resolveToolchain,
@@ -67,6 +68,28 @@ async function requireToolchain(): Promise<ToolchainInvocation | undefined> {
   return resolved.invocation;
 }
 
+/** Build/run read files from disk — save dirty editors first so output matches the UI. */
+async function saveDirtySources(hintPath?: string): Promise<void> {
+  const dirty = vscode.workspace.textDocuments.filter((doc) => {
+    if (doc.isUntitled || !doc.isDirty || doc.uri.scheme !== 'file') {
+      return false;
+    }
+    const name = doc.fileName.toLowerCase();
+    if (!(name.endsWith('.jn') || name.endsWith('.java') || name.endsWith('.toml') || name.endsWith('.project'))) {
+      return false;
+    }
+    if (hintPath) {
+      const root = hintPath;
+      return doc.uri.fsPath === root || doc.uri.fsPath.startsWith(root + path.sep);
+    }
+    return true;
+  });
+  if (dirty.length === 0) {
+    return;
+  }
+  await Promise.all(dirty.map((doc) => doc.save()));
+}
+
 export interface BuildResult {
   success: boolean;
   artifact?: string;
@@ -77,6 +100,7 @@ export async function buildProject(project: JNativeProject, debug = false): Prom
   if (!inv) {
     return { success: false };
   }
+  await saveDirtySources(project.root);
   return withProjectLock(project.root, async () => {
     const channel = getOutput();
     channel.show(true);
@@ -142,21 +166,26 @@ export async function buildCurrentFile(filePath: string): Promise<BuildResult> {
   }
   const channel = getOutput();
   channel.show(true);
-  const outDir = path.join(path.dirname(filePath), '.jnative-file-build');
+  /* Keep binaries out of source roots — project build would otherwise treat
+     src/.jnative-file-build/Main.jn (Mach-O) as source and fail with UTF-8 errors. */
+  const project = findProjectForFile(filePath);
+  const projectRoot = project?.root ?? path.dirname(filePath);
+  await saveDirtySources(projectRoot);
+  const outDir = path.join(projectRoot, '.jnative', 'file-build');
   fs.mkdirSync(outDir, { recursive: true });
-  const base = path.basename(filePath, '.java');
+  const fileName = path.basename(filePath);
+  const base = fileName.replace(/\.(java|jn)$/i, '');
   const outFile = path.join(outDir, base);
   channel.appendLine(`[build-file] ${filePath}`);
   const result = await runCapture(
     inv,
     [filePath, '-o', outFile, '--format', 'json'],
-    { cwd: path.dirname(filePath), timeoutMs: 300000 }
+    { cwd: projectRoot, timeoutMs: 300000 }
   );
   channel.appendLine(result.stdout);
   if (result.stderr.trim()) {
     channel.appendLine(result.stderr);
   }
-  const projectRoot = path.dirname(filePath);
   const report = parseBuildReport(result.stdout);
   if (report) {
     if (report.success) {

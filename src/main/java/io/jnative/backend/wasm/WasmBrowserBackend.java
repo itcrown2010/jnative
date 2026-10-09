@@ -22,6 +22,7 @@ import java.util.concurrent.TimeUnit;
 /**
  * wasm32-browser backend: JNative IR → WAT → .wasm + minimal JS glue.
  * Uses linear-memory managed heap (bump + mark foundation) and JsHandle imports.
+ * @author 张晓达
  */
 public final class WasmBrowserBackend implements TargetBackend {
 

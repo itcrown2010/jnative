@@ -1,5 +1,7 @@
 # JNative One — Productization & Commercial Readiness 1.5
 
+作者：张晓达
+
 **Stamp: `JNATIVE_ONE_1_5_BLOCKED`**
 
 **Date:** 2026-10-08  

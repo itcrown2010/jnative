@@ -1,5 +1,8 @@
 package com.demo.app;
 
+/**
+ * @author 张晓达
+ */
 public class AmbiguousCall {
     static int f(int a, long b) {
         return 1;

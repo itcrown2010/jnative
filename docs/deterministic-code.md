@@ -1,5 +1,7 @@
 # @Deterministic (0.11)
 
+作者：张晓达
+
 `@Deterministic` is sugar for `@NoGC @NoThrow @NoBlock`: the method must be pure from the runtime's perspective.
 
 Allowed:

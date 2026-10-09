@@ -9,6 +9,7 @@ import java.util.List;
 
 /**
  * Invokes clang to turn LLVM IR into a native executable.
+ * @author 张晓达
  */
 public final class NativeLinker {
     private final Toolchain toolchain;

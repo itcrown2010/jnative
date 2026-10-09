@@ -3,6 +3,7 @@
  * Not an ERP rewrite — just language-level state machine illustration.
  *
  * Persistence note: do not store {@code ordinal()} as a DB key; use an explicit code.
+ * @author 张晓达
  */
 enum OrderStatus {
     DRAFT,

@@ -1,5 +1,7 @@
 # JNative 源码调试示例（macOS arm64）
 
+作者：张晓达
+
 验证：`--debug` 编译后，LLDB / VS Code CodeLLDB 能在**原始** `.java` 上断点、单步、查看调用栈、基础局部量，以及对象 / 字符串 / 数组。
 
 ## 平台

@@ -15,6 +15,7 @@ import java.util.Map;
 /**
  * Result of semantic analysis: one or more ASTs plus resolved classes/interfaces and expression types.
  * {@link #unit()} is a flattened view for IR/backends; {@link #units()} retains per-file ASTs.
+ * @author 张晓达
  */
 public record TypedCompilationUnit(
         CompilationUnit unit,

@@ -1,5 +1,7 @@
 # JNative — Exceptions & try-with-resources
 
+作者：张晓达
+
 ## Overview
 
 JNative implements Java-compatible exception semantics with **explicit pending-exception
@@ -172,9 +174,9 @@ Debugger hook: `jnative_debugger_on_uncaught`.
 
 ## WASM / browser backend
 
-wasm32-browser does **not** implement full exception regions. `jnative_exception_pending` is
-stubbed to “not pending”. Programs that rely on `throw` / `try` / TWR are **not supported** on
-that backend; use the native LLVM backend for exception e2e.
+wasm32-browser uses the **same** explicit pending-exception + CFG model as native (no WASM EH
+opcodes). See `docs/wasm32-browser-exceptions.md` for the JS boundary contract, browser matrix,
+and `examples/browser/exc-stress` results.
 
 ## Tests
 
@@ -189,4 +191,4 @@ that backend; use the native LLVM backend for exception e2e.
 - No multi-catch, no precise rethrow.
 - No try-with-resources on an existing effectively-final variable.
 - No `OutOfMemoryError` on allocation failure.
-- WASM exception support not provided (compile/runtime stubs only).
+- wasm32-browser: no WASM EH opcodes; no full browser source maps yet (see wasm32-browser-exceptions.md).

@@ -5,6 +5,7 @@ import io.jnative.semantic.TypedCompilationUnit;
 
 /**
  * Textual report of async/await sites for {@code --emit-async}.
+ * @author 张晓达
  */
 public final class AsyncReport {
 

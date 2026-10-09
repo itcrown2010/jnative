@@ -1,3 +1,6 @@
+/**
+ * @author 张晓达
+ */
 class DebugDemo {
     static int add(int a, int b) {
         int result = a + b;

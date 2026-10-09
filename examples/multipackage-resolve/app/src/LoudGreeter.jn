@@ -3,6 +3,9 @@ package com.demo.app;
 import com.demo.greet.Greeter;
 import com.demo.greet.Texts;
 
+/**
+ * @author 张晓达
+ */
 public class LoudGreeter implements Greeter {
     public int greet(int n) {
         return Texts.bump(n) * 100;

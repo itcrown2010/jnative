@@ -1,3 +1,4 @@
+-- Author: 张晓达
 -- Pilot baseline (SQLite)
 -- Note: jnative SQLite prepare rejects multiple table-level UNIQUE constraints;
 -- use separate CREATE UNIQUE INDEX instead.

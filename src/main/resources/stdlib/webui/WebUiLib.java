@@ -3,6 +3,9 @@
 
 import jnative.browser.*;
 
+/**
+ * @author 张晓达
+ */
 interface ReactiveSubscription {
     void notifyChange();
     void dispose();

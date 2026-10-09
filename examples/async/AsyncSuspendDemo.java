@@ -3,6 +3,7 @@
  * A pending Future is completed from a timer on the loop; another task runs meanwhile.
  *
  * Build: java -jar target/jnative.jar build examples/async/AsyncSuspendDemo.java -o build/async/AsyncSuspendDemo
+ * @author 张晓达
  */
 class Box {
     int n;

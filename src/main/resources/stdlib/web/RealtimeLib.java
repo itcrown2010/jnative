@@ -1,5 +1,8 @@
 // JNative Realtime (0.25) — WebSocket frames, connection pump, Hub, SSE.
 
+/**
+ * @author 张晓达
+ */
 interface WebSocketHandler {
     void onConnect(WebSocketConnection socket);
 

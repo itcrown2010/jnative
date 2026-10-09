@@ -6,6 +6,7 @@ import java.util.Optional;
 /**
  * Layout of one class instance. Header size is reserved for future metadata/vtable
  * even when 0.2 emits headerSize == 0.
+ * @author 张晓达
  */
 public final class ClassLayout {
     private final String className;

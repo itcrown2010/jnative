@@ -1,3 +1,4 @@
+-- Author: 张晓达
 -- Pilot baseline: book isolation, inventory CAS, opening docs, reverse links, wizard state.
 -- Applied idempotently via ErpDb.ensurePilotSchema (ALTER may already exist).
 

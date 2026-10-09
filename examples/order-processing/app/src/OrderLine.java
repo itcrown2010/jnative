@@ -1,6 +1,8 @@
 package com.demo.order;
 
-/** Line item — same simple name "Item" avoided; lives in order package. */
+/** Line item — same simple name "Item" avoided; lives in order package.
+ * @author 张晓达
+ */
 public class OrderLine {
     public String sku;
     public int qty;

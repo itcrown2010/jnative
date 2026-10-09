@@ -11,7 +11,9 @@ import java.nio.file.Path;
 import java.util.List;
 import java.util.stream.Collectors;
 
-/** CLI: jnative processors | processors explain | generated */
+/** CLI: jnative processors | processors explain | generated
+ * @author 张晓达
+ */
 public final class ProcessorsCli {
 
     private ProcessorsCli() {

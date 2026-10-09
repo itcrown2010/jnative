@@ -1,5 +1,8 @@
 import jnative.ui.*;
 
+/**
+ * @author 张晓达
+ */
 public class GeomSmoke {
     public static void main(String[] args) {
         Application.setHeadless(1);

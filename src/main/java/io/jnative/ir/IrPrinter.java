@@ -2,6 +2,7 @@ package io.jnative.ir;
 
 /**
  * Textual dump of JNative IR for --emit-ir.
+ * @author 张晓达
  */
 public final class IrPrinter {
 

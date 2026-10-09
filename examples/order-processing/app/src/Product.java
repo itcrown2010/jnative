@@ -1,6 +1,8 @@
 package com.demo.catalog;
 
-/** Catalog product (distinct package from order.OrderLine naming). */
+/** Catalog product (distinct package from order.OrderLine naming).
+ * @author 张晓达
+ */
 public class Product {
     public String sku;
     public String name;

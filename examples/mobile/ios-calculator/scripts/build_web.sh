@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# Author: 张晓达
 # Compile CalcEngine.java → fresh WASM/Web dist. Fail closed (never keep stale artifacts).
 set -euo pipefail
 

@@ -3,6 +3,7 @@ package io.jnative.backend.llvm.runtime;
 /**
  * Thread / Mutex / Condition / Atomic runtime helpers (JNative 0.9).
  * Platform primitives live in {@code jnative_mt.c}; this emits LLVM wrappers.
+ * @author 张晓达
  */
 public final class ThreadRuntimeEmitter {
     private final StringBuilder sb;

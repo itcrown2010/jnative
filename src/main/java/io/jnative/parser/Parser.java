@@ -17,6 +17,7 @@ import java.util.Set;
 
 /**
  * Recursive-descent parser for the JNative Java subset (0.8 native data model).
+ * @author 张晓达
  */
 public final class Parser {
     private final List<Token> tokens;

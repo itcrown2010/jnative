@@ -9,6 +9,7 @@ import java.util.regex.Pattern;
 
 /**
  * Persistent symbol index shared by compiler session and (future) JNative Studio.
+ * @author 张晓达
  */
 public final class SymbolIndex {
     public enum Kind { CLASS, INTERFACE, METHOD, FIELD, OTHER }

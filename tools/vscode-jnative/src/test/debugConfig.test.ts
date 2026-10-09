@@ -1,3 +1,4 @@
+// Author: 张晓达
 import * as assert from 'assert';
 import * as path from 'path';
 import { buildLaunchConfig, shouldRefuseStaleArtifact } from '../launchConfig';

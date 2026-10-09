@@ -1,6 +1,7 @@
 /**
  * First-run setup wizard for empty FORMAL books.
  * Steps: COMPANY -> CURRENCY -> WAREHOUSE -> NUMBERING -> USER -> MASTER -> OPENING -> VALIDATE -> DONE
+ * @author 张晓达
  */
 class WizardStep {
     static String COMPANY = "COMPANY";

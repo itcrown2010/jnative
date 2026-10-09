@@ -5,7 +5,9 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
-/** Multi-module JNative project (0.29). */
+/** Multi-module JNative project (0.29).
+ * @author 张晓达
+*/
 public final class JNativeProject {
     private final String name;
     private final String root;

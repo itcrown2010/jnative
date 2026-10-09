@@ -1,5 +1,7 @@
 # JNative Core Completion Report — Round 3
 
+作者：张晓达
+
 **Theme:** Thread / Async / FFI Integrity (charter placeholder)  
 **Status:** **NOT EXECUTED as a formal round**
 

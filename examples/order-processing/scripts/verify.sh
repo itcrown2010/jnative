@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# Author: 张晓达
 # Capability-integration verify for examples/order-processing.
 # Usage: from repo root: bash examples/order-processing/scripts/verify.sh
 set -euo pipefail

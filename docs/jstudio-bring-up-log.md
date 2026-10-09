@@ -1,5 +1,7 @@
 # JStudio Bring-up Log
 
+作者：张晓达
+
 ## Blocker 1
 - Symptom: GUI build fails on `jnative_ui_cocoa.m` (`id obj = ...` parse errors)
 - Category: F — platform backend (ObjC type `id` shadowed by C parameter named `id`)

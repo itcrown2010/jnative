@@ -15,6 +15,7 @@ import java.util.Set;
 
 /**
  * Symbol for a class declaration, including inheritance, layout, vtable, and itables.
+ * @author 张晓达
  */
 public final class ClassSymbol implements ReferenceTypeSymbol {
     private final String name;

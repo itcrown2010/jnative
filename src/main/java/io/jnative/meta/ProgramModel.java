@@ -6,7 +6,9 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
-/** Whole-program compile-time model exposed to processors. */
+/** Whole-program compile-time model exposed to processors.
+ * @author 张晓达
+ */
 public final class ProgramModel {
     private final Map<String, ClassModel> typesByName;
     private final String sourceFile;

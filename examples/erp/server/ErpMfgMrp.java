@@ -1,6 +1,7 @@
 /**
  * Daily-bucket MRP (gross / scheduled / projected / net / planned receipt & release).
  * Suggestions are advisory — not auto POs/MOs.
+ * @author 张晓达
  */
 class ErpMfgMrp {
     static long DAY_MS = 86400000L;

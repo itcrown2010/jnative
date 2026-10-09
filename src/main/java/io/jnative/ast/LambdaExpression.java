@@ -4,6 +4,9 @@ import io.jnative.diagnostics.SourceLocation;
 
 import java.util.List;
 
+/**
+ * @author 张晓达
+ */
 public record LambdaExpression(
         List<LambdaParameter> parameters,
         Expression expressionBody,

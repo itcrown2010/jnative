@@ -1,3 +1,4 @@
+/* Author: 张晓达 */
 /*
  * POSIX PlatformSocket backend for JNative 0.8.2.
  * Handles: DNS (getaddrinfo), TCP connect/listen/accept, partial I/O,

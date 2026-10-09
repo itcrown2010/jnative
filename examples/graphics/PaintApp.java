@@ -2,6 +2,9 @@ import jnative.ui.*;
 import jnative.graphics.*;
 import jnative.collections.*;
 
+/**
+ * @author 张晓达
+ */
 public class PaintApp {
     public static void main(String[] args) {
         Application app = new Application();

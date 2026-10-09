@@ -2,7 +2,9 @@ package io.jnative.meta;
 
 import java.util.Objects;
 
-/** Stable type identity for processor queries (not Class.forName). */
+/** Stable type identity for processor queries (not Class.forName).
+ * @author 张晓达
+ */
 public final class TypeId {
     private final String binaryName;
 

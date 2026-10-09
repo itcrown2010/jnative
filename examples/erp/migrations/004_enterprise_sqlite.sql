@@ -1,3 +1,4 @@
+-- Author: 张晓达
 -- Enterprise Foundation 1.4 (SQLite mirror).
 
 CREATE TABLE IF NOT EXISTS schema_migrations (

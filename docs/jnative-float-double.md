@@ -1,5 +1,7 @@
 # float / double 数值语义（2026-10-09）
 
+作者：张晓达
+
 ## 验收结论
 
 类型检查、常量折叠、LLVM 原生与优化级别（O0 / 默认）对同一套用例与 **javac/java** 对齐；WASM 单独经 `WasmBrowserFloatTest` / `float-calc` 验证。浮点→整数转换在两端均避免 trap/poison（原生：`jnative_f*_to_i*`；WASM：`trunc_sat`）。

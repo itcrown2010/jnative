@@ -53,7 +53,9 @@ public sealed interface IrInstruction
     record UnaryNot(IrValue.Temp dest, IrValue operand) implements IrInstruction {
     }
 
-    /** Integer widen mode: {@link CastMode#SIGNED} uses sext; {@link CastMode#ZERO} uses zext (char). */
+    /** Integer widen mode: {@link CastMode#SIGNED} uses sext; {@link CastMode#ZERO} uses zext (char).
+ * @author 张晓达
+ */
     enum CastMode { SIGNED, ZERO }
 
     record Cast(IrValue.Temp dest, IrValue source, IrType target, CastMode mode) implements IrInstruction {

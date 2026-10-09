@@ -1,5 +1,7 @@
 # JNative One — Integration Hardening 1.6
 
+作者：张晓达
+
 **Date:** 2026-10-08  
 **Code:** `examples/erp`  
 **Host:** Darwin arm64 · `examples/erp/.jnative/build/erp-server`  

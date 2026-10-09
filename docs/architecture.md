@@ -1,5 +1,7 @@
 # JNative Architecture
 
+作者：张晓达
+
 ```text
 .java
   → Lexer / Parser / AST

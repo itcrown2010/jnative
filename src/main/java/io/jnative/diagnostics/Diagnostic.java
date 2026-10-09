@@ -1,5 +1,8 @@
 package io.jnative.diagnostics;
 
+/**
+ * @author 张晓达
+ */
 public record Diagnostic(Severity severity, SourceLocation location, String message) {
 
     public enum Severity {

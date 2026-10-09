@@ -19,6 +19,7 @@
  *   6 save too large
  *   7 generate failed (stage-2)
  *   8 not unique / unsolvable (diagnostics)
+ * @author 张晓达
  */
 public class SudokuCore {
     public static final int SAVE_VERSION = 1;

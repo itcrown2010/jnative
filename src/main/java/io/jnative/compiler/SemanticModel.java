@@ -20,6 +20,7 @@ import java.util.Optional;
 /**
  * IDE-facing semantic query surface over a frontend {@link TypedCompilationUnit}.
  * Does not depend on IR/LLVM.
+ * @author 张晓达
  */
 public final class SemanticModel {
     private final TypedCompilationUnit typed;

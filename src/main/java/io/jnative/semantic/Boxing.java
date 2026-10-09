@@ -3,6 +3,7 @@ package io.jnative.semantic;
 /**
  * Boxing / unboxing conversion helpers (Integer, Long, Boolean, Float, Double).
  * Conversion kind order for overload resolution: exact → widening → boxing.
+ * @author 张晓达
  */
 public final class Boxing {
     private Boxing() {

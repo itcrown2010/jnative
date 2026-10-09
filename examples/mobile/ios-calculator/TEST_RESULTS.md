@@ -1,5 +1,7 @@
 # iOS Calculator — test results
 
+作者：张晓达
+
 Date: 2026-10-08 (local)
 
 ## Verified

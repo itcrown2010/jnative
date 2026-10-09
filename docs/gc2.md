@@ -1,5 +1,7 @@
 # JNative GC2 (0.13)
 
+作者：张晓达
+
 Generational garbage collector with TLAB bump allocation and young semi-space copying.
 
 ## Mode selection

@@ -8,7 +8,9 @@ import io.jnative.ir.IrValue;
 import java.util.HashSet;
 import java.util.Set;
 
-/** Remove redundant null checks on freshly allocated or already checked values. */
+/** Remove redundant null checks on freshly allocated or already checked values.
+ * @author 张晓达
+ */
 public final class NullCheckEliminationPass implements OptimizationPass {
     @Override
     public String name() {

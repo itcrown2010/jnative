@@ -11,6 +11,7 @@ import java.util.Map;
 /**
  * Side-channel debug metadata for IR → LLVM DI lowering.
  * Does not alter instruction record shapes.
+ * @author 张晓达
  */
 public final class IrDebugInfo {
     public record LocalVar(

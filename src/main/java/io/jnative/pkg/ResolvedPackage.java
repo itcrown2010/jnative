@@ -8,7 +8,9 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
-/** One resolved package node in the dependency graph. */
+/** One resolved package node in the dependency graph.
+ * @author 张晓达
+ */
 public final class ResolvedPackage {
     private final PackageId id;
     private final SemanticVersion version;

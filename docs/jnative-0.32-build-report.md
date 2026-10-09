@@ -1,5 +1,7 @@
 # JNative 0.32 Compile-Time Metaprogramming Build Report
 
+作者：张晓达
+
 **Version:** 0.32  
 **Theme:** Annotation Processing / Code Generation / Compile-Time DI  
 **Principle:** Prefer compile-time knowledge + generated native code over JVM reflection.

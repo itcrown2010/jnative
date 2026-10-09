@@ -1,3 +1,4 @@
+/* Author: 张晓达 */
 :root {
   --bg: #f4f0e8;
   --ink: #1c1a17;
@@ -26,11 +27,62 @@ body {
   min-height: 100vh;
 }
 body.touch {
-  padding: calc(12px + var(--safe-top)) 12px calc(12px + var(--safe-bottom));
+  padding: calc(8px + var(--safe-top)) 12px calc(10px + var(--safe-bottom));
 }
-#app { max-width: 720px; margin: 0 auto; padding: 16px; }
-h1 { font-size: 1.6rem; margin: 0 0 8px; letter-spacing: 0.02em; }
-.toolbar, .digits { display: flex; flex-wrap: wrap; gap: 8px; margin: 10px 0; }
+#app { max-width: 480px; margin: 0 auto; padding: 0; }
+
+.topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+.topbar-text { min-width: 0; flex: 1; }
+h1 {
+  font-size: 1.35rem;
+  margin: 0;
+  letter-spacing: 0.02em;
+  line-height: 1.2;
+}
+.timer { margin: 2px 0 0; font-variant-numeric: tabular-nums; }
+.menu-btn {
+  flex-shrink: 0;
+  min-height: 44px;
+  min-width: 72px;
+  padding: 10px 14px;
+  border-radius: 12px;
+  background: var(--accent);
+  color: #fff;
+  border-color: var(--accent);
+  font-weight: 600;
+}
+
+.quickbar {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+  margin: 0 0 10px;
+}
+.quickbar button {
+  min-height: 44px;
+  border-radius: 12px;
+  touch-action: manipulation;
+}
+
+.digits {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+  margin-top: 12px;
+}
+.digits button {
+  min-height: 52px;
+  font-size: 1.4rem;
+  border-radius: 14px;
+  touch-action: manipulation;
+}
+
 button {
   font: inherit;
   border: 1px solid var(--line);
@@ -42,11 +94,13 @@ button {
 }
 button:active { transform: translateY(1px); }
 button.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+
 .board {
   display: grid;
   grid-template-columns: repeat(9, 1fr);
   gap: 0;
-  width: min(100%, 480px);
+  width: min(100%, 420px);
+  margin: 0 auto;
   border: 2px solid var(--line);
   background: #fff;
   user-select: none;
@@ -57,7 +111,7 @@ button.active { background: var(--accent); color: #fff; border-color: var(--acce
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: clamp(14px, 3.5vw, 22px);
+  font-size: clamp(18px, 5.5vw, 26px);
   position: relative;
 }
 .cell:nth-child(3n) { border-right: 2px solid var(--line); }
@@ -66,7 +120,7 @@ button.active { background: var(--accent); color: #fff; border-color: var(--acce
 .cell.given { font-weight: 700; color: var(--given); }
 .cell.user { color: var(--user); font-weight: 600; }
 .cell.notes {
-  font-size: 10px;
+  font-size: 11px;
   color: var(--notes);
   line-height: 1.1;
   text-align: center;
@@ -77,44 +131,83 @@ button.active { background: var(--accent); color: #fff; border-color: var(--acce
 .cell.peer { background: var(--peer); }
 .cell.same { background: var(--same); }
 .cell.conflict { background: var(--conflict); box-shadow: inset 0 0 0 2px #a33; }
-.status { min-height: 1.4em; color: var(--muted); }
-.status.error { color: #8a1f1f; }
-.meta { font-size: 0.9rem; color: var(--muted); margin-top: 6px; }
 
-/* Touch-first layout: digit pad dominates; toolbar wraps compactly. */
-body.touch #app {
-  max-width: 480px;
-  padding: 8px;
+.status { min-height: 1.3em; color: var(--muted); margin-top: 8px; font-size: 0.95rem; }
+.status.error { color: #8a1f1f; }
+.meta { font-size: 0.88rem; color: var(--muted); }
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  border: 0;
 }
-body.touch .toolbar {
+
+/* Bottom sheet menu */
+.menu-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(28, 26, 23, 0.35);
+  z-index: 40;
+}
+.menu-sheet {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 50;
+  max-height: min(78vh, 560px);
+  overflow: auto;
+  background: #fffdf8;
+  border-radius: 20px 20px 0 0;
+  padding: 10px 16px calc(16px + var(--safe-bottom));
+  box-shadow: 0 -8px 28px rgba(28, 26, 23, 0.18);
+}
+.menu-handle {
+  width: 40px;
+  height: 4px;
+  border-radius: 999px;
+  background: #d4ccbe;
+  margin: 4px auto 12px;
+}
+.menu-sheet h2 {
+  margin: 0 0 12px;
+  font-size: 1.2rem;
+}
+.menu-section { margin-bottom: 14px; }
+.menu-section h3 {
+  margin: 0 0 8px;
+  font-size: 0.85rem;
+  color: var(--muted);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+}
+.menu-row {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   gap: 8px;
 }
-body.touch .digits {
+.menu-list {
   display: grid;
-  grid-template-columns: repeat(5, 1fr);
-  gap: 10px;
-  margin-top: 14px;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
 }
-body.touch .digits button {
-  min-width: 0;
-  min-height: 58px;
-  font-size: 1.45rem;
-  border-radius: 14px;
-  touch-action: manipulation;
-}
-body.touch .toolbar button {
+.menu-sheet button {
   min-height: 48px;
-  padding: 10px 8px;
-  font-size: 0.95rem;
+  border-radius: 12px;
   touch-action: manipulation;
 }
-body.touch .board { width: min(100%, 100vw - 24px); max-width: 420px; margin: 8px auto; }
-body.touch .cell { font-size: clamp(18px, 5.5vw, 26px); }
-body.touch .cell.notes { font-size: 11px; }
+.menu-close {
+  width: 100%;
+  margin-top: 4px;
+  background: var(--panel, #ece5d8);
+}
+
+body.menu-open { overflow: hidden; }
 
 @media (max-width: 520px) {
-  #app { padding: 10px; }
-  h1 { font-size: 1.3rem; }
+  h1 { font-size: 1.25rem; }
 }

@@ -1,5 +1,7 @@
 # JNative One ERP — Release Blockers (1.5)
 
+作者：张晓达
+
 **Audit date:** 2026-10-08  
 **Rule:** **P0 must be 0** before real customer pilot.  
 **Platform baseline:** `docs/jnative-1.0-readiness.md` → `JNATIVE_1_0_NOT_READY`; `docs/1.0-release-blockers.md`.

@@ -1,5 +1,7 @@
 # JNative Explorer Report（Foundation Hardening pass）
 
+作者：张晓达
+
 **Date:** 2026-10-07  
 **Binary:** `build/explorer/JNativeExplorer`（compile PASS）  
 **Platform under test:** macOS arm64（compile/dogfood host）  

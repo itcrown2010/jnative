@@ -5,6 +5,7 @@ import java.util.List;
 
 /**
  * Version constraint: exact, ^, ~, >=, ranges, *.
+ * @author 张晓达
  */
 public final class VersionConstraint {
     private final String raw;

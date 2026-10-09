@@ -11,6 +11,7 @@ import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Content-addressed package cache shared across projects (under .jnative/pkg-cache or global).
+ * @author 张晓达
  */
 public final class PackageCache {
     private final Path root;

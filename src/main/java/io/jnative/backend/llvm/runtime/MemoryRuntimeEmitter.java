@@ -1,6 +1,8 @@
 package io.jnative.backend.llvm.runtime;
 
-/** Memory + failure abstraction. Allocation is provided by GcRuntimeEmitter. */
+/** Memory + failure abstraction. Allocation is provided by GcRuntimeEmitter.
+ * @author 张晓达
+ */
 public final class MemoryRuntimeEmitter {
     private final StringBuilder sb;
 

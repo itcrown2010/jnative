@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 # CalculatorNativeE2E — verify AOT native binary (not a JVM wrapper).
+# Author: 张晓达
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/../../.." && pwd)"
 BIN="${1:-$ROOT/build/calculator/Calculator}"

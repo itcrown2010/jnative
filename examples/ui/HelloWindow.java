@@ -1,5 +1,8 @@
 import jnative.ui.*;
 
+/**
+ * @author 张晓达
+ */
 public class HelloWindow {
     public static void main(String[] args) {
         Application app = new Application();

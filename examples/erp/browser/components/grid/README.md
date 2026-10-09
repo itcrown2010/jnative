@@ -1,5 +1,7 @@
 # Grid components (UI 1.3)
 
+作者：张晓达
+
 **Runtime:** `examples/erp/public/js/components/grid/` + `query/` + `nav/`
 
 | Name | Public module |

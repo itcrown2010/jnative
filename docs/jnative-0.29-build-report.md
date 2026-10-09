@@ -1,5 +1,7 @@
 # JNative 0.29 Incremental Build Report
 
+作者：张晓达
+
 **Version:** 0.29  
 **Theme:** Incremental Compiler / Build Graph / Cache / Parallel Build / Hot Reload  
 **Date:** 2026-10-07

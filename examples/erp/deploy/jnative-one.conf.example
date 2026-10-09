@@ -1,3 +1,4 @@
+# Author: 张晓达
 # JNative One — ApplicationConfig template (source via: set -a; source this file; set +a)
 # Copy to /etc/jnative-one/jnative-one.conf or $PREFIX/etc/jnative-one.conf
 # NEVER commit real secrets.

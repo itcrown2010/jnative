@@ -13,6 +13,7 @@ import java.util.Map;
 /**
  * Creates a mobile-app project from the built-in template.
  * Never overwrites existing files. Upgrades must not clobber user native code.
+ * @author 张晓达
  */
 public final class MobileProjectGenerator {
 

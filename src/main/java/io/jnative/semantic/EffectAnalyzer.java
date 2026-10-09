@@ -16,6 +16,7 @@ import java.util.function.Predicate;
 
 /**
  * JNative 0.11 — effect inference, propagation, and contract verification.
+ * @author 张晓达
  */
 public final class EffectAnalyzer {
 

@@ -1,3 +1,4 @@
+-- Author: 张晓达
 -- JNative Scheduler schema (SQLite dialect; TIMESTAMP as INTEGER epoch millis UTC)
 
 CREATE TABLE IF NOT EXISTS users (

@@ -17,6 +17,7 @@ import java.util.regex.Pattern;
 /**
  * HTTP registry client (HTTPS required except localhost).
  * Protocol: GET /search?q=  /pkg/{ns}/{name}/versions  /pkg/{ns}/{name}/{ver}/meta  /pkg/.../download
+ * @author 张晓达
  */
 public final class HttpRegistry implements PackageRegistry {
     private final String baseUrl;

@@ -1,5 +1,7 @@
 # JNative ERP (Phase-1)
 
+作者：张晓达
+
 Purchase → goods receipt → inventory → sales → delivery closed loop on PostgreSQL (SQLite fallback). No GL/MRP/CRM.
 
 ## UI language (i18n)

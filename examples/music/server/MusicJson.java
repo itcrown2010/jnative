@@ -1,3 +1,6 @@
+/**
+ * @author 张晓达
+ */
 class MusicJson {
     static String esc(String s) {
         if (s == null) {

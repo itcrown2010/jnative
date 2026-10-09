@@ -11,6 +11,7 @@ import jnative.io.*;
  *   examples/notepad/JNativeNotepad.java -o build/notepad/JNativeNotepad --app-type gui
  * ./build/notepad/JNativeNotepad
  * </pre>
+ * @author 张晓达
  */
 public class JNativeNotepad {
     public static void main(String[] args) {

@@ -1,5 +1,8 @@
 // JNative DB migrations foundation (0.24) — SQL-first, no ORM.
 
+/**
+ * @author 张晓达
+ */
 class MigrationRecord {
     String version;
     String name;

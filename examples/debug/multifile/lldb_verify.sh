@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# Author: 张晓达
 # Cross-file LLDB verification: breakpoint in MathUtil.java, locals in DebugMulti.java.
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/../../.." && pwd)"

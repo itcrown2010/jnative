@@ -3,6 +3,7 @@ package io.jnative.backend.llvm.runtime;
 /**
  * Network runtime orchestration (0.8.2). Public TcpSocket/TcpServer APIs lower here;
  * OS sockets stay in the PlatformSocket C layer ({@code jnative_plat_tcp_*}).
+ * @author 张晓达
  */
 public final class NetworkRuntimeEmitter {
     private final StringBuilder sb;

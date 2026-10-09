@@ -19,6 +19,7 @@ import java.util.zip.CRC32;
 
 /**
  * Compile-time RPC contract analyzer — no runtime reflection.
+ * @author 张晓达
  */
 public final class RpcAnalyzer {
 

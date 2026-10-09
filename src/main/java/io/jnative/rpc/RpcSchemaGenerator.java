@@ -2,7 +2,9 @@ package io.jnative.rpc;
 
 import java.util.List;
 
-/** Emits human-readable RPC schema and JSON schema artifact. */
+/** Emits human-readable RPC schema and JSON schema artifact.
+ * @author 张晓达
+ */
 public final class RpcSchemaGenerator {
 
     private RpcSchemaGenerator() {

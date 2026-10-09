@@ -18,7 +18,9 @@ import java.util.concurrent.TimeUnit;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-/** JNative 0.14 interface / abstract / functional-interface e2e. */
+/** JNative 0.14 interface / abstract / functional-interface e2e.
+ * @author 张晓达
+ */
 class InterfaceEndToEndTest {
 
     @TempDir

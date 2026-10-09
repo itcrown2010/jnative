@@ -13,7 +13,9 @@ import java.util.List;
 import java.util.Set;
 import java.util.function.Function;
 
-/** Shared IR helpers for optimization passes. */
+/** Shared IR helpers for optimization passes.
+ * @author 张晓达
+ */
 public final class IrUtil {
 
     public record ValueUse(IrValue value, String operand) {

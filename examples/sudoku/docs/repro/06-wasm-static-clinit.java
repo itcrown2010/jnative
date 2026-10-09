@@ -4,6 +4,7 @@
  * `status == ST_PAUSED` were true whenever status was PLAYING (0).
  *
  * Expected after fix: jnative_start calls jnative_clinit; reading C yields 1.
+ * @author 张晓达
  */
 public class WasmStaticClinitRepro {
     public static final int C = 1;

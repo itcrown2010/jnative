@@ -1,3 +1,4 @@
+/* Author: 张晓达 */
 #include <pthread.h>
 
 typedef int (*callback_t)(int);

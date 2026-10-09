@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# Author: 张晓达
 # Copy verified dist/ into Android assets and iOS bundle resources.
 set -euo pipefail
 

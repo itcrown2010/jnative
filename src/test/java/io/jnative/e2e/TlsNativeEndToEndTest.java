@@ -16,7 +16,9 @@ import java.util.concurrent.TimeUnit;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-/** Live OpenSSL TLS handshake E2E (Round 4). */
+/** Live OpenSSL TLS handshake E2E (Round 4).
+ * @author 张晓达
+ */
 class TlsNativeEndToEndTest {
 
     @TempDir

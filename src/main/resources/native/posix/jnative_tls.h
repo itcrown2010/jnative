@@ -1,3 +1,4 @@
+/* Author: 张晓达 */
 /* JNative TLS runtime (0.31) — OpenSSL backend behind opaque C ABI.
  * NOT a compiler intrinsic. Application code uses TlsLib / HttpClient / WebApp.
  */

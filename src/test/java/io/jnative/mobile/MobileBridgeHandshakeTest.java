@@ -10,7 +10,9 @@ import java.nio.file.Path;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-/** Node harness for bridge.hello / capability / timeout after template generation. */
+/** Node harness for bridge.hello / capability / timeout after template generation.
+ * @author 张晓达
+ */
 public class MobileBridgeHandshakeTest {
 
     @TempDir

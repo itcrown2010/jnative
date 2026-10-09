@@ -20,6 +20,7 @@ import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * Multi-package third-party source lib: language packages + imports + access diagnostics.
+ * @author 张晓达
  */
 class MultipackageResolveIntegrationTest {
 

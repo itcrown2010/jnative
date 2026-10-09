@@ -1,6 +1,7 @@
 /**
  * Production orders: release (lock BOM), issue, return, receipt, WIP, scrap.
  * Inventory changes only via ErpInventory.applyDeltaWithCostConn.
+ * @author 张晓达
  */
 class ErpMfgProduction {
     static ProductionOrderDto createPlanned(long companyId, long itemId, long warehouseId, int plannedQty,

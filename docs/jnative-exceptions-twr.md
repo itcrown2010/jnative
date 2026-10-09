@@ -1,5 +1,7 @@
 # JNative — try/catch/finally & try-with-resources（本轮交付）
 
+作者：张晓达
+
 ## 修改说明
 
 1. **finally 突然完成**  
@@ -35,14 +37,14 @@ Tests run: 35, Failures: 0, Errors: 0, Skipped: 0
 
 - 不可达 catch → semantic error `unreachable catch clause`
 - `throws` / multi-catch / TWR 已有变量形式 → 不支持（解析或未实现）
-- WASM：无同等异常机制（见 `exceptions.md`）
+- wasm32-browser：与 native 同语义（见 `docs/wasm32-browser-exceptions.md`）
 
 ## 后端差异与剩余限制
 
 | 项 | 状态 |
 |----|------|
 | Native LLVM | 完整 pending-exception 模型 |
-| WASM browser | pending stub；勿依赖 throw/TWR |
+| WASM browser | 同模型；`exc-stress` 验收 PASS |
 | checked `throws` | 未做 |
 | multi-catch / precise rethrow | 未做 |
 | TWR 变量资源 | 未做 |

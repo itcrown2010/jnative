@@ -1,5 +1,7 @@
 # JNative Mobile MVP — Calculator
 
+作者：张晓达
+
 Shared **JNative → WebUI/WASM** calculator with thin **Web / Android / iOS** containers.
 Platform shells do **not** reimplement addition or input validation.
 

@@ -1,3 +1,4 @@
+// Author: 张晓达
 /**
  * JNative Mobile bridge client v1 — handshake, whitelist, timeout, destroy.
  * Request:  { id, v, method, params }

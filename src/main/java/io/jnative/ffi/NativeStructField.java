@@ -2,6 +2,7 @@ package io.jnative.ffi;
 
 /**
  * One field in a {@link NativeStructLayout} result (ABI layout SoT).
+ * @author 张晓达
  */
 public record NativeStructField(
         String name,

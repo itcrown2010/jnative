@@ -4,7 +4,9 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Optional;
 
-/** Registry abstraction — local filesystem or HTTP. */
+/** Registry abstraction — local filesystem or HTTP.
+ * @author 张晓达
+ */
 public interface PackageRegistry {
     String name();
 

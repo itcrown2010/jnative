@@ -6,7 +6,9 @@ import java.util.Arrays;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-/** Host-side HTTP/2 framing + HPACK tests (no OpenSSL). */
+/** Host-side HTTP/2 framing + HPACK tests (no OpenSSL).
+ * @author 张晓达
+ */
 class Http2Hpack031Test {
 
     @Test

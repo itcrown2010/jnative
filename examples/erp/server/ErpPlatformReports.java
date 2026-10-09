@@ -1,5 +1,6 @@
 /**
  * Safe report datasets — predefined queries only, company + permission gated.
+ * @author 张晓达
  */
 class ErpPlatformReports {
     static long ensureReport(long companyId, String code, String name, String dataset) {

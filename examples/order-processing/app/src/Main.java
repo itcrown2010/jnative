@@ -10,6 +10,7 @@ import com.demo.order.OrderPipeline;
  *   (none)|ok   — normal path
  *   bad         — illegal transition error path
  *   stress [N]  — bounded GC/resource stress (default N=200)
+ * @author 张晓达
  */
 public class Main {
     public static void main(String[] args) {

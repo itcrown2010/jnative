@@ -20,6 +20,7 @@ import java.util.List;
 
 /**
  * Computes aligned object layouts with a vtable header and inherited field prefix.
+ * @author 张晓达
  */
 public final class ObjectLayoutBuilder {
 

@@ -10,7 +10,9 @@ import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-/** Additional WebSocket frame / SSE / session coverage for 0.25. */
+/** Additional WebSocket frame / SSE / session coverage for 0.25.
+ * @author 张晓达
+ */
 public class RealtimeProtocolTest {
 
     @Test void parseMaskedTextFrame() {

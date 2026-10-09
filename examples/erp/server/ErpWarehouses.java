@@ -1,3 +1,6 @@
+/**
+ * @author 张晓达
+ */
 class ErpWarehouses {
     static ArrayList<Object> list(long companyId) {
         ArrayList<Object> p = new ArrayList<Object>();

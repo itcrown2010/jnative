@@ -1,5 +1,7 @@
 # JNative Desktop UI Foundation Report
 
+作者：张晓达
+
 **Date:** 2026-10-07  
 **Validator apps:** `examples/explorer` · `examples/ui-workbench` · `examples/ui/CounterApp`  
 **Compile gate (this pass):** CounterApp / Explorer / UiWorkbench — **PASS** (macOS arm64 host compile)

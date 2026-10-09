@@ -20,6 +20,7 @@ import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * Native GC acceptance tests. Many run under JNATIVE_GC_STRESS=1.
+ * @author 张晓达
  */
 class GcEndToEndTest {
 

@@ -6,6 +6,9 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
+/**
+ * @author 张晓达
+ */
 public final class FieldModel {
     private final String name;
     private final TypeId type;

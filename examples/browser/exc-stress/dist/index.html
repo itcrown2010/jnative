@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <title>JNative exc-stress</title>
+</head>
+<body>
+  <h1>exc-stress</h1>
+  <pre id="out">loading…</pre>
+  <script type="module">
+    import { jnativeStart } from './app.js';
+    const out = document.getElementById('out');
+    try {
+      const api = await jnativeStart('./app.wasm');
+      const f = (sub) => {
+        for (const k of Object.keys(api.exports)) if (k.includes(sub)) return api.exports[k];
+        throw new Error('missing ' + sub);
+      };
+      const rows = [
+        ['catchExact', f('ExcStress_catchExact')()],
+        ['catchSuper', f('ExcStress_catchSuper')()],
+        ['propagate', f('ExcStress_propagate')()],
+        ['finallyPaths0', f('ExcStress_finallyPaths')(0)],
+        ['nestedFinally', f('ExcStress_nestedFinally')()],
+        ['twrOrder', f('ExcStress_twrOrder')()],
+        ['cleanupGc', f('ExcStress_cleanupGc')()],
+        ['ifaceThrow', f('ExcStress_ifaceThrow')()],
+        ['closureThrow', f('ExcStress_closureThrow')()],
+      ];
+      out.textContent = rows.map(([k, v]) => k + '=' + v).join('\n') + '\nOK';
+    } catch (e) {
+      out.textContent = 'FAIL: ' + (e && e.name) + ' ' + (e && e.message);
+      throw e;
+    }
+  </script>
+</body>
+</html>

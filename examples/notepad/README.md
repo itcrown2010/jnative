@@ -1,5 +1,7 @@
 # JNative Notepad
 
+作者：张晓达
+
 Native desktop notepad demo built with JNative UI + CodeEditor + File I/O.
 
 ## Build

@@ -1,3 +1,6 @@
+/**
+ * @author 张晓达
+ */
 class UserDto {
     long id;
     String email;

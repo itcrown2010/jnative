@@ -1,5 +1,7 @@
 # JNative 0.9 Concurrent Memory Model
 
+作者：张晓达
+
 This is a **documented subset**, not a claim of full Java Memory Model compatibility.
 
 > **LLVM `volatile` ≠ Java `volatile`.**  

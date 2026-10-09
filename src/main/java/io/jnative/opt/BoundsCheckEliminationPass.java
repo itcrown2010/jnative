@@ -5,7 +5,9 @@ import io.jnative.ir.IrFunction;
 import io.jnative.ir.IrInstruction;
 import io.jnative.ir.IrValue;
 
-/** Mark array loads unchecked in simple counted loops. */
+/** Mark array loads unchecked in simple counted loops.
+ * @author 张晓达
+ */
 public final class BoundsCheckEliminationPass implements OptimizationPass {
     @Override
     public String name() {

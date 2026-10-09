@@ -4,6 +4,9 @@ import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+/**
+ * @author 张晓达
+ */
 class OptimizerTest {
 
     private static final String POINT_CALC = """

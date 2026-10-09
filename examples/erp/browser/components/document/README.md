@@ -1,5 +1,7 @@
 # Document Editor components (UI 1.2)
 
+作者：张晓达
+
 **Runtime implementation:** `examples/erp/public/js/components/document/`
 
 | Architectural name | Public SPA module |

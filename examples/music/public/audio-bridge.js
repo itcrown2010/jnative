@@ -1,3 +1,4 @@
+// Author: 张晓达
 /**
  * JNative Music — thin Audio + DOM bridge (charter §24).
  * Owns: HTMLAudioElement, DOM event→REST fill, bridge attrs for WASM PlayerStore.

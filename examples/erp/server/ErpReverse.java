@@ -1,6 +1,7 @@
 /**
  * Reverse posted GR / DL. Same transaction: status, inventory, order qty, audit.
  * Not the same as refund/return merchandise flows.
+ * @author 张晓达
  */
 class ErpReverse {
     static PostResultDto reverseGoodsReceipt(long companyId, long userId, long grId, String reason, String idempotencyKey) {

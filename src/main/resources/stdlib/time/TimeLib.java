@@ -86,6 +86,7 @@ class TimeFmt {
 /**
  * Instant — UTC timeline point as epoch milliseconds.
  * Instant.now() uses wall clock (CLOCK_REALTIME). Use Clock.monotonic() for elapsed time.
+ * @author 张晓达
  */
 class Instant {
     long epochMillis;

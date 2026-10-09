@@ -1,3 +1,4 @@
+/* Author: 张晓达 */
 #include "jnative_ui.h"
 #include "jnative_graphics.h"
 

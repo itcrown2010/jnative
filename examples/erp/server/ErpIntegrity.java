@@ -1,6 +1,7 @@
 /**
  * ERP Integrity Checker (1.6) — read-only. Never mutates ledgers.
  * Prints PASS / FAIL / SKIP (NOT_APPLICABLE) / NOT_VERIFIED per check.
+ * @author 张晓达
  */
 class ErpIntegrity {
     static int runAll(long companyId) {

@@ -1,3 +1,4 @@
+// Author: 张晓达
 /**
  * UI 1.4 — Full ERP UI Coverage & Interactive Demo verification.
  * Real Chromium only. WASM SPA status recorded (BLOCKED if unchanged).

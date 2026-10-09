@@ -25,6 +25,7 @@ import java.util.concurrent.TimeoutException;
 
 /**
  * Runs annotation processors with rounds, crash isolation, timeout, and generated-dir writes.
+ * @author 张晓达
  */
 public final class ProcessorScheduler {
     public static final int MAX_ROUNDS = 8;

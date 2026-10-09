@@ -9,7 +9,9 @@ import java.util.Base64;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-/** Host-JVM mirrors for JNative 0.25 crypto / WebSocket / JWT / session security. */
+/** Host-JVM mirrors for JNative 0.25 crypto / WebSocket / JWT / session security.
+ * @author 张晓达
+ */
 public class SecurityFoundationTest {
 
     @Test void websocketAcceptMatchesRfc() throws Exception {

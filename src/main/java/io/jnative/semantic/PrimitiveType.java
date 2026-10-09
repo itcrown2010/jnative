@@ -1,5 +1,8 @@
 package io.jnative.semantic;
 
+/**
+ * @author 张晓达
+ */
 public enum PrimitiveType implements JType {
     BYTE("byte"),
     SHORT("short"),

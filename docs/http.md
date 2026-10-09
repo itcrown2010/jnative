@@ -1,5 +1,7 @@
 # HTTP (0.8.3 / 0.9)
 
+作者：张晓达
+
 With 0.9 threads, an HTTP server can `accept` then handle each `HttpConnection` on a worker
 `Thread` subclass. Stdlib HTTP itself is unchanged (still TcpSocket-based).
 

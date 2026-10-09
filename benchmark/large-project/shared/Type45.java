@@ -1,3 +1,6 @@
+/**
+ * @author 张晓达
+ */
 class Type45 {
     int id;
     String name;

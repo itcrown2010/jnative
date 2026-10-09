@@ -1,3 +1,4 @@
+-- Author: 张晓达
 -- Enterprise Foundation 1.4 (PostgreSQL). Controlled metadata — no arbitrary SQL / eval.
 
 CREATE TABLE IF NOT EXISTS schema_migrations (

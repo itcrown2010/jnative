@@ -1,5 +1,7 @@
 # JNative Music (validation app)
 
+作者：张晓达
+
 Full-stack Music validation for JNative: native server, PostgreSQL/SQLite metadata, HTTP Range streaming, WASM PlayerStore + thin audio/DOM bridge.
 
 ## Quick start (SQLite local)

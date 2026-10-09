@@ -1,3 +1,6 @@
+/**
+ * @author 张晓达
+ */
 class MathLib {
     static int add(int a, int b) {
         return a + b;

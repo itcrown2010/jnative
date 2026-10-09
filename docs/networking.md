@@ -1,5 +1,7 @@
 # Networking (0.8.2 / 0.9)
 
+作者：张晓达
+
 Blocking socket calls use `jn_enter_native` / `jn_leave_native` so STW GC is not blocked by
 `accept`/`read`/`write`. Concurrent servers: spawn a `Thread` subclass per client (0.9).
 

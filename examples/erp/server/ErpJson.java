@@ -1,3 +1,6 @@
+/**
+ * @author 张晓达
+ */
 class ErpJson {
     static String esc(String s) {
         if (s == null) {

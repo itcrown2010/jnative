@@ -15,6 +15,7 @@ import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * JNative 0.24 Database unit/protocol tests (host JVM mirrors of native stdlib logic).
+ * @author 张晓达
  */
 public class DatabaseStackTest {
 

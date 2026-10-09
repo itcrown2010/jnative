@@ -1,6 +1,8 @@
 package io.jnative.ffi;
 
-/** wasm32-browser ABI: 32-bit pointers in linear memory. */
+/** wasm32-browser ABI: 32-bit pointers in linear memory.
+ * @author 张晓达
+ */
 public final class Wasm32BrowserAbi implements TargetAbi {
     public static final Wasm32BrowserAbi INSTANCE = new Wasm32BrowserAbi();
 

@@ -1,4 +1,6 @@
-/** One line item in the browser order list demo. */
+/** One line item in the browser order list demo.
+ * @author 张晓达
+ */
 class OrderItem {
     String name;
     int quantity;

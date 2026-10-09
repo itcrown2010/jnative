@@ -3,6 +3,7 @@ package io.jnative.layout;
 /**
  * Mutable pointer-width for target-specific layouts.
  * Native host defaults to 8; wasm32-browser uses 4.
+ * @author 张晓达
  */
 public final class LayoutConfig {
     private static volatile int pointerSize = 8;

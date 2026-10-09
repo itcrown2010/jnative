@@ -1,3 +1,6 @@
+/**
+ * @author 张晓达
+ */
 class ErpInventory {
     static ArrayList<Object> balances(long companyId, long warehouseId) {
         ArrayList<Object> p = new ArrayList<Object>();

@@ -10,6 +10,7 @@ package io.jnative.backend.llvm.runtime;
  * Non-moving, precise roots via per-thread shadow stacks (TLS).
  * STW coordinates all mutators via jn_gc_stw_*; heap list locked.
  * </pre>
+ * @author 张晓达
  */
 public final class GcRuntimeEmitter {
     private final StringBuilder sb;

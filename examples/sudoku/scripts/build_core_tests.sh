@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# Author: 张晓达
 # Concatenate SudokuCore + tests → native headless binary.
 set -euo pipefail
 

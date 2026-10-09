@@ -9,6 +9,7 @@ import java.util.List;
 /**
  * Builds vtables with stable slots: overrides replace implementation, preserve slot;
  * new virtual methods append.
+ * @author 张晓达
  */
 public final class VTableBuilder {
 

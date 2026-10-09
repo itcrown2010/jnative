@@ -1,3 +1,4 @@
+/* Author: 张晓达 */
 /*
  * JNative 0.9 — POSIX multithreading runtime
  * ThreadState TLS, registry, safepoints, STW coordination, Mutex/Condition.

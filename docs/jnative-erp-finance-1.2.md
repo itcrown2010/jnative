@@ -1,5 +1,7 @@
 # JNative ERP Finance 1.2
 
+作者：张晓达
+
 **Stamp: `JNATIVE_ERP_FINANCE_1_2_PARTIAL`**
 
 **Date:** 2026-10-08  

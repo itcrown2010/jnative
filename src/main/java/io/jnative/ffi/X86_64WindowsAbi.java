@@ -1,6 +1,8 @@
 package io.jnative.ffi;
 
-/** Windows x86_64 ABI stub (same fixed-width mappings for 0.7 primitives). */
+/** Windows x86_64 ABI stub (same fixed-width mappings for 0.7 primitives).
+ * @author 张晓达
+ */
 public final class X86_64WindowsAbi implements TargetAbi {
     public static final X86_64WindowsAbi INSTANCE = new X86_64WindowsAbi();
 

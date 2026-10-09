@@ -1,5 +1,7 @@
 # 函数式接口、集合 / UI / 异步回调契约
 
+作者：张晓达
+
 **日期：** 2026-10-09  
 **前置：** `docs/jnative-closures.md`（CallableBinding / MakeCallable / 逃逸+GC）
 

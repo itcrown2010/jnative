@@ -29,6 +29,7 @@ import java.util.stream.Stream;
 /**
  * Long-lived incremental compilation session (0.29).
  * Holds project graph, fingerprints, symbol/source deps, and local cache.
+ * @author 张晓达
  */
 public final class CompilerSession {
     private final Path projectRoot;

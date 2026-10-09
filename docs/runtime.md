@@ -1,5 +1,7 @@
 # JNative Runtime
 
+作者：张晓达
+
 JNative 0.4 establishes a formal runtime boundary. The LLVM backend lowers IR
 opcodes to calls into this API; it does not embed Java semantics.
 

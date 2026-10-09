@@ -11,6 +11,7 @@ import java.util.Map;
 
 /**
  * Assigns stable interface method slots, merging inherited signatures (diamond-safe).
+ * @author 张晓达
  */
 public final class InterfaceSlotBuilder {
 

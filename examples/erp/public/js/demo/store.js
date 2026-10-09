@@ -1,3 +1,4 @@
+// Author: 张晓达
 /**
  * DemoStateStore - single source of DEMO truth.
  * Persistence: localStorage (survives refresh). Cleared by Reset or clearing site data.

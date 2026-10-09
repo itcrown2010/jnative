@@ -5,6 +5,7 @@ import java.util.List;
 /**
  * First-class function type: {@code (T1, T2, ...) -> R}.
  * SAM builtin classes map to a FunctionType for target typing.
+ * @author 张晓达
  */
 public final class FunctionType implements JType {
     public enum Domain { MANAGED, NATIVE }

@@ -1,3 +1,4 @@
+-- Author: 张晓达
 -- JNative Music schema (SQLite + PostgreSQL-friendly types)
 
 CREATE TABLE IF NOT EXISTS users (

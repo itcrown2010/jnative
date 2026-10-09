@@ -7,6 +7,7 @@ import java.util.List;
 
 /**
  * Constructor symbol. Native ABI: void _JN_Class_init[_sig](ptr this, ...)
+ * @author 张晓达
  */
 public final class ConstructorSymbol {
     private final ClassSymbol owner;

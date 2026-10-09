@@ -14,7 +14,9 @@ import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-/** Host-side tests for JNative 0.31 TLS / HTTP/2 abstraction (no OpenSSL). */
+/** Host-side tests for JNative 0.31 TLS / HTTP/2 abstraction (no OpenSSL).
+ * @author 张晓达
+ */
 class TlsAbstraction031Test {
 
     @Test

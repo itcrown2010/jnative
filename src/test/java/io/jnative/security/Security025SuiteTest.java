@@ -17,6 +17,7 @@ import static org.junit.jupiter.api.Assertions.*;
 /**
  * Expanded 0.25 coverage: WebSocket, JWT, session, CSRF, rate-limit, password, hub.
  * Host-JVM protocol mirrors of JNative stdlib behavior.
+ * @author 张晓达
  */
 public class Security025SuiteTest {
 

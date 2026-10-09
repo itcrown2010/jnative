@@ -3,6 +3,9 @@ package io.jnative.ast;
 import io.jnative.diagnostics.SourceLocation;
 import io.jnative.semantic.Visibility;
 
+/**
+ * @author 张晓达
+ */
 public record FieldDeclaration(
         TypeName type,
         boolean isArray,

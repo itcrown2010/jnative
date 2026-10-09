@@ -1,3 +1,6 @@
+/**
+ * @author 张晓达
+ */
 @Rpc(path = "/rpc/users", version = 1)
 interface UserApi {
     User getUser(String id);

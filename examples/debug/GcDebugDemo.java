@@ -1,6 +1,7 @@
 /**
  * GC-safe reference check: stop before and after an explicit collection.
  * Young-gen addresses may change; field values and graphs must remain valid.
+ * @author 张晓达
  */
 class GcBox {
     String label;

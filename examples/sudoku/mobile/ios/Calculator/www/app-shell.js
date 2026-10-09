@@ -1,6 +1,7 @@
+// Author: 张晓达
 /**
  * Mobile touch Sudoku shell (WebView / body.touch).
- * Large digit pad; no soft-keyboard dependency; lifecycle pause+save.
+ * Compact quick bar + bottom-sheet menu; digit pad; lifecycle pause+save.
  * All rules/solve/conflict logic come from WASM SudokuCore exports.
  */
 import { jnativeStart } from './app.js';
@@ -10,10 +11,28 @@ const SAVE_KEY = 'jnative.sudoku.save.v1';
 const I18N = {
   zh: {
     title: 'JNative 数独',
+    menu: '菜单',
+    menuTitle: '菜单',
+    newGame: '新游戏',
+    actions: '操作',
+    close: '关闭',
+    easy: '简单',
+    medium: '中等',
+    hard: '困难',
+    undo: '撤销',
+    redo: '重做',
+    hint: '提示',
+    notes: '笔记',
+    clear: '清除',
+    pause: '暂停',
+    resume: '继续',
+    save: '存档',
+    load: '读档',
+    lang: '中 / EN',
     ready: '选择格子并输入数字',
     won: '完成！',
     paused: '已暂停',
-    notes: '笔记模式',
+    notesOn: '笔记模式',
     conflict: '冲突（不只靠颜色：单元格标记为冲突）',
     loadFail: '存档无效，当前对局未改动',
     saved: '已保存',
@@ -22,10 +41,28 @@ const I18N = {
   },
   en: {
     title: 'JNative Sudoku',
+    menu: 'Menu',
+    menuTitle: 'Menu',
+    newGame: 'New game',
+    actions: 'Actions',
+    close: 'Close',
+    easy: 'Easy',
+    medium: 'Medium',
+    hard: 'Hard',
+    undo: 'Undo',
+    redo: 'Redo',
+    hint: 'Hint',
+    notes: 'Notes',
+    clear: 'Clear',
+    pause: 'Pause',
+    resume: 'Resume',
+    save: 'Save',
+    load: 'Load',
+    lang: 'EN / 中',
     ready: 'Select a cell and enter a digit',
     won: 'Solved!',
     paused: 'Paused',
-    notes: 'Notes mode',
+    notesOn: 'Notes mode',
     conflict: 'Conflict (cells marked conflict, not color-only)',
     loadFail: 'Bad save; current game kept',
     saved: 'Saved',
@@ -170,6 +207,36 @@ async function main() {
     }
   }
 
+  function setMenuOpen(open) {
+    $('menuSheet').hidden = !open;
+    $('menuBackdrop').hidden = !open;
+    document.body.classList.toggle('menu-open', open);
+    $('btnMenu').setAttribute('aria-expanded', open ? 'true' : 'false');
+  }
+
+  function applyLabels() {
+    const L = lang.value;
+    $('title').textContent = t(L, 'title');
+    $('btnMenu').textContent = t(L, 'menu');
+    $('menuTitle').textContent = t(L, 'menuTitle');
+    $('lblNewGame').textContent = t(L, 'newGame');
+    $('lblActions').textContent = t(L, 'actions');
+    $('btnMenuClose').textContent = t(L, 'close');
+    $('btnEasy').textContent = t(L, 'easy');
+    $('btnMedium').textContent = t(L, 'medium');
+    $('btnHard').textContent = t(L, 'hard');
+    $('btnUndo').textContent = t(L, 'undo');
+    $('btnRedo').textContent = t(L, 'redo');
+    $('btnHint').textContent = t(L, 'hint');
+    $('notesBtn').textContent = t(L, 'notes');
+    $('btnClear').textContent = t(L, 'clear');
+    $('btnSave').textContent = t(L, 'save');
+    $('btnLoad').textContent = t(L, 'load');
+    $('btnLang').textContent = t(L, 'lang');
+    const paused = (api.getStatus() | 0) === 1;
+    $('btnPause').textContent = t(L, paused ? 'resume' : 'pause');
+  }
+
   function render() {
     const now = performance.now() | 0;
     api.tick(now);
@@ -201,32 +268,41 @@ async function main() {
       if (i === sel) label.push('selected');
       el.setAttribute('aria-label', label.join(', '));
     }
-    $('title').textContent = t(lang.value, 'title');
+    applyLabels();
     if ((api.isComplete() | 0) !== 0) status(t(lang.value, 'won'));
     else if ((api.getStatus() | 0) === 1) status(t(lang.value, 'paused'));
-    else if ((api.getNoteMode() | 0) !== 0) status(t(lang.value, 'notes'));
+    else if ((api.getNoteMode() | 0) !== 0) status(t(lang.value, 'notesOn'));
     else if ((api.getConflict(sel) | 0) !== 0) status(t(lang.value, 'conflict'));
     else status(t(lang.value, 'ready'));
     $('notesBtn').classList.toggle('active', (api.getNoteMode() | 0) !== 0);
   }
 
-  $('btnEasy').onclick = () => { api.newGame(0, 0); render(); };
-  $('btnMedium').onclick = () => { api.newGame(1, 0); render(); };
-  $('btnHard').onclick = () => { api.newGame(2, 0); render(); };
+  function afterMenuAction() {
+    setMenuOpen(false);
+    render();
+  }
+
+  $('btnMenu').onclick = () => setMenuOpen(true);
+  $('btnMenuClose').onclick = () => setMenuOpen(false);
+  $('menuBackdrop').onclick = () => setMenuOpen(false);
+
+  $('btnEasy').onclick = () => { api.newGame(0, 0); afterMenuAction(); };
+  $('btnMedium').onclick = () => { api.newGame(1, 0); afterMenuAction(); };
+  $('btnHard').onclick = () => { api.newGame(2, 0); afterMenuAction(); };
   $('btnUndo').onclick = () => { api.undo(); render(); };
-  $('btnRedo').onclick = () => { api.redo(); render(); };
+  $('btnRedo').onclick = () => { api.redo(); afterMenuAction(); };
   $('btnHint').onclick = () => { api.hint(); render(); };
   $('notesBtn').onclick = () => { api.toggleNoteMode(); render(); };
   $('btnPause').onclick = () => {
     if ((api.getStatus() | 0) === 1) api.resume();
     else api.pause();
-    render();
+    afterMenuAction();
   };
-  $('btnSave').onclick = () => { persist().then(render); };
-  $('btnLoad').onclick = () => { restore().then(render); };
+  $('btnSave').onclick = () => { persist().then(afterMenuAction); };
+  $('btnLoad').onclick = () => { restore().then(afterMenuAction); };
   $('btnLang').onclick = () => {
     lang.value = lang.value === 'zh' ? 'en' : 'zh';
-    render();
+    afterMenuAction();
   };
   for (let d = 1; d <= 9; d++) {
     $('d' + d).onclick = () => { api.inputDigit(d); render(); };
@@ -235,6 +311,11 @@ async function main() {
 
   if (!touch) {
     window.addEventListener('keydown', (ev) => {
+      if (ev.key === 'Escape' && !$('menuSheet').hidden) {
+        setMenuOpen(false);
+        ev.preventDefault();
+        return;
+      }
       if (ev.key === 'ArrowLeft') api.moveSelection(0, -1);
       else if (ev.key === 'ArrowRight') api.moveSelection(0, 1);
       else if (ev.key === 'ArrowUp') api.moveSelection(-1, 0);

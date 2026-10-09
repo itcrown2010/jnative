@@ -1,5 +1,7 @@
 # Generational GC
 
+作者：张晓达
+
 ## Minor GC (Cheney)
 
 1. STW + retire TLABs + fill waste

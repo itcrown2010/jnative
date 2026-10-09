@@ -1,5 +1,7 @@
 # JNative One — UI 1.3 Enterprise Data Grid & Query Center
 
+作者：张晓达
+
 **Date:** 2026-10-08  
 **Principles:** UI FIRST · Mock Data allowed · No new ERP backend modules  
 **Scope:** Unified EnterpriseDataGrid, advanced filters, saved views, drill-down, global search  

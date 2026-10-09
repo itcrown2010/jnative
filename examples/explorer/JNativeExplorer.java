@@ -9,6 +9,7 @@
  * </pre>
  *
  * No JVM / Swing / Electron at runtime. Explorer-specific LLVM intrinsics: NONE.
+ * @author 张晓达
  */
 public class JNativeExplorer {
     public static void main(String[] args) {

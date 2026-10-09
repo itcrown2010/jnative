@@ -2,6 +2,9 @@
 // NOT a compiler intrinsic. TLS_NATIVE capability. Browser WASM must NOT include this.
 // TLS compiler intrinsics: NONE
 
+/**
+ * @author 张晓达
+ */
 class TlsException extends IOException {
     TlsException(String message) {
         super(message);

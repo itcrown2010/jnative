@@ -12,6 +12,7 @@ import java.util.concurrent.TimeUnit;
 /**
  * Reports availability of tools needed for mobile targets.
  * Never downloads SDKs, accepts licenses, or changes system/signing settings.
+ * @author 张晓达
  */
 public final class MobileToolchain {
 

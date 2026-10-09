@@ -1,3 +1,4 @@
+// Author: 张晓达
 /**
  * SavedViewManager - localStorage DEMO personal views (not formal user config DB).
  */

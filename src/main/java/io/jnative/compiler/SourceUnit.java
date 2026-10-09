@@ -6,6 +6,7 @@ import java.util.Objects;
 /**
  * In-memory or on-disk source unit for IDE / compiler API (0.20).
  * Allows compiling unsaved editor buffers without forcing a disk path first.
+ * @author 张晓达
  */
 public final class SourceUnit {
     private final String path;

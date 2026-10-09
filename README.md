@@ -1,5 +1,7 @@
 # JNative
 
+作者：张晓达
+
 **JNative** is an experimental ahead-of-time native compiler for a **subset** of the Java language.
 
 ```text

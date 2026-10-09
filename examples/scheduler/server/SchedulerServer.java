@@ -8,6 +8,7 @@ import jnative.json.*;
  * Override:   DATABASE_URL=postgresql://...
  *
  * REST mirrors shared @Rpc contracts for browser fetch.
+ * @author 张晓达
  */
 public class SchedulerServer {
     public static void main(String[] args) {

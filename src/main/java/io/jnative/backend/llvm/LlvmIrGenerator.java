@@ -22,6 +22,7 @@ import java.util.Set;
 /**
  * Lowers JNative IR to textual LLVM IR.
  * Does not perform Java method resolution or type compatibility.
+ * @author 张晓达
  */
 public final class LlvmIrGenerator {
     private record CallbackTrampoline(

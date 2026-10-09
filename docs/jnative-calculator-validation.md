@@ -1,5 +1,7 @@
 # JNative Calculator Validation Report
 
+作者：张晓达
+
 **Stamp:** `JNATIVE_CALCULATOR_PARTIAL`  
 **Date:** 2026-10-08  
 **Primary platform:** macOS arm64  

@@ -1,3 +1,4 @@
+/* Author: 张晓达 */
 /*
  * JNative 0.8 — RuntimeCrashDiagnostics (POSIX)
  * Signal handlers stay async-signal-safe: write(2) + _exit only.

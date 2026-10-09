@@ -7,6 +7,7 @@ import java.util.Locale;
 
 /**
  * Recognized JNative/Java source suffixes. Suffix does not change type semantics.
+ * @author 张晓达
  */
 public final class SourceFiles {
     public static final String EXT_JAVA = ".java";
@@ -18,6 +19,15 @@ public final class SourceFiles {
     public static boolean isSourcePath(Path path) {
         if (path == null || path.getFileName() == null) {
             return false;
+        }
+        /* Skip tooling dirs under source roots (e.g. src/.jnative-file-build/*.jn binaries). */
+        for (Path part : path) {
+            String seg = part.toString();
+            if (seg.equals(".jnative")
+                    || seg.equals(".jnative-file-build")
+                    || seg.equals("node_modules")) {
+                return false;
+            }
         }
         return isSourceFileName(path.getFileName().toString());
     }

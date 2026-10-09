@@ -1,5 +1,7 @@
 # ERP UI Audit — UI 1.5 Preflight
 
+作者：张晓达
+
 **Date:** 2026-10-08  
 **Sources inspected:** `examples/erp/public/`, docs `jnative-one-ui-1.1`…`1.4`, browser WASM stubs  
 **Assumption:** Prior Cursor phases are **not** trusted until verified in-tree.

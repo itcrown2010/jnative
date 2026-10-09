@@ -1,6 +1,8 @@
 package io.jnative.incremental;
 
-/** Classification of a source edit for minimal invalidation. */
+/** Classification of a source edit for minimal invalidation.
+ * @author 张晓达
+ */
 public enum ChangeClassification {
     IMPLEMENTATION_ONLY,
     PUBLIC_API_CHANGE,

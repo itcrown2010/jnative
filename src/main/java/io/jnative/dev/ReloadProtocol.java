@@ -1,6 +1,8 @@
 package io.jnative.dev;
 
-/** Reload / diagnostics messages pushed to the browser overlay. */
+/** Reload / diagnostics messages pushed to the browser overlay.
+ * @author 张晓达
+ */
 public final class ReloadProtocol {
     public static final String RELOAD_PAGE = "RELOAD_PAGE";
     public static final String RELOAD_CSS = "RELOAD_CSS";

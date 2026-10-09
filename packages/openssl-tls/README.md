@@ -1,5 +1,7 @@
 # openssl-tls
 
+作者：张晓达
+
 Platform TLS backend metadata package for JNative **0.31** SecureTransport.
 
 This package does **not** reimplement TLS or cryptography. It declares that the host

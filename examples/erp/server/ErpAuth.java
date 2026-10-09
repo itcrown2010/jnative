@@ -1,5 +1,8 @@
 import jnative.web.*;
 
+/**
+ * @author 张晓达
+ */
 class ErpAuth {
     static String nextRequestId() {
         Erp.requestSeq = Erp.requestSeq + 1L;

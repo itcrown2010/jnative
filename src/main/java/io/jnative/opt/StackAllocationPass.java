@@ -10,6 +10,7 @@ import io.jnative.layout.FieldLayout;
  * Lowers remaining {@link EscapeState.EscapeKind#NO_ESCAPE} managed allocations to
  * stack storage while retaining ClassMetadata / field semantics.
  * Primitive-only objects are preferably handled by {@link ScalarReplacementPass} first.
+ * @author 张晓达
  */
 public final class StackAllocationPass implements OptimizationPass {
     @Override

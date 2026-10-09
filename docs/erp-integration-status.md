@@ -1,5 +1,7 @@
 # JNative One — Integration Status (1.6 audit)
 
+作者：张晓达
+
 **Audit date:** 2026-10-08  
 **Code root:** `examples/erp` (only ERP product tree under `examples/`)  
 **Host:** Darwin arm64 · binary `examples/erp/.jnative/build/erp-server` (Mach-O arm64)  

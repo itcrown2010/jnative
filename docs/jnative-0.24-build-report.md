@@ -1,5 +1,7 @@
 # JNative 0.24 Database Build Report
 
+作者：张晓达
+
 ## Summary
 
 - Product version **0.24**

@@ -1,5 +1,7 @@
 # ERP UI Acceptance Matrix — UI 1.6
 
+作者：张晓达
+
 Generated: 2026-10-08T13:29:37.914Z
 
 | Module | Page | Route | Implemented | LoadTest | InteractionTest | VisualTest | WorkflowTest | Status |

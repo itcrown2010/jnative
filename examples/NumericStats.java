@@ -2,6 +2,7 @@
  * Standalone float/double numerical example (means / variance).
  * For approximate statistics and scientific smoke only — not money.
  * ERP / finance amounts must use integer minor units or Decimal, never binary float.
+ * @author 张晓达
  */
 public class NumericStats {
     public static void main(String[] args) {

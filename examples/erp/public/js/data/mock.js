@@ -1,3 +1,4 @@
+// Author: 张晓达
 /**
  * MockData facade over DemoStateStore (UI 1.4).
  * All mutations for master/docs should prefer JnAppService.

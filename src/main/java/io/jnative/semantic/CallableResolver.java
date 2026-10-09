@@ -6,6 +6,7 @@ import java.util.List;
 /**
  * Resolves overloaded callables: exact → primitive widening → boxing/unboxing.
  * Does not let boxing steal calls that already match via widening (int→long beats int→Long).
+ * @author 张晓达
  */
 public final class CallableResolver {
 

@@ -1,3 +1,4 @@
+// Author: 张晓达
 /**
  * JnI18n - lightweight locale module for ERP public SPA.
  * Keys are semantic; business codes/routes stay English.

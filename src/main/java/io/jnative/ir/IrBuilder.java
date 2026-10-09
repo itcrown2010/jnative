@@ -9,6 +9,7 @@ import java.util.Map;
 
 /**
  * Helper for emitting IR into the current function/block.
+ * @author 张晓达
  */
 public final class IrBuilder {
     private final IrModule module;

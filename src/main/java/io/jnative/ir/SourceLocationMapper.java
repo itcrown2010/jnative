@@ -7,6 +7,7 @@ import io.jnative.diagnostics.SourceLocation;
  * Maps locations from a stdlib-prepended parse buffer back onto original user source files.
  * Locations that fall inside the prepended prefix become {@link SourceLocation#UNKNOWN}
  * so they are not attributed to user code in debug info.
+ * @author 张晓达
  */
 public final class SourceLocationMapper {
     private final String userFile;

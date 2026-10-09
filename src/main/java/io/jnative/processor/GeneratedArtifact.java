@@ -5,7 +5,9 @@ import java.security.MessageDigest;
 import java.util.HexFormat;
 import java.util.Objects;
 
-/** One generated file with origin / fingerprint identity. */
+/** One generated file with origin / fingerprint identity.
+ * @author 张晓达
+ */
 public final class GeneratedArtifact {
     public enum Kind {
         SOURCE,

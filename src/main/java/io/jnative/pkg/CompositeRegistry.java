@@ -10,6 +10,7 @@ import java.util.Optional;
 /**
  * Multiple registries with deterministic source precedence (first wins).
  * Prevents dependency confusion: private before public.
+ * @author 张晓达
  */
 public final class CompositeRegistry implements PackageRegistry {
     private final List<PackageRegistry> registries = new ArrayList<>();

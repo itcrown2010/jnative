@@ -1,5 +1,7 @@
 # wasm32-browser float / double contract
 
+作者：张晓达
+
 Status: **available** (verified with Node WebAssembly + `examples/browser/float-calc`).
 
 ## Mapping

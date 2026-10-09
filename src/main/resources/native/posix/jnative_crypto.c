@@ -1,3 +1,4 @@
+/* Author: 张晓达 */
 /* JNative crypto runtime (0.25) — CSPRNG + integer bitwise helpers for SHA/HMAC. */
 #include <stdint.h>
 #include <stdio.h>

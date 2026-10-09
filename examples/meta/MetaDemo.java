@@ -1,6 +1,9 @@
 // JNative 0.32 — compile-time metaprogramming demo
 // jnative examples/meta/MetaDemo.java -o build/meta/MetaDemo --explain-meta
 
+/**
+ * @author 张晓达
+ */
 @Json
 @Validated
 class UserDto {

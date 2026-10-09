@@ -1,10 +1,12 @@
-/* JNative wasm32-browser loader (0.27) — generated glue */
+// Author: 张晓达
+/* JNative wasm32-browser loader — generated glue */
 const handles = new Map();
 let nextHandle = 1;
 let memory = null;
 let exports = null;
 let patchBuf = null;
 let delegationRoot = null;
+/** cbId → { el, type, handler } for host-side unsubscribe */
 const callbackRegistry = new Map();
 
 function retain(obj) {
@@ -19,47 +21,98 @@ function getHandle(id) {
   return handles.get(id | 0);
 }
 
+/** Always use fresh memory.buffer — required after memory.grow. */
+function u8(ptr, len) {
+  return new Uint8Array(memory.buffer, ptr >>> 0, len >>> 0);
+}
+function view() {
+  return new DataView(memory.buffer);
+}
+
 function readUtf8(ptr, len) {
-  const bytes = new Uint8Array(memory.buffer, ptr >>> 0, len >>> 0);
-  return new TextDecoder('utf-8').decode(bytes);
+  return new TextDecoder('utf-8').decode(u8(ptr, len));
 }
 
 function readWasmString(ptr) {
   if (!ptr) return '';
-  const view = new DataView(memory.buffer);
-  const len = view.getUint32(ptr >>> 0, true);
+  const len = view().getUint32(ptr >>> 0, true);
   return readUtf8(ptr + 4, len);
 }
 
 function writePatchString(off, str) {
   const enc = new TextEncoder().encode(str ?? '');
-  const view = new DataView(memory.buffer);
-  view.setUint32(off >>> 0, enc.length, true);
-  new Uint8Array(memory.buffer, off + 4, enc.length).set(enc);
+  view().setUint32(off >>> 0, enc.length, true);
+  u8(off + 4, enc.length).set(enc);
   return off + 4 + enc.length;
 }
 
+/**
+ * Managed WASM object roots (separate from DOM host handles).
+ * Handle format: ((gen & 0xFFFF) << 16) | (slot+1); 0 = null/invalid.
+ */
+function retainManaged(ptr) {
+  if (!ptr || !exports?.jn_host_root_retain) return 0;
+  return exports.jn_host_root_retain(ptr | 0) | 0;
+}
+function releaseManaged(handle) {
+  if (!handle || !exports?.jn_host_root_release) return;
+  exports.jn_host_root_release(handle | 0);
+}
+function getManaged(handle) {
+  if (!handle || !exports?.jn_host_root_get) return 0;
+  return exports.jn_host_root_get(handle | 0) | 0;
+}
+function gcStats() {
+  if (!exports?.jn_gc_stats) return null;
+  const [allocBytes, liveBytes, freeBytes, heapCap, gcCount, hostRoots, allocFail] =
+    exports.jn_gc_stats();
+  return { allocBytes, liveBytes, freeBytes, heapCap, gcCount, hostRoots, allocFail };
+}
+function gcCollect() {
+  if (exports?.jn_gc_collect) exports.jn_gc_collect();
+}
+
+/**
+ * Temporary host string into managed heap. Caller must retainManaged
+ * for long-lived use, or releaseManaged after a short call window.
+ * Returns raw ptr (not a handle) — only safe until next GC without a root.
+ */
+function writeWasmString(str) {
+  if (!exports?.jn_bump || !memory) throw new Error('wasm not ready');
+  const enc = new TextEncoder().encode(str ?? '');
+  const ptr = exports.jn_bump(enc.length + 4) >>> 0;
+  if (!ptr) throw new Error('jn_bump alloc failed');
+  view().setUint32(ptr, enc.length, true);
+  u8(ptr + 4, enc.length).set(enc);
+  return ptr;
+}
+/** Alloc + root for long-lived JS→WASM strings. */
+function writeWasmStringRooted(str) {
+  const ptr = writeWasmString(str);
+  return { ptr, handle: retainManaged(ptr) };
+}
+
 function applyDomPatches(bufPtr, byteLen) {
-  const view = new DataView(memory.buffer);
+  const v = view();
   let off = bufPtr >>> 0;
   const end = off + (byteLen >>> 0);
   while (off + 4 <= end) {
-    const op = view.getInt32(off, true); off += 4;
-    if (op === 1) { // SET_TEXT
-      const node = view.getInt32(off, true); off += 4;
-      const strPtr = view.getInt32(off, true); off += 4;
+    const op = v.getInt32(off, true); off += 4;
+    if (op === 1) {
+      const node = v.getInt32(off, true); off += 4;
+      const strPtr = v.getInt32(off, true); off += 4;
       const el = getHandle(node);
       if (el) el.textContent = readWasmString(strPtr);
-    } else if (op === 2) { // SET_ATTR
-      const node = view.getInt32(off, true); off += 4;
-      const nPtr = view.getInt32(off, true); off += 4;
-      const vPtr = view.getInt32(off, true); off += 4;
+    } else if (op === 2) {
+      const node = v.getInt32(off, true); off += 4;
+      const nPtr = v.getInt32(off, true); off += 4;
+      const vPtr = v.getInt32(off, true); off += 4;
       const el = getHandle(node);
       if (el) el.setAttribute(readWasmString(nPtr), readWasmString(vPtr));
-    } else if (op === 4) { // SET_PROP
-      const node = view.getInt32(off, true); off += 4;
-      const nPtr = view.getInt32(off, true); off += 4;
-      const vPtr = view.getInt32(off, true); off += 4;
+    } else if (op === 4) {
+      const node = v.getInt32(off, true); off += 4;
+      const nPtr = v.getInt32(off, true); off += 4;
+      const vPtr = v.getInt32(off, true); off += 4;
       const el = getHandle(node);
       const name = readWasmString(nPtr);
       const val = readWasmString(vPtr);
@@ -68,9 +121,9 @@ function applyDomPatches(bufPtr, byteLen) {
         else if (name === 'checked') el.checked = val === 'true';
         else el[name] = val;
       }
-    } else if (op === 5) { // APPEND
-      const parent = view.getInt32(off, true); off += 4;
-      const child = view.getInt32(off, true); off += 4;
+    } else if (op === 5) {
+      const parent = v.getInt32(off, true); off += 4;
+      const child = v.getInt32(off, true); off += 4;
       const p = getHandle(parent), c = getHandle(child);
       if (p && c) p.appendChild(c);
     } else {
@@ -79,13 +132,19 @@ function applyDomPatches(bufPtr, byteLen) {
   }
 }
 
-function dispatchEvent(nodeId, type, ev) {
-  const cbId = nodeId; // simplified: callback id stored on element dataset
-  const el = getHandle(nodeId);
-  const id = el?.dataset?.jnCb ? (el.dataset.jnCb | 0) : 0;
-  if (exports?.jnative_callback && id) {
-    exports.jnative_callback(id | 0, retain(ev));
-  }
+function bindCallback(el, type, cbId) {
+  el.dataset.jnCb = String(cbId | 0);
+  const handler = (ev) => {
+    if (exports?.jnative_callback) {
+      try {
+        exports.jnative_callback(cbId | 0, retain(ev));
+      } catch (e) {
+        console.error('JNative callback trap/error:', e);
+      }
+    }
+  };
+  el.addEventListener(type, handler);
+  callbackRegistry.set(cbId | 0, { el, type, handler });
 }
 
 function initDelegation(rootHandle) {
@@ -120,6 +179,9 @@ const imports = {
       const el = document.getElementById(id);
       return el ? retain(el) : 0;
     },
+    document_body() {
+      return retain(document.body);
+    },
     element_set_text(handle, ptr, len) {
       const el = getHandle(handle);
       if (el) el.textContent = readUtf8(ptr, len);
@@ -135,7 +197,15 @@ const imports = {
     element_add_event_listener(handle, typePtr, typeLen, callbackId) {
       const el = getHandle(handle);
       if (!el) return;
-      el.dataset.jnCb = String(callbackId | 0);
+      bindCallback(el, readUtf8(typePtr, typeLen), callbackId | 0);
+    },
+    input_value(handle) {
+      const el = getHandle(handle);
+      return writeWasmString(el && 'value' in el ? String(el.value) : '');
+    },
+    input_set_value(handle, ptr, len) {
+      const el = getHandle(handle);
+      if (el && 'value' in el) el.value = readUtf8(ptr, len);
     },
     storage_set(h, kPtr, kLen, vPtr, vLen) {
       const store = getHandle(h) || localStorage;
@@ -157,18 +227,30 @@ const imports = {
     create_text(ptr, len) {
       return retain(document.createTextNode(readUtf8(ptr, len)));
     },
-    register_callback(id) { callbackRegistry.set(id | 0, id | 0); return id | 0; },
+    register_callback(id) { return id | 0; },
+    unregister_callback(id) {
+      const rec = callbackRegistry.get(id | 0);
+      if (rec) {
+        rec.el.removeEventListener(rec.type, rec.handler);
+        callbackRegistry.delete(id | 0);
+      }
+    },
     delegate_event(node, typePtr, typeLen, cbId) {
       const el = getHandle(node);
-      if (el) el.dataset.jnCb = String(cbId | 0);
+      if (!el) return;
+      bindCallback(el, readUtf8(typePtr, typeLen), cbId | 0);
     },
     init_delegation(root) { initDelegation(root); },
     set_count_label(handle, count) {
       const el = getHandle(handle);
       if (el) el.textContent = 'Count: ' + (count | 0);
     },
+    memory_grew() {
+      // Invalidate any cached views; u8()/view() always re-bind memory.buffer.
+      memory = exports.memory;
+    },
     patch_write_int(buf, off, v) {
-      new DataView(memory.buffer).setInt32(off >>> 0, v | 0, true);
+      view().setInt32(off >>> 0, v | 0, true);
     },
     patch_write_string(buf, off, ptr, len) {
       return writePatchString(off, readUtf8(ptr, len));
@@ -180,16 +262,6 @@ const imports = {
   }
 };
 
-function writeWasmString(str) {
-  if (!exports?.jn_bump || !memory) throw new Error('wasm not ready');
-  const enc = new TextEncoder().encode(str ?? '');
-  const ptr = exports.jn_bump(enc.length + 4) >>> 0;
-  const view = new DataView(memory.buffer);
-  view.setUint32(ptr, enc.length, true);
-  new Uint8Array(memory.buffer, ptr + 4, enc.length).set(enc);
-  return ptr;
-}
-
 function findExport(substr) {
   if (!exports) return null;
   for (const k of Object.keys(exports)) {
@@ -198,10 +270,15 @@ function findExport(substr) {
   return null;
 }
 
-async function jnativeStart(wasmUrl = './app.wasm', { autoStart = true } = {}) {
-  const resp = await fetch(wasmUrl);
-  if (!resp.ok) throw new Error('failed to fetch ' + wasmUrl);
-  const bytes = await resp.arrayBuffer();
+async function jnativeStart(wasmSource = './app.wasm', { autoStart = true } = {}) {
+  let bytes;
+  if (wasmSource instanceof ArrayBuffer || ArrayBuffer.isView(wasmSource)) {
+    bytes = wasmSource instanceof ArrayBuffer ? wasmSource : wasmSource.buffer;
+  } else {
+    const resp = await fetch(wasmSource);
+    if (!resp.ok) throw new Error('failed to fetch ' + wasmSource);
+    bytes = await resp.arrayBuffer();
+  }
   const { instance } = await WebAssembly.instantiate(bytes, imports);
   exports = instance.exports;
   memory = exports.memory;
@@ -209,12 +286,32 @@ async function jnativeStart(wasmUrl = './app.wasm', { autoStart = true } = {}) {
     try {
       exports.jnative_start();
     } catch (e) {
-      console.error('JNative uncaught:', e);
+      console.error('JNative uncaught (WASM trap or JS):', e);
       throw e;
     }
   }
-  return { exports, memory, handles, release, writeWasmString, findExport, readWasmString };
+  return {
+    exports, memory, handles, release, writeWasmString, writeWasmStringRooted,
+    findExport, readWasmString, retainManaged, releaseManaged, getManaged,
+    gcStats, gcCollect,
+    releaseCallback(id) {
+      if (exports?.jn_release_callback) exports.jn_release_callback(id | 0);
+      imports.jnative.unregister_callback(id | 0);
+    },
+    /** Release all DOM handles + managed roots known to this session (page tear-down). */
+    dispose() {
+      for (const id of [...callbackRegistry.keys()]) {
+        imports.jnative.unregister_callback(id);
+        if (exports?.jn_release_callback) exports.jn_release_callback(id);
+      }
+      handles.clear();
+      if (exports?.jn_gc_collect) exports.jn_gc_collect();
+    }
+  };
 }
 
-// No auto-start: the host page (or default HTML) must call jnativeStart().
-export { jnativeStart, retain, release, getHandle, applyDomPatches, writeWasmString, findExport, readWasmString };
+export {
+  jnativeStart, retain, release, getHandle, applyDomPatches,
+  writeWasmString, writeWasmStringRooted, findExport, readWasmString,
+  retainManaged, releaseManaged, getManaged, gcStats, gcCollect
+};

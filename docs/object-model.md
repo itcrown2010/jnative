@@ -1,5 +1,7 @@
 # JNative Object Model
 
+作者：张晓达
+
 ## Reference semantics
 
 Class-typed variables store references. Assignment copies the pointer.

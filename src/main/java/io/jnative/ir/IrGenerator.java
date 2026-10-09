@@ -55,6 +55,7 @@ import java.util.Set;
 
 /**
  * Lowers typed AST to JNative IR (0.4 runtime foundation).
+ * @author 张晓达
  */
 public final class IrGenerator {
 

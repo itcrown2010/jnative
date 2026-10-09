@@ -1,5 +1,7 @@
 # JNative One — UI 1.2 Enterprise Document Editor
 
+作者：张晓达
+
 **Date:** 2026-10-08  
 **Principles:** UI FIRST · Mock Data allowed · No new ERP backend business logic  
 **Scope:** Reusable document editor for six ERP document types  

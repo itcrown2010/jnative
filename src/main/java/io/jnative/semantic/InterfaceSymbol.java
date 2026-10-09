@@ -12,6 +12,7 @@ import java.util.Set;
 
 /**
  * Interface type symbol — distinct from {@link ClassSymbol}.
+ * @author 张晓达
  */
 public final class InterfaceSymbol implements ReferenceTypeSymbol {
     private final String name;

@@ -1,5 +1,7 @@
 # String
 
+作者：张晓达
+
 ## Public contract (current)
 
 | API | Semantics |

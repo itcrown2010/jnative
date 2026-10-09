@@ -1,6 +1,7 @@
 /**
  * Full-stack users server (native). Pair with client WASM under client/.
  * Shared DTO: ../shared/User.java (same source model).
+ * @author 张晓达
  */
 import jnative.web.*;
 

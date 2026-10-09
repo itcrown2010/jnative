@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# Author: 张晓达
 # Rebuild from source and verify real IR→WASM execution + bridge host semantics (Node).
 set -euo pipefail
 

@@ -1,3 +1,4 @@
+// Author: 张晓达
 import { chromium } from 'playwright';
 import path from 'path';
 import fs from 'fs';

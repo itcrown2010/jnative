@@ -1,3 +1,4 @@
+/* Author: 张晓达 */
 #include "jnative_proc.h"
 
 #include <errno.h>

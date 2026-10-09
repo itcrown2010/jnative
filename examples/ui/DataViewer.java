@@ -1,6 +1,8 @@
 import jnative.ui.*;
 
-/** 100k-row TableView demo (virtualized — zero row Components). */
+/** 100k-row TableView demo (virtualized — zero row Components).
+ * @author 张晓达
+ */
 class Row {
     String name;
     int id;

@@ -1,5 +1,6 @@
 /**
  * BOM master, versioning, multi-level explosion (integer qty; scrap_rate_bp basis points).
+ * @author 张晓达
  */
 class ErpMfgBom {
     static int MAX_BOM_DEPTH = 20;

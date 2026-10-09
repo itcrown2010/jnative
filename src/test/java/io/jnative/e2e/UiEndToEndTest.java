@@ -17,7 +17,9 @@ import java.util.concurrent.TimeUnit;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-/** JNative 0.17 UI foundation — headless e2e. */
+/** JNative 0.17 UI foundation — headless e2e.
+ * @author 张晓达
+ */
 class UiEndToEndTest {
 
     @TempDir

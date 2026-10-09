@@ -21,6 +21,7 @@ import java.util.Set;
 /**
  * Compile-time DI graph. No runtime bean scanning.
  * Detects cycles A→B→C→A at compile time.
+ * @author 张晓达
  */
 public class DiProcessor implements AnnotationProcessor {
     @Override

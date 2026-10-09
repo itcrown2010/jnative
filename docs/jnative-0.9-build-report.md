@@ -1,5 +1,7 @@
 # JNative 0.9 Build Report
 
+作者：张晓达
+
 ## 1. Architecture Audit
 
 Completed in `docs/threading-audit.md`: TLS for frame/exception state; locked heap + STW coordinator; static fields added for shared counters.

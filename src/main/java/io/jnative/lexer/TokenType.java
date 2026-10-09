@@ -3,6 +3,9 @@ package io.jnative.lexer;
 import java.util.HashMap;
 import java.util.Map;
 
+/**
+ * @author 张晓达
+ */
 public enum TokenType {
     // Keywords
     PUBLIC,

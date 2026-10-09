@@ -1,5 +1,7 @@
 # JNative 0.15 Build Report — Generics
 
+作者：张晓达
+
 ## Summary
 
 - Version **0.15**

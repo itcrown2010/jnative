@@ -6,6 +6,7 @@ import java.util.List;
 /**
  * Independently parsed compilation units for one program.
  * Types are analyzed across units; IR may consume a flattened class list.
+ * @author 张晓达
  */
 public final class ProgramAst {
     private final List<CompilationUnit> units;

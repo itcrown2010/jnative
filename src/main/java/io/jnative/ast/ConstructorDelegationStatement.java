@@ -4,7 +4,9 @@ import io.jnative.diagnostics.SourceLocation;
 
 import java.util.List;
 
-/** this(...) or super(...) as the first statement of a constructor. */
+/** this(...) or super(...) as the first statement of a constructor.
+ * @author 张晓达
+ */
 public record ConstructorDelegationStatement(
         boolean isSuper,
         List<Expression> arguments,

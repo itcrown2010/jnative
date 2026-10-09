@@ -1,3 +1,4 @@
+-- Author: 张晓达
 -- SQLite mirror for JNative ERP Phase-1 (no FK enforcement on older builds)
 CREATE TABLE IF NOT EXISTS companies (
     id INTEGER PRIMARY KEY AUTOINCREMENT,

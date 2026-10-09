@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# Author: 张晓达
 # Rebuild from source and execute float/double checks in Node's WASM engine.
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -20,6 +21,8 @@ const imports = { jnative: {
   delegate_event(){}, init_delegation(){}, register_callback(id){return id},
   unregister_callback(){}, set_count_label(){}, document_body(){return 0},
   input_value(){return 0}, input_set_value(){}, memory_grew(){},
+  console_warn(){}, console_error(){},
+  report_uncaught(){ throw Object.assign(new Error('uncaught'), { name: 'JNativeException' }); },
 }};
 const { instance } = await WebAssembly.instantiate(wasmBytes, imports);
 const e = instance.exports;

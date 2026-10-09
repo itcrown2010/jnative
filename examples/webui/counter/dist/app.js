@@ -1,3 +1,4 @@
+// Author: 张晓达
 /* JNative wasm32-browser loader (0.27) — generated glue */
 const handles = new Map();
 let nextHandle = 1;

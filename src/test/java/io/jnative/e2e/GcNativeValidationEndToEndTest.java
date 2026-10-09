@@ -19,6 +19,7 @@ import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * Round-2 GC native validation: stress + graphs/cycles/strings/collections + heap verify.
+ * @author 张晓达
  */
 class GcNativeValidationEndToEndTest {
 

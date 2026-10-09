@@ -1,5 +1,6 @@
 /**
  * AR / AP invoices and payment allocation (integer money, company-scoped).
+ * @author 张晓达
  */
 class ErpFinanceArAp {
     static ArInvoiceDto createArInvoice(long companyId, long customerId, long totalAmount, long invoiceDate,

@@ -3,6 +3,7 @@ package io.jnative.backend.llvm.runtime;
 /**
  * Socket-facing runtime notes (0.8.2). Concrete helpers live in {@link NetworkRuntimeEmitter};
  * platform syscalls are in the POSIX/Winsock PlatformSocket C layer.
+ * @author 张晓达
  */
 public final class SocketRuntimeEmitter {
     private final StringBuilder sb;

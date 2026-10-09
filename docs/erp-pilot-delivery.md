@@ -1,5 +1,7 @@
 # JNative One ERP 试点交付清单（1.6.0-pilot）
 
+作者：张晓达
+
 ## 可部署内容
 
 - 服务端：`examples/erp/.jnative/build/erp-server`

@@ -3,6 +3,9 @@ package io.jnative.semantic;
 import io.jnative.diagnostics.SourceLocation;
 import io.jnative.ffi.PointerProvenance;
 
+/**
+ * @author 张晓达
+ */
 public final class VariableSymbol {
     public enum Kind {
         LOCAL,

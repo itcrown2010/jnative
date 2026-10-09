@@ -8,7 +8,9 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
-/** Install + launch only after an explicit run command and a successful fresh build stamp. */
+/** Install + launch only after an explicit run command and a successful fresh build stamp.
+ * @author 张晓达
+ */
 public final class MobileRunner {
 
     private final Path projectRoot;

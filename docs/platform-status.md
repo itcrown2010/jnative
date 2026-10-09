@@ -1,5 +1,7 @@
 # JNative Platform Status — 1.0 Readiness Audit
 
+作者：张晓达
+
 **Audit date:** 2026-10-08  
 **Evidence basis:** source, `src/test` (79 classes, ~810 `@Test`, 40 native e2e), app validation reports, Round1–4 docs, host runs on **macOS arm64**.  
 **Not evidence:** README marketing, roadmaps, TODOs, class names alone.

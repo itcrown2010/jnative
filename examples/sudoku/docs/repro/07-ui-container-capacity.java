@@ -3,6 +3,7 @@
  * (81 cells) threw UiException "container child capacity exceeded".
  *
  * Expected after fix: Container grows via ensureChildCapacity.
+ * @author 张晓达
  */
 public class UiContainerCapacityRepro {
     public static void main(String[] args) {

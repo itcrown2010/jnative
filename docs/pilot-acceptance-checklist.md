@@ -1,5 +1,7 @@
 # JNative One — Pilot Acceptance Checklist
 
+作者：张晓达
+
 **Rule:** all boxes must be **PASS** with evidence links/logs before `PILOT_READY`.  
 **Date audited:** 2026-10-08  
 

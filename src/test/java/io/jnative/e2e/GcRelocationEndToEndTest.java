@@ -20,6 +20,7 @@ import static org.junit.jupiter.api.Assertions.*;
 /**
  * RH-1: young-gen relocation under default GC2.
  * Address may change after minor GC; rooted reference must still see correct fields.
+ * @author 张晓达
  */
 class GcRelocationEndToEndTest {
 

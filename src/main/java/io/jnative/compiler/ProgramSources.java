@@ -7,6 +7,7 @@ import java.util.Objects;
 /**
  * Ordered list of independent source units for a program compile.
  * Order must not affect name resolution; it only affects deterministic IR emission.
+ * @author 张晓达
  */
 public final class ProgramSources {
     private final List<SourceUnit> units;

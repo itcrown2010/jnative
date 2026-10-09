@@ -6,6 +6,7 @@ import java.util.regex.Pattern;
 /**
  * Fingerprints for a compilation unit.
  * Public API vs implementation vs ABI vs RPC/JSON shapes drive invalidation.
+ * @author 张晓达
  */
 public final class UnitFingerprint {
     private final String path;

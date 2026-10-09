@@ -10,6 +10,8 @@ import jnative.ui.*;
  * </pre>
  *
  * Engines are duplicated from JNativeCalculator.java so this unit compiles alone.
+ *
+ * @author 张晓达
  */
 public class CalculatorTests {
     static int passed;

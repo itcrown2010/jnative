@@ -1,3 +1,6 @@
+/**
+ * @author 张晓达
+ */
 class ErpSeed {
     /**
      * Boot seed policy:
@@ -55,7 +58,31 @@ class ErpSeed {
                 "SELECT id FROM companies ORDER BY id LIMIT 1", new ArrayList<Object>(), new LongMapper());
         if (any != null) {
             ensurePlatform(ErpNum.asLong(any));
+        } else {
+            /* Empty formal DB: bootstrap one FORMAL book + admin so login works.
+               No demo masters/partners — business data stays empty until wizard. */
+            ensureFormalBootstrap();
         }
+    }
+
+    /** First-boot admin for empty formal databases (no DEMO practice data). */
+    static void ensureFormalBootstrap() {
+        long now = AsyncClockNative.wallMillis();
+        ErpDb.exec(
+                "INSERT INTO companies(code, name, book_kind, timezone, currency_code, amount_scale, created_at) VALUES ('CO1','Formal Co','"
+                        + BookKind.FORMAL + "','Asia/Shanghai','CNY',0,"
+                        + CryptoParse.longToString(now) + ")",
+                new ArrayList<Object>());
+        Object cidObj = ErpDb.queryOne(
+                "SELECT id FROM companies WHERE code='CO1'", new ArrayList<Object>(), new LongMapper());
+        long companyId = ErpNum.asLong(cidObj);
+        seedRoles(companyId, now);
+        seedUsers(companyId, now);
+        seedSequences(companyId);
+        ErpFinanceCore.ensureSeed(companyId);
+        ensurePlatform(companyId);
+        System.out.println("FORMAL_BOOTSTRAP companyId=" + CryptoParse.longToString(companyId)
+                + " admin=user1@jnative.dev");
     }
 
     static void ensurePlatform(long companyId) {

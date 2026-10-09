@@ -8,6 +8,7 @@ import jnative.json.*;
  * PG validation: DATABASE_URL=postgresql://... (md5/trust until SCRAM / RH-1).
  *
  * Media: GET /media/tracks/{id} streaming Range; GET /media/covers/{id}
+ * @author 张晓达
  */
 public class MusicServer {
     public static void main(String[] args) {

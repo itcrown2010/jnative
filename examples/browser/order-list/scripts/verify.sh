@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# Author: 张晓达
 # Build order-list and exercise add/remove/total via a minimal DOM mock in Node.
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -36,8 +37,10 @@ globalThis.document = {
   querySelector() { return null; },
   body: el('body'),
 };
+import { readFileSync } from 'fs';
 const mod = await import(pathToFileURL(dist + '/app.js').href);
-await mod.jnativeStart(pathToFileURL(dist + '/app.wasm').href, { autoStart: true });
+const wasmBytes = readFileSync(dist + '/app.wasm');
+await mod.jnativeStart(wasmBytes, { autoStart: true });
 elements.get('addBtn').click();
 const list1 = elements.get('orderList').textContent;
 if (!list1.includes('龙井') && !list1.includes('茶叶')) throw new Error('chinese name missing: ' + list1);

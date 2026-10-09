@@ -20,6 +20,7 @@ import java.util.Set;
 /**
  * Compile-time typeId / vtable / itable maps for wasm32-browser.
  * Objects store {@code i32 typeId} at offset 0 (not a ClassMetadata*).
+ * @author 张晓达
  */
 public final class WasmMetaRegistry {
 
@@ -38,6 +39,10 @@ public final class WasmMetaRegistry {
     /** funcref table: code symbol → table index */
     private final Map<String, Integer> funcrefIndex = new LinkedHashMap<>();
     private final List<String> funcrefSymbols = new ArrayList<>();
+    /** typeId → reference field byte offsets from payload start */
+    private final Map<Integer, List<Integer>> refFieldOffsets = new HashMap<>();
+    /** typeId → GC flags (ARRAY / REF_ELEMS) */
+    private final Map<Integer, Integer> typeFlags = new HashMap<>();
 
     public WasmMetaRegistry(IrModule module) {
         int next = 1; // 0 = null / unknown
@@ -89,11 +94,43 @@ public final class WasmMetaRegistry {
             if (!byIface.isEmpty()) {
                 itables.put(id, byIface);
             }
+            List<Integer> refs = new ArrayList<>();
+            for (Long off : meta.referenceFieldByteOffsets()) {
+                refs.add(off.intValue());
+            }
+            refFieldOffsets.put(id, refs);
+            typeFlags.put(id, meta.flags());
         }
         for (ClassMetadata meta : module.arrayMetadatas().values()) {
             int id = metaToTypeId.get(meta.globalName());
             superOf.putIfAbsent(id, 0);
+            refFieldOffsets.putIfAbsent(id, List.of());
+            typeFlags.put(id, meta.flags());
         }
+    }
+
+    public List<Integer> refFieldOffsets(int typeId) {
+        return refFieldOffsets.getOrDefault(typeId, List.of());
+    }
+
+    public int typeFlags(int typeId) {
+        return typeFlags.getOrDefault(typeId, 0);
+    }
+
+    public boolean isArrayType(int typeId) {
+        return (typeFlags(typeId) & ClassMetadata.FLAG_ARRAY) != 0;
+    }
+
+    public boolean hasRefElements(int typeId) {
+        return (typeFlags(typeId) & ClassMetadata.FLAG_REF_ELEMENTS) != 0;
+    }
+
+    public int maxTypeId() {
+        int max = 0;
+        for (Integer id : metaToTypeId.values()) {
+            max = Math.max(max, id);
+        }
+        return max;
     }
 
     public int typeId(String metadataGlobal) {
@@ -128,11 +165,19 @@ public final class WasmMetaRegistry {
     }
 
     public String resolveVirtual(int typeId, int slot) {
-        Map<Integer, String> slots = vtables.get(typeId);
-        if (slots == null) {
-            return null;
+        int tid = typeId;
+        while (tid > 0) {
+            Map<Integer, String> slots = vtables.get(tid);
+            if (slots != null && slots.containsKey(slot)) {
+                return slots.get(slot);
+            }
+            int sup = superOf.getOrDefault(tid, 0);
+            if (sup == tid) {
+                break;
+            }
+            tid = sup;
         }
-        return slots.get(slot);
+        return null;
     }
 
     /**
@@ -141,8 +186,22 @@ public final class WasmMetaRegistry {
      */
     public String resolveVirtualNamed(int typeId, int slot, String methodName) {
         if (methodName != null) {
-            Map<Integer, String> names = vtableSlotNames.get(typeId);
-            if (names == null || !methodName.equals(names.get(slot))) {
+            // Walk superclass chain: inherited slots keep the owner's method name.
+            int tid = typeId;
+            boolean matched = false;
+            while (tid > 0) {
+                Map<Integer, String> names = vtableSlotNames.get(tid);
+                if (names != null && methodName.equals(names.get(slot))) {
+                    matched = true;
+                    break;
+                }
+                int sup = superOf.getOrDefault(tid, 0);
+                if (sup == tid) {
+                    break;
+                }
+                tid = sup;
+            }
+            if (!matched) {
                 return null;
             }
         }

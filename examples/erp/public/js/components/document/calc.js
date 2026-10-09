@@ -1,3 +1,4 @@
+// Author: 张晓达
 /**
  * DocumentCalculationService - integer minor currency units (cents).
  * Demo rounding: half-up to cent. No binary float as money source of truth.

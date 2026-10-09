@@ -13,7 +13,9 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 
-/** AGGREGATING: {@code @Command} classes → dispatcher + help (no runtime annotation scan). */
+/** AGGREGATING: {@code @Command} classes → dispatcher + help (no runtime annotation scan).
+ * @author 张晓达
+ */
 public class CliProcessor implements AnnotationProcessor {
     @Override
     public String name() {

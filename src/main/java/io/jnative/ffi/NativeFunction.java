@@ -5,6 +5,7 @@ import java.util.Optional;
 
 /**
  * Resolved native function model (not an annotation string dump).
+ * @author 张晓达
  */
 public final class NativeFunction {
     private final String javaName;

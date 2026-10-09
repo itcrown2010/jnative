@@ -1,5 +1,7 @@
 # JNative 0.27 WebUI Build Report
 
+作者：张晓达
+
 **Date:** 2026-10-07  
 **Version:** 0.27  
 **Theme:** WebUI / Reactive Components / SPA foundation / Full-Stack UI readiness

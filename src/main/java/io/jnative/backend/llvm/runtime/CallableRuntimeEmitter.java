@@ -2,6 +2,7 @@ package io.jnative.backend.llvm.runtime;
 
 /**
  * Managed callable invoke + native callback registration (JNative 0.10).
+ * @author 张晓达
  */
 public final class CallableRuntimeEmitter {
     private final StringBuilder sb;

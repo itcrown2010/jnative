@@ -14,7 +14,9 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-/** Builds a stable {@link ProgramModel} from a parsed {@link CompilationUnit}. */
+/** Builds a stable {@link ProgramModel} from a parsed {@link CompilationUnit}.
+ * @author 张晓达
+ */
 public final class ProgramModelBuilder {
 
     private ProgramModelBuilder() {

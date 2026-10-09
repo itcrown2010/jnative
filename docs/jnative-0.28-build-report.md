@@ -1,5 +1,7 @@
 # JNative 0.28 Full-Stack Typed RPC Build Report
 
+作者：张晓达
+
 **Date:** 2026-10-07  
 **Version:** 0.28  
 **Constraint:** Compile-time RPC contracts — **no runtime reflection**, **no LLVM RPC intrinsics**.

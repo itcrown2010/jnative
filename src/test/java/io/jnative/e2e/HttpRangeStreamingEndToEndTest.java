@@ -17,6 +17,7 @@ import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * Regression: HTTP Range must stream via seek+chunked read (not File.readBytes whole file).
+ * @author 张晓达
  */
 class HttpRangeStreamingEndToEndTest {
 

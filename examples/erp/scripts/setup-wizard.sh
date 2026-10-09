@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# Author: 张晓达
 # First-start Setup Wizard (CLI) — Environment → Admin → Company → Completion
 # WebUI wizard deferred; this is the productization v1 path.
 set -euo pipefail

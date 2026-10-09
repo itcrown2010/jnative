@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# Author: 张晓达
 # Debug the real purchase chain on an isolated SQLite practice DB (macOS arm64).
 # Flow: createDraft → approve → postGoodsReceipt (idempotent keys in ErpLogicTest).
 set -euo pipefail

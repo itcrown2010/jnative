@@ -1,3 +1,6 @@
+/**
+ * @author 张晓达
+ */
 public class Cat {
     public static void main(String[] args) {
         if (args.length < 1) {

@@ -9,6 +9,7 @@ import java.util.List;
 
 /**
  * Studio / IDE foundation: map generated symbols ↔ origin symbols via generated-index.tsv.
+ * @author 张晓达
  */
 public final class GeneratedSymbolIndex {
     public record Entry(

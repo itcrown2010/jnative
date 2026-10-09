@@ -3,7 +3,9 @@ package io.jnative.backend;
 import java.nio.file.Path;
 import java.util.List;
 
-/** Artifacts produced by a {@link TargetBackend}. */
+/** Artifacts produced by a {@link TargetBackend}.
+ * @author 张晓达
+ */
 public record CompileArtifact(
         Path primaryOutput,
         List<Path> secondaryOutputs,

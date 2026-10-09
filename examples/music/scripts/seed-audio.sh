@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# Author: 张晓达
 # Generate CC0/test WAV fixtures (sox/ffmpeg optional; falls back to MusicSeed at server boot).
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"

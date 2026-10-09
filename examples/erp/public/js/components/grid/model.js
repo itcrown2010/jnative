@@ -1,3 +1,4 @@
+// Author: 张晓达
 /**
  * Grid column / query model (UI 1.3). Strong typed; no eval.
  */

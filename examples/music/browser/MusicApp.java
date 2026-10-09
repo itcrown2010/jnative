@@ -5,6 +5,7 @@ import jnative.browser.*;
  * WASM PlayerStore + BottomPlayer shell.
  * Thin audio/DOM bridge lives in public/audio-bridge.js (charter §24).
  * Route changes must not tear down the player root (#bottom-player stays outside #wasm-root).
+ * @author 张晓达
  */
 public class MusicApp {
     public static void main(String[] args) {

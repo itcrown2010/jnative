@@ -1,5 +1,7 @@
 # JNative Scheduler
 
+作者：张晓达
+
 Full-stack calendar demo validating JNative native server + shared domain + browser WASM/WebUI (no JVM/Node at runtime).
 
 ## Layout

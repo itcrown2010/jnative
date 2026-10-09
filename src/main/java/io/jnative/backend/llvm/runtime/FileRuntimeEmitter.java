@@ -8,6 +8,7 @@ package io.jnative.backend.llvm.runtime;
  *
  * <p>Contract: temporary native buffers and {@code FILE*} are always released on success and error.
  * Results are GC-managed String / byte[].
+ * @author 张晓达
  */
 public final class FileRuntimeEmitter {
     private final StringBuilder sb;

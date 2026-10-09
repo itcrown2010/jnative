@@ -1,3 +1,4 @@
+// Author: 张晓达
 /**
  * Optional VS Code integration host.
  * Requires VS Code installed; skipped gracefully when unavailable.

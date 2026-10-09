@@ -5,6 +5,7 @@ import java.util.List;
 
 /**
  * Hand-written lexer for the JNative Java subset.
+ * @author 张晓达
  */
 public final class Lexer {
     private final String source;

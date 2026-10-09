@@ -17,7 +17,9 @@ import java.util.concurrent.TimeUnit;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-/** Reliable async/await state-machine e2e (O0 + default opt). */
+/** Reliable async/await state-machine e2e (O0 + default opt).
+ * @author 张晓达
+ */
 class AsyncAwaitEndToEndTest {
 
     @TempDir

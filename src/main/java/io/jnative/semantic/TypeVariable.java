@@ -1,6 +1,8 @@
 package io.jnative.semantic;
 
-/** Type variable {@code T} from a type parameter declaration. */
+/** Type variable {@code T} from a type parameter declaration.
+ * @author 张晓达
+ */
 public record TypeVariable(TypeParameterSymbol symbol) implements JType {
 
     public String name() {

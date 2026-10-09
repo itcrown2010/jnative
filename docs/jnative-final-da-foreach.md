@@ -1,5 +1,7 @@
 # Final, definite assignment, and array enhanced-for
 
+作者：张晓达
+
 **Date:** 2026-10-09  
 **Scope:** Language core only (no ERP / mobile).
 

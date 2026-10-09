@@ -19,7 +19,9 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 
-/** Per-compilation optimization state and cached analyses. */
+/** Per-compilation optimization state and cached analyses.
+ * @author 张晓达
+ */
 public final class OptimizationContext {
     private final IrModule module;
     private final TypedCompilationUnit typed;

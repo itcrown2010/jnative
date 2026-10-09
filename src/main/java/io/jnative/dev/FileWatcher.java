@@ -23,6 +23,7 @@ import java.util.function.Consumer;
 /**
  * Cross-platform file watcher (NIO WatchService: inotify / kqueue / ReadDirectoryChangesW).
  * Debounces rapid saves and ignores build/cache trees.
+ * @author 张晓达
  */
 public final class FileWatcher implements AutoCloseable {
     public record Change(Path path, Kind kind) {

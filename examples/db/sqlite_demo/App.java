@@ -1,3 +1,6 @@
+/**
+ * @author 张晓达
+ */
 public class App {
     static void log(String msg) {
         String prev = "";

@@ -1,5 +1,7 @@
 # Check elimination
 
+作者：张晓达
+
 ## Null checks (`NullCheckEliminationPass`, O1+)
 
 Removes `NullCheck` when the pointer is an alias of a fresh `NewObject`/`NewArray`/`StringLiteral`, or the same pointer was already checked in the block.

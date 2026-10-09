@@ -35,7 +35,9 @@ public final class IrModule {
     public record StaticField(String globalName, IrType type, boolean isVolatile, boolean isReference) {
     }
 
-    /** Initializer expression already lowered into a synthetic clinit fragment name, or null. */
+    /** Initializer expression already lowered into a synthetic clinit fragment name, or null.
+ * @author 张晓达
+ */
     public record StaticFieldInit(String globalName, IrType type, IrValue constantOrNull, String initFunction) {
     }
 

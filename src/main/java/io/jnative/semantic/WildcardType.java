@@ -1,6 +1,8 @@
 package io.jnative.semantic;
 
-/** Wildcard: {@code ?}, {@code ? extends T}, {@code ? super T}. */
+/** Wildcard: {@code ?}, {@code ? extends T}, {@code ? super T}.
+ * @author 张晓达
+ */
 public record WildcardType(Kind kind, JType bound) implements JType {
 
     public enum Kind {

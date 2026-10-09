@@ -8,6 +8,8 @@ import jnative.ui.*;
  *   -o build/calculator/Calculator --app-type gui
  * ./build/calculator/Calculator
  * </pre>
+ *
+ * @author 张晓达
  */
 public class JNativeCalculator {
     public static void main(String[] args) {

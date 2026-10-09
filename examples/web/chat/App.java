@@ -5,6 +5,7 @@ import jnative.json.*;
  * JNative Chat (0.25) — Register/Login/Session + WebSocket rooms.
  * Default persistence: sqlite:./build/web/chat.db
  * Override: DATABASE_URL=postgresql://...
+ * @author 张晓达
  */
 public class App {
     public static void main(String[] args) {

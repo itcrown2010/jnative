@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# Author: 张晓达
 # jnative-one install — Productization 1.5 (FEATURE FREEZE)
 # Installs application files + runs migrations. Does NOT claim Linux runtime VERIFIED.
 set -euo pipefail

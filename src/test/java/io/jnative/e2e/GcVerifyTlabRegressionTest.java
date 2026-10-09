@@ -20,6 +20,7 @@ import static org.junit.jupiter.api.Assertions.*;
 /**
  * Regression: jn_gc2_verify_heap must fill TLAB waste before scanning eden
  * (otherwise false "corrupt young header size"). Fixed in Runtime Stability 0.8.
+ * @author 张晓达
  */
 class GcVerifyTlabRegressionTest {
 

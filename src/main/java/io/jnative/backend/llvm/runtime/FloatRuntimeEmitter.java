@@ -3,6 +3,7 @@ package io.jnative.backend.llvm.runtime;
 /**
  * Java-compatible float/double → integer conversion (NaN→0, toward-zero, saturate).
  * Avoids raw {@code fptosi} on out-of-range / NaN inputs (LLVM UB/poison).
+ * @author 张晓达
  */
 public final class FloatRuntimeEmitter {
     private final StringBuilder sb;

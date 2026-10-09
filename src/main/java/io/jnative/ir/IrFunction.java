@@ -3,6 +3,9 @@ package io.jnative.ir;
 import java.util.ArrayList;
 import java.util.List;
 
+/**
+ * @author 张晓达
+ */
 public final class IrFunction {
     private final String name;
     private final IrType returnType;

@@ -3,6 +3,7 @@ package com.acme.money;
 /**
  * Fixed-point money in integer cents. Not floating point.
  * Generic helper used by the order-processing app via package manager.
+ * @author 张晓达
  */
 public class MoneyCents {
     public static int add(int a, int b) {

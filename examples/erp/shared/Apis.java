@@ -1,5 +1,6 @@
 /**
  * REST mirrors under /api/... in ErpServer.
+ * @author 张晓达
  */
 interface ErpAuthApi {
     AuthSessionDto login(LoginRequest request);

@@ -1,3 +1,4 @@
+// Author: 张晓达
 /**
  * UI 1.3 Enterprise Data Grid — real Chromium verification.
  * Does not claim WASM SPA. Records measured perf; never invents numbers.

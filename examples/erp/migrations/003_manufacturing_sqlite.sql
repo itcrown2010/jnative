@@ -1,3 +1,4 @@
+-- Author: 张晓达
 -- Manufacturing 1.3 (SQLite mirror).
 
 CREATE TABLE IF NOT EXISTS bills_of_material (

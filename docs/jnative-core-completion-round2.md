@@ -1,5 +1,7 @@
 # JNative Core Completion Report — Round 2
 
+作者：张晓达
+
 **Theme:** Runtime Integrity  
 **Date:** 2026-10-08  
 **Host:** macOS arm64  

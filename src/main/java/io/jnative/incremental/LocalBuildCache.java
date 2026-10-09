@@ -13,6 +13,7 @@ import java.util.concurrent.locks.ReentrantLock;
 /**
  * Local content-addressed build cache under {@code .jnative/cache}.
  * Atomic write + lock for concurrent access safety.
+ * @author 张晓达
  */
 public final class LocalBuildCache {
     private final Path root;

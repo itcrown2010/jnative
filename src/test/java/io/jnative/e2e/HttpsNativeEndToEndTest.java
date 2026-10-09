@@ -16,7 +16,9 @@ import java.util.concurrent.TimeUnit;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-/** JNative HttpClient ↔ JNative HTTPS server (Round 4). */
+/** JNative HttpClient ↔ JNative HTTPS server (Round 4).
+ * @author 张晓达
+ */
 class HttpsNativeEndToEndTest {
 
     @TempDir

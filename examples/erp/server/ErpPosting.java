@@ -1,3 +1,6 @@
+/**
+ * @author 张晓达
+ */
 class ErpPosting {
     static int isPgWireError(Exception ex) {
         if (ex == null || ex.getMessage() == null) {

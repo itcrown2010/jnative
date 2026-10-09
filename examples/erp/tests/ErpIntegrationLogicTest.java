@@ -1,6 +1,7 @@
 /**
  * 1.6 Integration Hardening — purchase/sales loop then integrity on resulting company.
  * Does not claim AR/AP payment or mfg unless those suites also run.
+ * @author 张晓达
  */
 class ErpIntegrationLogicTest {
     static int runAll() {

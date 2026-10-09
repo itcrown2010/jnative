@@ -1,5 +1,7 @@
 # JNative Security Review (1.0 Readiness)
 
+作者：张晓达
+
 **Audit date:** 2026-10-08  
 **Scope:** TLS, HTTP parser, path traversal, JSON limits, SQL injection surface, package integrity, archive extraction, credentials logging, randomness, FFI boundaries, Auth/password handling.  
 **Verdict:** **SECURITY GATE FAIL** for 1.0 Stable Auth / cross-platform HTTPS claims.

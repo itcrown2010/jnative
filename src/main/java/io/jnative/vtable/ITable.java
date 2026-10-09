@@ -6,6 +6,7 @@ import java.util.List;
 
 /**
  * Per-class interface method table for one implemented interface.
+ * @author 张晓达
  */
 public final class ITable {
     private final InterfaceSymbol interfaceSymbol;

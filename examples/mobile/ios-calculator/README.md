@@ -1,5 +1,7 @@
 # JNative iOS Calculator
 
+作者：张晓达
+
 离线 iPhone 计算器：计算核心为 JNative 定点 `long`（SCALE = 10⁶），经真实 IR→WASM 打包进 App；Swift 仅提供 WKWebView 容器。
 
 ## 目录

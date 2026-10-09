@@ -1,6 +1,8 @@
 package io.jnative.opt;
 
-/** One IR optimization pass. */
+/** One IR optimization pass.
+ * @author 张晓达
+ */
 public interface OptimizationPass {
     String name();
 

@@ -75,7 +75,9 @@ class WebConfig {
     }
 }
 
-/** Typed production server configuration (0.31). */
+/** Typed production server configuration (0.31).
+ * @author 张晓达
+ */
 class ServerConfig {
     WebConfig web;
     TlsConfig tls;

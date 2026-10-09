@@ -1,3 +1,4 @@
+// Author: 张晓达
 (function (global) {
   /* ASCII-only catalogs (erp-server static UTF-8 bug workaround) */
   var en = {

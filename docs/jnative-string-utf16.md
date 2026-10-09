@@ -1,5 +1,7 @@
 # JNative — String UTF-16 契约交付
 
+作者：张晓达
+
 ## 公开契约
 
 - `length()` / 索引 API → UTF-16 码元  

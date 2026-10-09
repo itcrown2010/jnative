@@ -1,5 +1,7 @@
 # Runtime Type Information (RTTI)
 
+作者：张晓达
+
 ## ClassMetadata
 
 Objects store `ClassMetadata*`. Metadata includes:

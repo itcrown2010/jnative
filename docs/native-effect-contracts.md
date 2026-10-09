@@ -1,5 +1,7 @@
 # Native effect contracts (0.11)
 
+作者：张晓达
+
 `@Native` methods declare trusted effects via `effects=`:
 
 | Contract | Inferred effects |

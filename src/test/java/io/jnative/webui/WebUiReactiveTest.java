@@ -17,6 +17,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * WebUI / wasm32-browser checks that rebuild from source.
  * Full reactive WebUI DOM IR lowering is not complete this round — see mobile calculator
  * for the supported IR→WASM path (ints, strings length/charAt, loops, statics).
+ * @author 张晓达
  */
 public class WebUiReactiveTest {
 

@@ -1,5 +1,7 @@
 # JNative 0.12 Build Report
 
+作者：张晓达
+
 ## Summary
 
 - Version **0.12** — high-level IR optimization pipeline (`io.jnative.opt`) **before** LLVM

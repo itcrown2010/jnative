@@ -1,5 +1,7 @@
 # @NoGC (0.11)
 
+作者：张晓达
+
 `@NoGC` methods must not allocate, safepoint, or call opaque (`UNKNOWN`) code.
 
 ## Compile time

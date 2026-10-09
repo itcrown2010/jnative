@@ -1,5 +1,7 @@
 # JNative 0.23 Build Report — Async/Await, EventLoop, Async Web
 
+作者：张晓达
+
 ## Summary
 
 - Product version **0.23**

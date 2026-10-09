@@ -1,5 +1,7 @@
 # 闭包 / Lambda / 方法引用（可靠逃逸里程碑）
 
+作者：张晓达
+
 **日期：** 2026-10-09  
 **架构：** 复用 0.10 `CallableBinding` + `MakeCallable` / `InvokeCallable` + GC 托管 env，不另建平行机制。
 

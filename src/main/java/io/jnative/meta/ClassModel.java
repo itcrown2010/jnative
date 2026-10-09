@@ -6,7 +6,9 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
-/** Class / interface / enum view for processors — stable Extension API. */
+/** Class / interface / enum view for processors — stable Extension API.
+ * @author 张晓达
+ */
 public final class ClassModel {
     public enum Kind {
         CLASS,

@@ -1,3 +1,4 @@
+# Author: 张晓达
 JNative Notepad
 
 中文测试

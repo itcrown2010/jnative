@@ -1,0 +1,39619 @@
+(module
+  (type $jn_sig_0 (func (param i32) (param i32)))
+  (type $jn_sig_1 (func (param i32)))
+  (type $jn_sig_2 (func (param i32) (result i32)))
+  (import "jnative" "console_log" (func $js_console_log (param i32 i32)))
+  (import "jnative" "document_get_element_by_id" (func $js_get_by_id (param i32 i32) (result i32)))
+  (import "jnative" "element_set_text" (func $js_set_text (param i32 i32 i32)))
+  (import "jnative" "document_create_element" (func $js_create_element (param i32 i32) (result i32)))
+  (import "jnative" "element_append_child" (func $js_append_child (param i32 i32)))
+  (import "jnative" "create_text" (func $js_create_text (param i32 i32) (result i32)))
+  (import "jnative" "query_selector" (func $js_query_selector (param i32 i32) (result i32)))
+  (import "jnative" "apply_dom_patches" (func $js_apply_dom_patches (param i32 i32)))
+  (import "jnative" "schedule_microtask" (func $js_schedule_microtask))
+  (import "jnative" "delegate_event" (func $js_delegate_event (param i32 i32 i32 i32)))
+  (import "jnative" "init_delegation" (func $js_init_delegation (param i32)))
+  (import "jnative" "register_callback" (func $js_register_callback (param i32) (result i32)))
+  (import "jnative" "unregister_callback" (func $js_unregister_callback (param i32)))
+  (import "jnative" "set_count_label" (func $js_set_count_label (param i32 i32)))
+  (import "jnative" "document_body" (func $js_document_body (result i32)))
+  (import "jnative" "input_value" (func $js_input_value (param i32) (result i32)))
+  (import "jnative" "input_set_value" (func $js_input_set_value (param i32 i32 i32)))
+  (import "jnative" "memory_grew" (func $js_memory_grew))
+  (import "jnative" "report_uncaught" (func $js_report_uncaught (param i32 i32)))
+  (memory (export "memory") 256 1024)
+  (table $jn_funcref 1 funcref)
+  (global $heap (mut i32) (i32.const 90112))
+  (global $jn_heap_head (mut i32) (i32.const 0))
+  (global $jn_free_head (mut i32) (i32.const 0))
+  (global $jn_shadow_sp (mut i32) (i32.const 8192))
+  (global $jn_frame (mut i32) (i32.const 0))
+  (global $jn_mark_sp (mut i32) (i32.const 0))
+  (global $jn_pending_exc (mut i32) (i32.const 0))
+  (global $jn_cb_next (mut i32) (i32.const 1))
+  (global $jn_host_next (mut i32) (i32.const 1))
+  (global $jn_stat_alloc_bytes (mut i32) (i32.const 0))
+  (global $jn_stat_live_bytes (mut i32) (i32.const 0))
+  (global $jn_stat_free_bytes (mut i32) (i32.const 0))
+  (global $jn_stat_gc_count (mut i32) (i32.const 0))
+  (global $jn_stat_alloc_fail (mut i32) (i32.const 0))
+  (global $jn_stat_host_roots (mut i32) (i32.const 0))
+  (global $jn_since_gc (mut i32) (i32.const 0))
+  (global $jn_gc_threshold (mut i32) (i32.const 262144))
+  (global $jn_gc_collecting (mut i32) (i32.const 0))
+  (global $jn_comp_kind (mut i32) (i32.const 0))
+  (global $jn_comp_target (mut i32) (i32.const 0))
+  (global $jn_comp_ret_i64 (mut i64) (i64.const 0))
+  (global $jn_comp_ret_ptr (mut i32) (i32.const 0))
+  (global $g_jn_static_Integer_cache (mut i32) (i32.const 0))
+  (global $g_jn_static_Integer_cacheReady (mut i32) (i32.const 0))
+  (global $g_jn_static_HashMap_EMPTY (mut i32) (i32.const 0))
+  (global $g_jn_static_HashMap_OCCUPIED (mut i32) (i32.const 0))
+  (global $g_jn_static_HashMap_DELETED (mut i32) (i32.const 0))
+  (global $g_jn_static_Boolean_TRUE (mut i32) (i32.const 0))
+  (global $g_jn_static_Boolean_FALSE (mut i32) (i32.const 0))
+  (global $g_jn_static_GcStress_keepAlive (mut i32) (i32.const 0))
+  (global $g_jn_static_GcStress_bag (mut i32) (i32.const 0))
+  (global $g_jn_static_Long_cache (mut i32) (i32.const 0))
+  (global $g_jn_static_Long_cacheReady (mut i32) (i32.const 0))
+  (global $g_jn_static_ResourceTracker_opens (mut i32) (i32.const 0))
+  (global $g_jn_static_ResourceTracker_closes (mut i32) (i32.const 0))
+  (global $g_jn_static_ResourceTracker_filesOpen (mut i32) (i32.const 0))
+  (global $g_jn_static_ResourceTracker_socketsOpen (mut i32) (i32.const 0))
+  (global $g_jn_static_ResourceTracker_tlsOpen (mut i32) (i32.const 0))
+  (global $g_jn_static_ResourceTracker_serversOpen (mut i32) (i32.const 0))
+  (global $g_jn_static_ResourceTracker_buffersOpen (mut i32) (i32.const 0))
+  (global $g_jn_static_JnFuture_PENDING (mut i32) (i32.const 0))
+  (global $g_jn_static_JnFuture_SUCCESS (mut i32) (i32.const 0))
+  (global $g_jn_static_JnFuture_FAILED (mut i32) (i32.const 0))
+  (global $g_jn_static_JnFuture_CANCELLED (mut i32) (i32.const 0))
+  (global $g_jn_static_Async_defaultGroup (mut i32) (i32.const 0))
+  (global $g_jn_static_Async_sharedPool (mut i32) (i32.const 0))
+  (global $g_jn_static_Async_poolInit (mut i32) (i32.const 0))
+  (data (i32.const 2048) "\41\72\72\61\79\44\65\71\75\65")
+  (data (i32.const 2058) "\48\61\73\68\4d\61\70\20\66\75\6c\6c")
+  (data (i32.const 2070) "\41\72\72\61\79\4c\69\73\74\20\69\6e\64\65\78")
+  (data (i32.const 2085) "\53\74\72\69\6e\67\42\75\69\6c\64\65\72\2e\64\65\6c\65\74\65")
+  (data (i32.const 2105) "\6d\61\70\70\65\72")
+  (data (i32.const 2111) "\41\72\72\61\79\4c\69\73\74\20\6d\6f\64\69\66\69\65\64\20\64\75\72\69\6e\67\20\6d\61\70\56\61\6c\75\65\73")
+  (data (i32.const 2146) "\41\72\72\61\79\4c\69\73\74\20\63\61\70\61\63\69\74\79\20\6f\76\65\72\66\6c\6f\77")
+  (data (i32.const 2173) "\6c\6f\6f\70")
+  (data (i32.const 2177) "\74\61\73\6b")
+  (data (i32.const 2181) "\70\72\65\64\69\63\61\74\65")
+  (data (i32.const 2190) "\41\72\72\61\79\4c\69\73\74\20\6d\6f\64\69\66\69\65\64\20\64\75\72\69\6e\67\20\66\69\6c\74\65\72")
+  (data (i32.const 2222) "\6e\75\6c\6c")
+  (data (i32.const 2226) "")
+  (data (i32.const 2227) "\41\72\72\61\79\4c\69\73\74\20\6d\6f\64\69\66\69\65\64\20\64\75\72\69\6e\67\20\69\74\65\72\61\74\69\6f\6e")
+  (data (i32.const 2262) "\41\72\72\61\79\4c\69\73\74\49\74\65\72\61\74\6f\72")
+  (data (i32.const 2279) "\63\61\6c\6c\62\61\63\6b")
+  (data (i32.const 2287) "\63\61\6e\63\65\6c\6c\65\64")
+  (data (i32.const 2296) "\63\6f\6e\73\75\6d\65\72")
+  (data (i32.const 2304) "\41\72\72\61\79\49\74\65\72\61\74\6f\72")
+  (data (i32.const 2317) "\66\75\74\75\72\65\20\63\61\6e\63\65\6c\6c\65\64")
+  (data (i32.const 2333) "\4a\6e\46\75\74\75\72\65\2e\61\6e\79\3a\20\65\6d\70\74\79")
+  (data (i32.const 2352) "\41\72\72\61\79\4c\69\73\74\20\69\6e\73\65\72\74\20\69\6e\64\65\78")
+  (data (i32.const 2374) "\53\74\72\69\6e\67\42\75\69\6c\64\65\72\2e\73\65\74\4c\65\6e\67\74\68")
+  (data (i32.const 2397) "\53\74\72\69\6e\67\42\75\69\6c\64\65\72\2e\69\6e\73\65\72\74")
+  (data (i32.const 2417) "\48\61\73\68\4d\61\70\20\6d\6f\64\69\66\69\65\64\20\64\75\72\69\6e\67\20\65\6e\74\72\79\20\69\74\65\72\61\74\69\6f\6e")
+  (data (i32.const 2456) "\48\61\73\68\4d\61\70\45\6e\74\72\79\49\74\65\72\61\74\6f\72")
+  (data (i32.const 2476) "\66\69\6c\65")
+  (data (i32.const 2480) "\73\6f\63\6b\65\74")
+  (data (i32.const 2486) "\74\6c\73")
+  (data (i32.const 2489) "\73\65\72\76\65\72")
+  (data (i32.const 2495) "\62\75\66\66\65\72")
+  (data (i32.const 2501) "\54\68\72\65\61\64\50\6f\6f\6c\45\78\65\63\75\74\6f\72\20\69\73\20\73\68\75\74\20\64\6f\77\6e")
+  (data (i32.const 2532) "\74\69\6d\65\6f\75\74\20\61\66\74\65\72\20")
+  (data (i32.const 2546) "\6d\73")
+  (data (i32.const 2548) "\61\63\74\69\6f\6e")
+  (data (i32.const 2554) "\41\72\72\61\79\4c\69\73\74\20\6d\6f\64\69\66\69\65\64\20\64\75\72\69\6e\67\20\66\6f\72\45\61\63\68")
+  (data (i32.const 2587) "\6e\65\67\61\74\69\76\65\20\69\6e\69\74\69\61\6c\43\61\70\61\63\69\74\79")
+  (func $jn_gc_trace_type_fields (param $obj i32) (param $tid i32)
+    local.get $tid
+    i32.const 1
+    i32.eq
+    if
+      local.get $obj
+      i32.const 4
+      i32.add
+      i32.load
+      call $jn_gc_mark_obj
+      local.get $obj
+      i32.const 8
+      i32.add
+      i32.load
+      call $jn_gc_mark_obj
+      local.get $obj
+      i32.const 12
+      i32.add
+      i32.load
+      call $jn_gc_mark_obj
+      return
+    end
+    local.get $tid
+    i32.const 4
+    i32.eq
+    if
+      local.get $obj
+      i32.const 4
+      i32.add
+      i32.load
+      call $jn_gc_mark_obj
+      return
+    end
+    local.get $tid
+    i32.const 5
+    i32.eq
+    if
+      local.get $obj
+      i32.const 4
+      i32.add
+      i32.load
+      call $jn_gc_mark_obj
+      local.get $obj
+      i32.const 8
+      i32.add
+      i32.load
+      call $jn_gc_mark_obj
+      return
+    end
+    local.get $tid
+    i32.const 6
+    i32.eq
+    if
+      local.get $obj
+      i32.const 8
+      i32.add
+      i32.load
+      call $jn_gc_mark_obj
+      local.get $obj
+      i32.const 12
+      i32.add
+      i32.load
+      call $jn_gc_mark_obj
+      return
+    end
+    local.get $tid
+    i32.const 7
+    i32.eq
+    if
+      local.get $obj
+      i32.const 4
+      i32.add
+      i32.load
+      call $jn_gc_mark_obj
+      local.get $obj
+      i32.const 8
+      i32.add
+      i32.load
+      call $jn_gc_mark_obj
+      local.get $obj
+      i32.const 12
+      i32.add
+      i32.load
+      call $jn_gc_mark_obj
+      return
+    end
+    local.get $tid
+    i32.const 8
+    i32.eq
+    if
+      local.get $obj
+      i32.const 4
+      i32.add
+      i32.load
+      call $jn_gc_mark_obj
+      local.get $obj
+      i32.const 8
+      i32.add
+      i32.load
+      call $jn_gc_mark_obj
+      local.get $obj
+      i32.const 12
+      i32.add
+      i32.load
+      call $jn_gc_mark_obj
+      return
+    end
+    local.get $tid
+    i32.const 9
+    i32.eq
+    if
+      local.get $obj
+      i32.const 16
+      i32.add
+      i32.load
+      call $jn_gc_mark_obj
+      return
+    end
+    local.get $tid
+    i32.const 10
+    i32.eq
+    if
+      local.get $obj
+      i32.const 4
+      i32.add
+      i32.load
+      call $jn_gc_mark_obj
+      local.get $obj
+      i32.const 8
+      i32.add
+      i32.load
+      call $jn_gc_mark_obj
+      local.get $obj
+      i32.const 12
+      i32.add
+      i32.load
+      call $jn_gc_mark_obj
+      return
+    end
+    local.get $tid
+    i32.const 11
+    i32.eq
+    if
+      local.get $obj
+      i32.const 16
+      i32.add
+      i32.load
+      call $jn_gc_mark_obj
+      return
+    end
+    local.get $tid
+    i32.const 13
+    i32.eq
+    if
+      local.get $obj
+      i32.const 4
+      i32.add
+      i32.load
+      call $jn_gc_mark_obj
+      local.get $obj
+      i32.const 8
+      i32.add
+      i32.load
+      call $jn_gc_mark_obj
+      return
+    end
+    local.get $tid
+    i32.const 14
+    i32.eq
+    if
+      local.get $obj
+      i32.const 4
+      i32.add
+      i32.load
+      call $jn_gc_mark_obj
+      local.get $obj
+      i32.const 8
+      i32.add
+      i32.load
+      call $jn_gc_mark_obj
+      return
+    end
+    local.get $tid
+    i32.const 15
+    i32.eq
+    if
+      local.get $obj
+      i32.const 4
+      i32.add
+      i32.load
+      call $jn_gc_mark_obj
+      return
+    end
+    local.get $tid
+    i32.const 18
+    i32.eq
+    if
+      local.get $obj
+      i32.const 4
+      i32.add
+      i32.load
+      call $jn_gc_mark_obj
+      local.get $obj
+      i32.const 8
+      i32.add
+      i32.load
+      call $jn_gc_mark_obj
+      return
+    end
+    local.get $tid
+    i32.const 20
+    i32.eq
+    if
+      local.get $obj
+      i32.const 4
+      i32.add
+      i32.load
+      call $jn_gc_mark_obj
+      local.get $obj
+      i32.const 8
+      i32.add
+      i32.load
+      call $jn_gc_mark_obj
+      local.get $obj
+      i32.const 12
+      i32.add
+      i32.load
+      call $jn_gc_mark_obj
+      return
+    end
+    local.get $tid
+    i32.const 21
+    i32.eq
+    if
+      local.get $obj
+      i32.const 4
+      i32.add
+      i32.load
+      call $jn_gc_mark_obj
+      local.get $obj
+      i32.const 8
+      i32.add
+      i32.load
+      call $jn_gc_mark_obj
+      local.get $obj
+      i32.const 12
+      i32.add
+      i32.load
+      call $jn_gc_mark_obj
+      return
+    end
+    local.get $tid
+    i32.const 23
+    i32.eq
+    if
+      local.get $obj
+      i32.const 4
+      i32.add
+      i32.load
+      call $jn_gc_mark_obj
+      local.get $obj
+      i32.const 8
+      i32.add
+      i32.load
+      call $jn_gc_mark_obj
+      return
+    end
+    local.get $tid
+    i32.const 24
+    i32.eq
+    if
+      local.get $obj
+      i32.const 4
+      i32.add
+      i32.load
+      call $jn_gc_mark_obj
+      local.get $obj
+      i32.const 8
+      i32.add
+      i32.load
+      call $jn_gc_mark_obj
+      local.get $obj
+      i32.const 12
+      i32.add
+      i32.load
+      call $jn_gc_mark_obj
+      return
+    end
+    local.get $tid
+    i32.const 26
+    i32.eq
+    if
+      local.get $obj
+      i32.const 16
+      i32.add
+      i32.load
+      call $jn_gc_mark_obj
+      return
+    end
+    local.get $tid
+    i32.const 27
+    i32.eq
+    if
+      local.get $obj
+      i32.const 4
+      i32.add
+      i32.load
+      call $jn_gc_mark_obj
+      local.get $obj
+      i32.const 8
+      i32.add
+      i32.load
+      call $jn_gc_mark_obj
+      local.get $obj
+      i32.const 12
+      i32.add
+      i32.load
+      call $jn_gc_mark_obj
+      return
+    end
+    local.get $tid
+    i32.const 28
+    i32.eq
+    if
+      local.get $obj
+      i32.const 4
+      i32.add
+      i32.load
+      call $jn_gc_mark_obj
+      return
+    end
+    local.get $tid
+    i32.const 29
+    i32.eq
+    if
+      local.get $obj
+      i32.const 4
+      i32.add
+      i32.load
+      call $jn_gc_mark_obj
+      local.get $obj
+      i32.const 8
+      i32.add
+      i32.load
+      call $jn_gc_mark_obj
+      local.get $obj
+      i32.const 12
+      i32.add
+      i32.load
+      call $jn_gc_mark_obj
+      return
+    end
+    local.get $tid
+    i32.const 31
+    i32.eq
+    if
+      local.get $obj
+      i32.const 4
+      i32.add
+      i32.load
+      call $jn_gc_mark_obj
+      local.get $obj
+      i32.const 12
+      i32.add
+      i32.load
+      call $jn_gc_mark_obj
+      return
+    end
+    local.get $tid
+    i32.const 32
+    i32.eq
+    if
+      local.get $obj
+      i32.const 4
+      i32.add
+      i32.load
+      call $jn_gc_mark_obj
+      local.get $obj
+      i32.const 8
+      i32.add
+      i32.load
+      call $jn_gc_mark_obj
+      return
+    end
+    local.get $tid
+    i32.const 34
+    i32.eq
+    if
+      local.get $obj
+      i32.const 4
+      i32.add
+      i32.load
+      call $jn_gc_mark_obj
+      local.get $obj
+      i32.const 8
+      i32.add
+      i32.load
+      call $jn_gc_mark_obj
+      local.get $obj
+      i32.const 12
+      i32.add
+      i32.load
+      call $jn_gc_mark_obj
+      return
+    end
+    local.get $tid
+    i32.const 35
+    i32.eq
+    if
+      local.get $obj
+      i32.const 4
+      i32.add
+      i32.load
+      call $jn_gc_mark_obj
+      local.get $obj
+      i32.const 8
+      i32.add
+      i32.load
+      call $jn_gc_mark_obj
+      local.get $obj
+      i32.const 12
+      i32.add
+      i32.load
+      call $jn_gc_mark_obj
+      return
+    end
+    local.get $tid
+    i32.const 36
+    i32.eq
+    if
+      local.get $obj
+      i32.const 4
+      i32.add
+      i32.load
+      call $jn_gc_mark_obj
+      return
+    end
+    local.get $tid
+    i32.const 38
+    i32.eq
+    if
+      local.get $obj
+      i32.const 4
+      i32.add
+      i32.load
+      call $jn_gc_mark_obj
+      return
+    end
+    local.get $tid
+    i32.const 39
+    i32.eq
+    if
+      local.get $obj
+      i32.const 4
+      i32.add
+      i32.load
+      call $jn_gc_mark_obj
+      return
+    end
+    local.get $tid
+    i32.const 40
+    i32.eq
+    if
+      local.get $obj
+      i32.const 4
+      i32.add
+      i32.load
+      call $jn_gc_mark_obj
+      return
+    end
+    local.get $tid
+    i32.const 41
+    i32.eq
+    if
+      local.get $obj
+      i32.const 4
+      i32.add
+      i32.load
+      call $jn_gc_mark_obj
+      return
+    end
+    local.get $tid
+    i32.const 42
+    i32.eq
+    if
+      local.get $obj
+      i32.const 8
+      i32.add
+      i32.load
+      call $jn_gc_mark_obj
+      return
+    end
+    local.get $tid
+    i32.const 43
+    i32.eq
+    if
+      local.get $obj
+      i32.const 4
+      i32.add
+      i32.load
+      call $jn_gc_mark_obj
+      return
+    end
+    local.get $tid
+    i32.const 46
+    i32.eq
+    if
+      local.get $obj
+      i32.const 20
+      i32.add
+      i32.load
+      call $jn_gc_mark_obj
+      return
+    end
+    local.get $tid
+    i32.const 47
+    i32.eq
+    if
+      local.get $obj
+      i32.const 4
+      i32.add
+      i32.load
+      call $jn_gc_mark_obj
+      local.get $obj
+      i32.const 8
+      i32.add
+      i32.load
+      call $jn_gc_mark_obj
+      local.get $obj
+      i32.const 12
+      i32.add
+      i32.load
+      call $jn_gc_mark_obj
+      return
+    end
+    local.get $tid
+    i32.const 48
+    i32.eq
+    if
+      local.get $obj
+      i32.const 4
+      i32.add
+      i32.load
+      call $jn_gc_mark_obj
+      local.get $obj
+      i32.const 8
+      i32.add
+      i32.load
+      call $jn_gc_mark_obj
+      local.get $obj
+      i32.const 12
+      i32.add
+      i32.load
+      call $jn_gc_mark_obj
+      return
+    end
+    local.get $tid
+    i32.const 49
+    i32.eq
+    if
+      local.get $obj
+      i32.const 16
+      i32.add
+      i32.load
+      call $jn_gc_mark_obj
+      return
+    end
+    local.get $tid
+    i32.const 50
+    i32.eq
+    if
+      local.get $obj
+      i32.const 4
+      i32.add
+      i32.load
+      call $jn_gc_mark_obj
+      return
+    end
+    local.get $tid
+    i32.const 52
+    i32.eq
+    if
+      local.get $obj
+      i32.const 16
+      i32.add
+      i32.load
+      call $jn_gc_mark_obj
+      local.get $obj
+      i32.const 20
+      i32.add
+      i32.load
+      call $jn_gc_mark_obj
+      return
+    end
+    local.get $tid
+    i32.const 53
+    i32.eq
+    if
+      local.get $obj
+      i32.const 8
+      i32.add
+      i32.load
+      call $jn_gc_mark_obj
+      local.get $obj
+      i32.const 12
+      i32.add
+      i32.load
+      call $jn_gc_mark_obj
+      return
+    end
+    local.get $tid
+    i32.const 56
+    i32.eq
+    if
+      local.get $obj
+      i32.const 4
+      i32.add
+      i32.load
+      call $jn_gc_mark_obj
+      local.get $obj
+      i32.const 8
+      i32.add
+      i32.load
+      call $jn_gc_mark_obj
+      local.get $obj
+      i32.const 12
+      i32.add
+      i32.load
+      call $jn_gc_mark_obj
+      local.get $obj
+      i32.const 28
+      i32.add
+      i32.load
+      call $jn_gc_mark_obj
+      return
+    end
+    local.get $tid
+    i32.const 57
+    i32.eq
+    if
+      local.get $obj
+      i32.const 16
+      i32.add
+      i32.load
+      call $jn_gc_mark_obj
+      return
+    end
+    local.get $tid
+    i32.const 59
+    i32.eq
+    if
+      local.get $obj
+      i32.const 4
+      i32.add
+      i32.load
+      call $jn_gc_mark_obj
+      return
+    end
+    local.get $tid
+    i32.const 62
+    i32.eq
+    if
+      local.get $obj
+      i32.const 4
+      i32.add
+      i32.load
+      call $jn_gc_mark_obj
+      local.get $obj
+      i32.const 8
+      i32.add
+      i32.load
+      call $jn_gc_mark_obj
+      return
+    end
+    local.get $tid
+    i32.const 63
+    i32.eq
+    if
+      local.get $obj
+      i32.const 4
+      i32.add
+      i32.load
+      call $jn_gc_mark_obj
+      local.get $obj
+      i32.const 8
+      i32.add
+      i32.load
+      call $jn_gc_mark_obj
+      local.get $obj
+      i32.const 12
+      i32.add
+      i32.load
+      call $jn_gc_mark_obj
+      return
+    end
+    local.get $tid
+    i32.const 64
+    i32.eq
+    if
+      local.get $obj
+      i32.const 4
+      i32.add
+      i32.load
+      call $jn_gc_mark_obj
+      return
+    end
+    local.get $tid
+    i32.const 66
+    i32.eq
+    if
+      local.get $obj
+      i32.const 4
+      i32.add
+      i32.load
+      call $jn_gc_mark_obj
+      return
+    end
+    local.get $tid
+    i32.const 67
+    i32.eq
+    if
+      local.get $obj
+      i32.const 4
+      i32.add
+      i32.load
+      call $jn_gc_mark_obj
+      local.get $obj
+      i32.const 8
+      i32.add
+      i32.load
+      call $jn_gc_mark_obj
+      local.get $obj
+      i32.const 12
+      i32.add
+      i32.load
+      call $jn_gc_mark_obj
+      return
+    end
+    local.get $tid
+    i32.const 68
+    i32.eq
+    if
+      local.get $obj
+      i32.const 4
+      i32.add
+      i32.load
+      call $jn_gc_mark_obj
+      local.get $obj
+      i32.const 8
+      i32.add
+      i32.load
+      call $jn_gc_mark_obj
+      local.get $obj
+      i32.const 12
+      i32.add
+      i32.load
+      call $jn_gc_mark_obj
+      return
+    end
+    local.get $tid
+    i32.const 70
+    i32.eq
+    if
+      local.get $obj
+      i32.const 4
+      i32.add
+      i32.load
+      call $jn_gc_mark_obj
+      local.get $obj
+      i32.const 8
+      i32.add
+      i32.load
+      call $jn_gc_mark_obj
+      return
+    end
+    local.get $tid
+    i32.const 72
+    i32.eq
+    if
+      local.get $obj
+      i32.const 4
+      i32.add
+      i32.load
+      call $jn_gc_mark_obj
+      local.get $obj
+      i32.const 16
+      i32.add
+      i32.load
+      call $jn_gc_mark_obj
+      return
+    end
+    local.get $tid
+    i32.const 73
+    i32.eq
+    if
+      local.get $obj
+      i32.const 4
+      i32.add
+      i32.load
+      call $jn_gc_mark_obj
+      return
+    end
+    local.get $tid
+    i32.const 75
+    i32.eq
+    if
+      local.get $obj
+      i32.const 4
+      i32.add
+      i32.load
+      call $jn_gc_mark_obj
+      local.get $obj
+      i32.const 8
+      i32.add
+      i32.load
+      call $jn_gc_mark_obj
+      local.get $obj
+      i32.const 12
+      i32.add
+      i32.load
+      call $jn_gc_mark_obj
+      return
+    end
+    local.get $tid
+    i32.const 76
+    i32.eq
+    if
+      local.get $obj
+      i32.const 4
+      i32.add
+      i32.load
+      call $jn_gc_mark_obj
+      return
+    end
+    local.get $tid
+    i32.const 77
+    i32.eq
+    if
+      local.get $obj
+      i32.const 4
+      i32.add
+      i32.load
+      call $jn_gc_mark_obj
+      return
+    end
+    local.get $tid
+    i32.const 79
+    i32.eq
+    if
+      local.get $obj
+      i32.const 4
+      i32.add
+      i32.load
+      call $jn_gc_mark_obj
+      local.get $obj
+      i32.const 8
+      i32.add
+      i32.load
+      call $jn_gc_mark_obj
+      return
+    end
+    local.get $tid
+    i32.const 80
+    i32.eq
+    if
+      local.get $obj
+      i32.const 4
+      i32.add
+      i32.load
+      call $jn_gc_mark_obj
+      return
+    end
+    local.get $tid
+    i32.const 81
+    i32.eq
+    if
+      local.get $obj
+      i32.const 4
+      i32.add
+      i32.load
+      call $jn_gc_mark_obj
+      local.get $obj
+      i32.const 8
+      i32.add
+      i32.load
+      call $jn_gc_mark_obj
+      local.get $obj
+      i32.const 12
+      i32.add
+      i32.load
+      call $jn_gc_mark_obj
+      return
+    end
+    local.get $tid
+    i32.const 83
+    i32.eq
+    if
+      local.get $obj
+      i32.const 4
+      i32.add
+      i32.load
+      call $jn_gc_mark_obj
+      return
+    end
+    local.get $tid
+    i32.const 84
+    i32.eq
+    if
+      local.get $obj
+      i32.const 4
+      i32.add
+      i32.load
+      call $jn_gc_mark_obj
+      local.get $obj
+      i32.const 8
+      i32.add
+      i32.load
+      call $jn_gc_mark_obj
+      local.get $obj
+      i32.const 12
+      i32.add
+      i32.load
+      call $jn_gc_mark_obj
+      return
+    end
+    local.get $tid
+    i32.const 85
+    i32.eq
+    if
+      local.get $obj
+      i32.const 16
+      i32.add
+      i32.load
+      call $jn_gc_mark_obj
+      return
+    end
+    local.get $tid
+    i32.const 86
+    i32.eq
+    if
+      local.get $obj
+      i32.const 8
+      i32.add
+      i32.load
+      call $jn_gc_mark_obj
+      local.get $obj
+      i32.const 12
+      i32.add
+      i32.load
+      call $jn_gc_mark_obj
+      return
+    end
+    local.get $tid
+    i32.const 87
+    i32.eq
+    if
+      local.get $obj
+      i32.const 4
+      i32.add
+      i32.load
+      call $jn_gc_mark_obj
+      local.get $obj
+      i32.const 8
+      i32.add
+      i32.load
+      call $jn_gc_mark_obj
+      local.get $obj
+      i32.const 12
+      i32.add
+      i32.load
+      call $jn_gc_mark_obj
+      return
+    end
+    local.get $tid
+    i32.const 88
+    i32.eq
+    if
+      local.get $obj
+      i32.const 4
+      i32.add
+      i32.load
+      call $jn_gc_mark_obj
+      local.get $obj
+      i32.const 8
+      i32.add
+      i32.load
+      call $jn_gc_mark_obj
+      local.get $obj
+      i32.const 12
+      i32.add
+      i32.load
+      call $jn_gc_mark_obj
+      return
+    end
+    local.get $tid
+    i32.const 89
+    i32.eq
+    if
+      local.get $obj
+      i32.const 16
+      i32.add
+      i32.load
+      call $jn_gc_mark_obj
+      return
+    end
+    local.get $tid
+    i32.const 90
+    i32.eq
+    if
+      local.get $obj
+      i32.const 4
+      i32.add
+      i32.load
+      call $jn_gc_mark_obj
+      return
+    end
+    local.get $tid
+    i32.const 92
+    i32.eq
+    if
+      local.get $obj
+      i32.const 4
+      i32.add
+      i32.load
+      call $jn_gc_mark_obj
+      return
+    end
+    local.get $tid
+    i32.const 93
+    i32.eq
+    if
+      local.get $obj
+      i32.const 4
+      i32.add
+      i32.load
+      call $jn_gc_mark_obj
+      return
+    end
+    local.get $tid
+    i32.const 96
+    i32.eq
+    if
+      local.get $obj
+      i32.const 4
+      i32.add
+      i32.load
+      call $jn_gc_mark_obj
+      return
+    end
+    local.get $tid
+    i32.const 98
+    i32.eq
+    if
+      local.get $obj
+      i32.const 16
+      i32.add
+      i32.load
+      call $jn_gc_mark_obj
+      return
+    end
+    local.get $tid
+    i32.const 99
+    i32.eq
+    if
+      local.get $obj
+      i32.const 4
+      i32.add
+      i32.load
+      call $jn_gc_mark_obj
+      local.get $obj
+      i32.const 8
+      i32.add
+      i32.load
+      call $jn_gc_mark_obj
+      local.get $obj
+      i32.const 12
+      i32.add
+      i32.load
+      call $jn_gc_mark_obj
+      return
+    end
+    local.get $tid
+    i32.const 100
+    i32.eq
+    if
+      local.get $obj
+      i32.const 4
+      i32.add
+      i32.load
+      call $jn_gc_mark_obj
+      local.get $obj
+      i32.const 8
+      i32.add
+      i32.load
+      call $jn_gc_mark_obj
+      local.get $obj
+      i32.const 12
+      i32.add
+      i32.load
+      call $jn_gc_mark_obj
+      return
+    end
+    local.get $tid
+    i32.const 101
+    i32.eq
+    if
+      local.get $obj
+      i32.const 4
+      i32.add
+      i32.load
+      call $jn_gc_mark_obj
+      return
+    end
+    local.get $tid
+    i32.const 102
+    i32.eq
+    if
+      local.get $obj
+      i32.const 4
+      i32.add
+      i32.load
+      call $jn_gc_mark_obj
+      local.get $obj
+      i32.const 8
+      i32.add
+      i32.load
+      call $jn_gc_mark_obj
+      local.get $obj
+      i32.const 12
+      i32.add
+      i32.load
+      call $jn_gc_mark_obj
+      return
+    end
+    local.get $tid
+    i32.const 103
+    i32.eq
+    if
+      local.get $obj
+      i32.const 4
+      i32.add
+      i32.load
+      call $jn_gc_mark_obj
+      local.get $obj
+      i32.const 8
+      i32.add
+      i32.load
+      call $jn_gc_mark_obj
+      local.get $obj
+      i32.const 12
+      i32.add
+      i32.load
+      call $jn_gc_mark_obj
+      return
+    end
+    local.get $tid
+    i32.const 104
+    i32.eq
+    if
+      local.get $obj
+      i32.const 4
+      i32.add
+      i32.load
+      call $jn_gc_mark_obj
+      local.get $obj
+      i32.const 8
+      i32.add
+      i32.load
+      call $jn_gc_mark_obj
+      local.get $obj
+      i32.const 12
+      i32.add
+      i32.load
+      call $jn_gc_mark_obj
+      return
+    end
+    local.get $tid
+    i32.const 105
+    i32.eq
+    if
+      local.get $obj
+      i32.const 8
+      i32.add
+      i32.load
+      call $jn_gc_mark_obj
+      return
+    end
+    local.get $tid
+    i32.const 106
+    i32.eq
+    if
+      local.get $obj
+      i32.const 16
+      i32.add
+      i32.load
+      call $jn_gc_mark_obj
+      local.get $obj
+      i32.const 20
+      i32.add
+      i32.load
+      call $jn_gc_mark_obj
+      return
+    end
+    local.get $tid
+    i32.const 107
+    i32.eq
+    if
+      local.get $obj
+      i32.const 4
+      i32.add
+      i32.load
+      call $jn_gc_mark_obj
+      return
+    end
+    local.get $tid
+    i32.const 108
+    i32.eq
+    if
+      local.get $obj
+      i32.const 4
+      i32.add
+      i32.load
+      call $jn_gc_mark_obj
+      return
+    end
+    local.get $tid
+    i32.const 110
+    i32.eq
+    if
+      local.get $obj
+      i32.const 4
+      i32.add
+      i32.load
+      call $jn_gc_mark_obj
+      local.get $obj
+      i32.const 8
+      i32.add
+      i32.load
+      call $jn_gc_mark_obj
+      local.get $obj
+      i32.const 12
+      i32.add
+      i32.load
+      call $jn_gc_mark_obj
+      local.get $obj
+      i32.const 16
+      i32.add
+      i32.load
+      call $jn_gc_mark_obj
+      local.get $obj
+      i32.const 20
+      i32.add
+      i32.load
+      call $jn_gc_mark_obj
+      return
+    end
+    local.get $tid
+    i32.const 111
+    i32.eq
+    if
+      local.get $obj
+      i32.const 4
+      i32.add
+      i32.load
+      call $jn_gc_mark_obj
+      local.get $obj
+      i32.const 8
+      i32.add
+      i32.load
+      call $jn_gc_mark_obj
+      local.get $obj
+      i32.const 12
+      i32.add
+      i32.load
+      call $jn_gc_mark_obj
+      return
+    end
+    local.get $tid
+    i32.const 112
+    i32.eq
+    if
+      local.get $obj
+      i32.const 8
+      i32.add
+      i32.load
+      call $jn_gc_mark_obj
+      local.get $obj
+      i32.const 12
+      i32.add
+      i32.load
+      call $jn_gc_mark_obj
+      local.get $obj
+      i32.const 16
+      i32.add
+      i32.load
+      call $jn_gc_mark_obj
+      local.get $obj
+      i32.const 20
+      i32.add
+      i32.load
+      call $jn_gc_mark_obj
+      local.get $obj
+      i32.const 24
+      i32.add
+      i32.load
+      call $jn_gc_mark_obj
+      return
+    end
+    local.get $tid
+    i32.const 113
+    i32.eq
+    if
+      local.get $obj
+      i32.const 4
+      i32.add
+      i32.load
+      call $jn_gc_mark_obj
+      return
+    end
+    local.get $tid
+    i32.const 114
+    i32.eq
+    if
+      local.get $obj
+      i32.const 4
+      i32.add
+      i32.load
+      call $jn_gc_mark_obj
+      return
+    end
+    local.get $tid
+    i32.const 116
+    i32.eq
+    if
+      local.get $obj
+      i32.const 4
+      i32.add
+      i32.load
+      call $jn_gc_mark_obj
+      local.get $obj
+      i32.const 8
+      i32.add
+      i32.load
+      call $jn_gc_mark_obj
+      local.get $obj
+      i32.const 12
+      i32.add
+      i32.load
+      call $jn_gc_mark_obj
+      return
+    end
+    local.get $tid
+    i32.const 117
+    i32.eq
+    if
+      local.get $obj
+      i32.const 4
+      i32.add
+      i32.load
+      call $jn_gc_mark_obj
+      local.get $obj
+      i32.const 8
+      i32.add
+      i32.load
+      call $jn_gc_mark_obj
+      local.get $obj
+      i32.const 12
+      i32.add
+      i32.load
+      call $jn_gc_mark_obj
+      return
+    end
+    local.get $tid
+    i32.const 120
+    i32.eq
+    if
+      local.get $obj
+      i32.const 4
+      i32.add
+      i32.load
+      call $jn_gc_mark_obj
+      local.get $obj
+      i32.const 8
+      i32.add
+      i32.load
+      call $jn_gc_mark_obj
+      return
+    end
+    local.get $tid
+    i32.const 121
+    i32.eq
+    if
+      local.get $obj
+      i32.const 4
+      i32.add
+      i32.load
+      call $jn_gc_mark_obj
+      local.get $obj
+      i32.const 8
+      i32.add
+      i32.load
+      call $jn_gc_mark_obj
+      return
+    end
+    local.get $tid
+    i32.const 123
+    i32.eq
+    if
+      local.get $obj
+      i32.const 4
+      i32.add
+      i32.load
+      call $jn_gc_mark_obj
+      local.get $obj
+      i32.const 8
+      i32.add
+      i32.load
+      call $jn_gc_mark_obj
+      local.get $obj
+      i32.const 12
+      i32.add
+      i32.load
+      call $jn_gc_mark_obj
+      return
+    end
+    local.get $tid
+    i32.const 124
+    i32.eq
+    if
+      local.get $obj
+      i32.const 4
+      i32.add
+      i32.load
+      call $jn_gc_mark_obj
+      local.get $obj
+      i32.const 8
+      i32.add
+      i32.load
+      call $jn_gc_mark_obj
+      local.get $obj
+      i32.const 12
+      i32.add
+      i32.load
+      call $jn_gc_mark_obj
+      return
+    end
+    local.get $tid
+    i32.const 125
+    i32.eq
+    if
+      local.get $obj
+      i32.const 16
+      i32.add
+      i32.load
+      call $jn_gc_mark_obj
+      return
+    end
+  )
+  (func $jn_gc_trace_statics
+    global.get $g_jn_static_Integer_cache
+    call $jn_gc_mark_obj
+    global.get $g_jn_static_Boolean_TRUE
+    call $jn_gc_mark_obj
+    global.get $g_jn_static_Boolean_FALSE
+    call $jn_gc_mark_obj
+    global.get $g_jn_static_GcStress_keepAlive
+    call $jn_gc_mark_obj
+    global.get $g_jn_static_GcStress_bag
+    call $jn_gc_mark_obj
+    global.get $g_jn_static_Long_cache
+    call $jn_gc_mark_obj
+    global.get $g_jn_static_Async_defaultGroup
+    call $jn_gc_mark_obj
+    global.get $g_jn_static_Async_sharedPool
+    call $jn_gc_mark_obj
+  )
+  ;; ---- wasm32 mark-sweep GC (non-moving, precise roots) ----
+  (func $jn_gc_frame_push (param $n i32) (result i32)
+    (local $fp i32) (local $bytes i32) (local $end i32) (local $i i32)
+    local.get $n
+    i32.const 2
+    i32.add
+    i32.const 2
+    i32.shl
+    local.set $bytes
+    global.get $jn_shadow_sp
+    local.set $fp
+    local.get $fp
+    local.get $bytes
+    i32.add
+    local.set $end
+    local.get $end
+    i32.const 73728
+    i32.gt_u
+    if
+      unreachable
+    end
+    local.get $fp
+    global.get $jn_frame
+    i32.store
+    local.get $fp
+    i32.const 4
+    i32.add
+    local.get $n
+    i32.store
+    i32.const 0
+    local.set $i
+    (block $zdone
+      (loop $z
+        local.get $i
+        local.get $n
+        i32.ge_u
+        br_if $zdone
+        local.get $fp
+        i32.const 8
+        i32.add
+        local.get $i
+        i32.const 2
+        i32.shl
+        i32.add
+        i32.const 0
+        i32.store
+        local.get $i
+        i32.const 1
+        i32.add
+        local.set $i
+        br $z
+      )
+    )
+    local.get $end
+    global.set $jn_shadow_sp
+    local.get $fp
+    global.set $jn_frame
+    local.get $fp
+  )
+  (func $jn_gc_frame_set_root (param $frame i32) (param $i i32) (param $val i32)
+    local.get $frame
+    i32.const 8
+    i32.add
+    local.get $i
+    i32.const 2
+    i32.shl
+    i32.add
+    local.get $val
+    i32.store
+  )
+  (func $jn_gc_frame_pop
+    (local $fp i32)
+    global.get $jn_frame
+    local.set $fp
+    local.get $fp
+    i32.eqz
+    if
+      return
+    end
+    local.get $fp
+    global.set $jn_shadow_sp
+    local.get $fp
+    i32.load
+    global.set $jn_frame
+  )
+  (func $jn_host_root_retain (param $ptr i32) (result i32)
+    (local $i i32) (local $b i32) (local $gen i32)
+    local.get $ptr
+    i32.eqz
+    if (result i32)
+      i32.const 0
+    else
+      i32.const 0
+      local.set $i
+      (block $found (result i32)
+        (loop $scan
+          local.get $i
+          i32.const 128
+          i32.ge_u
+          if
+            i32.const 0
+            br $found
+          end
+          i32.const 768
+          local.get $i
+          i32.const 8
+          i32.mul
+          i32.add
+          local.set $b
+          local.get $b
+          i32.const 4
+          i32.add
+          i32.load
+          i32.eqz
+          if
+            local.get $b
+            i32.load
+            i32.const 1
+            i32.add
+            i32.const 65535
+            i32.and
+            local.set $gen
+            local.get $gen
+            i32.eqz
+            if
+              i32.const 1
+              local.set $gen
+            end
+            local.get $b
+            local.get $gen
+            i32.store
+            local.get $b
+            i32.const 4
+            i32.add
+            local.get $ptr
+            i32.store
+            global.get $jn_stat_host_roots
+            i32.const 1
+            i32.add
+            global.set $jn_stat_host_roots
+            local.get $gen
+            i32.const 16
+            i32.shl
+            local.get $i
+            i32.const 1
+            i32.add
+            i32.or
+            br $found
+          end
+          local.get $i
+          i32.const 1
+          i32.add
+          local.set $i
+          br $scan
+        )
+        i32.const 0
+      )
+    end
+  )
+  (func $jn_host_root_release (param $h i32)
+    (local $slot i32) (local $b i32) (local $gen i32)
+    local.get $h
+    i32.eqz
+    if
+      return
+    end
+    local.get $h
+    i32.const 65535
+    i32.and
+    i32.const 1
+    i32.sub
+    local.set $slot
+    local.get $slot
+    i32.const 128
+    i32.ge_u
+    if
+      return
+    end
+    local.get $h
+    i32.const 16
+    i32.shr_u
+    local.set $gen
+    i32.const 768
+    local.get $slot
+    i32.const 8
+    i32.mul
+    i32.add
+    local.set $b
+    local.get $b
+    i32.load
+    local.get $gen
+    i32.ne
+    if
+      return
+    end
+    local.get $b
+    i32.const 4
+    i32.add
+    i32.load
+    i32.eqz
+    if
+      return
+    end
+    local.get $b
+    i32.const 4
+    i32.add
+    i32.const 0
+    i32.store
+    local.get $b
+    local.get $gen
+    i32.const 1
+    i32.add
+    i32.const 65535
+    i32.and
+    i32.store
+    global.get $jn_stat_host_roots
+    i32.const 1
+    i32.sub
+    global.set $jn_stat_host_roots
+  )
+  (func $jn_host_root_get (param $h i32) (result i32)
+    (local $slot i32) (local $b i32) (local $gen i32)
+    local.get $h
+    i32.eqz
+    if (result i32)
+      i32.const 0
+    else
+      local.get $h
+      i32.const 65535
+      i32.and
+      i32.const 1
+      i32.sub
+      local.set $slot
+      local.get $slot
+      i32.const 128
+      i32.ge_u
+      if (result i32)
+        i32.const 0
+      else
+        local.get $h
+        i32.const 16
+        i32.shr_u
+        local.set $gen
+        i32.const 768
+        local.get $slot
+        i32.const 8
+        i32.mul
+        i32.add
+        local.set $b
+        local.get $b
+        i32.load
+        local.get $gen
+        i32.ne
+        if (result i32)
+          i32.const 0
+        else
+          local.get $b
+          i32.const 4
+          i32.add
+          i32.load
+        end
+      end
+    end
+  )
+  (func $jn_gc_obj_to_hdr (param $obj i32) (result i32)
+    local.get $obj
+    i32.const 16
+    i32.sub
+  )
+  (func $jn_gc_hdr_to_obj (param $h i32) (result i32)
+    local.get $h
+    i32.const 16
+    i32.add
+  )
+  (func $jn_gc_mark_push (param $obj i32)
+    (local $sp i32)
+    local.get $obj
+    i32.eqz
+    if
+      return
+    end
+    global.get $jn_mark_sp
+    local.set $sp
+    local.get $sp
+    i32.const 4096
+    i32.ge_u
+    if
+      unreachable
+    end
+    i32.const 73728
+    local.get $sp
+    i32.const 2
+    i32.shl
+    i32.add
+    local.get $obj
+    i32.store
+    local.get $sp
+    i32.const 1
+    i32.add
+    global.set $jn_mark_sp
+  )
+  (func $jn_gc_mark_obj (param $obj i32)
+    (local $h i32) (local $f i32)
+    local.get $obj
+    i32.eqz
+    if
+      return
+    end
+    local.get $obj
+    call $jn_gc_obj_to_hdr
+    local.set $h
+    local.get $h
+    i32.const 90112
+    i32.lt_u
+    if
+      return
+    end
+    local.get $h
+    i32.const 8
+    i32.add
+    i32.load
+    local.set $f
+    local.get $f
+    i32.const 2
+    i32.and
+    if
+      return
+    end
+    local.get $f
+    i32.const 1
+    i32.and
+    if
+      return
+    end
+    local.get $h
+    i32.const 8
+    i32.add
+    local.get $f
+    i32.const 1
+    i32.or
+    i32.store
+    local.get $obj
+    call $jn_gc_mark_push
+  )
+  (func $jn_gc_trace_one (param $obj i32)
+    (local $tid i32) (local $f i32) (local $len i32) (local $i i32)
+    local.get $obj
+    call $jn_gc_obj_to_hdr
+    i32.const 8
+    i32.add
+    i32.load
+    local.set $f
+    local.get $f
+    i32.const 16
+    i32.and
+    if
+      return
+    end
+    local.get $obj
+    i32.load
+    local.set $tid
+    local.get $obj
+    local.get $tid
+    call $jn_gc_trace_type_fields
+    local.get $f
+    i32.const 8
+    i32.and
+    i32.eqz
+    if
+      return
+    end
+    local.get $obj
+    i32.const 8
+    i32.add
+    i32.load
+    local.set $len
+    i32.const 0
+    local.set $i
+    (block $adone
+      (loop $a
+        local.get $i
+        local.get $len
+        i32.ge_s
+        br_if $adone
+        local.get $obj
+        i32.const 16
+        i32.add
+        local.get $i
+        i32.const 2
+        i32.shl
+        i32.add
+        i32.load
+        call $jn_gc_mark_obj
+        local.get $i
+        i32.const 1
+        i32.add
+        local.set $i
+        br $a
+      )
+    )
+  )
+  (func $jn_gc_trace_roots
+    (local $fp i32) (local $n i32) (local $i i32) (local $base i32)
+    global.get $jn_frame
+    local.set $fp
+    (block $fdone
+      (loop $f
+        local.get $fp
+        i32.eqz
+        br_if $fdone
+        local.get $fp
+        i32.const 4
+        i32.add
+        i32.load
+        local.set $n
+        i32.const 0
+        local.set $i
+        (block $sdone
+          (loop $s
+            local.get $i
+            local.get $n
+            i32.ge_u
+            br_if $sdone
+            local.get $fp
+            i32.const 8
+            i32.add
+            local.get $i
+            i32.const 2
+            i32.shl
+            i32.add
+            i32.load
+            call $jn_gc_mark_obj
+            local.get $i
+            i32.const 1
+            i32.add
+            local.set $i
+            br $s
+          )
+        )
+        local.get $fp
+        i32.load
+        local.set $fp
+        br $f
+      )
+    )
+    global.get $jn_pending_exc
+    call $jn_gc_mark_obj
+    i32.const 0
+    local.set $i
+    (block $hdone
+      (loop $h
+        local.get $i
+        i32.const 128
+        i32.ge_u
+        br_if $hdone
+        i32.const 768
+        local.get $i
+        i32.const 8
+        i32.mul
+        i32.add
+        i32.const 4
+        i32.add
+        i32.load
+        call $jn_gc_mark_obj
+        local.get $i
+        i32.const 1
+        i32.add
+        local.set $i
+        br $h
+      )
+    )
+    i32.const 0
+    local.set $i
+    (block $cdone
+      (loop $c
+        local.get $i
+        i32.const 64
+        i32.ge_u
+        br_if $cdone
+        i32.const 256
+        local.get $i
+        i32.const 8
+        i32.mul
+        i32.add
+        i32.const 4
+        i32.add
+        i32.load
+        call $jn_gc_mark_obj
+        local.get $i
+        i32.const 1
+        i32.add
+        local.set $i
+        br $c
+      )
+    )
+    call $jn_gc_trace_statics
+  )
+  (func $jn_gc_collect
+    (local $h i32) (local $next i32) (local $f i32) (local $live i32) (local $freeb i32)
+    global.get $jn_gc_collecting
+    if
+      return
+    end
+    i32.const 1
+    global.set $jn_gc_collecting
+    i32.const 0
+    global.set $jn_mark_sp
+    global.get $jn_heap_head
+    local.set $h
+    (block $clrdone
+      (loop $clr
+        local.get $h
+        i32.eqz
+        br_if $clrdone
+        local.get $h
+        i32.const 8
+        i32.add
+        i32.load
+        local.set $f
+        local.get $h
+        i32.const 8
+        i32.add
+        local.get $f
+        i32.const -2
+        i32.and
+        i32.store
+        local.get $h
+        i32.load
+        local.set $h
+        br $clr
+      )
+    )
+    call $jn_gc_trace_roots
+    (block $mdone
+      (loop $m
+        global.get $jn_mark_sp
+        i32.eqz
+        br_if $mdone
+        global.get $jn_mark_sp
+        i32.const 1
+        i32.sub
+        global.set $jn_mark_sp
+        i32.const 73728
+        global.get $jn_mark_sp
+        i32.const 2
+        i32.shl
+        i32.add
+        i32.load
+        call $jn_gc_trace_one
+        br $m
+      )
+    )
+    i32.const 0
+    global.set $jn_free_head
+    i32.const 0
+    local.set $live
+    i32.const 0
+    local.set $freeb
+    global.get $jn_heap_head
+    local.set $h
+    (block $swdone
+      (loop $sw
+        local.get $h
+        i32.eqz
+        br_if $swdone
+        local.get $h
+        i32.load
+        local.set $next
+        local.get $h
+        i32.const 8
+        i32.add
+        i32.load
+        local.set $f
+        local.get $f
+        i32.const 1
+        i32.and
+        if
+          local.get $h
+          i32.const 8
+          i32.add
+          local.get $f
+          i32.const -2
+          i32.and
+          i32.store
+          local.get $live
+          local.get $h
+          i32.const 4
+          i32.add
+          i32.load
+          i32.add
+          local.set $live
+        else
+          local.get $h
+          i32.const 8
+          i32.add
+          local.get $f
+          i32.const 2
+          i32.or
+          i32.store
+          local.get $h
+          i32.const 12
+          i32.add
+          global.get $jn_free_head
+          i32.store
+          local.get $h
+          global.set $jn_free_head
+          local.get $freeb
+          local.get $h
+          i32.const 4
+          i32.add
+          i32.load
+          i32.add
+          local.set $freeb
+        end
+        local.get $next
+        local.set $h
+        br $sw
+      )
+    )
+    local.get $live
+    global.set $jn_stat_live_bytes
+    local.get $freeb
+    global.set $jn_stat_free_bytes
+    i32.const 0
+    global.set $jn_since_gc
+    global.get $jn_stat_gc_count
+    i32.const 1
+    i32.add
+    global.set $jn_stat_gc_count
+    i32.const 0
+    global.set $jn_gc_collecting
+  )
+  (func $jn_gc_try_free_list (param $n i32) (param $flags i32) (result i32)
+    (local $prev i32) (local $cur i32) (local $sz i32) (local $nx i32)
+    i32.const 0
+    local.set $prev
+    global.get $jn_free_head
+    local.set $cur
+    (block $done (result i32)
+      (loop $walk
+        local.get $cur
+        i32.eqz
+        if
+          i32.const 0
+          br $done
+        end
+        local.get $cur
+        i32.const 4
+        i32.add
+        i32.load
+        local.set $sz
+        local.get $sz
+        local.get $n
+        i32.eq
+        if
+          local.get $cur
+          i32.const 12
+          i32.add
+          i32.load
+          local.set $nx
+          local.get $prev
+          i32.eqz
+          if
+            local.get $nx
+            global.set $jn_free_head
+          else
+            local.get $prev
+            i32.const 12
+            i32.add
+            local.get $nx
+            i32.store
+          end
+          local.get $cur
+          i32.const 8
+          i32.add
+          local.get $flags
+          i32.store
+          local.get $cur
+          call $jn_gc_hdr_to_obj
+          br $done
+        end
+        local.get $cur
+        local.set $prev
+        local.get $cur
+        i32.const 12
+        i32.add
+        i32.load
+        local.set $cur
+        br $walk
+      )
+      i32.const 0
+    )
+  )
+  (func $jn_gc_bump (param $total i32) (result i32)
+    (local $p i32) (local $end i32) (local $cur i32) (local $pages i32)
+    global.get $heap
+    local.set $p
+    local.get $p
+    local.get $total
+    i32.const 7
+    i32.add
+    i32.const -8
+    i32.and
+    i32.add
+    local.set $end
+    local.get $end
+    local.get $p
+    i32.lt_u
+    if
+      i32.const 0
+      return
+    end
+    memory.size
+    i32.const 16
+    i32.shl
+    local.set $cur
+    local.get $end
+    local.get $cur
+    i32.gt_u
+    if
+      local.get $end
+      local.get $cur
+      i32.sub
+      i32.const 65535
+      i32.add
+      i32.const 16
+      i32.shr_u
+      local.set $pages
+      local.get $pages
+      memory.grow
+      i32.const -1
+      i32.eq
+      if
+        i32.const 0
+        return
+      end
+      call $js_memory_grew
+    end
+    local.get $end
+    global.set $heap
+    local.get $p
+  )
+  (func $jn_gc_init_block (param $h i32) (param $n i32) (param $flags i32) (result i32)
+    local.get $h
+    global.get $jn_heap_head
+    i32.store
+    local.get $h
+    global.set $jn_heap_head
+    local.get $h
+    i32.const 4
+    i32.add
+    local.get $n
+    i32.store
+    local.get $h
+    i32.const 8
+    i32.add
+    local.get $flags
+    i32.store
+    local.get $h
+    call $jn_gc_hdr_to_obj
+  )
+  (func $jn_gc_alloc (param $n i32) (param $flags i32) (result i32)
+    (local $p i32) (local $h i32) (local $total i32) (local $i i32)
+    local.get $n
+    i32.const 1
+    i32.lt_s
+    if
+      i32.const 1
+      local.set $n
+    end
+    global.get $jn_since_gc
+    global.get $jn_gc_threshold
+    i32.ge_u
+    if
+      call $jn_gc_collect
+    end
+    local.get $n
+    local.get $flags
+    call $jn_gc_try_free_list
+    local.set $p
+    local.get $p
+    i32.eqz
+    if
+      local.get $n
+      i32.const 16
+      i32.add
+      local.set $total
+      local.get $total
+      call $jn_gc_bump
+      local.set $h
+      local.get $h
+      i32.eqz
+      if
+        call $jn_gc_collect
+        local.get $n
+        local.get $flags
+        call $jn_gc_try_free_list
+        local.set $p
+        local.get $p
+        i32.eqz
+        if
+          local.get $total
+          call $jn_gc_bump
+          local.set $h
+          local.get $h
+          i32.eqz
+          if
+            global.get $jn_stat_alloc_fail
+            i32.const 1
+            i32.add
+            global.set $jn_stat_alloc_fail
+            i32.const 0
+            return
+          end
+          local.get $h
+          local.get $n
+          local.get $flags
+          call $jn_gc_init_block
+          local.set $p
+        end
+      else
+        local.get $h
+        local.get $n
+        local.get $flags
+        call $jn_gc_init_block
+        local.set $p
+      end
+    end
+    i32.const 0
+    local.set $i
+    (block $zd
+      (loop $z
+        local.get $i
+        local.get $n
+        i32.ge_u
+        br_if $zd
+        local.get $p
+        local.get $i
+        i32.add
+        i32.const 0
+        i32.store8
+        local.get $i
+        i32.const 1
+        i32.add
+        local.set $i
+        br $z
+      )
+    )
+    global.get $jn_stat_alloc_bytes
+    local.get $n
+    i32.add
+    global.set $jn_stat_alloc_bytes
+    global.get $jn_since_gc
+    local.get $n
+    i32.add
+    global.set $jn_since_gc
+    local.get $p
+  )
+  (func $jn_alloc (param $n i32) (result i32)
+    local.get $n
+    i32.const 0
+    call $jn_gc_alloc
+  )
+  (func $jn_alloc_zeroed (param $n i32) (result i32)
+    local.get $n
+    i32.const 0
+    call $jn_gc_alloc
+  )
+  (func $jn_alloc_opaque (param $n i32) (result i32)
+    local.get $n
+    i32.const 16
+    call $jn_gc_alloc
+  )
+  (func $jn_gc_alloc_array (param $n i32) (param $refElems i32) (result i32)
+    (local $f i32)
+    i32.const 4
+    local.set $f
+    local.get $refElems
+    if
+      local.get $f
+      i32.const 8
+      i32.or
+      local.set $f
+    end
+    local.get $n
+    local.get $f
+    call $jn_gc_alloc
+  )
+  (func $jn_gc_safepoint
+    global.get $jn_since_gc
+    global.get $jn_gc_threshold
+    i32.ge_u
+    if
+      call $jn_gc_collect
+    end
+  )
+  (func $jn_gc_stats_alloc_bytes (result i32) global.get $jn_stat_alloc_bytes)
+  (func $jn_gc_stats_live_bytes (result i32) global.get $jn_stat_live_bytes)
+  (func $jn_gc_stats_free_bytes (result i32) global.get $jn_stat_free_bytes)
+  (func $jn_gc_stats_heap_cap (result i32) memory.size i32.const 16 i32.shl)
+  (func $jn_gc_stats_gc_count (result i32) global.get $jn_stat_gc_count)
+  (func $jn_gc_stats_host_roots (result i32) global.get $jn_stat_host_roots)
+  (func $jn_gc_stats_alloc_fail (result i32) global.get $jn_stat_alloc_fail)
+  (func $jn_str (param $off i32) (param $len i32) (result i32)
+    (local $p i32) (local $i i32)
+    local.get $len
+    i32.const 4
+    i32.add
+    call $jn_alloc_opaque
+    local.set $p
+    local.get $p
+    local.get $len
+    i32.store
+    i32.const 0
+    local.set $i
+    (block $done
+      (loop $copy
+        local.get $i
+        local.get $len
+        i32.ge_u
+        br_if $done
+        local.get $p
+        i32.const 4
+        i32.add
+        local.get $i
+        i32.add
+        local.get $off
+        local.get $i
+        i32.add
+        i32.load8_u
+        i32.store8
+        local.get $i
+        i32.const 1
+        i32.add
+        local.set $i
+        br $copy
+      )
+    )
+    local.get $p
+  )
+  (func $jn_str_len (param $s i32) (result i32)
+    local.get $s
+    i32.eqz
+    if (result i32)
+      i32.const 0
+    else
+      local.get $s
+      i32.load
+    end
+  )
+  (func $jn_str_data (param $s i32) (result i32)
+    local.get $s
+    i32.const 4
+    i32.add
+  )
+  (func $jn_string_length (param $s i32) (result i32)
+    local.get $s
+    call $jn_str_len
+  )
+  (func $jn_string_char_at (param $s i32) (param $index i32) (result i32)
+    (local $len i32)
+    local.get $s
+    i32.eqz
+    if
+      i32.const 0
+      return
+    end
+    local.get $s
+    i32.load
+    local.set $len
+    local.get $index
+    i32.const 0
+    i32.lt_s
+    if
+      i32.const 0
+      return
+    end
+    local.get $index
+    local.get $len
+    i32.ge_s
+    if
+      i32.const 0
+      return
+    end
+    local.get $s
+    i32.const 4
+    i32.add
+    local.get $index
+    i32.add
+    i32.load8_u
+    return
+  )
+  (func $jn_console_log (param $s i32)
+    local.get $s
+    call $jn_str_data
+    local.get $s
+    call $jn_str_len
+    call $js_console_log
+  )
+  (func $jn_get_element_by_id (param $s i32) (result i32)
+    local.get $s
+    call $jn_str_data
+    local.get $s
+    call $jn_str_len
+    call $js_get_by_id
+  )
+  (func $jn_create_element (param $s i32) (result i32)
+    local.get $s
+    call $jn_str_data
+    local.get $s
+    call $jn_str_len
+    call $js_create_element
+  )
+  (func $jn_document_body (result i32)
+    call $js_document_body
+  )
+  (func $jn_set_text (param $h i32) (param $s i32)
+    local.get $h
+    local.get $s
+    call $jn_str_data
+    local.get $s
+    call $jn_str_len
+    call $js_set_text
+  )
+  (func $jn_append_child (param $p i32) (param $c i32)
+    local.get $p
+    local.get $c
+    call $js_append_child
+  )
+  (func $jn_delegate_event (param $node i32) (param $typeStr i32) (param $cbId i32)
+    local.get $node
+    local.get $typeStr
+    call $jn_str_data
+    local.get $typeStr
+    call $jn_str_len
+    local.get $cbId
+    call $js_delegate_event
+  )
+  ;; callback table in reserved memory [256..768): 64 slots × 8 bytes (id,ptr) — simple map
+  (func $jn_register_dom_callback (param $callable i32) (result i32)
+    (local $id i32) (local $slot i32)
+    global.get $jn_cb_next
+    local.set $id
+    global.get $jn_cb_next
+    i32.const 1
+    i32.add
+    global.set $jn_cb_next
+    local.get $id
+    i32.const 63
+    i32.and
+    i32.const 8
+    i32.mul
+    i32.const 256
+    i32.add
+    local.set $slot
+    local.get $slot
+    local.get $id
+    i32.store
+    local.get $slot
+    i32.const 4
+    i32.add
+    local.get $callable
+    i32.store
+    local.get $id
+    call $js_register_callback
+    drop
+    local.get $id
+  )
+  (func $jn_lookup_dom_callback (param $id i32) (result i32)
+    (local $slot i32)
+    local.get $id
+    i32.const 63
+    i32.and
+    i32.const 8
+    i32.mul
+    i32.const 256
+    i32.add
+    local.set $slot
+    local.get $slot
+    i32.load
+    local.get $id
+    i32.ne
+    if (result i32)
+      i32.const 0
+    else
+      local.get $slot
+      i32.const 4
+      i32.add
+      i32.load
+    end
+  )
+  (func $jn_unregister_dom_callback (param $id i32)
+    (local $slot i32)
+    local.get $id
+    i32.const 63
+    i32.and
+    i32.const 8
+    i32.mul
+    i32.const 256
+    i32.add
+    local.set $slot
+    local.get $slot
+    i32.load
+    local.get $id
+    i32.eq
+    if
+      local.get $slot
+      i32.const 0
+      i32.store
+      local.get $slot
+      i32.const 4
+      i32.add
+      i32.const 0
+      i32.store
+    end
+    local.get $id
+    call $js_unregister_callback
+  )
+  (func $jn_input_value (param $h i32) (result i32)
+    local.get $h
+    call $js_input_value
+  )
+  (func $jn_input_set_value (param $h i32) (param $s i32)
+    local.get $h
+    local.get $s
+    call $jn_str_data
+    local.get $s
+    call $jn_str_len
+    call $js_input_set_value
+  )
+  (func $jn_string_concat (param $a i32) (param $b i32) (result i32)
+    (local $la i32) (local $lb i32) (local $p i32) (local $i i32)
+    local.get $a
+    call $jn_str_len
+    local.set $la
+    local.get $b
+    call $jn_str_len
+    local.set $lb
+    local.get $la
+    local.get $lb
+    i32.add
+    i32.const 4
+    i32.add
+    call $jn_alloc_opaque
+    local.set $p
+    local.get $p
+    local.get $la
+    local.get $lb
+    i32.add
+    i32.store
+    i32.const 0
+    local.set $i
+    (block $da
+      (loop $ca
+        local.get $i
+        local.get $la
+        i32.ge_u
+        br_if $da
+        local.get $p
+        i32.const 4
+        i32.add
+        local.get $i
+        i32.add
+        local.get $a
+        call $jn_str_data
+        local.get $i
+        i32.add
+        i32.load8_u
+        i32.store8
+        local.get $i
+        i32.const 1
+        i32.add
+        local.set $i
+        br $ca
+      )
+    )
+    i32.const 0
+    local.set $i
+    (block $db
+      (loop $cb
+        local.get $i
+        local.get $lb
+        i32.ge_u
+        br_if $db
+        local.get $p
+        i32.const 4
+        i32.add
+        local.get $la
+        i32.add
+        local.get $i
+        i32.add
+        local.get $b
+        call $jn_str_data
+        local.get $i
+        i32.add
+        i32.load8_u
+        i32.store8
+        local.get $i
+        i32.const 1
+        i32.add
+        local.set $i
+        br $cb
+      )
+    )
+    local.get $p
+  )
+  ;; decimal int → string (for money display helpers)
+  (func $jn_string_value_of_i32 (param $v i32) (result i32)
+    (local $neg i32) (local $n i32) (local $tmp i32) (local $len i32) (local $p i32) (local $i i32)
+    local.get $v
+    i32.const 0
+    i32.lt_s
+    local.set $neg
+    local.get $v
+    local.get $v
+    i32.const 31
+    i32.shr_s
+    i32.xor
+    local.get $v
+    i32.const 31
+    i32.shr_s
+    i32.sub
+    local.set $n
+    local.get $n
+    i32.eqz
+    if (result i32)
+      i32.const 1
+      local.set $len
+      i32.const 0
+    else
+      i32.const 0
+      local.set $len
+      local.get $n
+      local.set $tmp
+      (loop $cnt
+        local.get $len
+        i32.const 1
+        i32.add
+        local.set $len
+        local.get $tmp
+        i32.const 10
+        i32.div_u
+        local.set $tmp
+        local.get $tmp
+        br_if $cnt
+      )
+      i32.const 0
+    end
+    drop
+    local.get $len
+    local.get $neg
+    i32.add
+    i32.const 4
+    i32.add
+    call $jn_alloc_opaque
+    local.set $p
+    local.get $p
+    local.get $len
+    local.get $neg
+    i32.add
+    i32.store
+    local.get $neg
+    if
+      local.get $p
+      i32.const 4
+      i32.add
+      i32.const 45
+      i32.store8
+    end
+    local.get $n
+    i32.eqz
+    if
+      local.get $p
+      i32.const 4
+      i32.add
+      local.get $neg
+      i32.add
+      i32.const 48
+      i32.store8
+      local.get $p
+      return
+    end
+    local.get $len
+    local.set $i
+    (loop $dig
+      local.get $i
+      i32.const 1
+      i32.sub
+      local.set $i
+      local.get $p
+      i32.const 4
+      i32.add
+      local.get $neg
+      i32.add
+      local.get $i
+      i32.add
+      local.get $n
+      i32.const 10
+      i32.rem_u
+      i32.const 48
+      i32.add
+      i32.store8
+      local.get $n
+      i32.const 10
+      i32.div_u
+      local.set $n
+      local.get $i
+      br_if $dig
+    )
+    local.get $p
+  )
+  ;; ---- wasm32 explicit exception / completion (no WASM EH) ----
+  (func $jn_ex_alloc (param $tid i32) (param $msg i32) (result i32)
+    (local $p i32)
+    i32.const 16
+    call $jn_alloc_zeroed
+    local.set $p
+    local.get $p
+    i32.eqz
+    if (result i32)
+      i32.const 0
+    else
+      local.get $p
+      local.get $tid
+      i32.store
+      local.get $p
+      i32.const 4
+      i32.add
+      local.get $msg
+      i32.store
+      local.get $p
+    end
+  )
+  (func $jnative_exception_throw (param $ex i32)
+    local.get $ex
+    i32.eqz
+    if
+      call $jnative_throw_npe
+      return
+    end
+    local.get $ex
+    global.set $jn_pending_exc
+    i32.const 0
+    global.set $jn_comp_kind
+  )
+  (func $jnative_exception_pending (result i32)
+    global.get $jn_pending_exc
+    i32.const 0
+    i32.ne
+  )
+  (func $jnative_exception_peek (result i32)
+    global.get $jn_pending_exc
+  )
+  (func $jnative_exception_take (result i32)
+    (local $ex i32)
+    global.get $jn_pending_exc
+    local.set $ex
+    i32.const 0
+    global.set $jn_pending_exc
+    local.get $ex
+  )
+  (func $jnative_exception_clear
+    i32.const 0
+    global.set $jn_pending_exc
+  )
+  (func $jnative_throw_npe
+    i32.const 24
+    i32.const 0
+    call $jn_ex_alloc
+    global.set $jn_pending_exc
+  )
+  (func $jnative_throw_illegal_argument
+    i32.const 116
+    i32.const 0
+    call $jn_ex_alloc
+    global.set $jn_pending_exc
+  )
+  (func $jnative_throw_aioobe
+    call $jnative_throw_npe
+  )
+  (func $jnative_throw_negative_array_size
+    call $jnative_throw_npe
+  )
+  (func $jnative_throw_class_cast
+    call $jnative_throw_npe
+  )
+  (func $jnative_throw_arithmetic
+    call $jnative_throw_npe
+  )
+  (func $jnative_throw_illegal_monitor
+    call $jnative_throw_npe
+  )
+  (func $jnative_throw_illegal_state
+    call $jnative_throw_npe
+  )
+  (func $jnative_throwable_add_suppressed (param $primary i32) (param $sup i32)
+    (local $old i32) (local $len i32) (local $narr i32) (local $i i32)
+    local.get $primary
+    i32.eqz
+    if
+      return
+    end
+    local.get $sup
+    i32.eqz
+    if
+      call $jnative_throw_npe
+      return
+    end
+    local.get $primary
+    local.get $sup
+    i32.eq
+    if
+      call $jnative_throw_illegal_argument
+      return
+    end
+    local.get $primary
+    i32.const 12
+    i32.add
+    i32.load
+    local.set $old
+    local.get $old
+    i32.eqz
+    if
+      i32.const 20
+      i32.const 1
+      call $jn_gc_alloc_array
+      local.set $narr
+      local.get $narr
+      i32.eqz
+      if
+        return
+      end
+      local.get $narr
+      i32.const 136
+      i32.store
+      local.get $narr
+      i32.const 8
+      i32.add
+      i32.const 1
+      i32.store
+      local.get $narr
+      i32.const 16
+      i32.add
+      local.get $sup
+      i32.store
+      local.get $primary
+      i32.const 12
+      i32.add
+      local.get $narr
+      i32.store
+      return
+    end
+    local.get $old
+    i32.const 8
+    i32.add
+    i32.load
+    local.set $len
+    local.get $len
+    i32.const 1
+    i32.add
+    i32.const 2
+    i32.shl
+    i32.const 16
+    i32.add
+    i32.const 1
+    call $jn_gc_alloc_array
+    local.set $narr
+    local.get $narr
+    i32.eqz
+    if
+      return
+    end
+    local.get $narr
+    i32.const 136
+    i32.store
+    local.get $narr
+    i32.const 8
+    i32.add
+    local.get $len
+    i32.const 1
+    i32.add
+    i32.store
+    i32.const 0
+    local.set $i
+    (block $cdone
+      (loop $c
+        local.get $i
+        local.get $len
+        i32.ge_s
+        br_if $cdone
+        local.get $narr
+        i32.const 16
+        i32.add
+        local.get $i
+        i32.const 2
+        i32.shl
+        i32.add
+        local.get $old
+        i32.const 16
+        i32.add
+        local.get $i
+        i32.const 2
+        i32.shl
+        i32.add
+        i32.load
+        i32.store
+        local.get $i
+        i32.const 1
+        i32.add
+        local.set $i
+        br $c
+      )
+    )
+    local.get $narr
+    i32.const 16
+    i32.add
+    local.get $len
+    i32.const 2
+    i32.shl
+    i32.add
+    local.get $sup
+    i32.store
+    local.get $primary
+    i32.const 12
+    i32.add
+    local.get $narr
+    i32.store
+  )
+  (func $jnative_throwable_get_suppressed (param $ex i32) (result i32)
+    (local $old i32) (local $len i32) (local $out i32) (local $i i32)
+    local.get $ex
+    i32.eqz
+    if (result i32)
+      call $jnative_throw_npe
+      i32.const 0
+    else
+      local.get $ex
+      i32.const 12
+      i32.add
+      i32.load
+      local.set $old
+      local.get $old
+      i32.eqz
+      if (result i32)
+        i32.const 16
+        i32.const 1
+        call $jn_gc_alloc_array
+        local.set $out
+        local.get $out
+        i32.eqz
+        if (result i32)
+          i32.const 0
+        else
+          local.get $out
+          i32.const 136
+          i32.store
+          local.get $out
+          i32.const 8
+          i32.add
+          i32.const 0
+          i32.store
+          local.get $out
+        end
+      else
+        local.get $old
+        i32.const 8
+        i32.add
+        i32.load
+        local.set $len
+        local.get $len
+        i32.const 2
+        i32.shl
+        i32.const 16
+        i32.add
+        i32.const 1
+        call $jn_gc_alloc_array
+        local.set $out
+        local.get $out
+        i32.eqz
+        if (result i32)
+          i32.const 0
+        else
+          local.get $out
+          i32.const 136
+          i32.store
+          local.get $out
+          i32.const 8
+          i32.add
+          local.get $len
+          i32.store
+          i32.const 0
+          local.set $i
+          (block $gd
+            (loop $gl
+              local.get $i
+              local.get $len
+              i32.ge_s
+              br_if $gd
+              local.get $out
+              i32.const 16
+              i32.add
+              local.get $i
+              i32.const 2
+              i32.shl
+              i32.add
+              local.get $old
+              i32.const 16
+              i32.add
+              local.get $i
+              i32.const 2
+              i32.shl
+              i32.add
+              i32.load
+              i32.store
+              local.get $i
+              i32.const 1
+              i32.add
+              local.set $i
+              br $gl
+            )
+          )
+          local.get $out
+        end
+      end
+    end
+  )
+  (func $jnative_completion_clear
+    i32.const 0
+    global.set $jn_comp_kind
+    i32.const 0
+    global.set $jn_comp_target
+    i64.const 0
+    global.set $jn_comp_ret_i64
+    i32.const 0
+    global.set $jn_comp_ret_ptr
+  )
+  (func $jnative_completion_set_return_i64 (param $v i64)
+    i32.const 1
+    global.set $jn_comp_kind
+    local.get $v
+    global.set $jn_comp_ret_i64
+    i32.const 0
+    global.set $jn_comp_ret_ptr
+  )
+  (func $jnative_completion_set_return_ptr (param $v i32)
+    i32.const 1
+    global.set $jn_comp_kind
+    local.get $v
+    global.set $jn_comp_ret_ptr
+    i64.const 0
+    global.set $jn_comp_ret_i64
+  )
+  (func $jnative_completion_set_break (param $t i32)
+    i32.const 2
+    global.set $jn_comp_kind
+    local.get $t
+    global.set $jn_comp_target
+  )
+  (func $jnative_completion_set_continue (param $t i32)
+    i32.const 3
+    global.set $jn_comp_kind
+    local.get $t
+    global.set $jn_comp_target
+  )
+  (func $jnative_completion_has_return (result i32)
+    global.get $jn_comp_kind
+    i32.const 1
+    i32.eq
+  )
+  (func $jnative_completion_has_break (result i32)
+    global.get $jn_comp_kind
+    i32.const 2
+    i32.eq
+  )
+  (func $jnative_completion_has_continue (result i32)
+    global.get $jn_comp_kind
+    i32.const 3
+    i32.eq
+  )
+  (func $jnative_completion_take_return_i64 (result i64)
+    (local $v i64)
+    global.get $jn_comp_ret_i64
+    local.set $v
+    call $jnative_completion_clear
+    local.get $v
+  )
+  (func $jnative_completion_take_return_ptr (result i32)
+    (local $v i32)
+    global.get $jn_comp_ret_ptr
+    local.set $v
+    call $jnative_completion_clear
+    local.get $v
+  )
+  (func $jnative_completion_take_target (result i32)
+    (local $v i32)
+    global.get $jn_comp_target
+    local.set $v
+    call $jnative_completion_clear
+    local.get $v
+  )
+  (func $jnative_exception_uncaught
+    (local $ex i32) (local $msg i32) (local $ptr i32) (local $len i32)
+    global.get $jn_pending_exc
+    local.set $ex
+    local.get $ex
+    i32.eqz
+    if
+      return
+    end
+    local.get $ex
+    i32.const 4
+    i32.add
+    i32.load
+    local.set $msg
+    local.get $msg
+    i32.eqz
+    if
+      i32.const 0
+      i32.const 0
+      call $js_report_uncaught
+    else
+      local.get $msg
+      call $jn_str_data
+      local.set $ptr
+      local.get $msg
+      call $jn_str_len
+      local.set $len
+      local.get $ptr
+      local.get $len
+      call $js_report_uncaught
+    end
+    i32.const 0
+    global.set $jn_pending_exc
+  )
+  (func $jn_raise_host_error (param $msg i32)
+    i32.const 48
+    local.get $msg
+    call $jn_ex_alloc
+    call $jnative_exception_throw
+  )
+  (func (export "jn_raise_host_error") (param $msg i32)
+    local.get $msg
+    call $jn_raise_host_error
+  )
+  (func (export "jn_exception_pending") (result i32)
+    call $jnative_exception_pending
+  )
+  (func (export "jn_exception_peek") (result i32)
+    call $jnative_exception_peek
+  )
+  (func (export "jn_exception_take") (result i32)
+    call $jnative_exception_take
+  )
+  (func (export "jn_exception_clear")
+    call $jnative_exception_clear
+  )
+  (func (export "jn_exception_uncaught")
+    call $jnative_exception_uncaught
+  )
+  (func $jnative_clinit
+    (local $pc i32)
+    (local $__jn_tid i32)
+    (local $__jn_asz i32)
+    (local $__jn_frame i32)
+    (local $gctmp.1 i32)
+    (local $gctmp.4 i32)
+    (local $t0 i32)
+    (local $t1 i32)
+    (local $t2 i32)
+    (local $t3 i32)
+    (local $t4 i32)
+    (local $t5 i32)
+    i32.const 6
+    call $jn_gc_frame_push
+    local.set $__jn_frame
+    i32.const 0
+    local.set $pc
+    (block $exit
+      (loop $dispatch
+        (block $bb4
+        (block $bb3
+        (block $bb2
+        (block $bb1
+        (block $bb0
+          local.get $pc
+          br_table $bb0 $bb1 $bb2 $bb3 $bb4 $exit
+        )
+          i32.const 0
+          global.set $g_jn_static_HashMap_EMPTY
+          i32.const 1
+          global.set $g_jn_static_HashMap_OCCUPIED
+          i32.const 2
+          global.set $g_jn_static_HashMap_DELETED
+          i32.const 8
+          call $jn_alloc_zeroed
+          local.set $t0
+          local.get $t0
+          i32.eqz
+          if
+            unreachable
+          end
+          local.get $t0
+          i32.const 54
+          i32.store
+          local.get $__jn_frame
+          i32.const 2
+          local.get $t0
+          call $jn_gc_frame_set_root
+          local.get $t0
+          local.set $gctmp.1
+          local.get $__jn_frame
+          i32.const 0
+          local.get $gctmp.1
+          call $jn_gc_frame_set_root
+          local.get $gctmp.1
+          local.set $t1
+          local.get $__jn_frame
+          i32.const 3
+          local.get $t1
+          call $jn_gc_frame_set_root
+          local.get $t1
+          i32.const 1
+          call $_JN_Boolean_init_i1
+          call $jnative_exception_pending
+          local.set $t2
+          local.get $t2
+          if
+            i32.const 1
+            local.set $pc
+          else
+            i32.const 2
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $t1
+          global.set $g_jn_static_Boolean_TRUE
+          i32.const 8
+          call $jn_alloc_zeroed
+          local.set $t3
+          local.get $t3
+          i32.eqz
+          if
+            unreachable
+          end
+          local.get $t3
+          i32.const 54
+          i32.store
+          local.get $__jn_frame
+          i32.const 4
+          local.get $t3
+          call $jn_gc_frame_set_root
+          local.get $t3
+          local.set $gctmp.4
+          local.get $__jn_frame
+          i32.const 1
+          local.get $gctmp.4
+          call $jn_gc_frame_set_root
+          local.get $gctmp.4
+          local.set $t4
+          local.get $__jn_frame
+          i32.const 5
+          local.get $t4
+          call $jn_gc_frame_set_root
+          local.get $t4
+          i32.const 0
+          call $_JN_Boolean_init_i1
+          call $jnative_exception_pending
+          local.set $t5
+          local.get $t5
+          if
+            i32.const 3
+            local.set $pc
+          else
+            i32.const 4
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $t4
+          global.set $g_jn_static_Boolean_FALSE
+          i32.const 0
+          global.set $g_jn_static_JnFuture_PENDING
+          i32.const 1
+          global.set $g_jn_static_JnFuture_SUCCESS
+          i32.const 2
+          global.set $g_jn_static_JnFuture_FAILED
+          i32.const 3
+          global.set $g_jn_static_JnFuture_CANCELLED
+          br $exit
+      )
+    )
+    call $jn_gc_frame_pop
+  )
+  (func $_JN_Boolean_init_i1 (param $this i32) (param $value i32)
+    (local $pc i32)
+    (local $__jn_tid i32)
+    (local $__jn_asz i32)
+    (local $__jn_frame i32)
+    (local $this__slot i32)
+    (local $value__slot i32)
+    (local $t0 i32)
+    (local $t1 i32)
+    (local $t3 i32)
+    (local $t4 i32)
+    (local $t5 i32)
+    i32.const 4
+    call $jn_gc_frame_push
+    local.set $__jn_frame
+    local.get $__jn_frame
+    i32.const 0
+    local.get $this
+    call $jn_gc_frame_set_root
+    i32.const 0
+    local.set $pc
+    (block $exit
+      (loop $dispatch
+        (block $bb4
+        (block $bb3
+        (block $bb2
+        (block $bb1
+        (block $bb0
+          local.get $pc
+          br_table $bb0 $bb1 $bb2 $bb3 $bb4 $exit
+        )
+          local.get $this
+          local.set $this__slot
+          local.get $__jn_frame
+          i32.const 1
+          local.get $this__slot
+          call $jn_gc_frame_set_root
+          local.get $value
+          local.set $value__slot
+          local.get $this__slot
+          local.set $t0
+          local.get $__jn_frame
+          i32.const 2
+          local.get $t0
+          call $jn_gc_frame_set_root
+          local.get $t0
+          call $_JN_Object_init
+          call $jnative_exception_pending
+          local.set $t1
+          local.get $t1
+          if
+            i32.const 1
+            local.set $pc
+          else
+            i32.const 2
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $value__slot
+          local.set $t3
+          local.get $this__slot
+          local.set $t4
+          local.get $__jn_frame
+          i32.const 3
+          local.get $t4
+          call $jn_gc_frame_set_root
+          local.get $t4
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t5
+          local.get $t5
+          if
+            i32.const 3
+            local.set $pc
+          else
+            i32.const 4
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $t4
+          i32.const 4
+          i32.add
+          local.get $t3
+          i32.store
+          br $exit
+      )
+    )
+    call $jn_gc_frame_pop
+  )
+  (func $_JN_Object_init (param $this i32)
+    (local $pc i32)
+    (local $__jn_tid i32)
+    (local $__jn_asz i32)
+    (local $__jn_frame i32)
+    i32.const 1
+    call $jn_gc_frame_push
+    local.set $__jn_frame
+    local.get $__jn_frame
+    i32.const 0
+    local.get $this
+    call $jn_gc_frame_set_root
+    i32.const 0
+    local.set $pc
+    (block $exit
+      (loop $dispatch
+        (block $bb0
+          local.get $pc
+          br_table $bb0 $exit
+        )
+          br $exit
+      )
+    )
+    call $jn_gc_frame_pop
+  )
+  (func $jn_main (param $args i32)
+    (local $pc i32)
+    (local $__jn_tid i32)
+    (local $__jn_asz i32)
+    (local $__jn_frame i32)
+    (local $args__slot i32)
+    (local $gctmp.1 i32)
+    (local $keep i32)
+    (local $t0 i32)
+    (local $t1 i32)
+    (local $t2 i32)
+    (local $t3 i32)
+    (local $t4 i32)
+    (local $t5 i32)
+    (local $t6 i32)
+    (local $t7 i32)
+    (local $t8 i32)
+    (local $t9 i32)
+    (local $t10 i32)
+    (local $t11 i32)
+    (local $t12 i32)
+    (local $t13 i32)
+    (local $t14 i32)
+    i32.const 5
+    call $jn_gc_frame_push
+    local.set $__jn_frame
+    local.get $__jn_frame
+    i32.const 0
+    local.get $args
+    call $jn_gc_frame_set_root
+    i32.const 0
+    local.set $pc
+    (block $exit
+      (loop $dispatch
+        (block $bb16
+        (block $bb15
+        (block $bb14
+        (block $bb13
+        (block $bb12
+        (block $bb11
+        (block $bb10
+        (block $bb9
+        (block $bb8
+        (block $bb7
+        (block $bb6
+        (block $bb5
+        (block $bb4
+        (block $bb3
+        (block $bb2
+        (block $bb1
+        (block $bb0
+          local.get $pc
+          br_table $bb0 $bb1 $bb2 $bb3 $bb4 $bb5 $bb6 $bb7 $bb8 $bb9 $bb10 $bb11 $bb12 $bb13 $bb14 $bb15 $bb16 $exit
+        )
+          local.get $args
+          local.set $args__slot
+          local.get $__jn_frame
+          i32.const 1
+          local.get $args__slot
+          call $jn_gc_frame_set_root
+          i32.const 16
+          call $jn_alloc_zeroed
+          local.set $t0
+          local.get $t0
+          i32.eqz
+          if
+            unreachable
+          end
+          local.get $t0
+          i32.const 4
+          i32.store
+          local.get $__jn_frame
+          i32.const 3
+          local.get $t0
+          call $jn_gc_frame_set_root
+          local.get $t0
+          local.set $gctmp.1
+          local.get $__jn_frame
+          i32.const 2
+          local.get $gctmp.1
+          call $jn_gc_frame_set_root
+          local.get $gctmp.1
+          local.set $t1
+          local.get $__jn_frame
+          i32.const 4
+          local.get $t1
+          call $jn_gc_frame_set_root
+          local.get $t1
+          call $_JN_ArrayList_init
+          call $jnative_exception_pending
+          local.set $t2
+          local.get $t2
+          if
+            i32.const 1
+            local.set $pc
+          else
+            i32.const 2
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $t1
+          global.set $g_jn_static_GcStress_bag
+          i32.const 0
+          global.set $g_jn_static_GcStress_keepAlive
+          i32.const 0
+          local.set $keep
+          local.get $keep
+          local.set $t3
+          local.get $t3
+          if
+            i32.const 3
+            local.set $pc
+          else
+            i32.const 4
+            local.set $pc
+          end
+          br $dispatch
+        )
+          i32.const 1
+          call $_JN_GcStress_churn_i32
+          local.set $t4
+          call $jnative_exception_pending
+          local.set $t5
+          local.get $t5
+          if
+            i32.const 5
+            local.set $pc
+          else
+            i32.const 6
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          br $exit
+        )
+          call $_JN_GcStress_makeCycle
+          local.set $t6
+          call $jnative_exception_pending
+          local.set $t7
+          local.get $t7
+          if
+            i32.const 7
+            local.set $pc
+          else
+            i32.const 8
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          call $_JN_GcStress_dropKeepAlive
+          call $jnative_exception_pending
+          local.set $t8
+          local.get $t8
+          if
+            i32.const 9
+            local.set $pc
+          else
+            i32.const 10
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          i32.const 1
+          call $_JN_GcStress_bagChurn_i32
+          local.set $t9
+          call $jnative_exception_pending
+          local.set $t10
+          local.get $t10
+          if
+            i32.const 11
+            local.set $pc
+          else
+            i32.const 12
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          i32.const 1
+          call $_JN_GcStress_nestedSurvive_i32
+          local.set $t11
+          call $jnative_exception_pending
+          local.set $t12
+          local.get $t12
+          if
+            i32.const 13
+            local.set $pc
+          else
+            i32.const 14
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          i32.const 1
+          call $_JN_GcStress_closureEscape_i32
+          local.set $t13
+          call $jnative_exception_pending
+          local.set $t14
+          local.get $t14
+          if
+            i32.const 15
+            local.set $pc
+          else
+            i32.const 16
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          i32.const 4
+          local.set $pc
+          br $dispatch
+      )
+    )
+    call $jn_gc_frame_pop
+  )
+  (func $_JN_ArrayList_init (param $this i32)
+    (local $pc i32)
+    (local $__jn_tid i32)
+    (local $__jn_asz i32)
+    (local $__jn_frame i32)
+    (local $this__slot i32)
+    (local $t0 i32)
+    (local $t1 i32)
+    (local $t3 i32)
+    (local $t4 i32)
+    (local $t5 i32)
+    (local $t6 i32)
+    (local $t7 i32)
+    (local $t8 i32)
+    i32.const 6
+    call $jn_gc_frame_push
+    local.set $__jn_frame
+    local.get $__jn_frame
+    i32.const 0
+    local.get $this
+    call $jn_gc_frame_set_root
+    i32.const 0
+    local.set $pc
+    (block $exit
+      (loop $dispatch
+        (block $bb8
+        (block $bb7
+        (block $bb6
+        (block $bb5
+        (block $bb4
+        (block $bb3
+        (block $bb2
+        (block $bb1
+        (block $bb0
+          local.get $pc
+          br_table $bb0 $bb1 $bb2 $bb3 $bb4 $bb5 $bb6 $bb7 $bb8 $exit
+        )
+          local.get $this
+          local.set $this__slot
+          local.get $__jn_frame
+          i32.const 1
+          local.get $this__slot
+          call $jn_gc_frame_set_root
+          local.get $this__slot
+          local.set $t0
+          local.get $__jn_frame
+          i32.const 2
+          local.get $t0
+          call $jn_gc_frame_set_root
+          local.get $t0
+          call $_JN_Object_init
+          call $jnative_exception_pending
+          local.set $t1
+          local.get $t1
+          if
+            i32.const 1
+            local.set $pc
+          else
+            i32.const 2
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $this__slot
+          local.set $t3
+          local.get $__jn_frame
+          i32.const 3
+          local.get $t3
+          call $jn_gc_frame_set_root
+          local.get $t3
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t4
+          local.get $t4
+          if
+            i32.const 3
+            local.set $pc
+          else
+            i32.const 4
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $t3
+          i32.const 4
+          i32.add
+          i32.const 0
+          i32.store
+          local.get $this__slot
+          local.set $t5
+          local.get $__jn_frame
+          i32.const 4
+          local.get $t5
+          call $jn_gc_frame_set_root
+          local.get $t5
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t6
+          local.get $t6
+          if
+            i32.const 5
+            local.set $pc
+          else
+            i32.const 6
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $t5
+          i32.const 8
+          i32.add
+          i32.const 0
+          i32.store
+          local.get $this__slot
+          local.set $t7
+          local.get $__jn_frame
+          i32.const 5
+          local.get $t7
+          call $jn_gc_frame_set_root
+          local.get $t7
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t8
+          local.get $t8
+          if
+            i32.const 7
+            local.set $pc
+          else
+            i32.const 8
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $t7
+          i32.const 12
+          i32.add
+          i32.const 0
+          i32.store
+          br $exit
+      )
+    )
+    call $jn_gc_frame_pop
+  )
+  (func $_JN_GcStress_churn_i32 (param $n i32) (result i32)
+    (local $pc i32)
+    (local $__jn_tid i32)
+    (local $__jn_asz i32)
+    (local $__jn_frame i32)
+    (local $ret i32)
+    (local $n__slot i32)
+    (local $last i32)
+    (local $i i32)
+    (local $x i32)
+    (local $gctmp.4 i32)
+    (local $tern.tmp1028780142 i32)
+    (local $gctmp.12 i32)
+    (local $gctmp.15 i32)
+    (local $t0 i32)
+    (local $t1 i32)
+    (local $t2 i32)
+    (local $t3 i32)
+    (local $t4 i32)
+    (local $t5 i32)
+    (local $t6 i32)
+    (local $t7 i32)
+    (local $t8 i32)
+    (local $t9 i32)
+    (local $t10 i32)
+    (local $t11 i32)
+    (local $t12 i32)
+    (local $t13 i32)
+    (local $t14 i32)
+    (local $t15 i32)
+    (local $t16 i32)
+    (local $t17 i32)
+    (local $t19 i32)
+    i32.const 13
+    call $jn_gc_frame_push
+    local.set $__jn_frame
+    i32.const 0
+    local.set $pc
+    (block $exit
+      (loop $dispatch
+        (block $bb11
+        (block $bb10
+        (block $bb9
+        (block $bb8
+        (block $bb7
+        (block $bb6
+        (block $bb5
+        (block $bb4
+        (block $bb3
+        (block $bb2
+        (block $bb1
+        (block $bb0
+          local.get $pc
+          br_table $bb0 $bb1 $bb2 $bb3 $bb4 $bb5 $bb6 $bb7 $bb8 $bb9 $bb10 $bb11 $exit
+        )
+          local.get $n
+          local.set $n__slot
+          i32.const 0
+          local.set $last
+          local.get $__jn_frame
+          i32.const 0
+          local.get $last
+          call $jn_gc_frame_set_root
+          i32.const 0
+          local.set $i
+          i32.const 1
+          local.set $pc
+          br $dispatch
+        )
+          local.get $i
+          local.set $t0
+          local.get $n__slot
+          local.set $t1
+          local.get $t0
+          local.get $t1
+          i32.lt_s
+          local.set $t2
+          local.get $t2
+          if
+            i32.const 2
+            local.set $pc
+          else
+            i32.const 4
+            local.set $pc
+          end
+          br $dispatch
+        )
+          i32.const 12
+          call $jn_alloc_zeroed
+          local.set $t3
+          local.get $t3
+          i32.eqz
+          if
+            unreachable
+          end
+          local.get $t3
+          i32.const 92
+          i32.store
+          local.get $__jn_frame
+          i32.const 5
+          local.get $t3
+          call $jn_gc_frame_set_root
+          local.get $t3
+          local.set $gctmp.4
+          local.get $__jn_frame
+          i32.const 2
+          local.get $gctmp.4
+          call $jn_gc_frame_set_root
+          local.get $gctmp.4
+          local.set $t4
+          local.get $__jn_frame
+          i32.const 6
+          local.get $t4
+          call $jn_gc_frame_set_root
+          local.get $i
+          local.set $t5
+          local.get $t4
+          local.get $t5
+          call $_JN_Node_init_i32
+          call $jnative_exception_pending
+          local.set $t6
+          local.get $t6
+          if
+            i32.const 5
+            local.set $pc
+          else
+            i32.const 6
+            local.set $pc
+          end
+          br $dispatch
+        )
+          local.get $i
+          local.set $t8
+          local.get $t8
+          i32.const 1
+          i32.add
+          local.set $t9
+          local.get $t9
+          local.set $i
+          call $jn_gc_safepoint
+          i32.const 1
+          local.set $pc
+          br $dispatch
+        )
+          local.get $last
+          local.set $t10
+          local.get $__jn_frame
+          i32.const 8
+          local.get $t10
+          call $jn_gc_frame_set_root
+          local.get $t10
+          global.set $g_jn_static_GcStress_keepAlive
+          global.get $g_jn_static_GcStress_keepAlive
+          local.set $t11
+          local.get $__jn_frame
+          i32.const 9
+          local.get $t11
+          call $jn_gc_frame_set_root
+          local.get $t11
+          local.set $gctmp.12
+          local.get $__jn_frame
+          i32.const 3
+          local.get $gctmp.12
+          call $jn_gc_frame_set_root
+          local.get $gctmp.12
+          local.set $t12
+          local.get $__jn_frame
+          i32.const 10
+          local.get $t12
+          call $jn_gc_frame_set_root
+          local.get $t12
+          i32.const 0
+          i32.ne
+          local.set $t13
+          local.get $t13
+          if
+            i32.const 7
+            local.set $pc
+          else
+            i32.const 8
+            local.set $pc
+          end
+          br $dispatch
+        )
+          i32.const 0
+          local.set $ret
+          br $exit
+        )
+          local.get $t4
+          local.set $x
+          local.get $__jn_frame
+          i32.const 1
+          local.get $x
+          call $jn_gc_frame_set_root
+          local.get $x
+          local.set $t7
+          local.get $__jn_frame
+          i32.const 7
+          local.get $t7
+          call $jn_gc_frame_set_root
+          local.get $t7
+          local.set $last
+          local.get $__jn_frame
+          i32.const 0
+          local.get $last
+          call $jn_gc_frame_set_root
+          i32.const 3
+          local.set $pc
+          br $dispatch
+        )
+          global.get $g_jn_static_GcStress_keepAlive
+          local.set $t14
+          local.get $__jn_frame
+          i32.const 11
+          local.get $t14
+          call $jn_gc_frame_set_root
+          local.get $t14
+          local.set $gctmp.15
+          local.get $__jn_frame
+          i32.const 4
+          local.get $gctmp.15
+          call $jn_gc_frame_set_root
+          local.get $gctmp.15
+          local.set $t15
+          local.get $__jn_frame
+          i32.const 12
+          local.get $t15
+          call $jn_gc_frame_set_root
+          local.get $t15
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t16
+          local.get $t16
+          if
+            i32.const 10
+            local.set $pc
+          else
+            i32.const 11
+            local.set $pc
+          end
+          br $dispatch
+        )
+          i32.const -1
+          local.set $tern.tmp1028780142
+          i32.const 9
+          local.set $pc
+          br $dispatch
+        )
+          local.get $tern.tmp1028780142
+          local.set $t19
+          local.get $t19
+          local.set $ret
+          br $exit
+        )
+          i32.const 0
+          local.set $ret
+          br $exit
+        )
+          local.get $t15
+          i32.const 8
+          i32.add
+          i32.load
+          local.set $t17
+          local.get $t17
+          local.set $tern.tmp1028780142
+          i32.const 9
+          local.set $pc
+          br $dispatch
+      )
+    )
+    call $jn_gc_frame_pop
+    local.get $ret
+  )
+  (func $_JN_GcStress_makeCycle (result i32)
+    (local $pc i32)
+    (local $__jn_tid i32)
+    (local $__jn_asz i32)
+    (local $__jn_frame i32)
+    (local $ret i32)
+    (local $a i32)
+    (local $gctmp.1 i32)
+    (local $b i32)
+    (local $gctmp.4 i32)
+    (local $t0 i32)
+    (local $t1 i32)
+    (local $t2 i32)
+    (local $t3 i32)
+    (local $t4 i32)
+    (local $t5 i32)
+    (local $t6 i32)
+    (local $t7 i32)
+    (local $t8 i32)
+    (local $t9 i32)
+    (local $t10 i32)
+    (local $t11 i32)
+    (local $t12 i32)
+    (local $t13 i32)
+    (local $t14 i32)
+    (local $t15 i32)
+    (local $t16 i32)
+    (local $t17 i32)
+    (local $t18 i32)
+    (local $t19 i32)
+    i32.const 15
+    call $jn_gc_frame_push
+    local.set $__jn_frame
+    i32.const 0
+    local.set $pc
+    (block $exit
+      (loop $dispatch
+        (block $bb12
+        (block $bb11
+        (block $bb10
+        (block $bb9
+        (block $bb8
+        (block $bb7
+        (block $bb6
+        (block $bb5
+        (block $bb4
+        (block $bb3
+        (block $bb2
+        (block $bb1
+        (block $bb0
+          local.get $pc
+          br_table $bb0 $bb1 $bb2 $bb3 $bb4 $bb5 $bb6 $bb7 $bb8 $bb9 $bb10 $bb11 $bb12 $exit
+        )
+          i32.const 12
+          call $jn_alloc_zeroed
+          local.set $t0
+          local.get $t0
+          i32.eqz
+          if
+            unreachable
+          end
+          local.get $t0
+          i32.const 92
+          i32.store
+          local.get $__jn_frame
+          i32.const 4
+          local.get $t0
+          call $jn_gc_frame_set_root
+          local.get $t0
+          local.set $gctmp.1
+          local.get $__jn_frame
+          i32.const 1
+          local.get $gctmp.1
+          call $jn_gc_frame_set_root
+          local.get $gctmp.1
+          local.set $t1
+          local.get $__jn_frame
+          i32.const 5
+          local.get $t1
+          call $jn_gc_frame_set_root
+          local.get $t1
+          i32.const 1
+          call $_JN_Node_init_i32
+          call $jnative_exception_pending
+          local.set $t2
+          local.get $t2
+          if
+            i32.const 1
+            local.set $pc
+          else
+            i32.const 2
+            local.set $pc
+          end
+          br $dispatch
+        )
+          i32.const 0
+          local.set $ret
+          br $exit
+        )
+          local.get $t1
+          local.set $a
+          local.get $__jn_frame
+          i32.const 0
+          local.get $a
+          call $jn_gc_frame_set_root
+          i32.const 12
+          call $jn_alloc_zeroed
+          local.set $t3
+          local.get $t3
+          i32.eqz
+          if
+            unreachable
+          end
+          local.get $t3
+          i32.const 92
+          i32.store
+          local.get $__jn_frame
+          i32.const 6
+          local.get $t3
+          call $jn_gc_frame_set_root
+          local.get $t3
+          local.set $gctmp.4
+          local.get $__jn_frame
+          i32.const 3
+          local.get $gctmp.4
+          call $jn_gc_frame_set_root
+          local.get $gctmp.4
+          local.set $t4
+          local.get $__jn_frame
+          i32.const 7
+          local.get $t4
+          call $jn_gc_frame_set_root
+          local.get $t4
+          i32.const 2
+          call $_JN_Node_init_i32
+          call $jnative_exception_pending
+          local.set $t5
+          local.get $t5
+          if
+            i32.const 3
+            local.set $pc
+          else
+            i32.const 4
+            local.set $pc
+          end
+          br $dispatch
+        )
+          i32.const 0
+          local.set $ret
+          br $exit
+        )
+          local.get $t4
+          local.set $b
+          local.get $__jn_frame
+          i32.const 2
+          local.get $b
+          call $jn_gc_frame_set_root
+          local.get $b
+          local.set $t6
+          local.get $__jn_frame
+          i32.const 8
+          local.get $t6
+          call $jn_gc_frame_set_root
+          local.get $a
+          local.set $t7
+          local.get $__jn_frame
+          i32.const 9
+          local.get $t7
+          call $jn_gc_frame_set_root
+          call $jnative_exception_pending
+          local.set $t8
+          local.get $t8
+          if
+            i32.const 5
+            local.set $pc
+          else
+            i32.const 6
+            local.set $pc
+          end
+          br $dispatch
+        )
+          i32.const 0
+          local.set $ret
+          br $exit
+        )
+          local.get $t7
+          i32.const 4
+          i32.add
+          local.get $t6
+          i32.store
+          local.get $a
+          local.set $t9
+          local.get $__jn_frame
+          i32.const 10
+          local.get $t9
+          call $jn_gc_frame_set_root
+          local.get $b
+          local.set $t10
+          local.get $__jn_frame
+          i32.const 11
+          local.get $t10
+          call $jn_gc_frame_set_root
+          call $jnative_exception_pending
+          local.set $t11
+          local.get $t11
+          if
+            i32.const 7
+            local.set $pc
+          else
+            i32.const 8
+            local.set $pc
+          end
+          br $dispatch
+        )
+          i32.const 0
+          local.set $ret
+          br $exit
+        )
+          local.get $t10
+          i32.const 4
+          i32.add
+          local.get $t9
+          i32.store
+          local.get $a
+          local.set $t12
+          local.get $__jn_frame
+          i32.const 12
+          local.get $t12
+          call $jn_gc_frame_set_root
+          local.get $t12
+          global.set $g_jn_static_GcStress_keepAlive
+          local.get $a
+          local.set $t13
+          local.get $__jn_frame
+          i32.const 13
+          local.get $t13
+          call $jn_gc_frame_set_root
+          call $jnative_exception_pending
+          local.set $t14
+          local.get $t14
+          if
+            i32.const 9
+            local.set $pc
+          else
+            i32.const 10
+            local.set $pc
+          end
+          br $dispatch
+        )
+          i32.const 0
+          local.set $ret
+          br $exit
+        )
+          local.get $t13
+          i32.const 8
+          i32.add
+          i32.load
+          local.set $t15
+          local.get $b
+          local.set $t16
+          local.get $__jn_frame
+          i32.const 14
+          local.get $t16
+          call $jn_gc_frame_set_root
+          call $jnative_exception_pending
+          local.set $t17
+          local.get $t17
+          if
+            i32.const 11
+            local.set $pc
+          else
+            i32.const 12
+            local.set $pc
+          end
+          br $dispatch
+        )
+          i32.const 0
+          local.set $ret
+          br $exit
+        )
+          local.get $t16
+          i32.const 8
+          i32.add
+          i32.load
+          local.set $t18
+          local.get $t15
+          local.get $t18
+          i32.add
+          local.set $t19
+          local.get $t19
+          local.set $ret
+          br $exit
+      )
+    )
+    call $jn_gc_frame_pop
+    local.get $ret
+  )
+  (func $_JN_GcStress_dropKeepAlive
+    (local $pc i32)
+    (local $__jn_tid i32)
+    (local $__jn_asz i32)
+    (local $__jn_frame i32)
+    i32.const 0
+    local.set $pc
+    (block $exit
+      (loop $dispatch
+        (block $bb0
+          local.get $pc
+          br_table $bb0 $exit
+        )
+          i32.const 0
+          global.set $g_jn_static_GcStress_keepAlive
+          br $exit
+      )
+    )
+  )
+  (func $_JN_GcStress_bagChurn_i32 (param $n i32) (result i32)
+    (local $pc i32)
+    (local $__jn_tid i32)
+    (local $__jn_asz i32)
+    (local $__jn_frame i32)
+    (local $ret i32)
+    (local $n__slot i32)
+    (local $gctmp.1 i32)
+    (local $i i32)
+    (local $gctmp.7 i32)
+    (local $gctmp.10 i32)
+    (local $sz i32)
+    (local $gctmp.17 i32)
+    (local $gctmp.22 i32)
+    (local $t0 i32)
+    (local $t1 i32)
+    (local $t2 i32)
+    (local $t3 i32)
+    (local $t4 i32)
+    (local $t5 i32)
+    (local $t6 i32)
+    (local $t7 i32)
+    (local $t8 i32)
+    (local $t9 i32)
+    (local $t10 i32)
+    (local $t11 i32)
+    (local $t12 i32)
+    (local $t13 i32)
+    (local $t14 i32)
+    (local $t15 i32)
+    (local $t16 i32)
+    (local $t17 i32)
+    (local $t18 i32)
+    (local $t19 i32)
+    (local $t20 i32)
+    (local $t21 i32)
+    (local $t22 i32)
+    (local $t23 i32)
+    (local $t24 i32)
+    (local $t25 i32)
+    i32.const 15
+    call $jn_gc_frame_push
+    local.set $__jn_frame
+    i32.const 0
+    local.set $pc
+    (block $exit
+      (loop $dispatch
+        (block $bb20
+        (block $bb19
+        (block $bb18
+        (block $bb17
+        (block $bb16
+        (block $bb15
+        (block $bb14
+        (block $bb13
+        (block $bb12
+        (block $bb11
+        (block $bb10
+        (block $bb9
+        (block $bb8
+        (block $bb7
+        (block $bb6
+        (block $bb5
+        (block $bb4
+        (block $bb3
+        (block $bb2
+        (block $bb1
+        (block $bb0
+          local.get $pc
+          br_table $bb0 $bb1 $bb2 $bb3 $bb4 $bb5 $bb6 $bb7 $bb8 $bb9 $bb10 $bb11 $bb12 $bb13 $bb14 $bb15 $bb16 $bb17 $bb18 $bb19 $bb20 $exit
+        )
+          local.get $n
+          local.set $n__slot
+          i32.const 16
+          call $jn_alloc_zeroed
+          local.set $t0
+          local.get $t0
+          i32.eqz
+          if
+            unreachable
+          end
+          local.get $t0
+          i32.const 4
+          i32.store
+          local.get $__jn_frame
+          i32.const 5
+          local.get $t0
+          call $jn_gc_frame_set_root
+          local.get $t0
+          local.set $gctmp.1
+          local.get $__jn_frame
+          i32.const 0
+          local.get $gctmp.1
+          call $jn_gc_frame_set_root
+          local.get $gctmp.1
+          local.set $t1
+          local.get $__jn_frame
+          i32.const 6
+          local.get $t1
+          call $jn_gc_frame_set_root
+          local.get $t1
+          call $_JN_ArrayList_init
+          call $jnative_exception_pending
+          local.set $t2
+          local.get $t2
+          if
+            i32.const 1
+            local.set $pc
+          else
+            i32.const 2
+            local.set $pc
+          end
+          br $dispatch
+        )
+          i32.const 0
+          local.set $ret
+          br $exit
+        )
+          local.get $t1
+          global.set $g_jn_static_GcStress_bag
+          i32.const 0
+          local.set $i
+          i32.const 3
+          local.set $pc
+          br $dispatch
+        )
+          local.get $i
+          local.set $t3
+          local.get $n__slot
+          local.set $t4
+          local.get $t3
+          local.get $t4
+          i32.lt_s
+          local.set $t5
+          local.get $t5
+          if
+            i32.const 4
+            local.set $pc
+          else
+            i32.const 6
+            local.set $pc
+          end
+          br $dispatch
+        )
+          global.get $g_jn_static_GcStress_bag
+          local.set $t6
+          local.get $__jn_frame
+          i32.const 7
+          local.get $t6
+          call $jn_gc_frame_set_root
+          local.get $t6
+          local.set $gctmp.7
+          local.get $__jn_frame
+          i32.const 1
+          local.get $gctmp.7
+          call $jn_gc_frame_set_root
+          local.get $gctmp.7
+          local.set $t7
+          local.get $__jn_frame
+          i32.const 8
+          local.get $t7
+          call $jn_gc_frame_set_root
+          local.get $t7
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t8
+          local.get $t8
+          if
+            i32.const 7
+            local.set $pc
+          else
+            i32.const 8
+            local.set $pc
+          end
+          br $dispatch
+        )
+          local.get $i
+          local.set $t14
+          local.get $t14
+          i32.const 1
+          i32.add
+          local.set $t15
+          local.get $t15
+          local.set $i
+          call $jn_gc_safepoint
+          i32.const 3
+          local.set $pc
+          br $dispatch
+        )
+          global.get $g_jn_static_GcStress_bag
+          local.set $t16
+          local.get $__jn_frame
+          i32.const 11
+          local.get $t16
+          call $jn_gc_frame_set_root
+          local.get $t16
+          local.set $gctmp.17
+          local.get $__jn_frame
+          i32.const 3
+          local.get $gctmp.17
+          call $jn_gc_frame_set_root
+          local.get $gctmp.17
+          local.set $t17
+          local.get $__jn_frame
+          i32.const 12
+          local.get $t17
+          call $jn_gc_frame_set_root
+          local.get $t17
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t18
+          local.get $t18
+          if
+            i32.const 13
+            local.set $pc
+          else
+            i32.const 14
+            local.set $pc
+          end
+          br $dispatch
+        )
+          i32.const 0
+          local.set $ret
+          br $exit
+        )
+          i32.const 12
+          call $jn_alloc_zeroed
+          local.set $t9
+          local.get $t9
+          i32.eqz
+          if
+            unreachable
+          end
+          local.get $t9
+          i32.const 92
+          i32.store
+          local.get $__jn_frame
+          i32.const 9
+          local.get $t9
+          call $jn_gc_frame_set_root
+          local.get $t9
+          local.set $gctmp.10
+          local.get $__jn_frame
+          i32.const 2
+          local.get $gctmp.10
+          call $jn_gc_frame_set_root
+          local.get $gctmp.10
+          local.set $t10
+          local.get $__jn_frame
+          i32.const 10
+          local.get $t10
+          call $jn_gc_frame_set_root
+          local.get $i
+          local.set $t11
+          local.get $t10
+          local.get $t11
+          call $_JN_Node_init_i32
+          call $jnative_exception_pending
+          local.set $t12
+          local.get $t12
+          if
+            i32.const 9
+            local.set $pc
+          else
+            i32.const 10
+            local.set $pc
+          end
+          br $dispatch
+        )
+          i32.const 0
+          local.set $ret
+          br $exit
+        )
+          local.get $t7
+          local.get $t10
+          call $_JN_ArrayList_add_TT
+          call $jnative_exception_pending
+          local.set $t13
+          local.get $t13
+          if
+            i32.const 11
+            local.set $pc
+          else
+            i32.const 12
+            local.set $pc
+          end
+          br $dispatch
+        )
+          i32.const 0
+          local.set $ret
+          br $exit
+        )
+          i32.const 5
+          local.set $pc
+          br $dispatch
+        )
+          i32.const 0
+          local.set $ret
+          br $exit
+        )
+          local.get $t17
+          call $_JN_ArrayList_size
+          local.set $t19
+          call $jnative_exception_pending
+          local.set $t20
+          local.get $t20
+          if
+            i32.const 15
+            local.set $pc
+          else
+            i32.const 16
+            local.set $pc
+          end
+          br $dispatch
+        )
+          i32.const 0
+          local.set $ret
+          br $exit
+        )
+          local.get $t19
+          local.set $sz
+          global.get $g_jn_static_GcStress_bag
+          local.set $t21
+          local.get $__jn_frame
+          i32.const 13
+          local.get $t21
+          call $jn_gc_frame_set_root
+          local.get $t21
+          local.set $gctmp.22
+          local.get $__jn_frame
+          i32.const 4
+          local.get $gctmp.22
+          call $jn_gc_frame_set_root
+          local.get $gctmp.22
+          local.set $t22
+          local.get $__jn_frame
+          i32.const 14
+          local.get $t22
+          call $jn_gc_frame_set_root
+          local.get $t22
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t23
+          local.get $t23
+          if
+            i32.const 17
+            local.set $pc
+          else
+            i32.const 18
+            local.set $pc
+          end
+          br $dispatch
+        )
+          i32.const 0
+          local.set $ret
+          br $exit
+        )
+          local.get $t22
+          call $_JN_ArrayList_clear
+          call $jnative_exception_pending
+          local.set $t24
+          local.get $t24
+          if
+            i32.const 19
+            local.set $pc
+          else
+            i32.const 20
+            local.set $pc
+          end
+          br $dispatch
+        )
+          i32.const 0
+          local.set $ret
+          br $exit
+        )
+          local.get $sz
+          local.set $t25
+          local.get $t25
+          local.set $ret
+          br $exit
+      )
+    )
+    call $jn_gc_frame_pop
+    local.get $ret
+  )
+  (func $_JN_GcStress_nestedSurvive_i32 (param $n i32) (result i32)
+    (local $pc i32)
+    (local $__jn_tid i32)
+    (local $__jn_asz i32)
+    (local $__jn_frame i32)
+    (local $ret i32)
+    (local $n__slot i32)
+    (local $gctmp.1 i32)
+    (local $t0 i32)
+    (local $t1 i32)
+    (local $t2 i32)
+    (local $t3 i32)
+    (local $t4 i32)
+    (local $t5 i32)
+    i32.const 3
+    call $jn_gc_frame_push
+    local.set $__jn_frame
+    i32.const 0
+    local.set $pc
+    (block $exit
+      (loop $dispatch
+        (block $bb4
+        (block $bb3
+        (block $bb2
+        (block $bb1
+        (block $bb0
+          local.get $pc
+          br_table $bb0 $bb1 $bb2 $bb3 $bb4 $exit
+        )
+          local.get $n
+          local.set $n__slot
+          i32.const 12
+          call $jn_alloc_zeroed
+          local.set $t0
+          local.get $t0
+          i32.eqz
+          if
+            unreachable
+          end
+          local.get $t0
+          i32.const 92
+          i32.store
+          local.get $__jn_frame
+          i32.const 1
+          local.get $t0
+          call $jn_gc_frame_set_root
+          local.get $t0
+          local.set $gctmp.1
+          local.get $__jn_frame
+          i32.const 0
+          local.get $gctmp.1
+          call $jn_gc_frame_set_root
+          local.get $gctmp.1
+          local.set $t1
+          local.get $__jn_frame
+          i32.const 2
+          local.get $t1
+          call $jn_gc_frame_set_root
+          local.get $t1
+          i32.const 42
+          call $_JN_Node_init_i32
+          call $jnative_exception_pending
+          local.set $t2
+          local.get $t2
+          if
+            i32.const 1
+            local.set $pc
+          else
+            i32.const 2
+            local.set $pc
+          end
+          br $dispatch
+        )
+          i32.const 0
+          local.set $ret
+          br $exit
+        )
+          local.get $n__slot
+          local.set $t3
+          local.get $t1
+          local.get $t3
+          call $_JN_GcStress_holdAndChurn_CNode_i32
+          local.set $t4
+          call $jnative_exception_pending
+          local.set $t5
+          local.get $t5
+          if
+            i32.const 3
+            local.set $pc
+          else
+            i32.const 4
+            local.set $pc
+          end
+          br $dispatch
+        )
+          i32.const 0
+          local.set $ret
+          br $exit
+        )
+          local.get $t4
+          local.set $ret
+          br $exit
+      )
+    )
+    call $jn_gc_frame_pop
+    local.get $ret
+  )
+  (func $_JN_GcStress_closureEscape_i32 (param $n i32) (result i32)
+    (local $pc i32)
+    (local $__jn_tid i32)
+    (local $__jn_asz i32)
+    (local $__jn_frame i32)
+    (local $ret i32)
+    (local $n__slot i32)
+    (local $box i32)
+    (local $gctmp.1 i32)
+    (local $gctmp.6 i32)
+    (local $i i32)
+    (local $gctmp.12 i32)
+    (local $gctmp.15 i32)
+    (local $gctmp.22 i32)
+    (local $gctmp.25 i32)
+    (local $gctmp.29 i32)
+    (local $gctmp.32 i32)
+    (local $t0 i32)
+    (local $t1 i32)
+    (local $t2 i32)
+    (local $t3 i32)
+    (local $t4 i32)
+    (local $t5 i32)
+    (local $t6 i32)
+    (local $t7 i32)
+    (local $t8 i32)
+    (local $t9 i32)
+    (local $t10 i32)
+    (local $t11 i32)
+    (local $t12 i32)
+    (local $t13 i32)
+    (local $t14 i32)
+    (local $t15 i32)
+    (local $t16 i32)
+    (local $t17 i32)
+    (local $t18 i32)
+    (local $t19 i32)
+    (local $t20 i32)
+    (local $t21 i32)
+    (local $t22 i32)
+    (local $t23 i32)
+    (local $t24 i32)
+    (local $t25 i32)
+    (local $t26 i32)
+    (local $t27 i32)
+    (local $t28 i32)
+    (local $t29 i32)
+    (local $t30 i32)
+    (local $t31 i32)
+    (local $t32 i32)
+    (local $t33 i32)
+    (local $t34 i32)
+    (local $t35 i32)
+    (local $t36 i32)
+    (local $t37 i32)
+    i32.const 28
+    call $jn_gc_frame_push
+    local.set $__jn_frame
+    i32.const 0
+    local.set $pc
+    (block $exit
+      (loop $dispatch
+        (block $bb28
+        (block $bb27
+        (block $bb26
+        (block $bb25
+        (block $bb24
+        (block $bb23
+        (block $bb22
+        (block $bb21
+        (block $bb20
+        (block $bb19
+        (block $bb18
+        (block $bb17
+        (block $bb16
+        (block $bb15
+        (block $bb14
+        (block $bb13
+        (block $bb12
+        (block $bb11
+        (block $bb10
+        (block $bb9
+        (block $bb8
+        (block $bb7
+        (block $bb6
+        (block $bb5
+        (block $bb4
+        (block $bb3
+        (block $bb2
+        (block $bb1
+        (block $bb0
+          local.get $pc
+          br_table $bb0 $bb1 $bb2 $bb3 $bb4 $bb5 $bb6 $bb7 $bb8 $bb9 $bb10 $bb11 $bb12 $bb13 $bb14 $bb15 $bb16 $bb17 $bb18 $bb19 $bb20 $bb21 $bb22 $bb23 $bb24 $bb25 $bb26 $bb27 $bb28 $exit
+        )
+          local.get $n
+          local.set $n__slot
+          i32.const 8
+          call $jn_alloc_zeroed
+          local.set $t0
+          local.get $t0
+          i32.eqz
+          if
+            unreachable
+          end
+          local.get $t0
+          i32.const 74
+          i32.store
+          local.get $__jn_frame
+          i32.const 9
+          local.get $t0
+          call $jn_gc_frame_set_root
+          local.get $t0
+          local.set $gctmp.1
+          local.get $__jn_frame
+          i32.const 1
+          local.get $gctmp.1
+          call $jn_gc_frame_set_root
+          local.get $gctmp.1
+          local.set $t1
+          local.get $__jn_frame
+          i32.const 10
+          local.get $t1
+          call $jn_gc_frame_set_root
+          local.get $t1
+          call $_JN_IntBox_init
+          call $jnative_exception_pending
+          local.set $t2
+          local.get $t2
+          if
+            i32.const 1
+            local.set $pc
+          else
+            i32.const 2
+            local.set $pc
+          end
+          br $dispatch
+        )
+          i32.const 0
+          local.set $ret
+          br $exit
+        )
+          local.get $t1
+          local.set $box
+          local.get $__jn_frame
+          i32.const 0
+          local.get $box
+          call $jn_gc_frame_set_root
+          local.get $box
+          local.set $t3
+          local.get $__jn_frame
+          i32.const 11
+          local.get $t3
+          call $jn_gc_frame_set_root
+          call $jnative_exception_pending
+          local.set $t4
+          local.get $t4
+          if
+            i32.const 3
+            local.set $pc
+          else
+            i32.const 4
+            local.set $pc
+          end
+          br $dispatch
+        )
+          i32.const 0
+          local.set $ret
+          br $exit
+        )
+          local.get $t3
+          i32.const 4
+          i32.add
+          i32.const 0
+          i32.store
+          i32.const 16
+          call $jn_alloc_zeroed
+          local.set $t5
+          local.get $t5
+          i32.eqz
+          if
+            unreachable
+          end
+          local.get $t5
+          i32.const 4
+          i32.store
+          local.get $__jn_frame
+          i32.const 12
+          local.get $t5
+          call $jn_gc_frame_set_root
+          local.get $t5
+          local.set $gctmp.6
+          local.get $__jn_frame
+          i32.const 2
+          local.get $gctmp.6
+          call $jn_gc_frame_set_root
+          local.get $gctmp.6
+          local.set $t6
+          local.get $__jn_frame
+          i32.const 13
+          local.get $t6
+          call $jn_gc_frame_set_root
+          local.get $t6
+          call $_JN_ArrayList_init
+          call $jnative_exception_pending
+          local.set $t7
+          local.get $t7
+          if
+            i32.const 5
+            local.set $pc
+          else
+            i32.const 6
+            local.set $pc
+          end
+          br $dispatch
+        )
+          i32.const 0
+          local.set $ret
+          br $exit
+        )
+          local.get $t6
+          global.set $g_jn_static_GcStress_bag
+          i32.const 0
+          local.set $i
+          i32.const 7
+          local.set $pc
+          br $dispatch
+        )
+          local.get $i
+          local.set $t8
+          local.get $n__slot
+          local.set $t9
+          local.get $t8
+          local.get $t9
+          i32.lt_s
+          local.set $t10
+          local.get $t10
+          if
+            i32.const 8
+            local.set $pc
+          else
+            i32.const 10
+            local.set $pc
+          end
+          br $dispatch
+        )
+          global.get $g_jn_static_GcStress_bag
+          local.set $t11
+          local.get $__jn_frame
+          i32.const 14
+          local.get $t11
+          call $jn_gc_frame_set_root
+          local.get $t11
+          local.set $gctmp.12
+          local.get $__jn_frame
+          i32.const 3
+          local.get $gctmp.12
+          call $jn_gc_frame_set_root
+          local.get $gctmp.12
+          local.set $t12
+          local.get $__jn_frame
+          i32.const 15
+          local.get $t12
+          call $jn_gc_frame_set_root
+          local.get $t12
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t13
+          local.get $t13
+          if
+            i32.const 11
+            local.set $pc
+          else
+            i32.const 12
+            local.set $pc
+          end
+          br $dispatch
+        )
+          local.get $i
+          local.set $t19
+          local.get $t19
+          i32.const 1
+          i32.add
+          local.set $t20
+          local.get $t20
+          local.set $i
+          call $jn_gc_safepoint
+          i32.const 7
+          local.set $pc
+          br $dispatch
+        )
+          global.get $g_jn_static_GcStress_bag
+          local.set $t21
+          local.get $__jn_frame
+          i32.const 18
+          local.get $t21
+          call $jn_gc_frame_set_root
+          local.get $t21
+          local.set $gctmp.22
+          local.get $__jn_frame
+          i32.const 5
+          local.get $gctmp.22
+          call $jn_gc_frame_set_root
+          local.get $gctmp.22
+          local.set $t22
+          local.get $__jn_frame
+          i32.const 19
+          local.get $t22
+          call $jn_gc_frame_set_root
+          local.get $t22
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t23
+          local.get $t23
+          if
+            i32.const 17
+            local.set $pc
+          else
+            i32.const 18
+            local.set $pc
+          end
+          br $dispatch
+        )
+          i32.const 0
+          local.set $ret
+          br $exit
+        )
+          i32.const 12
+          call $jn_alloc_zeroed
+          local.set $t14
+          local.get $t14
+          i32.eqz
+          if
+            unreachable
+          end
+          local.get $t14
+          i32.const 92
+          i32.store
+          local.get $__jn_frame
+          i32.const 16
+          local.get $t14
+          call $jn_gc_frame_set_root
+          local.get $t14
+          local.set $gctmp.15
+          local.get $__jn_frame
+          i32.const 4
+          local.get $gctmp.15
+          call $jn_gc_frame_set_root
+          local.get $gctmp.15
+          local.set $t15
+          local.get $__jn_frame
+          i32.const 17
+          local.get $t15
+          call $jn_gc_frame_set_root
+          local.get $i
+          local.set $t16
+          local.get $t15
+          local.get $t16
+          call $_JN_Node_init_i32
+          call $jnative_exception_pending
+          local.set $t17
+          local.get $t17
+          if
+            i32.const 13
+            local.set $pc
+          else
+            i32.const 14
+            local.set $pc
+          end
+          br $dispatch
+        )
+          i32.const 0
+          local.set $ret
+          br $exit
+        )
+          local.get $t12
+          local.get $t15
+          call $_JN_ArrayList_add_TT
+          call $jnative_exception_pending
+          local.set $t18
+          local.get $t18
+          if
+            i32.const 15
+            local.set $pc
+          else
+            i32.const 16
+            local.set $pc
+          end
+          br $dispatch
+        )
+          i32.const 0
+          local.set $ret
+          br $exit
+        )
+          i32.const 9
+          local.set $pc
+          br $dispatch
+        )
+          i32.const 0
+          local.set $ret
+          br $exit
+        )
+          i32.const 8
+          call $jn_alloc_zeroed
+          local.set $t24
+          local.get $t24
+          i32.eqz
+          if
+            unreachable
+          end
+          local.get $t24
+          i32.const 39
+          i32.store
+          local.get $__jn_frame
+          i32.const 20
+          local.get $t24
+          call $jn_gc_frame_set_root
+          local.get $t24
+          local.set $gctmp.25
+          local.get $__jn_frame
+          i32.const 6
+          local.get $gctmp.25
+          call $jn_gc_frame_set_root
+          local.get $gctmp.25
+          local.set $t25
+          local.get $__jn_frame
+          i32.const 21
+          local.get $t25
+          call $jn_gc_frame_set_root
+          local.get $box
+          local.set $t26
+          local.get $__jn_frame
+          i32.const 22
+          local.get $t26
+          call $jn_gc_frame_set_root
+          call $jnative_exception_pending
+          local.set $t27
+          local.get $t27
+          if
+            i32.const 19
+            local.set $pc
+          else
+            i32.const 20
+            local.set $pc
+          end
+          br $dispatch
+        )
+          i32.const 0
+          local.set $ret
+          br $exit
+        )
+          local.get $t25
+          i32.const 4
+          i32.add
+          local.get $t26
+          i32.store
+          i32.const 24
+          call $jn_alloc_zeroed
+          local.set $t28
+          local.get $t28
+          i32.eqz
+          if
+            unreachable
+          end
+          local.get $t28
+          i32.const 98
+          i32.store
+          local.get $t28
+          i32.const 8
+          i32.add
+          i64.const 0
+          i64.store
+          local.get $t28
+          i32.const 16
+          i32.add
+          local.get $t25
+          i32.store
+          local.get $__jn_frame
+          i32.const 23
+          local.get $t28
+          call $jn_gc_frame_set_root
+          local.get $t28
+          local.set $gctmp.29
+          local.get $__jn_frame
+          i32.const 7
+          local.get $gctmp.29
+          call $jn_gc_frame_set_root
+          local.get $gctmp.29
+          local.set $t29
+          local.get $__jn_frame
+          i32.const 24
+          local.get $t29
+          call $jn_gc_frame_set_root
+          local.get $t22
+          local.get $t29
+          call $_JN_ArrayList_forEach_PIConsumer_TT
+          call $jnative_exception_pending
+          local.set $t30
+          local.get $t30
+          if
+            i32.const 21
+            local.set $pc
+          else
+            i32.const 22
+            local.set $pc
+          end
+          br $dispatch
+        )
+          i32.const 0
+          local.set $ret
+          br $exit
+        )
+          global.get $g_jn_static_GcStress_bag
+          local.set $t31
+          local.get $__jn_frame
+          i32.const 25
+          local.get $t31
+          call $jn_gc_frame_set_root
+          local.get $t31
+          local.set $gctmp.32
+          local.get $__jn_frame
+          i32.const 8
+          local.get $gctmp.32
+          call $jn_gc_frame_set_root
+          local.get $gctmp.32
+          local.set $t32
+          local.get $__jn_frame
+          i32.const 26
+          local.get $t32
+          call $jn_gc_frame_set_root
+          local.get $t32
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t33
+          local.get $t33
+          if
+            i32.const 23
+            local.set $pc
+          else
+            i32.const 24
+            local.set $pc
+          end
+          br $dispatch
+        )
+          i32.const 0
+          local.set $ret
+          br $exit
+        )
+          local.get $t32
+          call $_JN_ArrayList_clear
+          call $jnative_exception_pending
+          local.set $t34
+          local.get $t34
+          if
+            i32.const 25
+            local.set $pc
+          else
+            i32.const 26
+            local.set $pc
+          end
+          br $dispatch
+        )
+          i32.const 0
+          local.set $ret
+          br $exit
+        )
+          local.get $box
+          local.set $t35
+          local.get $__jn_frame
+          i32.const 27
+          local.get $t35
+          call $jn_gc_frame_set_root
+          call $jnative_exception_pending
+          local.set $t36
+          local.get $t36
+          if
+            i32.const 27
+            local.set $pc
+          else
+            i32.const 28
+            local.set $pc
+          end
+          br $dispatch
+        )
+          i32.const 0
+          local.set $ret
+          br $exit
+        )
+          local.get $t35
+          i32.const 4
+          i32.add
+          i32.load
+          local.set $t37
+          local.get $t37
+          local.set $ret
+          br $exit
+      )
+    )
+    call $jn_gc_frame_pop
+    local.get $ret
+  )
+  (func $_JN_Node_init_i32 (param $this i32) (param $v i32)
+    (local $pc i32)
+    (local $__jn_tid i32)
+    (local $__jn_asz i32)
+    (local $__jn_frame i32)
+    (local $this__slot i32)
+    (local $v__slot i32)
+    (local $t0 i32)
+    (local $t1 i32)
+    (local $t3 i32)
+    (local $t4 i32)
+    (local $t5 i32)
+    (local $t6 i32)
+    (local $t7 i32)
+    i32.const 5
+    call $jn_gc_frame_push
+    local.set $__jn_frame
+    local.get $__jn_frame
+    i32.const 0
+    local.get $this
+    call $jn_gc_frame_set_root
+    i32.const 0
+    local.set $pc
+    (block $exit
+      (loop $dispatch
+        (block $bb6
+        (block $bb5
+        (block $bb4
+        (block $bb3
+        (block $bb2
+        (block $bb1
+        (block $bb0
+          local.get $pc
+          br_table $bb0 $bb1 $bb2 $bb3 $bb4 $bb5 $bb6 $exit
+        )
+          local.get $this
+          local.set $this__slot
+          local.get $__jn_frame
+          i32.const 1
+          local.get $this__slot
+          call $jn_gc_frame_set_root
+          local.get $v
+          local.set $v__slot
+          local.get $this__slot
+          local.set $t0
+          local.get $__jn_frame
+          i32.const 2
+          local.get $t0
+          call $jn_gc_frame_set_root
+          local.get $t0
+          call $_JN_Object_init
+          call $jnative_exception_pending
+          local.set $t1
+          local.get $t1
+          if
+            i32.const 1
+            local.set $pc
+          else
+            i32.const 2
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $v__slot
+          local.set $t3
+          local.get $this__slot
+          local.set $t4
+          local.get $__jn_frame
+          i32.const 3
+          local.get $t4
+          call $jn_gc_frame_set_root
+          local.get $t4
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t5
+          local.get $t5
+          if
+            i32.const 3
+            local.set $pc
+          else
+            i32.const 4
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $t4
+          i32.const 8
+          i32.add
+          local.get $t3
+          i32.store
+          local.get $this__slot
+          local.set $t6
+          local.get $__jn_frame
+          i32.const 4
+          local.get $t6
+          call $jn_gc_frame_set_root
+          local.get $t6
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t7
+          local.get $t7
+          if
+            i32.const 5
+            local.set $pc
+          else
+            i32.const 6
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $t6
+          i32.const 4
+          i32.add
+          i32.const 0
+          i32.store
+          br $exit
+      )
+    )
+    call $jn_gc_frame_pop
+  )
+  (func $_JN_ArrayList_add_TT (param $this i32) (param $value i32)
+    (local $pc i32)
+    (local $__jn_tid i32)
+    (local $__jn_asz i32)
+    (local $__jn_frame i32)
+    (local $this__slot i32)
+    (local $value__slot i32)
+    (local $gctmp.11 i32)
+    (local $t0 i32)
+    (local $t1 i32)
+    (local $t2 i32)
+    (local $t3 i32)
+    (local $t4 i32)
+    (local $t5 i32)
+    (local $t6 i32)
+    (local $t7 i32)
+    (local $t8 i32)
+    (local $t9 i32)
+    (local $t10 i32)
+    (local $t11 i32)
+    (local $t12 i32)
+    (local $t13 i32)
+    (local $t14 i32)
+    (local $t15 i32)
+    (local $t16 i32)
+    (local $t17 i32)
+    (local $t18 i32)
+    (local $t19 i32)
+    (local $t20 i32)
+    (local $t21 i32)
+    (local $t22 i32)
+    (local $t23 i32)
+    (local $t24 i32)
+    (local $t25 i32)
+    (local $t26 i32)
+    (local $t27 i32)
+    i32.const 16
+    call $jn_gc_frame_push
+    local.set $__jn_frame
+    local.get $__jn_frame
+    i32.const 0
+    local.get $this
+    call $jn_gc_frame_set_root
+    local.get $__jn_frame
+    i32.const 1
+    local.get $value
+    call $jn_gc_frame_set_root
+    i32.const 0
+    local.set $pc
+    (block $exit
+      (loop $dispatch
+        (block $bb20
+        (block $bb19
+        (block $bb18
+        (block $bb17
+        (block $bb16
+        (block $bb15
+        (block $bb14
+        (block $bb13
+        (block $bb12
+        (block $bb11
+        (block $bb10
+        (block $bb9
+        (block $bb8
+        (block $bb7
+        (block $bb6
+        (block $bb5
+        (block $bb4
+        (block $bb3
+        (block $bb2
+        (block $bb1
+        (block $bb0
+          local.get $pc
+          br_table $bb0 $bb1 $bb2 $bb3 $bb4 $bb5 $bb6 $bb7 $bb8 $bb9 $bb10 $bb11 $bb12 $bb13 $bb14 $bb15 $bb16 $bb17 $bb18 $bb19 $bb20 $exit
+        )
+          local.get $this
+          local.set $this__slot
+          local.get $__jn_frame
+          i32.const 2
+          local.get $this__slot
+          call $jn_gc_frame_set_root
+          local.get $value
+          local.set $value__slot
+          local.get $__jn_frame
+          i32.const 3
+          local.get $value__slot
+          call $jn_gc_frame_set_root
+          local.get $this__slot
+          local.set $t0
+          local.get $__jn_frame
+          i32.const 5
+          local.get $t0
+          call $jn_gc_frame_set_root
+          local.get $t0
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t1
+          local.get $t1
+          if
+            i32.const 1
+            local.set $pc
+          else
+            i32.const 2
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $this__slot
+          local.set $t2
+          local.get $__jn_frame
+          i32.const 6
+          local.get $t2
+          call $jn_gc_frame_set_root
+          local.get $t2
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t3
+          local.get $t3
+          if
+            i32.const 3
+            local.set $pc
+          else
+            i32.const 4
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $t2
+          i32.const 8
+          i32.add
+          i32.load
+          local.set $t4
+          local.get $t4
+          i32.const 1
+          i32.add
+          local.set $t5
+          local.get $t0
+          local.get $t5
+          call $_JN_ArrayList_ensureCapacity_i32
+          call $jnative_exception_pending
+          local.set $t6
+          local.get $t6
+          if
+            i32.const 5
+            local.set $pc
+          else
+            i32.const 6
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $value__slot
+          local.set $t7
+          local.get $__jn_frame
+          i32.const 7
+          local.get $t7
+          call $jn_gc_frame_set_root
+          local.get $this__slot
+          local.set $t8
+          local.get $__jn_frame
+          i32.const 8
+          local.get $t8
+          call $jn_gc_frame_set_root
+          local.get $t8
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t9
+          local.get $t9
+          if
+            i32.const 7
+            local.set $pc
+          else
+            i32.const 8
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $t8
+          i32.const 4
+          i32.add
+          i32.load
+          local.set $t10
+          local.get $__jn_frame
+          i32.const 9
+          local.get $t10
+          call $jn_gc_frame_set_root
+          local.get $t10
+          local.set $gctmp.11
+          local.get $__jn_frame
+          i32.const 4
+          local.get $gctmp.11
+          call $jn_gc_frame_set_root
+          local.get $gctmp.11
+          local.set $t11
+          local.get $__jn_frame
+          i32.const 10
+          local.get $t11
+          call $jn_gc_frame_set_root
+          local.get $this__slot
+          local.set $t12
+          local.get $__jn_frame
+          i32.const 11
+          local.get $t12
+          call $jn_gc_frame_set_root
+          local.get $t12
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t13
+          local.get $t13
+          if
+            i32.const 9
+            local.set $pc
+          else
+            i32.const 10
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $t12
+          i32.const 8
+          i32.add
+          i32.load
+          local.set $t14
+          local.get $t11
+          i32.eqz
+          if
+            unreachable
+          end
+          local.get $t14
+          i32.const 0
+          i32.lt_s
+          local.get $t14
+          local.get $t11
+          i32.const 8
+          i32.add
+          i32.load
+          i32.ge_s
+          i32.or
+          if
+            unreachable
+          end
+          local.get $t11
+          i32.const 16
+          i32.add
+          local.get $t14
+          i32.const 4
+          i32.mul
+          i32.add
+          local.get $t7
+          i32.store
+          call $jnative_exception_pending
+          local.set $t15
+          local.get $t15
+          if
+            i32.const 11
+            local.set $pc
+          else
+            i32.const 12
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $this__slot
+          local.set $t16
+          local.get $__jn_frame
+          i32.const 12
+          local.get $t16
+          call $jn_gc_frame_set_root
+          local.get $t16
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t17
+          local.get $t17
+          if
+            i32.const 13
+            local.set $pc
+          else
+            i32.const 14
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $t16
+          i32.const 8
+          i32.add
+          i32.load
+          local.set $t18
+          local.get $t18
+          i32.const 1
+          i32.add
+          local.set $t19
+          local.get $this__slot
+          local.set $t20
+          local.get $__jn_frame
+          i32.const 13
+          local.get $t20
+          call $jn_gc_frame_set_root
+          local.get $t20
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t21
+          local.get $t21
+          if
+            i32.const 15
+            local.set $pc
+          else
+            i32.const 16
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $t20
+          i32.const 8
+          i32.add
+          local.get $t19
+          i32.store
+          local.get $this__slot
+          local.set $t22
+          local.get $__jn_frame
+          i32.const 14
+          local.get $t22
+          call $jn_gc_frame_set_root
+          local.get $t22
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t23
+          local.get $t23
+          if
+            i32.const 17
+            local.set $pc
+          else
+            i32.const 18
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $t22
+          i32.const 12
+          i32.add
+          i32.load
+          local.set $t24
+          local.get $t24
+          i32.const 1
+          i32.add
+          local.set $t25
+          local.get $this__slot
+          local.set $t26
+          local.get $__jn_frame
+          i32.const 15
+          local.get $t26
+          call $jn_gc_frame_set_root
+          local.get $t26
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t27
+          local.get $t27
+          if
+            i32.const 19
+            local.set $pc
+          else
+            i32.const 20
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $t26
+          i32.const 12
+          i32.add
+          local.get $t25
+          i32.store
+          br $exit
+      )
+    )
+    call $jn_gc_frame_pop
+  )
+  (func $_JN_ArrayList_size (param $this i32) (result i32)
+    (local $pc i32)
+    (local $__jn_tid i32)
+    (local $__jn_asz i32)
+    (local $__jn_frame i32)
+    (local $ret i32)
+    (local $this__slot i32)
+    (local $t0 i32)
+    (local $t1 i32)
+    (local $t2 i32)
+    i32.const 3
+    call $jn_gc_frame_push
+    local.set $__jn_frame
+    local.get $__jn_frame
+    i32.const 0
+    local.get $this
+    call $jn_gc_frame_set_root
+    i32.const 0
+    local.set $pc
+    (block $exit
+      (loop $dispatch
+        (block $bb2
+        (block $bb1
+        (block $bb0
+          local.get $pc
+          br_table $bb0 $bb1 $bb2 $exit
+        )
+          local.get $this
+          local.set $this__slot
+          local.get $__jn_frame
+          i32.const 1
+          local.get $this__slot
+          call $jn_gc_frame_set_root
+          local.get $this__slot
+          local.set $t0
+          local.get $__jn_frame
+          i32.const 2
+          local.get $t0
+          call $jn_gc_frame_set_root
+          local.get $t0
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t1
+          local.get $t1
+          if
+            i32.const 1
+            local.set $pc
+          else
+            i32.const 2
+            local.set $pc
+          end
+          br $dispatch
+        )
+          i32.const 0
+          local.set $ret
+          br $exit
+        )
+          local.get $t0
+          i32.const 8
+          i32.add
+          i32.load
+          local.set $t2
+          local.get $t2
+          local.set $ret
+          br $exit
+      )
+    )
+    call $jn_gc_frame_pop
+    local.get $ret
+  )
+  (func $_JN_ArrayList_clear (param $this i32)
+    (local $pc i32)
+    (local $__jn_tid i32)
+    (local $__jn_asz i32)
+    (local $__jn_frame i32)
+    (local $this__slot i32)
+    (local $i i32)
+    (local $gctmp.8 i32)
+    (local $t0 i32)
+    (local $t1 i32)
+    (local $t2 i32)
+    (local $t3 i32)
+    (local $t4 i32)
+    (local $t5 i32)
+    (local $t6 i32)
+    (local $t7 i32)
+    (local $t8 i32)
+    (local $t9 i32)
+    (local $t10 i32)
+    (local $t11 i32)
+    (local $t12 i32)
+    (local $t13 i32)
+    (local $t14 i32)
+    (local $t15 i32)
+    (local $t16 i32)
+    (local $t17 i32)
+    (local $t18 i32)
+    (local $t19 i32)
+    (local $t20 i32)
+    i32.const 10
+    call $jn_gc_frame_push
+    local.set $__jn_frame
+    local.get $__jn_frame
+    i32.const 0
+    local.get $this
+    call $jn_gc_frame_set_root
+    i32.const 0
+    local.set $pc
+    (block $exit
+      (loop $dispatch
+        (block $bb15
+        (block $bb14
+        (block $bb13
+        (block $bb12
+        (block $bb11
+        (block $bb10
+        (block $bb9
+        (block $bb8
+        (block $bb7
+        (block $bb6
+        (block $bb5
+        (block $bb4
+        (block $bb3
+        (block $bb2
+        (block $bb1
+        (block $bb0
+          local.get $pc
+          br_table $bb0 $bb1 $bb2 $bb3 $bb4 $bb5 $bb6 $bb7 $bb8 $bb9 $bb10 $bb11 $bb12 $bb13 $bb14 $bb15 $exit
+        )
+          local.get $this
+          local.set $this__slot
+          local.get $__jn_frame
+          i32.const 1
+          local.get $this__slot
+          call $jn_gc_frame_set_root
+          i32.const 0
+          local.set $i
+          i32.const 1
+          local.set $pc
+          br $dispatch
+        )
+          local.get $i
+          local.set $t0
+          local.get $this__slot
+          local.set $t1
+          local.get $__jn_frame
+          i32.const 3
+          local.get $t1
+          call $jn_gc_frame_set_root
+          local.get $t1
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t2
+          local.get $t2
+          if
+            i32.const 4
+            local.set $pc
+          else
+            i32.const 5
+            local.set $pc
+          end
+          br $dispatch
+        )
+          local.get $this__slot
+          local.set $t5
+          local.get $__jn_frame
+          i32.const 4
+          local.get $t5
+          call $jn_gc_frame_set_root
+          local.get $t5
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t6
+          local.get $t6
+          if
+            i32.const 6
+            local.set $pc
+          else
+            i32.const 7
+            local.set $pc
+          end
+          br $dispatch
+        )
+          local.get $this__slot
+          local.set $t13
+          local.get $__jn_frame
+          i32.const 7
+          local.get $t13
+          call $jn_gc_frame_set_root
+          local.get $t13
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t14
+          local.get $t14
+          if
+            i32.const 10
+            local.set $pc
+          else
+            i32.const 11
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $t1
+          i32.const 8
+          i32.add
+          i32.load
+          local.set $t3
+          local.get $t0
+          local.get $t3
+          i32.lt_s
+          local.set $t4
+          local.get $t4
+          if
+            i32.const 2
+            local.set $pc
+          else
+            i32.const 3
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $t5
+          i32.const 4
+          i32.add
+          i32.load
+          local.set $t7
+          local.get $__jn_frame
+          i32.const 5
+          local.get $t7
+          call $jn_gc_frame_set_root
+          local.get $t7
+          local.set $gctmp.8
+          local.get $__jn_frame
+          i32.const 2
+          local.get $gctmp.8
+          call $jn_gc_frame_set_root
+          local.get $gctmp.8
+          local.set $t8
+          local.get $__jn_frame
+          i32.const 6
+          local.get $t8
+          call $jn_gc_frame_set_root
+          local.get $i
+          local.set $t9
+          local.get $t8
+          i32.eqz
+          if
+            unreachable
+          end
+          local.get $t9
+          i32.const 0
+          i32.lt_s
+          local.get $t9
+          local.get $t8
+          i32.const 8
+          i32.add
+          i32.load
+          i32.ge_s
+          i32.or
+          if
+            unreachable
+          end
+          local.get $t8
+          i32.const 16
+          i32.add
+          local.get $t9
+          i32.const 4
+          i32.mul
+          i32.add
+          i32.const 0
+          i32.store
+          call $jnative_exception_pending
+          local.set $t10
+          local.get $t10
+          if
+            i32.const 8
+            local.set $pc
+          else
+            i32.const 9
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $i
+          local.set $t11
+          local.get $t11
+          i32.const 1
+          i32.add
+          local.set $t12
+          local.get $t12
+          local.set $i
+          call $jn_gc_safepoint
+          i32.const 1
+          local.set $pc
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $t13
+          i32.const 8
+          i32.add
+          i32.const 0
+          i32.store
+          local.get $this__slot
+          local.set $t15
+          local.get $__jn_frame
+          i32.const 8
+          local.get $t15
+          call $jn_gc_frame_set_root
+          local.get $t15
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t16
+          local.get $t16
+          if
+            i32.const 12
+            local.set $pc
+          else
+            i32.const 13
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $t15
+          i32.const 12
+          i32.add
+          i32.load
+          local.set $t17
+          local.get $t17
+          i32.const 1
+          i32.add
+          local.set $t18
+          local.get $this__slot
+          local.set $t19
+          local.get $__jn_frame
+          i32.const 9
+          local.get $t19
+          call $jn_gc_frame_set_root
+          local.get $t19
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t20
+          local.get $t20
+          if
+            i32.const 14
+            local.set $pc
+          else
+            i32.const 15
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $t19
+          i32.const 12
+          i32.add
+          local.get $t18
+          i32.store
+          br $exit
+      )
+    )
+    call $jn_gc_frame_pop
+  )
+  (func $_JN_GcStress_holdAndChurn_CNode_i32 (param $held i32) (param $n i32) (result i32)
+    (local $pc i32)
+    (local $__jn_tid i32)
+    (local $__jn_asz i32)
+    (local $__jn_frame i32)
+    (local $ret i32)
+    (local $held__slot i32)
+    (local $n__slot i32)
+    (local $i i32)
+    (local $tmp i32)
+    (local $gctmp.4 i32)
+    (local $t0 i32)
+    (local $t1 i32)
+    (local $t2 i32)
+    (local $t3 i32)
+    (local $t4 i32)
+    (local $t5 i32)
+    (local $t6 i32)
+    (local $t7 i32)
+    (local $t8 i32)
+    (local $t9 i32)
+    (local $t10 i32)
+    (local $t12 i32)
+    (local $t13 i32)
+    (local $t14 i32)
+    (local $t15 i32)
+    (local $t16 i32)
+    (local $t17 i32)
+    i32.const 9
+    call $jn_gc_frame_push
+    local.set $__jn_frame
+    local.get $__jn_frame
+    i32.const 0
+    local.get $held
+    call $jn_gc_frame_set_root
+    i32.const 0
+    local.set $pc
+    (block $exit
+      (loop $dispatch
+        (block $bb12
+        (block $bb11
+        (block $bb10
+        (block $bb9
+        (block $bb8
+        (block $bb7
+        (block $bb6
+        (block $bb5
+        (block $bb4
+        (block $bb3
+        (block $bb2
+        (block $bb1
+        (block $bb0
+          local.get $pc
+          br_table $bb0 $bb1 $bb2 $bb3 $bb4 $bb5 $bb6 $bb7 $bb8 $bb9 $bb10 $bb11 $bb12 $exit
+        )
+          local.get $held
+          local.set $held__slot
+          local.get $__jn_frame
+          i32.const 1
+          local.get $held__slot
+          call $jn_gc_frame_set_root
+          local.get $n
+          local.set $n__slot
+          i32.const 0
+          local.set $i
+          i32.const 1
+          local.set $pc
+          br $dispatch
+        )
+          local.get $i
+          local.set $t0
+          local.get $n__slot
+          local.set $t1
+          local.get $t0
+          local.get $t1
+          i32.lt_s
+          local.set $t2
+          local.get $t2
+          if
+            i32.const 2
+            local.set $pc
+          else
+            i32.const 4
+            local.set $pc
+          end
+          br $dispatch
+        )
+          i32.const 12
+          call $jn_alloc_zeroed
+          local.set $t3
+          local.get $t3
+          i32.eqz
+          if
+            unreachable
+          end
+          local.get $t3
+          i32.const 92
+          i32.store
+          local.get $__jn_frame
+          i32.const 4
+          local.get $t3
+          call $jn_gc_frame_set_root
+          local.get $t3
+          local.set $gctmp.4
+          local.get $__jn_frame
+          i32.const 3
+          local.get $gctmp.4
+          call $jn_gc_frame_set_root
+          local.get $gctmp.4
+          local.set $t4
+          local.get $__jn_frame
+          i32.const 5
+          local.get $t4
+          call $jn_gc_frame_set_root
+          local.get $i
+          local.set $t5
+          local.get $t4
+          local.get $t5
+          call $_JN_Node_init_i32
+          call $jnative_exception_pending
+          local.set $t6
+          local.get $t6
+          if
+            i32.const 5
+            local.set $pc
+          else
+            i32.const 6
+            local.set $pc
+          end
+          br $dispatch
+        )
+          local.get $i
+          local.set $t12
+          local.get $t12
+          i32.const 1
+          i32.add
+          local.set $t13
+          local.get $t13
+          local.set $i
+          call $jn_gc_safepoint
+          i32.const 1
+          local.set $pc
+          br $dispatch
+        )
+          local.get $held__slot
+          local.set $t14
+          local.get $__jn_frame
+          i32.const 7
+          local.get $t14
+          call $jn_gc_frame_set_root
+          local.get $t14
+          global.set $g_jn_static_GcStress_keepAlive
+          local.get $held__slot
+          local.set $t15
+          local.get $__jn_frame
+          i32.const 8
+          local.get $t15
+          call $jn_gc_frame_set_root
+          local.get $t15
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t16
+          local.get $t16
+          if
+            i32.const 11
+            local.set $pc
+          else
+            i32.const 12
+            local.set $pc
+          end
+          br $dispatch
+        )
+          i32.const 0
+          local.set $ret
+          br $exit
+        )
+          local.get $t4
+          local.set $tmp
+          local.get $__jn_frame
+          i32.const 2
+          local.get $tmp
+          call $jn_gc_frame_set_root
+          local.get $tmp
+          local.set $t7
+          local.get $__jn_frame
+          i32.const 6
+          local.get $t7
+          call $jn_gc_frame_set_root
+          call $jnative_exception_pending
+          local.set $t8
+          local.get $t8
+          if
+            i32.const 7
+            local.set $pc
+          else
+            i32.const 8
+            local.set $pc
+          end
+          br $dispatch
+        )
+          i32.const 0
+          local.set $ret
+          br $exit
+        )
+          local.get $t7
+          i32.const 8
+          i32.add
+          i32.load
+          local.set $t9
+          local.get $t9
+          i32.const 0
+          i32.lt_s
+          local.set $t10
+          local.get $t10
+          if
+            i32.const 9
+            local.set $pc
+          else
+            i32.const 10
+            local.set $pc
+          end
+          br $dispatch
+        )
+          i32.const -1
+          local.set $ret
+          br $exit
+        )
+          i32.const 3
+          local.set $pc
+          br $dispatch
+        )
+          i32.const 0
+          local.set $ret
+          br $exit
+        )
+          local.get $t15
+          i32.const 8
+          i32.add
+          i32.load
+          local.set $t17
+          local.get $t17
+          local.set $ret
+          br $exit
+      )
+    )
+    call $jn_gc_frame_pop
+    local.get $ret
+  )
+  (func $_JN_IntBox_init (param $this i32)
+    (local $pc i32)
+    (local $__jn_tid i32)
+    (local $__jn_asz i32)
+    (local $__jn_frame i32)
+    (local $this__slot i32)
+    (local $t0 i32)
+    (local $t1 i32)
+    i32.const 3
+    call $jn_gc_frame_push
+    local.set $__jn_frame
+    local.get $__jn_frame
+    i32.const 0
+    local.get $this
+    call $jn_gc_frame_set_root
+    i32.const 0
+    local.set $pc
+    (block $exit
+      (loop $dispatch
+        (block $bb2
+        (block $bb1
+        (block $bb0
+          local.get $pc
+          br_table $bb0 $bb1 $bb2 $exit
+        )
+          local.get $this
+          local.set $this__slot
+          local.get $__jn_frame
+          i32.const 1
+          local.get $this__slot
+          call $jn_gc_frame_set_root
+          local.get $this__slot
+          local.set $t0
+          local.get $__jn_frame
+          i32.const 2
+          local.get $t0
+          call $jn_gc_frame_set_root
+          local.get $t0
+          call $_JN_Object_init
+          call $jnative_exception_pending
+          local.set $t1
+          local.get $t1
+          if
+            i32.const 1
+            local.set $pc
+          else
+            i32.const 2
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          br $exit
+      )
+    )
+    call $jn_gc_frame_pop
+  )
+  (func $_JN_lambda_1 (param $env i32) (param $p0 i32)
+    (local $pc i32)
+    (local $__jn_tid i32)
+    (local $__jn_asz i32)
+    (local $__jn_frame i32)
+    (local $gctmp.2 i32)
+    (local $box i32)
+    (local $it i32)
+    (local $t0 i32)
+    (local $t1 i32)
+    (local $t2 i32)
+    (local $t3 i32)
+    (local $t4 i32)
+    (local $t5 i32)
+    (local $t6 i32)
+    (local $t7 i32)
+    (local $t8 i32)
+    (local $t9 i32)
+    (local $t10 i32)
+    (local $t11 i32)
+    i32.const 10
+    call $jn_gc_frame_push
+    local.set $__jn_frame
+    local.get $__jn_frame
+    i32.const 0
+    local.get $env
+    call $jn_gc_frame_set_root
+    local.get $__jn_frame
+    i32.const 1
+    local.get $p0
+    call $jn_gc_frame_set_root
+    i32.const 0
+    local.set $pc
+    (block $exit
+      (loop $dispatch
+        (block $bb8
+        (block $bb7
+        (block $bb6
+        (block $bb5
+        (block $bb4
+        (block $bb3
+        (block $bb2
+        (block $bb1
+        (block $bb0
+          local.get $pc
+          br_table $bb0 $bb1 $bb2 $bb3 $bb4 $bb5 $bb6 $bb7 $bb8 $exit
+        )
+          local.get $env
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t0
+          local.get $t0
+          if
+            i32.const 1
+            local.set $pc
+          else
+            i32.const 2
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $env
+          i32.const 4
+          i32.add
+          i32.load
+          local.set $t1
+          local.get $__jn_frame
+          i32.const 5
+          local.get $t1
+          call $jn_gc_frame_set_root
+          local.get $t1
+          local.set $gctmp.2
+          local.get $__jn_frame
+          i32.const 2
+          local.get $gctmp.2
+          call $jn_gc_frame_set_root
+          local.get $gctmp.2
+          local.set $t2
+          local.get $__jn_frame
+          i32.const 6
+          local.get $t2
+          call $jn_gc_frame_set_root
+          local.get $t2
+          local.set $box
+          local.get $__jn_frame
+          i32.const 3
+          local.get $box
+          call $jn_gc_frame_set_root
+          local.get $p0
+          local.set $it
+          local.get $__jn_frame
+          i32.const 4
+          local.get $it
+          call $jn_gc_frame_set_root
+          local.get $box
+          local.set $t3
+          local.get $__jn_frame
+          i32.const 7
+          local.get $t3
+          call $jn_gc_frame_set_root
+          local.get $t3
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t4
+          local.get $t4
+          if
+            i32.const 3
+            local.set $pc
+          else
+            i32.const 4
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $t3
+          i32.const 4
+          i32.add
+          i32.load
+          local.set $t5
+          local.get $it
+          local.set $t6
+          local.get $__jn_frame
+          i32.const 8
+          local.get $t6
+          call $jn_gc_frame_set_root
+          local.get $t6
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t7
+          local.get $t7
+          if
+            i32.const 5
+            local.set $pc
+          else
+            i32.const 6
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $t6
+          i32.const 8
+          i32.add
+          i32.load
+          local.set $t8
+          local.get $t5
+          local.get $t8
+          i32.add
+          local.set $t9
+          local.get $box
+          local.set $t10
+          local.get $__jn_frame
+          i32.const 9
+          local.get $t10
+          call $jn_gc_frame_set_root
+          local.get $t10
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t11
+          local.get $t11
+          if
+            i32.const 7
+            local.set $pc
+          else
+            i32.const 8
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $t10
+          i32.const 4
+          i32.add
+          local.get $t9
+          i32.store
+          br $exit
+      )
+    )
+    call $jn_gc_frame_pop
+  )
+  (func $_JN_ArrayList_forEach_PIConsumer_TT (param $this i32) (param $action i32)
+    (local $pc i32)
+    (local $__jn_tid i32)
+    (local $__jn_asz i32)
+    (local $__jn_frame i32)
+    (local $this__slot i32)
+    (local $action__slot i32)
+    (local $gctmp.3 i32)
+    (local $gctmp.5 i32)
+    (local $expected i32)
+    (local $i i32)
+    (local $gctmp.22 i32)
+    (local $gctmp.24 i32)
+    (local $gctmp.32 i32)
+    (local $gctmp.36 i32)
+    (local $t0 i32)
+    (local $t1 i32)
+    (local $t2 i32)
+    (local $t3 i32)
+    (local $t4 i32)
+    (local $t5 i32)
+    (local $t6 i32)
+    (local $t7 i32)
+    (local $t8 i32)
+    (local $t9 i32)
+    (local $t10 i32)
+    (local $t11 i32)
+    (local $t12 i32)
+    (local $t13 i32)
+    (local $t14 i32)
+    (local $t15 i32)
+    (local $t16 i32)
+    (local $t17 i32)
+    (local $t18 i32)
+    (local $t19 i32)
+    (local $t20 i32)
+    (local $t21 i32)
+    (local $t22 i32)
+    (local $t23 i32)
+    (local $t24 i32)
+    (local $t25 i32)
+    (local $t26 i32)
+    (local $t27 i32)
+    (local $t28 i32)
+    (local $t29 i32)
+    (local $t30 i32)
+    (local $t31 i32)
+    (local $t32 i32)
+    (local $t33 i32)
+    (local $t34 i32)
+    (local $t35 i32)
+    (local $t36 i32)
+    (local $t37 i32)
+    (local $t38 i32)
+    (local $t39 i32)
+    i32.const 28
+    call $jn_gc_frame_push
+    local.set $__jn_frame
+    local.get $__jn_frame
+    i32.const 0
+    local.get $this
+    call $jn_gc_frame_set_root
+    local.get $__jn_frame
+    i32.const 1
+    local.get $action
+    call $jn_gc_frame_set_root
+    i32.const 0
+    local.set $pc
+    (block $exit
+      (loop $dispatch
+        (block $bb29
+        (block $bb28
+        (block $bb27
+        (block $bb26
+        (block $bb25
+        (block $bb24
+        (block $bb23
+        (block $bb22
+        (block $bb21
+        (block $bb20
+        (block $bb19
+        (block $bb18
+        (block $bb17
+        (block $bb16
+        (block $bb15
+        (block $bb14
+        (block $bb13
+        (block $bb12
+        (block $bb11
+        (block $bb10
+        (block $bb9
+        (block $bb8
+        (block $bb7
+        (block $bb6
+        (block $bb5
+        (block $bb4
+        (block $bb3
+        (block $bb2
+        (block $bb1
+        (block $bb0
+          local.get $pc
+          br_table $bb0 $bb1 $bb2 $bb3 $bb4 $bb5 $bb6 $bb7 $bb8 $bb9 $bb10 $bb11 $bb12 $bb13 $bb14 $bb15 $bb16 $bb17 $bb18 $bb19 $bb20 $bb21 $bb22 $bb23 $bb24 $bb25 $bb26 $bb27 $bb28 $bb29 $exit
+        )
+          local.get $this
+          local.set $this__slot
+          local.get $__jn_frame
+          i32.const 2
+          local.get $this__slot
+          call $jn_gc_frame_set_root
+          local.get $action
+          local.set $action__slot
+          local.get $__jn_frame
+          i32.const 3
+          local.get $action__slot
+          call $jn_gc_frame_set_root
+          local.get $action__slot
+          local.set $t0
+          local.get $__jn_frame
+          i32.const 10
+          local.get $t0
+          call $jn_gc_frame_set_root
+          local.get $t0
+          i32.const 0
+          i32.eq
+          local.set $t1
+          local.get $t1
+          if
+            i32.const 1
+            local.set $pc
+          else
+            i32.const 2
+            local.set $pc
+          end
+          br $dispatch
+        )
+          i32.const 16
+          call $jn_alloc_zeroed
+          local.set $t2
+          local.get $t2
+          i32.eqz
+          if
+            unreachable
+          end
+          local.get $t2
+          i32.const 24
+          i32.store
+          local.get $__jn_frame
+          i32.const 11
+          local.get $t2
+          call $jn_gc_frame_set_root
+          local.get $t2
+          local.set $gctmp.3
+          local.get $__jn_frame
+          i32.const 4
+          local.get $gctmp.3
+          call $jn_gc_frame_set_root
+          local.get $gctmp.3
+          local.set $t3
+          local.get $__jn_frame
+          i32.const 12
+          local.get $t3
+          call $jn_gc_frame_set_root
+          i32.const 2548
+          i32.const 6
+          call $jn_str
+          local.set $t4
+          local.get $__jn_frame
+          i32.const 13
+          local.get $t4
+          call $jn_gc_frame_set_root
+          local.get $t4
+          local.set $gctmp.5
+          local.get $__jn_frame
+          i32.const 5
+          local.get $gctmp.5
+          call $jn_gc_frame_set_root
+          local.get $gctmp.5
+          local.set $t5
+          local.get $__jn_frame
+          i32.const 14
+          local.get $t5
+          call $jn_gc_frame_set_root
+          local.get $t3
+          local.get $t5
+          call $_JN_NullPointerException_init_CString
+          call $jnative_exception_pending
+          local.set $t6
+          local.get $t6
+          if
+            i32.const 3
+            local.set $pc
+          else
+            i32.const 4
+            local.set $pc
+          end
+          br $dispatch
+        )
+          local.get $this__slot
+          local.set $t8
+          local.get $__jn_frame
+          i32.const 15
+          local.get $t8
+          call $jn_gc_frame_set_root
+          local.get $t8
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t9
+          local.get $t9
+          if
+            i32.const 7
+            local.set $pc
+          else
+            i32.const 8
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $t3
+          call $jnative_exception_throw
+          call $jnative_exception_pending
+          local.set $t7
+          local.get $t7
+          if
+            i32.const 5
+            local.set $pc
+          else
+            i32.const 6
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          i32.const 2
+          local.set $pc
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $t8
+          i32.const 12
+          i32.add
+          i32.load
+          local.set $t10
+          local.get $t10
+          local.set $expected
+          i32.const 0
+          local.set $i
+          i32.const 9
+          local.set $pc
+          br $dispatch
+        )
+          local.get $i
+          local.set $t11
+          local.get $this__slot
+          local.set $t12
+          local.get $__jn_frame
+          i32.const 16
+          local.get $t12
+          call $jn_gc_frame_set_root
+          local.get $t12
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t13
+          local.get $t13
+          if
+            i32.const 12
+            local.set $pc
+          else
+            i32.const 13
+            local.set $pc
+          end
+          br $dispatch
+        )
+          local.get $expected
+          local.set $t16
+          local.get $this__slot
+          local.set $t17
+          local.get $__jn_frame
+          i32.const 17
+          local.get $t17
+          call $jn_gc_frame_set_root
+          local.get $t17
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t18
+          local.get $t18
+          if
+            i32.const 14
+            local.set $pc
+          else
+            i32.const 15
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          br $exit
+        )
+          local.get $t12
+          i32.const 8
+          i32.add
+          i32.load
+          local.set $t14
+          local.get $t11
+          local.get $t14
+          i32.lt_s
+          local.set $t15
+          local.get $t15
+          if
+            i32.const 10
+            local.set $pc
+          else
+            i32.const 11
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $t17
+          i32.const 12
+          i32.add
+          i32.load
+          local.set $t19
+          local.get $t16
+          local.get $t19
+          i32.ne
+          local.set $t20
+          local.get $t20
+          if
+            i32.const 16
+            local.set $pc
+          else
+            i32.const 17
+            local.set $pc
+          end
+          br $dispatch
+        )
+          i32.const 16
+          call $jn_alloc_zeroed
+          local.set $t21
+          local.get $t21
+          i32.eqz
+          if
+            unreachable
+          end
+          local.get $t21
+          i32.const 124
+          i32.store
+          local.get $__jn_frame
+          i32.const 18
+          local.get $t21
+          call $jn_gc_frame_set_root
+          local.get $t21
+          local.set $gctmp.22
+          local.get $__jn_frame
+          i32.const 6
+          local.get $gctmp.22
+          call $jn_gc_frame_set_root
+          local.get $gctmp.22
+          local.set $t22
+          local.get $__jn_frame
+          i32.const 19
+          local.get $t22
+          call $jn_gc_frame_set_root
+          i32.const 2554
+          i32.const 33
+          call $jn_str
+          local.set $t23
+          local.get $__jn_frame
+          i32.const 20
+          local.get $t23
+          call $jn_gc_frame_set_root
+          local.get $t23
+          local.set $gctmp.24
+          local.get $__jn_frame
+          i32.const 7
+          local.get $gctmp.24
+          call $jn_gc_frame_set_root
+          local.get $gctmp.24
+          local.set $t24
+          local.get $__jn_frame
+          i32.const 21
+          local.get $t24
+          call $jn_gc_frame_set_root
+          local.get $t22
+          local.get $t24
+          call $_JN_ConcurrentModificationException_init_CString
+          call $jnative_exception_pending
+          local.set $t25
+          local.get $t25
+          if
+            i32.const 18
+            local.set $pc
+          else
+            i32.const 19
+            local.set $pc
+          end
+          br $dispatch
+        )
+          local.get $action__slot
+          local.set $t27
+          local.get $__jn_frame
+          i32.const 22
+          local.get $t27
+          call $jn_gc_frame_set_root
+          local.get $t27
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t28
+          local.get $t28
+          if
+            i32.const 22
+            local.set $pc
+          else
+            i32.const 23
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $t22
+          call $jnative_exception_throw
+          call $jnative_exception_pending
+          local.set $t26
+          local.get $t26
+          if
+            i32.const 20
+            local.set $pc
+          else
+            i32.const 21
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          i32.const 17
+          local.set $pc
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $this__slot
+          local.set $t29
+          local.get $__jn_frame
+          i32.const 23
+          local.get $t29
+          call $jn_gc_frame_set_root
+          local.get $t29
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t30
+          local.get $t30
+          if
+            i32.const 24
+            local.set $pc
+          else
+            i32.const 25
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $t29
+          i32.const 4
+          i32.add
+          i32.load
+          local.set $t31
+          local.get $__jn_frame
+          i32.const 24
+          local.get $t31
+          call $jn_gc_frame_set_root
+          local.get $t31
+          local.set $gctmp.32
+          local.get $__jn_frame
+          i32.const 8
+          local.get $gctmp.32
+          call $jn_gc_frame_set_root
+          local.get $gctmp.32
+          local.set $t32
+          local.get $__jn_frame
+          i32.const 25
+          local.get $t32
+          call $jn_gc_frame_set_root
+          local.get $i
+          local.set $t33
+          local.get $t32
+          i32.eqz
+          if
+            unreachable
+          end
+          local.get $t33
+          i32.const 0
+          i32.lt_s
+          local.get $t33
+          local.get $t32
+          i32.const 8
+          i32.add
+          i32.load
+          i32.ge_s
+          i32.or
+          if
+            unreachable
+          end
+          local.get $t32
+          i32.const 16
+          i32.add
+          local.get $t33
+          i32.const 4
+          i32.mul
+          i32.add
+          i32.load
+          local.set $t34
+          local.get $__jn_frame
+          i32.const 26
+          local.get $t34
+          call $jn_gc_frame_set_root
+          call $jnative_exception_pending
+          local.set $t35
+          local.get $t35
+          if
+            i32.const 26
+            local.set $pc
+          else
+            i32.const 27
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $t34
+          local.set $gctmp.36
+          local.get $__jn_frame
+          i32.const 9
+          local.get $gctmp.36
+          call $jn_gc_frame_set_root
+          local.get $gctmp.36
+          local.set $t36
+          local.get $__jn_frame
+          i32.const 27
+          local.get $t36
+          call $jn_gc_frame_set_root
+          local.get $t27
+          local.get $t36
+          call $_JN___jn_IFaceAdapter_Consumer_accept_TT
+          call $jnative_exception_pending
+          local.set $t37
+          local.get $t37
+          if
+            i32.const 28
+            local.set $pc
+          else
+            i32.const 29
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $i
+          local.set $t38
+          local.get $t38
+          i32.const 1
+          i32.add
+          local.set $t39
+          local.get $t39
+          local.set $i
+          call $jn_gc_safepoint
+          i32.const 9
+          local.set $pc
+          br $dispatch
+      )
+    )
+    call $jn_gc_frame_pop
+  )
+  (func $_JN_ArrayList_ensureCapacity_i32 (param $this i32) (param $minCapacity i32)
+    (local $pc i32)
+    (local $__jn_tid i32)
+    (local $__jn_asz i32)
+    (local $__jn_frame i32)
+    (local $this__slot i32)
+    (local $minCapacity__slot i32)
+    (local $cap i32)
+    (local $gctmp.3 i32)
+    (local $gctmp.8 i32)
+    (local $gctmp.16 i32)
+    (local $gctmp.18 i32)
+    (local $newCap i32)
+    (local $old i32)
+    (local $gctmp.31 i32)
+    (local $neu i32)
+    (local $gctmp.35 i32)
+    (local $i i32)
+    (local $gctmp.45 i32)
+    (local $t0 i32)
+    (local $t1 i32)
+    (local $t2 i32)
+    (local $t3 i32)
+    (local $t4 i32)
+    (local $t5 i32)
+    (local $t6 i32)
+    (local $t7 i32)
+    (local $t8 i32)
+    (local $t9 i32)
+    (local $t10 i32)
+    (local $t11 i32)
+    (local $t12 i32)
+    (local $t13 i32)
+    (local $t14 i32)
+    (local $t15 i32)
+    (local $t16 i32)
+    (local $t17 i32)
+    (local $t18 i32)
+    (local $t19 i32)
+    (local $t20 i32)
+    (local $t21 i32)
+    (local $t22 i32)
+    (local $t23 i32)
+    (local $t24 i32)
+    (local $t25 i32)
+    (local $t26 i32)
+    (local $t27 i32)
+    (local $t28 i32)
+    (local $t29 i32)
+    (local $t30 i32)
+    (local $t31 i32)
+    (local $t32 i32)
+    (local $t33 i32)
+    (local $t34 i32)
+    (local $t35 i32)
+    (local $t36 i32)
+    (local $t37 i32)
+    (local $t38 i32)
+    (local $t39 i32)
+    (local $t40 i32)
+    (local $t41 i32)
+    (local $t42 i32)
+    (local $t43 i32)
+    (local $t44 i32)
+    (local $t45 i32)
+    (local $t46 i32)
+    (local $t47 i32)
+    (local $t48 i32)
+    (local $t49 i32)
+    (local $t50 i32)
+    (local $t51 i32)
+    (local $t52 i32)
+    (local $t53 i32)
+    i32.const 33
+    call $jn_gc_frame_push
+    local.set $__jn_frame
+    local.get $__jn_frame
+    i32.const 0
+    local.get $this
+    call $jn_gc_frame_set_root
+    i32.const 0
+    local.set $pc
+    (block $exit
+      (loop $dispatch
+        (block $bb33
+        (block $bb32
+        (block $bb31
+        (block $bb30
+        (block $bb29
+        (block $bb28
+        (block $bb27
+        (block $bb26
+        (block $bb25
+        (block $bb24
+        (block $bb23
+        (block $bb22
+        (block $bb21
+        (block $bb20
+        (block $bb19
+        (block $bb18
+        (block $bb17
+        (block $bb16
+        (block $bb15
+        (block $bb14
+        (block $bb13
+        (block $bb12
+        (block $bb11
+        (block $bb10
+        (block $bb9
+        (block $bb8
+        (block $bb7
+        (block $bb6
+        (block $bb5
+        (block $bb4
+        (block $bb3
+        (block $bb2
+        (block $bb1
+        (block $bb0
+          local.get $pc
+          br_table $bb0 $bb1 $bb2 $bb3 $bb4 $bb5 $bb6 $bb7 $bb8 $bb9 $bb10 $bb11 $bb12 $bb13 $bb14 $bb15 $bb16 $bb17 $bb18 $bb19 $bb20 $bb21 $bb22 $bb23 $bb24 $bb25 $bb26 $bb27 $bb28 $bb29 $bb30 $bb31 $bb32 $bb33 $exit
+        )
+          local.get $this
+          local.set $this__slot
+          local.get $__jn_frame
+          i32.const 1
+          local.get $this__slot
+          call $jn_gc_frame_set_root
+          local.get $minCapacity
+          local.set $minCapacity__slot
+          i32.const 0
+          local.set $cap
+          local.get $this__slot
+          local.set $t0
+          local.get $__jn_frame
+          i32.const 11
+          local.get $t0
+          call $jn_gc_frame_set_root
+          local.get $t0
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t1
+          local.get $t1
+          if
+            i32.const 1
+            local.set $pc
+          else
+            i32.const 2
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $t0
+          i32.const 4
+          i32.add
+          i32.load
+          local.set $t2
+          local.get $__jn_frame
+          i32.const 12
+          local.get $t2
+          call $jn_gc_frame_set_root
+          local.get $t2
+          local.set $gctmp.3
+          local.get $__jn_frame
+          i32.const 2
+          local.get $gctmp.3
+          call $jn_gc_frame_set_root
+          local.get $gctmp.3
+          local.set $t3
+          local.get $__jn_frame
+          i32.const 13
+          local.get $t3
+          call $jn_gc_frame_set_root
+          local.get $t3
+          i32.const 0
+          i32.ne
+          local.set $t4
+          local.get $t4
+          if
+            i32.const 3
+            local.set $pc
+          else
+            i32.const 4
+            local.set $pc
+          end
+          br $dispatch
+        )
+          local.get $this__slot
+          local.set $t5
+          local.get $__jn_frame
+          i32.const 14
+          local.get $t5
+          call $jn_gc_frame_set_root
+          local.get $t5
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t6
+          local.get $t6
+          if
+            i32.const 5
+            local.set $pc
+          else
+            i32.const 6
+            local.set $pc
+          end
+          br $dispatch
+        )
+          local.get $minCapacity__slot
+          local.set $t10
+          local.get $cap
+          local.set $t11
+          local.get $t10
+          local.get $t11
+          i32.le_s
+          local.set $t12
+          local.get $t12
+          if
+            i32.const 7
+            local.set $pc
+          else
+            i32.const 8
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $t5
+          i32.const 4
+          i32.add
+          i32.load
+          local.set $t7
+          local.get $__jn_frame
+          i32.const 15
+          local.get $t7
+          call $jn_gc_frame_set_root
+          local.get $t7
+          local.set $gctmp.8
+          local.get $__jn_frame
+          i32.const 3
+          local.get $gctmp.8
+          call $jn_gc_frame_set_root
+          local.get $gctmp.8
+          local.set $t8
+          local.get $__jn_frame
+          i32.const 16
+          local.get $t8
+          call $jn_gc_frame_set_root
+          local.get $t8
+          i32.eqz
+          if
+            unreachable
+          end
+          local.get $t8
+          i32.const 8
+          i32.add
+          i32.load
+          local.set $t9
+          local.get $t9
+          local.set $cap
+          i32.const 4
+          local.set $pc
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $minCapacity__slot
+          local.set $t13
+          local.get $t13
+          i32.const 0
+          i32.lt_s
+          local.set $t14
+          local.get $t14
+          if
+            i32.const 9
+            local.set $pc
+          else
+            i32.const 10
+            local.set $pc
+          end
+          br $dispatch
+        )
+          i32.const 16
+          call $jn_alloc_zeroed
+          local.set $t15
+          local.get $t15
+          i32.eqz
+          if
+            unreachable
+          end
+          local.get $t15
+          i32.const 21
+          i32.store
+          local.get $__jn_frame
+          i32.const 17
+          local.get $t15
+          call $jn_gc_frame_set_root
+          local.get $t15
+          local.set $gctmp.16
+          local.get $__jn_frame
+          i32.const 4
+          local.get $gctmp.16
+          call $jn_gc_frame_set_root
+          local.get $gctmp.16
+          local.set $t16
+          local.get $__jn_frame
+          i32.const 18
+          local.get $t16
+          call $jn_gc_frame_set_root
+          i32.const 2146
+          i32.const 27
+          call $jn_str
+          local.set $t17
+          local.get $__jn_frame
+          i32.const 19
+          local.get $t17
+          call $jn_gc_frame_set_root
+          local.get $t17
+          local.set $gctmp.18
+          local.get $__jn_frame
+          i32.const 5
+          local.get $gctmp.18
+          call $jn_gc_frame_set_root
+          local.get $gctmp.18
+          local.set $t18
+          local.get $__jn_frame
+          i32.const 20
+          local.get $t18
+          call $jn_gc_frame_set_root
+          local.get $t16
+          local.get $t18
+          call $_JN_IllegalStateException_init_CString
+          call $jnative_exception_pending
+          local.set $t19
+          local.get $t19
+          if
+            i32.const 11
+            local.set $pc
+          else
+            i32.const 12
+            local.set $pc
+          end
+          br $dispatch
+        )
+          local.get $cap
+          local.set $t21
+          local.get $t21
+          call $_JN_ArrayList_calculateNewCapacity_i32
+          local.set $t22
+          call $jnative_exception_pending
+          local.set $t23
+          local.get $t23
+          if
+            i32.const 15
+            local.set $pc
+          else
+            i32.const 16
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $t16
+          call $jnative_exception_throw
+          call $jnative_exception_pending
+          local.set $t20
+          local.get $t20
+          if
+            i32.const 13
+            local.set $pc
+          else
+            i32.const 14
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          i32.const 10
+          local.set $pc
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $t22
+          local.set $newCap
+          local.get $newCap
+          local.set $t24
+          local.get $minCapacity__slot
+          local.set $t25
+          local.get $t24
+          local.get $t25
+          i32.lt_s
+          local.set $t26
+          local.get $t26
+          if
+            i32.const 17
+            local.set $pc
+          else
+            i32.const 18
+            local.set $pc
+          end
+          br $dispatch
+        )
+          local.get $minCapacity__slot
+          local.set $t27
+          local.get $t27
+          local.set $newCap
+          i32.const 18
+          local.set $pc
+          br $dispatch
+        )
+          local.get $this__slot
+          local.set $t28
+          local.get $__jn_frame
+          i32.const 21
+          local.get $t28
+          call $jn_gc_frame_set_root
+          local.get $t28
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t29
+          local.get $t29
+          if
+            i32.const 19
+            local.set $pc
+          else
+            i32.const 20
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $t28
+          i32.const 4
+          i32.add
+          i32.load
+          local.set $t30
+          local.get $__jn_frame
+          i32.const 22
+          local.get $t30
+          call $jn_gc_frame_set_root
+          local.get $t30
+          local.set $gctmp.31
+          local.get $__jn_frame
+          i32.const 7
+          local.get $gctmp.31
+          call $jn_gc_frame_set_root
+          local.get $gctmp.31
+          local.set $t31
+          local.get $__jn_frame
+          i32.const 23
+          local.get $t31
+          call $jn_gc_frame_set_root
+          local.get $t31
+          local.set $old
+          local.get $__jn_frame
+          i32.const 6
+          local.get $old
+          call $jn_gc_frame_set_root
+          local.get $newCap
+          local.set $t32
+          local.get $t32
+          i32.const 0
+          i32.lt_s
+          if
+            unreachable
+          end
+          local.get $t32
+          i32.const 4
+          i32.mul
+          local.set $__jn_asz
+          local.get $__jn_asz
+          i32.const 4
+          i32.div_u
+          local.get $t32
+          i32.ne
+          if
+            unreachable
+          end
+          local.get $__jn_asz
+          i32.const 16
+          i32.add
+          i32.const 1
+          call $jn_gc_alloc_array
+          local.set $t33
+          local.get $t33
+          i32.eqz
+          if
+            unreachable
+          end
+          local.get $t33
+          i32.const 130
+          i32.store
+          local.get $t33
+          i32.const 8
+          i32.add
+          local.get $t32
+          i32.store
+          local.get $__jn_frame
+          i32.const 24
+          local.get $t33
+          call $jn_gc_frame_set_root
+          call $jnative_exception_pending
+          local.set $t34
+          local.get $t34
+          if
+            i32.const 21
+            local.set $pc
+          else
+            i32.const 22
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $t33
+          local.set $gctmp.35
+          local.get $__jn_frame
+          i32.const 9
+          local.get $gctmp.35
+          call $jn_gc_frame_set_root
+          local.get $gctmp.35
+          local.set $t35
+          local.get $__jn_frame
+          i32.const 25
+          local.get $t35
+          call $jn_gc_frame_set_root
+          local.get $t35
+          local.set $neu
+          local.get $__jn_frame
+          i32.const 8
+          local.get $neu
+          call $jn_gc_frame_set_root
+          i32.const 0
+          local.set $i
+          i32.const 23
+          local.set $pc
+          br $dispatch
+        )
+          local.get $i
+          local.set $t36
+          local.get $this__slot
+          local.set $t37
+          local.get $__jn_frame
+          i32.const 26
+          local.get $t37
+          call $jn_gc_frame_set_root
+          local.get $t37
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t38
+          local.get $t38
+          if
+            i32.const 26
+            local.set $pc
+          else
+            i32.const 27
+            local.set $pc
+          end
+          br $dispatch
+        )
+          local.get $old
+          local.set $t41
+          local.get $__jn_frame
+          i32.const 27
+          local.get $t41
+          call $jn_gc_frame_set_root
+          local.get $i
+          local.set $t42
+          local.get $t41
+          i32.eqz
+          if
+            unreachable
+          end
+          local.get $t42
+          i32.const 0
+          i32.lt_s
+          local.get $t42
+          local.get $t41
+          i32.const 8
+          i32.add
+          i32.load
+          i32.ge_s
+          i32.or
+          if
+            unreachable
+          end
+          local.get $t41
+          i32.const 16
+          i32.add
+          local.get $t42
+          i32.const 4
+          i32.mul
+          i32.add
+          i32.load
+          local.set $t43
+          local.get $__jn_frame
+          i32.const 28
+          local.get $t43
+          call $jn_gc_frame_set_root
+          call $jnative_exception_pending
+          local.set $t44
+          local.get $t44
+          if
+            i32.const 28
+            local.set $pc
+          else
+            i32.const 29
+            local.set $pc
+          end
+          br $dispatch
+        )
+          local.get $neu
+          local.set $t51
+          local.get $__jn_frame
+          i32.const 31
+          local.get $t51
+          call $jn_gc_frame_set_root
+          local.get $this__slot
+          local.set $t52
+          local.get $__jn_frame
+          i32.const 32
+          local.get $t52
+          call $jn_gc_frame_set_root
+          local.get $t52
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t53
+          local.get $t53
+          if
+            i32.const 32
+            local.set $pc
+          else
+            i32.const 33
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $t37
+          i32.const 8
+          i32.add
+          i32.load
+          local.set $t39
+          local.get $t36
+          local.get $t39
+          i32.lt_s
+          local.set $t40
+          local.get $t40
+          if
+            i32.const 24
+            local.set $pc
+          else
+            i32.const 25
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $t43
+          local.set $gctmp.45
+          local.get $__jn_frame
+          i32.const 10
+          local.get $gctmp.45
+          call $jn_gc_frame_set_root
+          local.get $gctmp.45
+          local.set $t45
+          local.get $__jn_frame
+          i32.const 29
+          local.get $t45
+          call $jn_gc_frame_set_root
+          local.get $neu
+          local.set $t46
+          local.get $__jn_frame
+          i32.const 30
+          local.get $t46
+          call $jn_gc_frame_set_root
+          local.get $i
+          local.set $t47
+          local.get $t46
+          i32.eqz
+          if
+            unreachable
+          end
+          local.get $t47
+          i32.const 0
+          i32.lt_s
+          local.get $t47
+          local.get $t46
+          i32.const 8
+          i32.add
+          i32.load
+          i32.ge_s
+          i32.or
+          if
+            unreachable
+          end
+          local.get $t46
+          i32.const 16
+          i32.add
+          local.get $t47
+          i32.const 4
+          i32.mul
+          i32.add
+          local.get $t45
+          i32.store
+          call $jnative_exception_pending
+          local.set $t48
+          local.get $t48
+          if
+            i32.const 30
+            local.set $pc
+          else
+            i32.const 31
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $i
+          local.set $t49
+          local.get $t49
+          i32.const 1
+          i32.add
+          local.set $t50
+          local.get $t50
+          local.set $i
+          call $jn_gc_safepoint
+          i32.const 23
+          local.set $pc
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $t52
+          i32.const 4
+          i32.add
+          local.get $t51
+          i32.store
+          br $exit
+      )
+    )
+    call $jn_gc_frame_pop
+  )
+  (func $_JN_NullPointerException_init_CString (param $this i32) (param $message i32)
+    (local $pc i32)
+    (local $__jn_tid i32)
+    (local $__jn_asz i32)
+    (local $__jn_frame i32)
+    (local $this__slot i32)
+    (local $message__slot i32)
+    (local $t0 i32)
+    (local $t1 i32)
+    (local $t2 i32)
+    i32.const 6
+    call $jn_gc_frame_push
+    local.set $__jn_frame
+    local.get $__jn_frame
+    i32.const 0
+    local.get $this
+    call $jn_gc_frame_set_root
+    local.get $__jn_frame
+    i32.const 1
+    local.get $message
+    call $jn_gc_frame_set_root
+    i32.const 0
+    local.set $pc
+    (block $exit
+      (loop $dispatch
+        (block $bb2
+        (block $bb1
+        (block $bb0
+          local.get $pc
+          br_table $bb0 $bb1 $bb2 $exit
+        )
+          local.get $this
+          local.set $this__slot
+          local.get $__jn_frame
+          i32.const 2
+          local.get $this__slot
+          call $jn_gc_frame_set_root
+          local.get $this__slot
+          local.set $t0
+          local.get $__jn_frame
+          i32.const 4
+          local.get $t0
+          call $jn_gc_frame_set_root
+          local.get $message
+          local.set $message__slot
+          local.get $__jn_frame
+          i32.const 3
+          local.get $message__slot
+          call $jn_gc_frame_set_root
+          local.get $message__slot
+          local.set $t1
+          local.get $__jn_frame
+          i32.const 5
+          local.get $t1
+          call $jn_gc_frame_set_root
+          local.get $t0
+          local.get $t1
+          call $_JN_RuntimeException_init_CString
+          call $jnative_exception_pending
+          local.set $t2
+          local.get $t2
+          if
+            i32.const 1
+            local.set $pc
+          else
+            i32.const 2
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          br $exit
+      )
+    )
+    call $jn_gc_frame_pop
+  )
+  (func $_JN_ConcurrentModificationException_init_CString (param $this i32) (param $message i32)
+    (local $pc i32)
+    (local $__jn_tid i32)
+    (local $__jn_asz i32)
+    (local $__jn_frame i32)
+    (local $this__slot i32)
+    (local $message__slot i32)
+    (local $t0 i32)
+    (local $t1 i32)
+    (local $t2 i32)
+    i32.const 6
+    call $jn_gc_frame_push
+    local.set $__jn_frame
+    local.get $__jn_frame
+    i32.const 0
+    local.get $this
+    call $jn_gc_frame_set_root
+    local.get $__jn_frame
+    i32.const 1
+    local.get $message
+    call $jn_gc_frame_set_root
+    i32.const 0
+    local.set $pc
+    (block $exit
+      (loop $dispatch
+        (block $bb2
+        (block $bb1
+        (block $bb0
+          local.get $pc
+          br_table $bb0 $bb1 $bb2 $exit
+        )
+          local.get $this
+          local.set $this__slot
+          local.get $__jn_frame
+          i32.const 2
+          local.get $this__slot
+          call $jn_gc_frame_set_root
+          local.get $this__slot
+          local.set $t0
+          local.get $__jn_frame
+          i32.const 4
+          local.get $t0
+          call $jn_gc_frame_set_root
+          local.get $message
+          local.set $message__slot
+          local.get $__jn_frame
+          i32.const 3
+          local.get $message__slot
+          call $jn_gc_frame_set_root
+          local.get $message__slot
+          local.set $t1
+          local.get $__jn_frame
+          i32.const 5
+          local.get $t1
+          call $jn_gc_frame_set_root
+          local.get $t0
+          local.get $t1
+          call $_JN_RuntimeException_init_CString
+          call $jnative_exception_pending
+          local.set $t2
+          local.get $t2
+          if
+            i32.const 1
+            local.set $pc
+          else
+            i32.const 2
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          br $exit
+      )
+    )
+    call $jn_gc_frame_pop
+  )
+  (func $_JN___jn_IFaceAdapter_Consumer_accept_TT (param $this i32) (param $p0 i32)
+    (local $pc i32)
+    (local $__jn_tid i32)
+    (local $__jn_asz i32)
+    (local $__jn_frame i32)
+    (local $this__slot i32)
+    (local $p0__slot i32)
+    (local $t0 i32)
+    (local $t1 i32)
+    (local $t2 i32)
+    i32.const 6
+    call $jn_gc_frame_push
+    local.set $__jn_frame
+    local.get $__jn_frame
+    i32.const 0
+    local.get $this
+    call $jn_gc_frame_set_root
+    local.get $__jn_frame
+    i32.const 1
+    local.get $p0
+    call $jn_gc_frame_set_root
+    i32.const 0
+    local.set $pc
+    (block $exit
+      (loop $dispatch
+        (block $bb2
+        (block $bb1
+        (block $bb0
+          local.get $pc
+          br_table $bb0 $bb1 $bb2 $exit
+        )
+          local.get $this
+          local.set $this__slot
+          local.get $__jn_frame
+          i32.const 2
+          local.get $this__slot
+          call $jn_gc_frame_set_root
+          local.get $this__slot
+          local.set $t0
+          local.get $__jn_frame
+          i32.const 4
+          local.get $t0
+          call $jn_gc_frame_set_root
+          local.get $p0
+          local.set $p0__slot
+          local.get $__jn_frame
+          i32.const 3
+          local.get $p0__slot
+          call $jn_gc_frame_set_root
+          local.get $p0__slot
+          local.set $t1
+          local.get $__jn_frame
+          i32.const 5
+          local.get $t1
+          call $jn_gc_frame_set_root
+          local.get $t0
+          i32.eqz
+          if
+            unreachable
+          end
+          local.get $t0
+          i32.const 16
+          i32.add
+          i32.load
+          local.get $t1
+          local.get $t0
+          i32.const 8
+          i32.add
+          i64.load
+          i32.wrap_i64
+          call_indirect $jn_funcref (type $jn_sig_0)
+          call $jnative_exception_pending
+          local.set $t2
+          local.get $t2
+          if
+            i32.const 1
+            local.set $pc
+          else
+            i32.const 2
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          br $exit
+      )
+    )
+    call $jn_gc_frame_pop
+  )
+  (func $_JN_IllegalStateException_init_CString (param $this i32) (param $message i32)
+    (local $pc i32)
+    (local $__jn_tid i32)
+    (local $__jn_asz i32)
+    (local $__jn_frame i32)
+    (local $this__slot i32)
+    (local $message__slot i32)
+    (local $t0 i32)
+    (local $t1 i32)
+    (local $t2 i32)
+    i32.const 6
+    call $jn_gc_frame_push
+    local.set $__jn_frame
+    local.get $__jn_frame
+    i32.const 0
+    local.get $this
+    call $jn_gc_frame_set_root
+    local.get $__jn_frame
+    i32.const 1
+    local.get $message
+    call $jn_gc_frame_set_root
+    i32.const 0
+    local.set $pc
+    (block $exit
+      (loop $dispatch
+        (block $bb2
+        (block $bb1
+        (block $bb0
+          local.get $pc
+          br_table $bb0 $bb1 $bb2 $exit
+        )
+          local.get $this
+          local.set $this__slot
+          local.get $__jn_frame
+          i32.const 2
+          local.get $this__slot
+          call $jn_gc_frame_set_root
+          local.get $this__slot
+          local.set $t0
+          local.get $__jn_frame
+          i32.const 4
+          local.get $t0
+          call $jn_gc_frame_set_root
+          local.get $message
+          local.set $message__slot
+          local.get $__jn_frame
+          i32.const 3
+          local.get $message__slot
+          call $jn_gc_frame_set_root
+          local.get $message__slot
+          local.set $t1
+          local.get $__jn_frame
+          i32.const 5
+          local.get $t1
+          call $jn_gc_frame_set_root
+          local.get $t0
+          local.get $t1
+          call $_JN_RuntimeException_init_CString
+          call $jnative_exception_pending
+          local.set $t2
+          local.get $t2
+          if
+            i32.const 1
+            local.set $pc
+          else
+            i32.const 2
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          br $exit
+      )
+    )
+    call $jn_gc_frame_pop
+  )
+  (func $_JN_ArrayList_calculateNewCapacity_i32 (param $oldCapacity i32) (result i32)
+    (local $pc i32)
+    (local $__jn_tid i32)
+    (local $__jn_asz i32)
+    (local $__jn_frame i32)
+    (local $ret i32)
+    (local $oldCapacity__slot i32)
+    (local $grown i32)
+    (local $gctmp.11 i32)
+    (local $gctmp.13 i32)
+    (local $t0 i32)
+    (local $t1 i32)
+    (local $t2 i32)
+    (local $t3 i32)
+    (local $t4 i32)
+    (local $t5 i32)
+    (local $t6 i32)
+    (local $t7 i32)
+    (local $t8 i32)
+    (local $t9 i32)
+    (local $t10 i32)
+    (local $t11 i32)
+    (local $t12 i32)
+    (local $t13 i32)
+    (local $t14 i32)
+    (local $t15 i32)
+    (local $t16 i32)
+    i32.const 6
+    call $jn_gc_frame_push
+    local.set $__jn_frame
+    i32.const 0
+    local.set $pc
+    (block $exit
+      (loop $dispatch
+        (block $bb10
+        (block $bb9
+        (block $bb8
+        (block $bb7
+        (block $bb6
+        (block $bb5
+        (block $bb4
+        (block $bb3
+        (block $bb2
+        (block $bb1
+        (block $bb0
+          local.get $pc
+          br_table $bb0 $bb1 $bb2 $bb3 $bb4 $bb5 $bb6 $bb7 $bb8 $bb9 $bb10 $exit
+        )
+          local.get $oldCapacity
+          local.set $oldCapacity__slot
+          local.get $oldCapacity__slot
+          local.set $t0
+          local.get $t0
+          i32.const 0
+          i32.le_s
+          local.set $t1
+          local.get $t1
+          if
+            i32.const 1
+            local.set $pc
+          else
+            i32.const 2
+            local.set $pc
+          end
+          br $dispatch
+        )
+          i32.const 10
+          local.set $ret
+          br $exit
+        )
+          local.get $oldCapacity__slot
+          local.set $t2
+          local.get $oldCapacity__slot
+          local.set $t3
+          local.get $t3
+          i32.const 2
+          i32.div_s
+          local.set $t4
+          call $jnative_exception_pending
+          local.set $t5
+          local.get $t5
+          if
+            i32.const 3
+            local.set $pc
+          else
+            i32.const 4
+            local.set $pc
+          end
+          br $dispatch
+        )
+          i32.const 0
+          local.set $ret
+          br $exit
+        )
+          local.get $t2
+          local.get $t4
+          i32.add
+          local.set $t6
+          local.get $t6
+          local.set $grown
+          local.get $grown
+          local.set $t7
+          local.get $oldCapacity__slot
+          local.set $t8
+          local.get $t7
+          local.get $t8
+          i32.lt_s
+          local.set $t9
+          local.get $t9
+          if
+            i32.const 5
+            local.set $pc
+          else
+            i32.const 6
+            local.set $pc
+          end
+          br $dispatch
+        )
+          i32.const 16
+          call $jn_alloc_zeroed
+          local.set $t10
+          local.get $t10
+          i32.eqz
+          if
+            unreachable
+          end
+          local.get $t10
+          i32.const 21
+          i32.store
+          local.get $__jn_frame
+          i32.const 2
+          local.get $t10
+          call $jn_gc_frame_set_root
+          local.get $t10
+          local.set $gctmp.11
+          local.get $__jn_frame
+          i32.const 0
+          local.get $gctmp.11
+          call $jn_gc_frame_set_root
+          local.get $gctmp.11
+          local.set $t11
+          local.get $__jn_frame
+          i32.const 3
+          local.get $t11
+          call $jn_gc_frame_set_root
+          i32.const 2146
+          i32.const 27
+          call $jn_str
+          local.set $t12
+          local.get $__jn_frame
+          i32.const 4
+          local.get $t12
+          call $jn_gc_frame_set_root
+          local.get $t12
+          local.set $gctmp.13
+          local.get $__jn_frame
+          i32.const 1
+          local.get $gctmp.13
+          call $jn_gc_frame_set_root
+          local.get $gctmp.13
+          local.set $t13
+          local.get $__jn_frame
+          i32.const 5
+          local.get $t13
+          call $jn_gc_frame_set_root
+          local.get $t11
+          local.get $t13
+          call $_JN_IllegalStateException_init_CString
+          call $jnative_exception_pending
+          local.set $t14
+          local.get $t14
+          if
+            i32.const 7
+            local.set $pc
+          else
+            i32.const 8
+            local.set $pc
+          end
+          br $dispatch
+        )
+          local.get $grown
+          local.set $t16
+          local.get $t16
+          local.set $ret
+          br $exit
+        )
+          i32.const 0
+          local.set $ret
+          br $exit
+        )
+          local.get $t11
+          call $jnative_exception_throw
+          call $jnative_exception_pending
+          local.set $t15
+          local.get $t15
+          if
+            i32.const 9
+            local.set $pc
+          else
+            i32.const 10
+            local.set $pc
+          end
+          br $dispatch
+        )
+          i32.const 0
+          local.set $ret
+          br $exit
+        )
+          i32.const 6
+          local.set $pc
+          br $dispatch
+      )
+    )
+    call $jn_gc_frame_pop
+    local.get $ret
+  )
+  (func $_JN_RuntimeException_init_CString (param $this i32) (param $message i32)
+    (local $pc i32)
+    (local $__jn_tid i32)
+    (local $__jn_asz i32)
+    (local $__jn_frame i32)
+    (local $this__slot i32)
+    (local $message__slot i32)
+    (local $t0 i32)
+    (local $t1 i32)
+    (local $t2 i32)
+    i32.const 6
+    call $jn_gc_frame_push
+    local.set $__jn_frame
+    local.get $__jn_frame
+    i32.const 0
+    local.get $this
+    call $jn_gc_frame_set_root
+    local.get $__jn_frame
+    i32.const 1
+    local.get $message
+    call $jn_gc_frame_set_root
+    i32.const 0
+    local.set $pc
+    (block $exit
+      (loop $dispatch
+        (block $bb2
+        (block $bb1
+        (block $bb0
+          local.get $pc
+          br_table $bb0 $bb1 $bb2 $exit
+        )
+          local.get $this
+          local.set $this__slot
+          local.get $__jn_frame
+          i32.const 2
+          local.get $this__slot
+          call $jn_gc_frame_set_root
+          local.get $this__slot
+          local.set $t0
+          local.get $__jn_frame
+          i32.const 4
+          local.get $t0
+          call $jn_gc_frame_set_root
+          local.get $message
+          local.set $message__slot
+          local.get $__jn_frame
+          i32.const 3
+          local.get $message__slot
+          call $jn_gc_frame_set_root
+          local.get $message__slot
+          local.set $t1
+          local.get $__jn_frame
+          i32.const 5
+          local.get $t1
+          call $jn_gc_frame_set_root
+          local.get $t0
+          local.get $t1
+          call $_JN_Exception_init_CString
+          call $jnative_exception_pending
+          local.set $t2
+          local.get $t2
+          if
+            i32.const 1
+            local.set $pc
+          else
+            i32.const 2
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          br $exit
+      )
+    )
+    call $jn_gc_frame_pop
+  )
+  (func $_JN_Exception_init_CString (param $this i32) (param $message i32)
+    (local $pc i32)
+    (local $__jn_tid i32)
+    (local $__jn_asz i32)
+    (local $__jn_frame i32)
+    (local $this__slot i32)
+    (local $message__slot i32)
+    (local $t0 i32)
+    (local $t1 i32)
+    (local $t2 i32)
+    i32.const 6
+    call $jn_gc_frame_push
+    local.set $__jn_frame
+    local.get $__jn_frame
+    i32.const 0
+    local.get $this
+    call $jn_gc_frame_set_root
+    local.get $__jn_frame
+    i32.const 1
+    local.get $message
+    call $jn_gc_frame_set_root
+    i32.const 0
+    local.set $pc
+    (block $exit
+      (loop $dispatch
+        (block $bb2
+        (block $bb1
+        (block $bb0
+          local.get $pc
+          br_table $bb0 $bb1 $bb2 $exit
+        )
+          local.get $this
+          local.set $this__slot
+          local.get $__jn_frame
+          i32.const 2
+          local.get $this__slot
+          call $jn_gc_frame_set_root
+          local.get $this__slot
+          local.set $t0
+          local.get $__jn_frame
+          i32.const 4
+          local.get $t0
+          call $jn_gc_frame_set_root
+          local.get $message
+          local.set $message__slot
+          local.get $__jn_frame
+          i32.const 3
+          local.get $message__slot
+          call $jn_gc_frame_set_root
+          local.get $message__slot
+          local.set $t1
+          local.get $__jn_frame
+          i32.const 5
+          local.get $t1
+          call $jn_gc_frame_set_root
+          local.get $t0
+          local.get $t1
+          call $_JN_Throwable_init_CString
+          call $jnative_exception_pending
+          local.set $t2
+          local.get $t2
+          if
+            i32.const 1
+            local.set $pc
+          else
+            i32.const 2
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          br $exit
+      )
+    )
+    call $jn_gc_frame_pop
+  )
+  (func $_JN_Throwable_init_CString (param $this i32) (param $message i32)
+    (local $pc i32)
+    (local $__jn_tid i32)
+    (local $__jn_asz i32)
+    (local $__jn_frame i32)
+    (local $this__slot i32)
+    (local $message__slot i32)
+    (local $t0 i32)
+    (local $t1 i32)
+    (local $t2 i32)
+    i32.const 6
+    call $jn_gc_frame_push
+    local.set $__jn_frame
+    local.get $__jn_frame
+    i32.const 0
+    local.get $this
+    call $jn_gc_frame_set_root
+    local.get $__jn_frame
+    i32.const 1
+    local.get $message
+    call $jn_gc_frame_set_root
+    i32.const 0
+    local.set $pc
+    (block $exit
+      (loop $dispatch
+        (block $bb2
+        (block $bb1
+        (block $bb0
+          local.get $pc
+          br_table $bb0 $bb1 $bb2 $exit
+        )
+          local.get $this
+          local.set $this__slot
+          local.get $__jn_frame
+          i32.const 2
+          local.get $this__slot
+          call $jn_gc_frame_set_root
+          local.get $message
+          local.set $message__slot
+          local.get $__jn_frame
+          i32.const 3
+          local.get $message__slot
+          call $jn_gc_frame_set_root
+          local.get $this__slot
+          local.set $t0
+          local.get $__jn_frame
+          i32.const 4
+          local.get $t0
+          call $jn_gc_frame_set_root
+          local.get $message__slot
+          local.set $t1
+          local.get $__jn_frame
+          i32.const 5
+          local.get $t1
+          call $jn_gc_frame_set_root
+          local.get $t0
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t2
+          local.get $t2
+          if
+            i32.const 1
+            local.set $pc
+          else
+            i32.const 2
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $t0
+          i32.const 4
+          i32.add
+          local.get $t1
+          i32.store
+          br $exit
+      )
+    )
+    call $jn_gc_frame_pop
+  )
+  (func $_JN_TimeoutFireTask_run (param $this i32)
+    (local $pc i32)
+    (local $__jn_tid i32)
+    (local $__jn_asz i32)
+    (local $__jn_frame i32)
+    (local $this__slot i32)
+    (local $gctmp.3 i32)
+    (local $gctmp.10 i32)
+    (local $gctmp.13 i32)
+    (local $gctmp.20 i32)
+    (local $gctmp.25 i32)
+    (local $gctmp.28 i32)
+    (local $msg i32)
+    (local $gctmp.33 i32)
+    (local $gctmp.38 i32)
+    (local $gctmp.41 i32)
+    (local $gctmp.43 i32)
+    (local $gctmp.46 i32)
+    (local $gctmp.50 i32)
+    (local $gctmp.53 i32)
+    (local $gctmp.56 i32)
+    (local $t0 i32)
+    (local $t1 i32)
+    (local $t2 i32)
+    (local $t3 i32)
+    (local $t4 i32)
+    (local $t5 i32)
+    (local $t6 i32)
+    (local $t7 i32)
+    (local $t8 i32)
+    (local $t9 i32)
+    (local $t10 i32)
+    (local $t11 i32)
+    (local $t12 i32)
+    (local $t13 i32)
+    (local $t14 i32)
+    (local $t15 i32)
+    (local $t16 i32)
+    (local $t17 i32)
+    (local $t18 i32)
+    (local $t19 i32)
+    (local $t20 i32)
+    (local $t21 i32)
+    (local $t22 i32)
+    (local $t23 i32)
+    (local $t24 i32)
+    (local $t25 i32)
+    (local $t26 i32)
+    (local $t27 i32)
+    (local $t28 i32)
+    (local $t29 i32)
+    (local $t30 i32)
+    (local $t31 i32)
+    (local $t32 i32)
+    (local $t33 i32)
+    (local $t34 i32)
+    (local $t35 i32)
+    (local $t36 i32)
+    (local $t37 i32)
+    (local $t38 i32)
+    (local $t39 i32)
+    (local $t40 i32)
+    (local $t41 i32)
+    (local $t42 i32)
+    (local $t43 i32)
+    (local $t44 i32)
+    (local $t45 i32)
+    (local $t46 i32)
+    (local $t47 i32)
+    (local $t48 i32)
+    (local $t49 i32)
+    (local $t50 i32)
+    (local $t51 i32)
+    (local $t52 i32)
+    (local $t53 i32)
+    (local $t54 i32)
+    (local $t55 i32)
+    (local $t56 i32)
+    (local $t57 i32)
+    (local $t58 i32)
+    (local $t59 i32)
+    (local $t60 i32)
+    i32.const 52
+    call $jn_gc_frame_push
+    local.set $__jn_frame
+    local.get $__jn_frame
+    i32.const 0
+    local.get $this
+    call $jn_gc_frame_set_root
+    i32.const 0
+    local.set $pc
+    (block $exit
+      (loop $dispatch
+        (block $bb44
+        (block $bb43
+        (block $bb42
+        (block $bb41
+        (block $bb40
+        (block $bb39
+        (block $bb38
+        (block $bb37
+        (block $bb36
+        (block $bb35
+        (block $bb34
+        (block $bb33
+        (block $bb32
+        (block $bb31
+        (block $bb30
+        (block $bb29
+        (block $bb28
+        (block $bb27
+        (block $bb26
+        (block $bb25
+        (block $bb24
+        (block $bb23
+        (block $bb22
+        (block $bb21
+        (block $bb20
+        (block $bb19
+        (block $bb18
+        (block $bb17
+        (block $bb16
+        (block $bb15
+        (block $bb14
+        (block $bb13
+        (block $bb12
+        (block $bb11
+        (block $bb10
+        (block $bb9
+        (block $bb8
+        (block $bb7
+        (block $bb6
+        (block $bb5
+        (block $bb4
+        (block $bb3
+        (block $bb2
+        (block $bb1
+        (block $bb0
+          local.get $pc
+          br_table $bb0 $bb1 $bb2 $bb3 $bb4 $bb5 $bb6 $bb7 $bb8 $bb9 $bb10 $bb11 $bb12 $bb13 $bb14 $bb15 $bb16 $bb17 $bb18 $bb19 $bb20 $bb21 $bb22 $bb23 $bb24 $bb25 $bb26 $bb27 $bb28 $bb29 $bb30 $bb31 $bb32 $bb33 $bb34 $bb35 $bb36 $bb37 $bb38 $bb39 $bb40 $bb41 $bb42 $bb43 $bb44 $exit
+        )
+          local.get $this
+          local.set $this__slot
+          local.get $__jn_frame
+          i32.const 1
+          local.get $this__slot
+          call $jn_gc_frame_set_root
+          local.get $this__slot
+          local.set $t0
+          local.get $__jn_frame
+          i32.const 17
+          local.get $t0
+          call $jn_gc_frame_set_root
+          local.get $t0
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t1
+          local.get $t1
+          if
+            i32.const 1
+            local.set $pc
+          else
+            i32.const 2
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $t0
+          i32.const 4
+          i32.add
+          i32.load
+          local.set $t2
+          local.get $__jn_frame
+          i32.const 18
+          local.get $t2
+          call $jn_gc_frame_set_root
+          local.get $t2
+          local.set $gctmp.3
+          local.get $__jn_frame
+          i32.const 2
+          local.get $gctmp.3
+          call $jn_gc_frame_set_root
+          local.get $gctmp.3
+          local.set $t3
+          local.get $__jn_frame
+          i32.const 19
+          local.get $t3
+          call $jn_gc_frame_set_root
+          local.get $t3
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t4
+          local.get $t4
+          if
+            i32.const 3
+            local.set $pc
+          else
+            i32.const 4
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $t3
+          i32.const 12
+          i32.add
+          i32.load
+          local.set $t5
+          local.get $t5
+          i32.const 0
+          i32.ne
+          local.set $t6
+          local.get $t6
+          if
+            i32.const 5
+            local.set $pc
+          else
+            i32.const 6
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $this__slot
+          local.set $t7
+          local.get $__jn_frame
+          i32.const 20
+          local.get $t7
+          call $jn_gc_frame_set_root
+          local.get $t7
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t8
+          local.get $t8
+          if
+            i32.const 7
+            local.set $pc
+          else
+            i32.const 8
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $t7
+          i32.const 4
+          i32.add
+          i32.load
+          local.set $t9
+          local.get $__jn_frame
+          i32.const 21
+          local.get $t9
+          call $jn_gc_frame_set_root
+          local.get $t9
+          local.set $gctmp.10
+          local.get $__jn_frame
+          i32.const 3
+          local.get $gctmp.10
+          call $jn_gc_frame_set_root
+          local.get $gctmp.10
+          local.set $t10
+          local.get $__jn_frame
+          i32.const 22
+          local.get $t10
+          call $jn_gc_frame_set_root
+          local.get $t10
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t11
+          local.get $t11
+          if
+            i32.const 9
+            local.set $pc
+          else
+            i32.const 10
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $t10
+          i32.const 8
+          i32.add
+          i32.load
+          local.set $t12
+          local.get $__jn_frame
+          i32.const 23
+          local.get $t12
+          call $jn_gc_frame_set_root
+          local.get $t12
+          local.set $gctmp.13
+          local.get $__jn_frame
+          i32.const 4
+          local.get $gctmp.13
+          call $jn_gc_frame_set_root
+          local.get $gctmp.13
+          local.set $t13
+          local.get $__jn_frame
+          i32.const 24
+          local.get $t13
+          call $jn_gc_frame_set_root
+          local.get $t13
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t14
+          local.get $t14
+          if
+            i32.const 11
+            local.set $pc
+          else
+            i32.const 12
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $t13
+          call $_JN_JnFuture_isDone
+          local.set $t15
+          call $jnative_exception_pending
+          local.set $t16
+          local.get $t16
+          if
+            i32.const 13
+            local.set $pc
+          else
+            i32.const 14
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $t15
+          if
+            i32.const 15
+            local.set $pc
+          else
+            i32.const 16
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $this__slot
+          local.set $t17
+          local.get $__jn_frame
+          i32.const 25
+          local.get $t17
+          call $jn_gc_frame_set_root
+          local.get $t17
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t18
+          local.get $t18
+          if
+            i32.const 17
+            local.set $pc
+          else
+            i32.const 18
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $t17
+          i32.const 4
+          i32.add
+          i32.load
+          local.set $t19
+          local.get $__jn_frame
+          i32.const 26
+          local.get $t19
+          call $jn_gc_frame_set_root
+          local.get $t19
+          local.set $gctmp.20
+          local.get $__jn_frame
+          i32.const 5
+          local.get $gctmp.20
+          call $jn_gc_frame_set_root
+          local.get $gctmp.20
+          local.set $t20
+          local.get $__jn_frame
+          i32.const 27
+          local.get $t20
+          call $jn_gc_frame_set_root
+          local.get $t20
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t21
+          local.get $t21
+          if
+            i32.const 19
+            local.set $pc
+          else
+            i32.const 20
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $t20
+          i32.const 12
+          i32.add
+          i32.const 1
+          i32.store
+          local.get $this__slot
+          local.set $t22
+          local.get $__jn_frame
+          i32.const 28
+          local.get $t22
+          call $jn_gc_frame_set_root
+          local.get $t22
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t23
+          local.get $t23
+          if
+            i32.const 21
+            local.set $pc
+          else
+            i32.const 22
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $t22
+          i32.const 4
+          i32.add
+          i32.load
+          local.set $t24
+          local.get $__jn_frame
+          i32.const 29
+          local.get $t24
+          call $jn_gc_frame_set_root
+          local.get $t24
+          local.set $gctmp.25
+          local.get $__jn_frame
+          i32.const 6
+          local.get $gctmp.25
+          call $jn_gc_frame_set_root
+          local.get $gctmp.25
+          local.set $t25
+          local.get $__jn_frame
+          i32.const 30
+          local.get $t25
+          call $jn_gc_frame_set_root
+          local.get $t25
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t26
+          local.get $t26
+          if
+            i32.const 23
+            local.set $pc
+          else
+            i32.const 24
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $t25
+          i32.const 8
+          i32.add
+          i32.load
+          local.set $t27
+          local.get $__jn_frame
+          i32.const 31
+          local.get $t27
+          call $jn_gc_frame_set_root
+          local.get $t27
+          local.set $gctmp.28
+          local.get $__jn_frame
+          i32.const 7
+          local.get $gctmp.28
+          call $jn_gc_frame_set_root
+          local.get $gctmp.28
+          local.set $t28
+          local.get $__jn_frame
+          i32.const 32
+          local.get $t28
+          call $jn_gc_frame_set_root
+          local.get $t28
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t29
+          local.get $t29
+          if
+            i32.const 25
+            local.set $pc
+          else
+            i32.const 26
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $t28
+          call $_JN_JnFuture_tryCancel
+          local.set $t30
+          call $jnative_exception_pending
+          local.set $t31
+          local.get $t31
+          if
+            i32.const 27
+            local.set $pc
+          else
+            i32.const 28
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          i32.const 2532
+          i32.const 14
+          call $jn_str
+          local.set $t32
+          local.get $__jn_frame
+          i32.const 33
+          local.get $t32
+          call $jn_gc_frame_set_root
+          local.get $t32
+          local.set $gctmp.33
+          local.get $__jn_frame
+          i32.const 9
+          local.get $gctmp.33
+          call $jn_gc_frame_set_root
+          local.get $gctmp.33
+          local.set $t33
+          local.get $__jn_frame
+          i32.const 34
+          local.get $t33
+          call $jn_gc_frame_set_root
+          local.get $this__slot
+          local.set $t34
+          local.get $__jn_frame
+          i32.const 35
+          local.get $t34
+          call $jn_gc_frame_set_root
+          local.get $t34
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t35
+          local.get $t35
+          if
+            i32.const 29
+            local.set $pc
+          else
+            i32.const 30
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $t34
+          i32.const 8
+          i32.add
+          i32.load
+          local.set $t36
+          local.get $t36
+          call $jn_string_value_of_i32
+          local.set $t37
+          local.get $__jn_frame
+          i32.const 36
+          local.get $t37
+          call $jn_gc_frame_set_root
+          local.get $t37
+          local.set $gctmp.38
+          local.get $__jn_frame
+          i32.const 10
+          local.get $gctmp.38
+          call $jn_gc_frame_set_root
+          local.get $gctmp.38
+          local.set $t38
+          local.get $__jn_frame
+          i32.const 37
+          local.get $t38
+          call $jn_gc_frame_set_root
+          local.get $t33
+          local.get $t38
+          call $jn_string_concat
+          local.set $t39
+          local.get $__jn_frame
+          i32.const 38
+          local.get $t39
+          call $jn_gc_frame_set_root
+          call $jnative_exception_pending
+          local.set $t40
+          local.get $t40
+          if
+            i32.const 31
+            local.set $pc
+          else
+            i32.const 32
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $t39
+          local.set $gctmp.41
+          local.get $__jn_frame
+          i32.const 11
+          local.get $gctmp.41
+          call $jn_gc_frame_set_root
+          local.get $gctmp.41
+          local.set $t41
+          local.get $__jn_frame
+          i32.const 39
+          local.get $t41
+          call $jn_gc_frame_set_root
+          i32.const 2546
+          i32.const 2
+          call $jn_str
+          local.set $t42
+          local.get $__jn_frame
+          i32.const 40
+          local.get $t42
+          call $jn_gc_frame_set_root
+          local.get $t42
+          local.set $gctmp.43
+          local.get $__jn_frame
+          i32.const 12
+          local.get $gctmp.43
+          call $jn_gc_frame_set_root
+          local.get $gctmp.43
+          local.set $t43
+          local.get $__jn_frame
+          i32.const 41
+          local.get $t43
+          call $jn_gc_frame_set_root
+          local.get $t41
+          local.get $t43
+          call $jn_string_concat
+          local.set $t44
+          local.get $__jn_frame
+          i32.const 42
+          local.get $t44
+          call $jn_gc_frame_set_root
+          call $jnative_exception_pending
+          local.set $t45
+          local.get $t45
+          if
+            i32.const 33
+            local.set $pc
+          else
+            i32.const 34
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $t44
+          local.set $gctmp.46
+          local.get $__jn_frame
+          i32.const 13
+          local.get $gctmp.46
+          call $jn_gc_frame_set_root
+          local.get $gctmp.46
+          local.set $t46
+          local.get $__jn_frame
+          i32.const 43
+          local.get $t46
+          call $jn_gc_frame_set_root
+          local.get $t46
+          local.set $msg
+          local.get $__jn_frame
+          i32.const 8
+          local.get $msg
+          call $jn_gc_frame_set_root
+          local.get $this__slot
+          local.set $t47
+          local.get $__jn_frame
+          i32.const 44
+          local.get $t47
+          call $jn_gc_frame_set_root
+          local.get $t47
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t48
+          local.get $t48
+          if
+            i32.const 35
+            local.set $pc
+          else
+            i32.const 36
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $t47
+          i32.const 4
+          i32.add
+          i32.load
+          local.set $t49
+          local.get $__jn_frame
+          i32.const 45
+          local.get $t49
+          call $jn_gc_frame_set_root
+          local.get $t49
+          local.set $gctmp.50
+          local.get $__jn_frame
+          i32.const 14
+          local.get $gctmp.50
+          call $jn_gc_frame_set_root
+          local.get $gctmp.50
+          local.set $t50
+          local.get $__jn_frame
+          i32.const 46
+          local.get $t50
+          call $jn_gc_frame_set_root
+          local.get $t50
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t51
+          local.get $t51
+          if
+            i32.const 37
+            local.set $pc
+          else
+            i32.const 38
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $t50
+          i32.const 4
+          i32.add
+          i32.load
+          local.set $t52
+          local.get $__jn_frame
+          i32.const 47
+          local.get $t52
+          call $jn_gc_frame_set_root
+          local.get $t52
+          local.set $gctmp.53
+          local.get $__jn_frame
+          i32.const 15
+          local.get $gctmp.53
+          call $jn_gc_frame_set_root
+          local.get $gctmp.53
+          local.set $t53
+          local.get $__jn_frame
+          i32.const 48
+          local.get $t53
+          call $jn_gc_frame_set_root
+          local.get $t53
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t54
+          local.get $t54
+          if
+            i32.const 39
+            local.set $pc
+          else
+            i32.const 40
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          i32.const 16
+          call $jn_alloc_zeroed
+          local.set $t55
+          local.get $t55
+          i32.eqz
+          if
+            unreachable
+          end
+          local.get $t55
+          i32.const 102
+          i32.store
+          local.get $__jn_frame
+          i32.const 49
+          local.get $t55
+          call $jn_gc_frame_set_root
+          local.get $t55
+          local.set $gctmp.56
+          local.get $__jn_frame
+          i32.const 16
+          local.get $gctmp.56
+          call $jn_gc_frame_set_root
+          local.get $gctmp.56
+          local.set $t56
+          local.get $__jn_frame
+          i32.const 50
+          local.get $t56
+          call $jn_gc_frame_set_root
+          local.get $msg
+          local.set $t57
+          local.get $__jn_frame
+          i32.const 51
+          local.get $t57
+          call $jn_gc_frame_set_root
+          local.get $t56
+          local.get $t57
+          call $_JN_TimeoutException_init_CString
+          call $jnative_exception_pending
+          local.set $t58
+          local.get $t58
+          if
+            i32.const 41
+            local.set $pc
+          else
+            i32.const 42
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $t53
+          local.get $t56
+          call $_JN_JnFuture_tryFail_CException
+          local.set $t59
+          call $jnative_exception_pending
+          local.set $t60
+          local.get $t60
+          if
+            i32.const 43
+            local.set $pc
+          else
+            i32.const 44
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          br $exit
+      )
+    )
+    call $jn_gc_frame_pop
+  )
+  (func $_JN_JnFuture_isDone (param $this i32) (result i32)
+    (local $pc i32)
+    (local $__jn_tid i32)
+    (local $__jn_asz i32)
+    (local $__jn_frame i32)
+    (local $ret i32)
+    (local $this__slot i32)
+    (local $t0 i32)
+    (local $t1 i32)
+    (local $t2 i32)
+    (local $t3 i32)
+    (local $t4 i32)
+    i32.const 3
+    call $jn_gc_frame_push
+    local.set $__jn_frame
+    local.get $__jn_frame
+    i32.const 0
+    local.get $this
+    call $jn_gc_frame_set_root
+    i32.const 0
+    local.set $pc
+    (block $exit
+      (loop $dispatch
+        (block $bb2
+        (block $bb1
+        (block $bb0
+          local.get $pc
+          br_table $bb0 $bb1 $bb2 $exit
+        )
+          local.get $this
+          local.set $this__slot
+          local.get $__jn_frame
+          i32.const 1
+          local.get $this__slot
+          call $jn_gc_frame_set_root
+          local.get $this__slot
+          local.set $t0
+          local.get $__jn_frame
+          i32.const 2
+          local.get $t0
+          call $jn_gc_frame_set_root
+          local.get $t0
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t1
+          local.get $t1
+          if
+            i32.const 1
+            local.set $pc
+          else
+            i32.const 2
+            local.set $pc
+          end
+          br $dispatch
+        )
+          i32.const 0
+          local.set $ret
+          br $exit
+        )
+          local.get $t0
+          i32.const 4
+          i32.add
+          i32.load
+          local.set $t2
+          global.get $g_jn_static_JnFuture_PENDING
+          local.set $t3
+          local.get $t2
+          local.get $t3
+          i32.ne
+          local.set $t4
+          local.get $t4
+          local.set $ret
+          br $exit
+      )
+    )
+    call $jn_gc_frame_pop
+    local.get $ret
+  )
+  (func $_JN_JnFuture_tryCancel (param $this i32) (result i32)
+    (local $pc i32)
+    (local $__jn_tid i32)
+    (local $__jn_asz i32)
+    (local $__jn_frame i32)
+    (local $ret i32)
+    (local $this__slot i32)
+    (local $gctmp.3 i32)
+    (local $gctmp.14 i32)
+    (local $pending i32)
+    (local $gctmp.23 i32)
+    (local $gctmp.25 i32)
+    (local $gctmp.32 i32)
+    (local $t0 i32)
+    (local $t1 i32)
+    (local $t2 i32)
+    (local $t3 i32)
+    (local $t4 i32)
+    (local $t5 i32)
+    (local $t6 i32)
+    (local $t7 i32)
+    (local $t8 i32)
+    (local $t9 i32)
+    (local $t10 i32)
+    (local $t11 i32)
+    (local $t12 i32)
+    (local $t13 i32)
+    (local $t14 i32)
+    (local $t15 i32)
+    (local $t16 i32)
+    (local $t17 i32)
+    (local $t18 i32)
+    (local $t19 i32)
+    (local $t20 i32)
+    (local $t21 i32)
+    (local $t22 i32)
+    (local $t23 i32)
+    (local $t24 i32)
+    (local $t25 i32)
+    (local $t26 i32)
+    (local $t27 i32)
+    (local $t28 i32)
+    (local $t29 i32)
+    (local $t30 i32)
+    (local $t31 i32)
+    (local $t32 i32)
+    (local $t33 i32)
+    (local $t34 i32)
+    (local $t35 i32)
+    (local $t36 i32)
+    (local $t37 i32)
+    (local $t38 i32)
+    i32.const 27
+    call $jn_gc_frame_push
+    local.set $__jn_frame
+    local.get $__jn_frame
+    i32.const 0
+    local.get $this
+    call $jn_gc_frame_set_root
+    i32.const 0
+    local.set $pc
+    (block $exit
+      (loop $dispatch
+        (block $bb34
+        (block $bb33
+        (block $bb32
+        (block $bb31
+        (block $bb30
+        (block $bb29
+        (block $bb28
+        (block $bb27
+        (block $bb26
+        (block $bb25
+        (block $bb24
+        (block $bb23
+        (block $bb22
+        (block $bb21
+        (block $bb20
+        (block $bb19
+        (block $bb18
+        (block $bb17
+        (block $bb16
+        (block $bb15
+        (block $bb14
+        (block $bb13
+        (block $bb12
+        (block $bb11
+        (block $bb10
+        (block $bb9
+        (block $bb8
+        (block $bb7
+        (block $bb6
+        (block $bb5
+        (block $bb4
+        (block $bb3
+        (block $bb2
+        (block $bb1
+        (block $bb0
+          local.get $pc
+          br_table $bb0 $bb1 $bb2 $bb3 $bb4 $bb5 $bb6 $bb7 $bb8 $bb9 $bb10 $bb11 $bb12 $bb13 $bb14 $bb15 $bb16 $bb17 $bb18 $bb19 $bb20 $bb21 $bb22 $bb23 $bb24 $bb25 $bb26 $bb27 $bb28 $bb29 $bb30 $bb31 $bb32 $bb33 $bb34 $exit
+        )
+          local.get $this
+          local.set $this__slot
+          local.get $__jn_frame
+          i32.const 1
+          local.get $this__slot
+          call $jn_gc_frame_set_root
+          local.get $this__slot
+          local.set $t0
+          local.get $__jn_frame
+          i32.const 8
+          local.get $t0
+          call $jn_gc_frame_set_root
+          local.get $t0
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t1
+          local.get $t1
+          if
+            i32.const 1
+            local.set $pc
+          else
+            i32.const 2
+            local.set $pc
+          end
+          br $dispatch
+        )
+          i32.const 0
+          local.set $ret
+          br $exit
+        )
+          local.get $t0
+          i32.const 24
+          i32.add
+          i32.load
+          local.set $t2
+          local.get $__jn_frame
+          i32.const 9
+          local.get $t2
+          call $jn_gc_frame_set_root
+          local.get $t2
+          local.set $gctmp.3
+          local.get $__jn_frame
+          i32.const 2
+          local.get $gctmp.3
+          call $jn_gc_frame_set_root
+          local.get $gctmp.3
+          local.set $t3
+          local.get $__jn_frame
+          i32.const 10
+          local.get $t3
+          call $jn_gc_frame_set_root
+          local.get $t3
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t4
+          local.get $t4
+          if
+            i32.const 3
+            local.set $pc
+          else
+            i32.const 4
+            local.set $pc
+          end
+          br $dispatch
+        )
+          i32.const 0
+          local.set $ret
+          br $exit
+        )
+          call $jnative_exception_pending
+          local.set $t5
+          local.get $t5
+          if
+            i32.const 5
+            local.set $pc
+          else
+            i32.const 6
+            local.set $pc
+          end
+          br $dispatch
+        )
+          i32.const 0
+          local.set $ret
+          br $exit
+        )
+          local.get $this__slot
+          local.set $t6
+          local.get $__jn_frame
+          i32.const 11
+          local.get $t6
+          call $jn_gc_frame_set_root
+          local.get $t6
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t7
+          local.get $t7
+          if
+            i32.const 7
+            local.set $pc
+          else
+            i32.const 8
+            local.set $pc
+          end
+          br $dispatch
+        )
+          i32.const 0
+          local.set $ret
+          br $exit
+        )
+          local.get $t6
+          i32.const 4
+          i32.add
+          i32.load
+          local.set $t8
+          global.get $g_jn_static_JnFuture_PENDING
+          local.set $t9
+          local.get $t8
+          local.get $t9
+          i32.ne
+          local.set $t10
+          local.get $t10
+          if
+            i32.const 9
+            local.set $pc
+          else
+            i32.const 10
+            local.set $pc
+          end
+          br $dispatch
+        )
+          local.get $this__slot
+          local.set $t11
+          local.get $__jn_frame
+          i32.const 12
+          local.get $t11
+          call $jn_gc_frame_set_root
+          local.get $t11
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t12
+          local.get $t12
+          if
+            i32.const 11
+            local.set $pc
+          else
+            i32.const 12
+            local.set $pc
+          end
+          br $dispatch
+        )
+          global.get $g_jn_static_JnFuture_CANCELLED
+          local.set $t17
+          local.get $this__slot
+          local.set $t18
+          local.get $__jn_frame
+          i32.const 15
+          local.get $t18
+          call $jn_gc_frame_set_root
+          local.get $t18
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t19
+          local.get $t19
+          if
+            i32.const 17
+            local.set $pc
+          else
+            i32.const 18
+            local.set $pc
+          end
+          br $dispatch
+        )
+          i32.const 0
+          local.set $ret
+          br $exit
+        )
+          local.get $t11
+          i32.const 24
+          i32.add
+          i32.load
+          local.set $t13
+          local.get $__jn_frame
+          i32.const 13
+          local.get $t13
+          call $jn_gc_frame_set_root
+          local.get $t13
+          local.set $gctmp.14
+          local.get $__jn_frame
+          i32.const 3
+          local.get $gctmp.14
+          call $jn_gc_frame_set_root
+          local.get $gctmp.14
+          local.set $t14
+          local.get $__jn_frame
+          i32.const 14
+          local.get $t14
+          call $jn_gc_frame_set_root
+          local.get $t14
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t15
+          local.get $t15
+          if
+            i32.const 13
+            local.set $pc
+          else
+            i32.const 14
+            local.set $pc
+          end
+          br $dispatch
+        )
+          i32.const 0
+          local.set $ret
+          br $exit
+        )
+          call $jnative_exception_pending
+          local.set $t16
+          local.get $t16
+          if
+            i32.const 15
+            local.set $pc
+          else
+            i32.const 16
+            local.set $pc
+          end
+          br $dispatch
+        )
+          i32.const 0
+          local.set $ret
+          br $exit
+        )
+          i32.const 0
+          local.set $ret
+          br $exit
+        )
+          i32.const 0
+          local.set $ret
+          br $exit
+        )
+          local.get $t18
+          i32.const 4
+          i32.add
+          local.get $t17
+          i32.store
+          local.get $this__slot
+          local.set $t20
+          local.get $__jn_frame
+          i32.const 16
+          local.get $t20
+          call $jn_gc_frame_set_root
+          local.get $t20
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t21
+          local.get $t21
+          if
+            i32.const 19
+            local.set $pc
+          else
+            i32.const 20
+            local.set $pc
+          end
+          br $dispatch
+        )
+          i32.const 0
+          local.set $ret
+          br $exit
+        )
+          local.get $t20
+          i32.const 20
+          i32.add
+          i32.load
+          local.set $t22
+          local.get $__jn_frame
+          i32.const 17
+          local.get $t22
+          call $jn_gc_frame_set_root
+          local.get $t22
+          local.set $gctmp.23
+          local.get $__jn_frame
+          i32.const 5
+          local.get $gctmp.23
+          call $jn_gc_frame_set_root
+          local.get $gctmp.23
+          local.set $t23
+          local.get $__jn_frame
+          i32.const 18
+          local.get $t23
+          call $jn_gc_frame_set_root
+          local.get $t23
+          local.set $pending
+          local.get $__jn_frame
+          i32.const 4
+          local.get $pending
+          call $jn_gc_frame_set_root
+          i32.const 16
+          call $jn_alloc_zeroed
+          local.set $t24
+          local.get $t24
+          i32.eqz
+          if
+            unreachable
+          end
+          local.get $t24
+          i32.const 4
+          i32.store
+          local.get $__jn_frame
+          i32.const 19
+          local.get $t24
+          call $jn_gc_frame_set_root
+          local.get $t24
+          local.set $gctmp.25
+          local.get $__jn_frame
+          i32.const 6
+          local.get $gctmp.25
+          call $jn_gc_frame_set_root
+          local.get $gctmp.25
+          local.set $t25
+          local.get $__jn_frame
+          i32.const 20
+          local.get $t25
+          call $jn_gc_frame_set_root
+          local.get $t25
+          call $_JN_ArrayList_init
+          call $jnative_exception_pending
+          local.set $t26
+          local.get $t26
+          if
+            i32.const 21
+            local.set $pc
+          else
+            i32.const 22
+            local.set $pc
+          end
+          br $dispatch
+        )
+          i32.const 0
+          local.set $ret
+          br $exit
+        )
+          local.get $this__slot
+          local.set $t27
+          local.get $__jn_frame
+          i32.const 21
+          local.get $t27
+          call $jn_gc_frame_set_root
+          local.get $t27
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t28
+          local.get $t28
+          if
+            i32.const 23
+            local.set $pc
+          else
+            i32.const 24
+            local.set $pc
+          end
+          br $dispatch
+        )
+          i32.const 0
+          local.set $ret
+          br $exit
+        )
+          local.get $t27
+          i32.const 20
+          i32.add
+          local.get $t25
+          i32.store
+          local.get $this__slot
+          local.set $t29
+          local.get $__jn_frame
+          i32.const 22
+          local.get $t29
+          call $jn_gc_frame_set_root
+          local.get $t29
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t30
+          local.get $t30
+          if
+            i32.const 25
+            local.set $pc
+          else
+            i32.const 26
+            local.set $pc
+          end
+          br $dispatch
+        )
+          i32.const 0
+          local.set $ret
+          br $exit
+        )
+          local.get $t29
+          i32.const 24
+          i32.add
+          i32.load
+          local.set $t31
+          local.get $__jn_frame
+          i32.const 23
+          local.get $t31
+          call $jn_gc_frame_set_root
+          local.get $t31
+          local.set $gctmp.32
+          local.get $__jn_frame
+          i32.const 7
+          local.get $gctmp.32
+          call $jn_gc_frame_set_root
+          local.get $gctmp.32
+          local.set $t32
+          local.get $__jn_frame
+          i32.const 24
+          local.get $t32
+          call $jn_gc_frame_set_root
+          local.get $t32
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t33
+          local.get $t33
+          if
+            i32.const 27
+            local.set $pc
+          else
+            i32.const 28
+            local.set $pc
+          end
+          br $dispatch
+        )
+          i32.const 0
+          local.set $ret
+          br $exit
+        )
+          call $jnative_exception_pending
+          local.set $t34
+          local.get $t34
+          if
+            i32.const 29
+            local.set $pc
+          else
+            i32.const 30
+            local.set $pc
+          end
+          br $dispatch
+        )
+          i32.const 0
+          local.set $ret
+          br $exit
+        )
+          local.get $this__slot
+          local.set $t35
+          local.get $__jn_frame
+          i32.const 25
+          local.get $t35
+          call $jn_gc_frame_set_root
+          local.get $t35
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t36
+          local.get $t36
+          if
+            i32.const 31
+            local.set $pc
+          else
+            i32.const 32
+            local.set $pc
+          end
+          br $dispatch
+        )
+          i32.const 0
+          local.set $ret
+          br $exit
+        )
+          local.get $pending
+          local.set $t37
+          local.get $__jn_frame
+          i32.const 26
+          local.get $t37
+          call $jn_gc_frame_set_root
+          local.get $t35
+          local.get $t37
+          call $_JN_JnFuture_dispatchCallbacks_PCArrayList_IJnFutureCallback
+          call $jnative_exception_pending
+          local.set $t38
+          local.get $t38
+          if
+            i32.const 33
+            local.set $pc
+          else
+            i32.const 34
+            local.set $pc
+          end
+          br $dispatch
+        )
+          i32.const 0
+          local.set $ret
+          br $exit
+        )
+          i32.const 1
+          local.set $ret
+          br $exit
+      )
+    )
+    call $jn_gc_frame_pop
+    local.get $ret
+  )
+  (func $_JN_TimeoutException_init_CString (param $this i32) (param $message i32)
+    (local $pc i32)
+    (local $__jn_tid i32)
+    (local $__jn_asz i32)
+    (local $__jn_frame i32)
+    (local $this__slot i32)
+    (local $message__slot i32)
+    (local $t0 i32)
+    (local $t1 i32)
+    (local $t2 i32)
+    i32.const 6
+    call $jn_gc_frame_push
+    local.set $__jn_frame
+    local.get $__jn_frame
+    i32.const 0
+    local.get $this
+    call $jn_gc_frame_set_root
+    local.get $__jn_frame
+    i32.const 1
+    local.get $message
+    call $jn_gc_frame_set_root
+    i32.const 0
+    local.set $pc
+    (block $exit
+      (loop $dispatch
+        (block $bb2
+        (block $bb1
+        (block $bb0
+          local.get $pc
+          br_table $bb0 $bb1 $bb2 $exit
+        )
+          local.get $this
+          local.set $this__slot
+          local.get $__jn_frame
+          i32.const 2
+          local.get $this__slot
+          call $jn_gc_frame_set_root
+          local.get $message
+          local.set $message__slot
+          local.get $__jn_frame
+          i32.const 3
+          local.get $message__slot
+          call $jn_gc_frame_set_root
+          local.get $this__slot
+          local.set $t0
+          local.get $__jn_frame
+          i32.const 4
+          local.get $t0
+          call $jn_gc_frame_set_root
+          local.get $message__slot
+          local.set $t1
+          local.get $__jn_frame
+          i32.const 5
+          local.get $t1
+          call $jn_gc_frame_set_root
+          local.get $t0
+          local.get $t1
+          call $_JN_RuntimeException_init_CString
+          call $jnative_exception_pending
+          local.set $t2
+          local.get $t2
+          if
+            i32.const 1
+            local.set $pc
+          else
+            i32.const 2
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          br $exit
+      )
+    )
+    call $jn_gc_frame_pop
+  )
+  (func $_JN_JnFuture_tryFail_CException (param $this i32) (param $ex i32) (result i32)
+    (local $pc i32)
+    (local $__jn_tid i32)
+    (local $__jn_asz i32)
+    (local $__jn_frame i32)
+    (local $ret i32)
+    (local $this__slot i32)
+    (local $ex__slot i32)
+    (local $gctmp.3 i32)
+    (local $gctmp.14 i32)
+    (local $pending i32)
+    (local $gctmp.26 i32)
+    (local $gctmp.28 i32)
+    (local $gctmp.35 i32)
+    (local $t0 i32)
+    (local $t1 i32)
+    (local $t2 i32)
+    (local $t3 i32)
+    (local $t4 i32)
+    (local $t5 i32)
+    (local $t6 i32)
+    (local $t7 i32)
+    (local $t8 i32)
+    (local $t9 i32)
+    (local $t10 i32)
+    (local $t11 i32)
+    (local $t12 i32)
+    (local $t13 i32)
+    (local $t14 i32)
+    (local $t15 i32)
+    (local $t16 i32)
+    (local $t17 i32)
+    (local $t18 i32)
+    (local $t19 i32)
+    (local $t20 i32)
+    (local $t21 i32)
+    (local $t22 i32)
+    (local $t23 i32)
+    (local $t24 i32)
+    (local $t25 i32)
+    (local $t26 i32)
+    (local $t27 i32)
+    (local $t28 i32)
+    (local $t29 i32)
+    (local $t30 i32)
+    (local $t31 i32)
+    (local $t32 i32)
+    (local $t33 i32)
+    (local $t34 i32)
+    (local $t35 i32)
+    (local $t36 i32)
+    (local $t37 i32)
+    (local $t38 i32)
+    (local $t39 i32)
+    (local $t40 i32)
+    (local $t41 i32)
+    i32.const 31
+    call $jn_gc_frame_push
+    local.set $__jn_frame
+    local.get $__jn_frame
+    i32.const 0
+    local.get $this
+    call $jn_gc_frame_set_root
+    local.get $__jn_frame
+    i32.const 1
+    local.get $ex
+    call $jn_gc_frame_set_root
+    i32.const 0
+    local.set $pc
+    (block $exit
+      (loop $dispatch
+        (block $bb36
+        (block $bb35
+        (block $bb34
+        (block $bb33
+        (block $bb32
+        (block $bb31
+        (block $bb30
+        (block $bb29
+        (block $bb28
+        (block $bb27
+        (block $bb26
+        (block $bb25
+        (block $bb24
+        (block $bb23
+        (block $bb22
+        (block $bb21
+        (block $bb20
+        (block $bb19
+        (block $bb18
+        (block $bb17
+        (block $bb16
+        (block $bb15
+        (block $bb14
+        (block $bb13
+        (block $bb12
+        (block $bb11
+        (block $bb10
+        (block $bb9
+        (block $bb8
+        (block $bb7
+        (block $bb6
+        (block $bb5
+        (block $bb4
+        (block $bb3
+        (block $bb2
+        (block $bb1
+        (block $bb0
+          local.get $pc
+          br_table $bb0 $bb1 $bb2 $bb3 $bb4 $bb5 $bb6 $bb7 $bb8 $bb9 $bb10 $bb11 $bb12 $bb13 $bb14 $bb15 $bb16 $bb17 $bb18 $bb19 $bb20 $bb21 $bb22 $bb23 $bb24 $bb25 $bb26 $bb27 $bb28 $bb29 $bb30 $bb31 $bb32 $bb33 $bb34 $bb35 $bb36 $exit
+        )
+          local.get $this
+          local.set $this__slot
+          local.get $__jn_frame
+          i32.const 2
+          local.get $this__slot
+          call $jn_gc_frame_set_root
+          local.get $ex
+          local.set $ex__slot
+          local.get $__jn_frame
+          i32.const 3
+          local.get $ex__slot
+          call $jn_gc_frame_set_root
+          local.get $this__slot
+          local.set $t0
+          local.get $__jn_frame
+          i32.const 10
+          local.get $t0
+          call $jn_gc_frame_set_root
+          local.get $t0
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t1
+          local.get $t1
+          if
+            i32.const 1
+            local.set $pc
+          else
+            i32.const 2
+            local.set $pc
+          end
+          br $dispatch
+        )
+          i32.const 0
+          local.set $ret
+          br $exit
+        )
+          local.get $t0
+          i32.const 24
+          i32.add
+          i32.load
+          local.set $t2
+          local.get $__jn_frame
+          i32.const 11
+          local.get $t2
+          call $jn_gc_frame_set_root
+          local.get $t2
+          local.set $gctmp.3
+          local.get $__jn_frame
+          i32.const 4
+          local.get $gctmp.3
+          call $jn_gc_frame_set_root
+          local.get $gctmp.3
+          local.set $t3
+          local.get $__jn_frame
+          i32.const 12
+          local.get $t3
+          call $jn_gc_frame_set_root
+          local.get $t3
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t4
+          local.get $t4
+          if
+            i32.const 3
+            local.set $pc
+          else
+            i32.const 4
+            local.set $pc
+          end
+          br $dispatch
+        )
+          i32.const 0
+          local.set $ret
+          br $exit
+        )
+          call $jnative_exception_pending
+          local.set $t5
+          local.get $t5
+          if
+            i32.const 5
+            local.set $pc
+          else
+            i32.const 6
+            local.set $pc
+          end
+          br $dispatch
+        )
+          i32.const 0
+          local.set $ret
+          br $exit
+        )
+          local.get $this__slot
+          local.set $t6
+          local.get $__jn_frame
+          i32.const 13
+          local.get $t6
+          call $jn_gc_frame_set_root
+          local.get $t6
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t7
+          local.get $t7
+          if
+            i32.const 7
+            local.set $pc
+          else
+            i32.const 8
+            local.set $pc
+          end
+          br $dispatch
+        )
+          i32.const 0
+          local.set $ret
+          br $exit
+        )
+          local.get $t6
+          i32.const 4
+          i32.add
+          i32.load
+          local.set $t8
+          global.get $g_jn_static_JnFuture_PENDING
+          local.set $t9
+          local.get $t8
+          local.get $t9
+          i32.ne
+          local.set $t10
+          local.get $t10
+          if
+            i32.const 9
+            local.set $pc
+          else
+            i32.const 10
+            local.set $pc
+          end
+          br $dispatch
+        )
+          local.get $this__slot
+          local.set $t11
+          local.get $__jn_frame
+          i32.const 14
+          local.get $t11
+          call $jn_gc_frame_set_root
+          local.get $t11
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t12
+          local.get $t12
+          if
+            i32.const 11
+            local.set $pc
+          else
+            i32.const 12
+            local.set $pc
+          end
+          br $dispatch
+        )
+          global.get $g_jn_static_JnFuture_FAILED
+          local.set $t17
+          local.get $this__slot
+          local.set $t18
+          local.get $__jn_frame
+          i32.const 17
+          local.get $t18
+          call $jn_gc_frame_set_root
+          local.get $t18
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t19
+          local.get $t19
+          if
+            i32.const 17
+            local.set $pc
+          else
+            i32.const 18
+            local.set $pc
+          end
+          br $dispatch
+        )
+          i32.const 0
+          local.set $ret
+          br $exit
+        )
+          local.get $t11
+          i32.const 24
+          i32.add
+          i32.load
+          local.set $t13
+          local.get $__jn_frame
+          i32.const 15
+          local.get $t13
+          call $jn_gc_frame_set_root
+          local.get $t13
+          local.set $gctmp.14
+          local.get $__jn_frame
+          i32.const 5
+          local.get $gctmp.14
+          call $jn_gc_frame_set_root
+          local.get $gctmp.14
+          local.set $t14
+          local.get $__jn_frame
+          i32.const 16
+          local.get $t14
+          call $jn_gc_frame_set_root
+          local.get $t14
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t15
+          local.get $t15
+          if
+            i32.const 13
+            local.set $pc
+          else
+            i32.const 14
+            local.set $pc
+          end
+          br $dispatch
+        )
+          i32.const 0
+          local.set $ret
+          br $exit
+        )
+          call $jnative_exception_pending
+          local.set $t16
+          local.get $t16
+          if
+            i32.const 15
+            local.set $pc
+          else
+            i32.const 16
+            local.set $pc
+          end
+          br $dispatch
+        )
+          i32.const 0
+          local.set $ret
+          br $exit
+        )
+          i32.const 0
+          local.set $ret
+          br $exit
+        )
+          i32.const 0
+          local.set $ret
+          br $exit
+        )
+          local.get $t18
+          i32.const 4
+          i32.add
+          local.get $t17
+          i32.store
+          local.get $ex__slot
+          local.set $t20
+          local.get $__jn_frame
+          i32.const 18
+          local.get $t20
+          call $jn_gc_frame_set_root
+          local.get $this__slot
+          local.set $t21
+          local.get $__jn_frame
+          i32.const 19
+          local.get $t21
+          call $jn_gc_frame_set_root
+          local.get $t21
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t22
+          local.get $t22
+          if
+            i32.const 19
+            local.set $pc
+          else
+            i32.const 20
+            local.set $pc
+          end
+          br $dispatch
+        )
+          i32.const 0
+          local.set $ret
+          br $exit
+        )
+          local.get $t21
+          i32.const 12
+          i32.add
+          local.get $t20
+          i32.store
+          local.get $this__slot
+          local.set $t23
+          local.get $__jn_frame
+          i32.const 20
+          local.get $t23
+          call $jn_gc_frame_set_root
+          local.get $t23
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t24
+          local.get $t24
+          if
+            i32.const 21
+            local.set $pc
+          else
+            i32.const 22
+            local.set $pc
+          end
+          br $dispatch
+        )
+          i32.const 0
+          local.set $ret
+          br $exit
+        )
+          local.get $t23
+          i32.const 20
+          i32.add
+          i32.load
+          local.set $t25
+          local.get $__jn_frame
+          i32.const 21
+          local.get $t25
+          call $jn_gc_frame_set_root
+          local.get $t25
+          local.set $gctmp.26
+          local.get $__jn_frame
+          i32.const 7
+          local.get $gctmp.26
+          call $jn_gc_frame_set_root
+          local.get $gctmp.26
+          local.set $t26
+          local.get $__jn_frame
+          i32.const 22
+          local.get $t26
+          call $jn_gc_frame_set_root
+          local.get $t26
+          local.set $pending
+          local.get $__jn_frame
+          i32.const 6
+          local.get $pending
+          call $jn_gc_frame_set_root
+          i32.const 16
+          call $jn_alloc_zeroed
+          local.set $t27
+          local.get $t27
+          i32.eqz
+          if
+            unreachable
+          end
+          local.get $t27
+          i32.const 4
+          i32.store
+          local.get $__jn_frame
+          i32.const 23
+          local.get $t27
+          call $jn_gc_frame_set_root
+          local.get $t27
+          local.set $gctmp.28
+          local.get $__jn_frame
+          i32.const 8
+          local.get $gctmp.28
+          call $jn_gc_frame_set_root
+          local.get $gctmp.28
+          local.set $t28
+          local.get $__jn_frame
+          i32.const 24
+          local.get $t28
+          call $jn_gc_frame_set_root
+          local.get $t28
+          call $_JN_ArrayList_init
+          call $jnative_exception_pending
+          local.set $t29
+          local.get $t29
+          if
+            i32.const 23
+            local.set $pc
+          else
+            i32.const 24
+            local.set $pc
+          end
+          br $dispatch
+        )
+          i32.const 0
+          local.set $ret
+          br $exit
+        )
+          local.get $this__slot
+          local.set $t30
+          local.get $__jn_frame
+          i32.const 25
+          local.get $t30
+          call $jn_gc_frame_set_root
+          local.get $t30
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t31
+          local.get $t31
+          if
+            i32.const 25
+            local.set $pc
+          else
+            i32.const 26
+            local.set $pc
+          end
+          br $dispatch
+        )
+          i32.const 0
+          local.set $ret
+          br $exit
+        )
+          local.get $t30
+          i32.const 20
+          i32.add
+          local.get $t28
+          i32.store
+          local.get $this__slot
+          local.set $t32
+          local.get $__jn_frame
+          i32.const 26
+          local.get $t32
+          call $jn_gc_frame_set_root
+          local.get $t32
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t33
+          local.get $t33
+          if
+            i32.const 27
+            local.set $pc
+          else
+            i32.const 28
+            local.set $pc
+          end
+          br $dispatch
+        )
+          i32.const 0
+          local.set $ret
+          br $exit
+        )
+          local.get $t32
+          i32.const 24
+          i32.add
+          i32.load
+          local.set $t34
+          local.get $__jn_frame
+          i32.const 27
+          local.get $t34
+          call $jn_gc_frame_set_root
+          local.get $t34
+          local.set $gctmp.35
+          local.get $__jn_frame
+          i32.const 9
+          local.get $gctmp.35
+          call $jn_gc_frame_set_root
+          local.get $gctmp.35
+          local.set $t35
+          local.get $__jn_frame
+          i32.const 28
+          local.get $t35
+          call $jn_gc_frame_set_root
+          local.get $t35
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t36
+          local.get $t36
+          if
+            i32.const 29
+            local.set $pc
+          else
+            i32.const 30
+            local.set $pc
+          end
+          br $dispatch
+        )
+          i32.const 0
+          local.set $ret
+          br $exit
+        )
+          call $jnative_exception_pending
+          local.set $t37
+          local.get $t37
+          if
+            i32.const 31
+            local.set $pc
+          else
+            i32.const 32
+            local.set $pc
+          end
+          br $dispatch
+        )
+          i32.const 0
+          local.set $ret
+          br $exit
+        )
+          local.get $this__slot
+          local.set $t38
+          local.get $__jn_frame
+          i32.const 29
+          local.get $t38
+          call $jn_gc_frame_set_root
+          local.get $t38
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t39
+          local.get $t39
+          if
+            i32.const 33
+            local.set $pc
+          else
+            i32.const 34
+            local.set $pc
+          end
+          br $dispatch
+        )
+          i32.const 0
+          local.set $ret
+          br $exit
+        )
+          local.get $pending
+          local.set $t40
+          local.get $__jn_frame
+          i32.const 30
+          local.get $t40
+          call $jn_gc_frame_set_root
+          local.get $t38
+          local.get $t40
+          call $_JN_JnFuture_dispatchCallbacks_PCArrayList_IJnFutureCallback
+          call $jnative_exception_pending
+          local.set $t41
+          local.get $t41
+          if
+            i32.const 35
+            local.set $pc
+          else
+            i32.const 36
+            local.set $pc
+          end
+          br $dispatch
+        )
+          i32.const 0
+          local.set $ret
+          br $exit
+        )
+          i32.const 1
+          local.set $ret
+          br $exit
+      )
+    )
+    call $jn_gc_frame_pop
+    local.get $ret
+  )
+  (func $_JN_JnFuture_dispatchCallbacks_PCArrayList_IJnFutureCallback (param $this i32) (param $pending i32)
+    (local $pc i32)
+    (local $__jn_tid i32)
+    (local $__jn_asz i32)
+    (local $__jn_frame i32)
+    (local $this__slot i32)
+    (local $pending__slot i32)
+    (local $i i32)
+    (local $cb i32)
+    (local $gctmp.11 i32)
+    (local $t0 i32)
+    (local $t1 i32)
+    (local $t2 i32)
+    (local $t3 i32)
+    (local $t4 i32)
+    (local $t5 i32)
+    (local $t6 i32)
+    (local $t7 i32)
+    (local $t8 i32)
+    (local $t9 i32)
+    (local $t10 i32)
+    (local $t11 i32)
+    (local $t12 i32)
+    (local $t13 i32)
+    (local $t14 i32)
+    (local $t15 i32)
+    (local $t16 i32)
+    (local $t17 i32)
+    i32.const 12
+    call $jn_gc_frame_push
+    local.set $__jn_frame
+    local.get $__jn_frame
+    i32.const 0
+    local.get $this
+    call $jn_gc_frame_set_root
+    local.get $__jn_frame
+    i32.const 1
+    local.get $pending
+    call $jn_gc_frame_set_root
+    i32.const 0
+    local.set $pc
+    (block $exit
+      (loop $dispatch
+        (block $bb15
+        (block $bb14
+        (block $bb13
+        (block $bb12
+        (block $bb11
+        (block $bb10
+        (block $bb9
+        (block $bb8
+        (block $bb7
+        (block $bb6
+        (block $bb5
+        (block $bb4
+        (block $bb3
+        (block $bb2
+        (block $bb1
+        (block $bb0
+          local.get $pc
+          br_table $bb0 $bb1 $bb2 $bb3 $bb4 $bb5 $bb6 $bb7 $bb8 $bb9 $bb10 $bb11 $bb12 $bb13 $bb14 $bb15 $exit
+        )
+          local.get $this
+          local.set $this__slot
+          local.get $__jn_frame
+          i32.const 2
+          local.get $this__slot
+          call $jn_gc_frame_set_root
+          local.get $pending
+          local.set $pending__slot
+          local.get $__jn_frame
+          i32.const 3
+          local.get $pending__slot
+          call $jn_gc_frame_set_root
+          i32.const 0
+          local.set $i
+          i32.const 1
+          local.set $pc
+          br $dispatch
+        )
+          local.get $i
+          local.set $t0
+          local.get $pending__slot
+          local.set $t1
+          local.get $__jn_frame
+          i32.const 6
+          local.get $t1
+          call $jn_gc_frame_set_root
+          local.get $t1
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t2
+          local.get $t2
+          if
+            i32.const 4
+            local.set $pc
+          else
+            i32.const 5
+            local.set $pc
+          end
+          br $dispatch
+        )
+          local.get $pending__slot
+          local.set $t6
+          local.get $__jn_frame
+          i32.const 7
+          local.get $t6
+          call $jn_gc_frame_set_root
+          local.get $t6
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t7
+          local.get $t7
+          if
+            i32.const 8
+            local.set $pc
+          else
+            i32.const 9
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          br $exit
+        )
+          local.get $t1
+          call $_JN_ArrayList_size
+          local.set $t3
+          call $jnative_exception_pending
+          local.set $t4
+          local.get $t4
+          if
+            i32.const 6
+            local.set $pc
+          else
+            i32.const 7
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $t0
+          local.get $t3
+          i32.lt_s
+          local.set $t5
+          local.get $t5
+          if
+            i32.const 2
+            local.set $pc
+          else
+            i32.const 3
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $i
+          local.set $t8
+          local.get $t6
+          local.get $t8
+          call $_JN_ArrayList_get_i32
+          local.set $t9
+          local.get $__jn_frame
+          i32.const 8
+          local.get $t9
+          call $jn_gc_frame_set_root
+          call $jnative_exception_pending
+          local.set $t10
+          local.get $t10
+          if
+            i32.const 10
+            local.set $pc
+          else
+            i32.const 11
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $t9
+          local.set $gctmp.11
+          local.get $__jn_frame
+          i32.const 5
+          local.get $gctmp.11
+          call $jn_gc_frame_set_root
+          local.get $gctmp.11
+          local.set $t11
+          local.get $__jn_frame
+          i32.const 9
+          local.get $t11
+          call $jn_gc_frame_set_root
+          local.get $t11
+          local.set $cb
+          local.get $__jn_frame
+          i32.const 4
+          local.get $cb
+          call $jn_gc_frame_set_root
+          local.get $this__slot
+          local.set $t12
+          local.get $__jn_frame
+          i32.const 10
+          local.get $t12
+          call $jn_gc_frame_set_root
+          local.get $t12
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t13
+          local.get $t13
+          if
+            i32.const 12
+            local.set $pc
+          else
+            i32.const 13
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $cb
+          local.set $t14
+          local.get $__jn_frame
+          i32.const 11
+          local.get $t14
+          call $jn_gc_frame_set_root
+          local.get $t12
+          local.get $t14
+          call $_JN_JnFuture_dispatchOneCallback_IJnFutureCallback
+          call $jnative_exception_pending
+          local.set $t15
+          local.get $t15
+          if
+            i32.const 14
+            local.set $pc
+          else
+            i32.const 15
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $i
+          local.set $t16
+          local.get $t16
+          i32.const 1
+          i32.add
+          local.set $t17
+          local.get $t17
+          local.set $i
+          call $jn_gc_safepoint
+          i32.const 1
+          local.set $pc
+          br $dispatch
+      )
+    )
+    call $jn_gc_frame_pop
+  )
+  (func $_JN_ArrayList_get_i32 (param $this i32) (param $index i32) (result i32)
+    (local $pc i32)
+    (local $__jn_tid i32)
+    (local $__jn_asz i32)
+    (local $__jn_frame i32)
+    (local $ret i32)
+    (local $this__slot i32)
+    (local $index__slot i32)
+    (local $gctmp.7 i32)
+    (local $gctmp.11 i32)
+    (local $t0 i32)
+    (local $t1 i32)
+    (local $t2 i32)
+    (local $t3 i32)
+    (local $t4 i32)
+    (local $t5 i32)
+    (local $t6 i32)
+    (local $t7 i32)
+    (local $t8 i32)
+    (local $t9 i32)
+    (local $t10 i32)
+    (local $t11 i32)
+    i32.const 10
+    call $jn_gc_frame_push
+    local.set $__jn_frame
+    local.get $__jn_frame
+    i32.const 0
+    local.get $this
+    call $jn_gc_frame_set_root
+    i32.const 0
+    local.set $pc
+    (block $exit
+      (loop $dispatch
+        (block $bb8
+        (block $bb7
+        (block $bb6
+        (block $bb5
+        (block $bb4
+        (block $bb3
+        (block $bb2
+        (block $bb1
+        (block $bb0
+          local.get $pc
+          br_table $bb0 $bb1 $bb2 $bb3 $bb4 $bb5 $bb6 $bb7 $bb8 $exit
+        )
+          local.get $this
+          local.set $this__slot
+          local.get $__jn_frame
+          i32.const 1
+          local.get $this__slot
+          call $jn_gc_frame_set_root
+          local.get $index
+          local.set $index__slot
+          local.get $this__slot
+          local.set $t0
+          local.get $__jn_frame
+          i32.const 4
+          local.get $t0
+          call $jn_gc_frame_set_root
+          local.get $t0
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t1
+          local.get $t1
+          if
+            i32.const 1
+            local.set $pc
+          else
+            i32.const 2
+            local.set $pc
+          end
+          br $dispatch
+        )
+          i32.const 0
+          local.set $ret
+          br $exit
+        )
+          local.get $index__slot
+          local.set $t2
+          local.get $t0
+          local.get $t2
+          call $_JN_ArrayList_rangeCheck_i32
+          call $jnative_exception_pending
+          local.set $t3
+          local.get $t3
+          if
+            i32.const 3
+            local.set $pc
+          else
+            i32.const 4
+            local.set $pc
+          end
+          br $dispatch
+        )
+          i32.const 0
+          local.set $ret
+          br $exit
+        )
+          local.get $this__slot
+          local.set $t4
+          local.get $__jn_frame
+          i32.const 5
+          local.get $t4
+          call $jn_gc_frame_set_root
+          local.get $t4
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t5
+          local.get $t5
+          if
+            i32.const 5
+            local.set $pc
+          else
+            i32.const 6
+            local.set $pc
+          end
+          br $dispatch
+        )
+          i32.const 0
+          local.set $ret
+          br $exit
+        )
+          local.get $t4
+          i32.const 4
+          i32.add
+          i32.load
+          local.set $t6
+          local.get $__jn_frame
+          i32.const 6
+          local.get $t6
+          call $jn_gc_frame_set_root
+          local.get $t6
+          local.set $gctmp.7
+          local.get $__jn_frame
+          i32.const 2
+          local.get $gctmp.7
+          call $jn_gc_frame_set_root
+          local.get $gctmp.7
+          local.set $t7
+          local.get $__jn_frame
+          i32.const 7
+          local.get $t7
+          call $jn_gc_frame_set_root
+          local.get $index__slot
+          local.set $t8
+          local.get $t7
+          i32.eqz
+          if
+            unreachable
+          end
+          local.get $t8
+          i32.const 0
+          i32.lt_s
+          local.get $t8
+          local.get $t7
+          i32.const 8
+          i32.add
+          i32.load
+          i32.ge_s
+          i32.or
+          if
+            unreachable
+          end
+          local.get $t7
+          i32.const 16
+          i32.add
+          local.get $t8
+          i32.const 4
+          i32.mul
+          i32.add
+          i32.load
+          local.set $t9
+          local.get $__jn_frame
+          i32.const 8
+          local.get $t9
+          call $jn_gc_frame_set_root
+          call $jnative_exception_pending
+          local.set $t10
+          local.get $t10
+          if
+            i32.const 7
+            local.set $pc
+          else
+            i32.const 8
+            local.set $pc
+          end
+          br $dispatch
+        )
+          i32.const 0
+          local.set $ret
+          br $exit
+        )
+          local.get $t9
+          local.set $gctmp.11
+          local.get $__jn_frame
+          i32.const 3
+          local.get $gctmp.11
+          call $jn_gc_frame_set_root
+          local.get $gctmp.11
+          local.set $t11
+          local.get $__jn_frame
+          i32.const 9
+          local.get $t11
+          call $jn_gc_frame_set_root
+          local.get $t11
+          local.set $ret
+          br $exit
+      )
+    )
+    call $jn_gc_frame_pop
+    local.get $ret
+  )
+  (func $_JN_JnFuture_dispatchOneCallback_IJnFutureCallback (param $this i32) (param $cb i32)
+    (local $pc i32)
+    (local $__jn_tid i32)
+    (local $__jn_asz i32)
+    (local $__jn_frame i32)
+    (local $this__slot i32)
+    (local $cb__slot i32)
+    (local $sc.tmp1546693040 i32)
+    (local $gctmp.3 i32)
+    (local $gctmp.8 i32)
+    (local $t i32)
+    (local $gctmp.14 i32)
+    (local $gctmp.25 i32)
+    (local $t0 i32)
+    (local $t1 i32)
+    (local $t2 i32)
+    (local $t3 i32)
+    (local $t4 i32)
+    (local $t5 i32)
+    (local $t6 i32)
+    (local $t7 i32)
+    (local $t8 i32)
+    (local $t9 i32)
+    (local $t10 i32)
+    (local $t11 i32)
+    (local $t12 i32)
+    (local $t13 i32)
+    (local $t14 i32)
+    (local $t15 i32)
+    (local $t16 i32)
+    (local $t17 i32)
+    (local $t18 i32)
+    (local $t19 i32)
+    (local $t20 i32)
+    (local $t21 i32)
+    (local $t22 i32)
+    (local $t23 i32)
+    (local $t24 i32)
+    (local $t25 i32)
+    (local $t26 i32)
+    (local $t27 i32)
+    (local $t28 i32)
+    (local $t29 i32)
+    (local $t30 i32)
+    (local $t31 i32)
+    (local $t32 i32)
+    i32.const 27
+    call $jn_gc_frame_push
+    local.set $__jn_frame
+    local.get $__jn_frame
+    i32.const 0
+    local.get $this
+    call $jn_gc_frame_set_root
+    local.get $__jn_frame
+    i32.const 1
+    local.get $cb
+    call $jn_gc_frame_set_root
+    i32.const 0
+    local.set $pc
+    (block $exit
+      (loop $dispatch
+        (block $bb27
+        (block $bb26
+        (block $bb25
+        (block $bb24
+        (block $bb23
+        (block $bb22
+        (block $bb21
+        (block $bb20
+        (block $bb19
+        (block $bb18
+        (block $bb17
+        (block $bb16
+        (block $bb15
+        (block $bb14
+        (block $bb13
+        (block $bb12
+        (block $bb11
+        (block $bb10
+        (block $bb9
+        (block $bb8
+        (block $bb7
+        (block $bb6
+        (block $bb5
+        (block $bb4
+        (block $bb3
+        (block $bb2
+        (block $bb1
+        (block $bb0
+          local.get $pc
+          br_table $bb0 $bb1 $bb2 $bb3 $bb4 $bb5 $bb6 $bb7 $bb8 $bb9 $bb10 $bb11 $bb12 $bb13 $bb14 $bb15 $bb16 $bb17 $bb18 $bb19 $bb20 $bb21 $bb22 $bb23 $bb24 $bb25 $bb26 $bb27 $exit
+        )
+          local.get $this
+          local.set $this__slot
+          local.get $__jn_frame
+          i32.const 2
+          local.get $this__slot
+          call $jn_gc_frame_set_root
+          local.get $cb
+          local.set $cb__slot
+          local.get $__jn_frame
+          i32.const 3
+          local.get $cb__slot
+          call $jn_gc_frame_set_root
+          local.get $this__slot
+          local.set $t0
+          local.get $__jn_frame
+          i32.const 9
+          local.get $t0
+          call $jn_gc_frame_set_root
+          local.get $t0
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t1
+          local.get $t1
+          if
+            i32.const 3
+            local.set $pc
+          else
+            i32.const 4
+            local.set $pc
+          end
+          br $dispatch
+        )
+          local.get $this__slot
+          local.set $t5
+          local.get $__jn_frame
+          i32.const 12
+          local.get $t5
+          call $jn_gc_frame_set_root
+          local.get $t5
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t6
+          local.get $t6
+          if
+            i32.const 5
+            local.set $pc
+          else
+            i32.const 6
+            local.set $pc
+          end
+          br $dispatch
+        )
+          local.get $sc.tmp1546693040
+          local.set $t12
+          local.get $t12
+          if
+            i32.const 9
+            local.set $pc
+          else
+            i32.const 11
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $t0
+          i32.const 16
+          i32.add
+          i32.load
+          local.set $t2
+          local.get $__jn_frame
+          i32.const 10
+          local.get $t2
+          call $jn_gc_frame_set_root
+          local.get $t2
+          local.set $gctmp.3
+          local.get $__jn_frame
+          i32.const 4
+          local.get $gctmp.3
+          call $jn_gc_frame_set_root
+          local.get $gctmp.3
+          local.set $t3
+          local.get $__jn_frame
+          i32.const 11
+          local.get $t3
+          call $jn_gc_frame_set_root
+          local.get $t3
+          i32.const 0
+          i32.ne
+          local.set $t4
+          local.get $t4
+          local.set $sc.tmp1546693040
+          local.get $t4
+          if
+            i32.const 1
+            local.set $pc
+          else
+            i32.const 2
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $t5
+          i32.const 16
+          i32.add
+          i32.load
+          local.set $t7
+          local.get $__jn_frame
+          i32.const 13
+          local.get $t7
+          call $jn_gc_frame_set_root
+          local.get $t7
+          local.set $gctmp.8
+          local.get $__jn_frame
+          i32.const 5
+          local.get $gctmp.8
+          call $jn_gc_frame_set_root
+          local.get $gctmp.8
+          local.set $t8
+          local.get $__jn_frame
+          i32.const 14
+          local.get $t8
+          call $jn_gc_frame_set_root
+          local.get $t8
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t9
+          local.get $t9
+          if
+            i32.const 7
+            local.set $pc
+          else
+            i32.const 8
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $t8
+          i32.const 28
+          i32.add
+          i32.load
+          local.set $t10
+          local.get $t10
+          i32.const 0
+          i32.ne
+          local.set $t11
+          local.get $t11
+          local.set $sc.tmp1546693040
+          i32.const 2
+          local.set $pc
+          br $dispatch
+        )
+          i32.const 12
+          call $jn_alloc_zeroed
+          local.set $t13
+          local.get $t13
+          i32.eqz
+          if
+            unreachable
+          end
+          local.get $t13
+          i32.const 120
+          i32.store
+          local.get $__jn_frame
+          i32.const 15
+          local.get $t13
+          call $jn_gc_frame_set_root
+          local.get $t13
+          local.set $gctmp.14
+          local.get $__jn_frame
+          i32.const 7
+          local.get $gctmp.14
+          call $jn_gc_frame_set_root
+          local.get $gctmp.14
+          local.set $t14
+          local.get $__jn_frame
+          i32.const 16
+          local.get $t14
+          call $jn_gc_frame_set_root
+          local.get $t14
+          call $_JN_RunCallbackTask_init
+          call $jnative_exception_pending
+          local.set $t15
+          local.get $t15
+          if
+            i32.const 12
+            local.set $pc
+          else
+            i32.const 13
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $cb__slot
+          local.set $t29
+          local.get $__jn_frame
+          i32.const 25
+          local.get $t29
+          call $jn_gc_frame_set_root
+          local.get $t29
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t30
+          local.get $t30
+          if
+            i32.const 24
+            local.set $pc
+          else
+            i32.const 25
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $t14
+          local.set $t
+          local.get $__jn_frame
+          i32.const 6
+          local.get $t
+          call $jn_gc_frame_set_root
+          local.get $cb__slot
+          local.set $t16
+          local.get $__jn_frame
+          i32.const 17
+          local.get $t16
+          call $jn_gc_frame_set_root
+          local.get $t
+          local.set $t17
+          local.get $__jn_frame
+          i32.const 18
+          local.get $t17
+          call $jn_gc_frame_set_root
+          call $jnative_exception_pending
+          local.set $t18
+          local.get $t18
+          if
+            i32.const 14
+            local.set $pc
+          else
+            i32.const 15
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $t17
+          i32.const 4
+          i32.add
+          local.get $t16
+          i32.store
+          local.get $this__slot
+          local.set $t19
+          local.get $__jn_frame
+          i32.const 19
+          local.get $t19
+          call $jn_gc_frame_set_root
+          local.get $t
+          local.set $t20
+          local.get $__jn_frame
+          i32.const 20
+          local.get $t20
+          call $jn_gc_frame_set_root
+          call $jnative_exception_pending
+          local.set $t21
+          local.get $t21
+          if
+            i32.const 16
+            local.set $pc
+          else
+            i32.const 17
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $t20
+          i32.const 8
+          i32.add
+          local.get $t19
+          i32.store
+          local.get $this__slot
+          local.set $t22
+          local.get $__jn_frame
+          i32.const 21
+          local.get $t22
+          call $jn_gc_frame_set_root
+          local.get $t22
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t23
+          local.get $t23
+          if
+            i32.const 18
+            local.set $pc
+          else
+            i32.const 19
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $t22
+          i32.const 16
+          i32.add
+          i32.load
+          local.set $t24
+          local.get $__jn_frame
+          i32.const 22
+          local.get $t24
+          call $jn_gc_frame_set_root
+          local.get $t24
+          local.set $gctmp.25
+          local.get $__jn_frame
+          i32.const 8
+          local.get $gctmp.25
+          call $jn_gc_frame_set_root
+          local.get $gctmp.25
+          local.set $t25
+          local.get $__jn_frame
+          i32.const 23
+          local.get $t25
+          call $jn_gc_frame_set_root
+          local.get $t25
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t26
+          local.get $t26
+          if
+            i32.const 20
+            local.set $pc
+          else
+            i32.const 21
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $t
+          local.set $t27
+          local.get $__jn_frame
+          i32.const 24
+          local.get $t27
+          call $jn_gc_frame_set_root
+          local.get $t25
+          local.get $t27
+          call $_JN_EventLoop_execute_ILoopTask
+          call $jnative_exception_pending
+          local.set $t28
+          local.get $t28
+          if
+            i32.const 22
+            local.set $pc
+          else
+            i32.const 23
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          i32.const 10
+          local.set $pc
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $this__slot
+          local.set $t31
+          local.get $__jn_frame
+          i32.const 26
+          local.get $t31
+          call $jn_gc_frame_set_root
+          local.get $t29
+          i32.eqz
+          if
+            unreachable
+          end
+          local.get $t29
+          i32.const 16
+          i32.add
+          i32.load
+          local.get $t31
+          local.get $t29
+          i32.const 8
+          i32.add
+          i64.load
+          i32.wrap_i64
+          call_indirect $jn_funcref (type $jn_sig_0)
+          call $jnative_exception_pending
+          local.set $t32
+          local.get $t32
+          if
+            i32.const 26
+            local.set $pc
+          else
+            i32.const 27
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          i32.const 10
+          local.set $pc
+          br $dispatch
+      )
+    )
+    call $jn_gc_frame_pop
+  )
+  (func $_JN_ArrayList_rangeCheck_i32 (param $this i32) (param $index i32)
+    (local $pc i32)
+    (local $__jn_tid i32)
+    (local $__jn_asz i32)
+    (local $__jn_frame i32)
+    (local $this__slot i32)
+    (local $index__slot i32)
+    (local $sc.tmp501187768 i32)
+    (local $gctmp.9 i32)
+    (local $gctmp.11 i32)
+    (local $t0 i32)
+    (local $t1 i32)
+    (local $t2 i32)
+    (local $t3 i32)
+    (local $t4 i32)
+    (local $t5 i32)
+    (local $t6 i32)
+    (local $t7 i32)
+    (local $t8 i32)
+    (local $t9 i32)
+    (local $t10 i32)
+    (local $t11 i32)
+    (local $t12 i32)
+    (local $t13 i32)
+    i32.const 9
+    call $jn_gc_frame_push
+    local.set $__jn_frame
+    local.get $__jn_frame
+    i32.const 0
+    local.get $this
+    call $jn_gc_frame_set_root
+    i32.const 0
+    local.set $pc
+    (block $exit
+      (loop $dispatch
+        (block $bb10
+        (block $bb9
+        (block $bb8
+        (block $bb7
+        (block $bb6
+        (block $bb5
+        (block $bb4
+        (block $bb3
+        (block $bb2
+        (block $bb1
+        (block $bb0
+          local.get $pc
+          br_table $bb0 $bb1 $bb2 $bb3 $bb4 $bb5 $bb6 $bb7 $bb8 $bb9 $bb10 $exit
+        )
+          local.get $this
+          local.set $this__slot
+          local.get $__jn_frame
+          i32.const 1
+          local.get $this__slot
+          call $jn_gc_frame_set_root
+          local.get $index
+          local.set $index__slot
+          local.get $index__slot
+          local.set $t0
+          local.get $t0
+          i32.const 0
+          i32.lt_s
+          local.set $t1
+          local.get $t1
+          local.set $sc.tmp501187768
+          local.get $t1
+          if
+            i32.const 2
+            local.set $pc
+          else
+            i32.const 1
+            local.set $pc
+          end
+          br $dispatch
+        )
+          local.get $index__slot
+          local.set $t2
+          local.get $this__slot
+          local.set $t3
+          local.get $__jn_frame
+          i32.const 4
+          local.get $t3
+          call $jn_gc_frame_set_root
+          local.get $t3
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t4
+          local.get $t4
+          if
+            i32.const 3
+            local.set $pc
+          else
+            i32.const 4
+            local.set $pc
+          end
+          br $dispatch
+        )
+          local.get $sc.tmp501187768
+          local.set $t7
+          local.get $t7
+          if
+            i32.const 5
+            local.set $pc
+          else
+            i32.const 6
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $t3
+          i32.const 8
+          i32.add
+          i32.load
+          local.set $t5
+          local.get $t2
+          local.get $t5
+          i32.ge_s
+          local.set $t6
+          local.get $t6
+          local.set $sc.tmp501187768
+          i32.const 2
+          local.set $pc
+          br $dispatch
+        )
+          i32.const 16
+          call $jn_alloc_zeroed
+          local.set $t8
+          local.get $t8
+          i32.eqz
+          if
+            unreachable
+          end
+          local.get $t8
+          i32.const 27
+          i32.store
+          local.get $__jn_frame
+          i32.const 5
+          local.get $t8
+          call $jn_gc_frame_set_root
+          local.get $t8
+          local.set $gctmp.9
+          local.get $__jn_frame
+          i32.const 2
+          local.get $gctmp.9
+          call $jn_gc_frame_set_root
+          local.get $gctmp.9
+          local.set $t9
+          local.get $__jn_frame
+          i32.const 6
+          local.get $t9
+          call $jn_gc_frame_set_root
+          i32.const 2070
+          i32.const 15
+          call $jn_str
+          local.set $t10
+          local.get $__jn_frame
+          i32.const 7
+          local.get $t10
+          call $jn_gc_frame_set_root
+          local.get $t10
+          local.set $gctmp.11
+          local.get $__jn_frame
+          i32.const 3
+          local.get $gctmp.11
+          call $jn_gc_frame_set_root
+          local.get $gctmp.11
+          local.set $t11
+          local.get $__jn_frame
+          i32.const 8
+          local.get $t11
+          call $jn_gc_frame_set_root
+          local.get $t9
+          local.get $t11
+          call $_JN_IndexOutOfBoundsException_init_CString
+          call $jnative_exception_pending
+          local.set $t12
+          local.get $t12
+          if
+            i32.const 7
+            local.set $pc
+          else
+            i32.const 8
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          br $exit
+        )
+          local.get $t9
+          call $jnative_exception_throw
+          call $jnative_exception_pending
+          local.set $t13
+          local.get $t13
+          if
+            i32.const 9
+            local.set $pc
+          else
+            i32.const 10
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          i32.const 6
+          local.set $pc
+          br $dispatch
+      )
+    )
+    call $jn_gc_frame_pop
+  )
+  (func $_JN_RunCallbackTask_init (param $this i32)
+    (local $pc i32)
+    (local $__jn_tid i32)
+    (local $__jn_asz i32)
+    (local $__jn_frame i32)
+    (local $this__slot i32)
+    (local $t0 i32)
+    (local $t1 i32)
+    (local $t3 i32)
+    (local $t4 i32)
+    (local $t5 i32)
+    (local $t6 i32)
+    i32.const 5
+    call $jn_gc_frame_push
+    local.set $__jn_frame
+    local.get $__jn_frame
+    i32.const 0
+    local.get $this
+    call $jn_gc_frame_set_root
+    i32.const 0
+    local.set $pc
+    (block $exit
+      (loop $dispatch
+        (block $bb6
+        (block $bb5
+        (block $bb4
+        (block $bb3
+        (block $bb2
+        (block $bb1
+        (block $bb0
+          local.get $pc
+          br_table $bb0 $bb1 $bb2 $bb3 $bb4 $bb5 $bb6 $exit
+        )
+          local.get $this
+          local.set $this__slot
+          local.get $__jn_frame
+          i32.const 1
+          local.get $this__slot
+          call $jn_gc_frame_set_root
+          local.get $this__slot
+          local.set $t0
+          local.get $__jn_frame
+          i32.const 2
+          local.get $t0
+          call $jn_gc_frame_set_root
+          local.get $t0
+          call $_JN_Object_init
+          call $jnative_exception_pending
+          local.set $t1
+          local.get $t1
+          if
+            i32.const 1
+            local.set $pc
+          else
+            i32.const 2
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $this__slot
+          local.set $t3
+          local.get $__jn_frame
+          i32.const 3
+          local.get $t3
+          call $jn_gc_frame_set_root
+          local.get $t3
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t4
+          local.get $t4
+          if
+            i32.const 3
+            local.set $pc
+          else
+            i32.const 4
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $t3
+          i32.const 4
+          i32.add
+          i32.const 0
+          i32.store
+          local.get $this__slot
+          local.set $t5
+          local.get $__jn_frame
+          i32.const 4
+          local.get $t5
+          call $jn_gc_frame_set_root
+          local.get $t5
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t6
+          local.get $t6
+          if
+            i32.const 5
+            local.set $pc
+          else
+            i32.const 6
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $t5
+          i32.const 8
+          i32.add
+          i32.const 0
+          i32.store
+          br $exit
+      )
+    )
+    call $jn_gc_frame_pop
+  )
+  (func $_JN_EventLoop_execute_ILoopTask (param $this i32) (param $task i32)
+    (local $pc i32)
+    (local $__jn_tid i32)
+    (local $__jn_asz i32)
+    (local $__jn_frame i32)
+    (local $this__slot i32)
+    (local $task__slot i32)
+    (local $gctmp.8 i32)
+    (local $gctmp.14 i32)
+    (local $gctmp.21 i32)
+    (local $t0 i32)
+    (local $t1 i32)
+    (local $t2 i32)
+    (local $t3 i32)
+    (local $t4 i32)
+    (local $t5 i32)
+    (local $t6 i32)
+    (local $t7 i32)
+    (local $t8 i32)
+    (local $t9 i32)
+    (local $t10 i32)
+    (local $t11 i32)
+    (local $t12 i32)
+    (local $t13 i32)
+    (local $t14 i32)
+    (local $t15 i32)
+    (local $t16 i32)
+    (local $t17 i32)
+    (local $t18 i32)
+    (local $t19 i32)
+    (local $t20 i32)
+    (local $t21 i32)
+    (local $t22 i32)
+    (local $t23 i32)
+    (local $t24 i32)
+    (local $t25 i32)
+    (local $t26 i32)
+    (local $t27 i32)
+    (local $t28 i32)
+    (local $t29 i32)
+    (local $t30 i32)
+    i32.const 22
+    call $jn_gc_frame_push
+    local.set $__jn_frame
+    local.get $__jn_frame
+    i32.const 0
+    local.get $this
+    call $jn_gc_frame_set_root
+    local.get $__jn_frame
+    i32.const 1
+    local.get $task
+    call $jn_gc_frame_set_root
+    i32.const 0
+    local.set $pc
+    (block $exit
+      (loop $dispatch
+        (block $bb30
+        (block $bb29
+        (block $bb28
+        (block $bb27
+        (block $bb26
+        (block $bb25
+        (block $bb24
+        (block $bb23
+        (block $bb22
+        (block $bb21
+        (block $bb20
+        (block $bb19
+        (block $bb18
+        (block $bb17
+        (block $bb16
+        (block $bb15
+        (block $bb14
+        (block $bb13
+        (block $bb12
+        (block $bb11
+        (block $bb10
+        (block $bb9
+        (block $bb8
+        (block $bb7
+        (block $bb6
+        (block $bb5
+        (block $bb4
+        (block $bb3
+        (block $bb2
+        (block $bb1
+        (block $bb0
+          local.get $pc
+          br_table $bb0 $bb1 $bb2 $bb3 $bb4 $bb5 $bb6 $bb7 $bb8 $bb9 $bb10 $bb11 $bb12 $bb13 $bb14 $bb15 $bb16 $bb17 $bb18 $bb19 $bb20 $bb21 $bb22 $bb23 $bb24 $bb25 $bb26 $bb27 $bb28 $bb29 $bb30 $exit
+        )
+          local.get $this
+          local.set $this__slot
+          local.get $__jn_frame
+          i32.const 2
+          local.get $this__slot
+          call $jn_gc_frame_set_root
+          local.get $task
+          local.set $task__slot
+          local.get $__jn_frame
+          i32.const 3
+          local.get $task__slot
+          call $jn_gc_frame_set_root
+          local.get $task__slot
+          local.set $t0
+          local.get $__jn_frame
+          i32.const 7
+          local.get $t0
+          call $jn_gc_frame_set_root
+          local.get $t0
+          i32.const 0
+          i32.eq
+          local.set $t1
+          local.get $t1
+          if
+            i32.const 1
+            local.set $pc
+          else
+            i32.const 2
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $this__slot
+          local.set $t2
+          local.get $__jn_frame
+          i32.const 8
+          local.get $t2
+          call $jn_gc_frame_set_root
+          local.get $t2
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t3
+          local.get $t3
+          if
+            i32.const 3
+            local.set $pc
+          else
+            i32.const 4
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $t2
+          call $_JN_EventLoop_ensurePoll
+          call $jnative_exception_pending
+          local.set $t4
+          local.get $t4
+          if
+            i32.const 5
+            local.set $pc
+          else
+            i32.const 6
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $this__slot
+          local.set $t5
+          local.get $__jn_frame
+          i32.const 9
+          local.get $t5
+          call $jn_gc_frame_set_root
+          local.get $t5
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t6
+          local.get $t6
+          if
+            i32.const 7
+            local.set $pc
+          else
+            i32.const 8
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $t5
+          i32.const 8
+          i32.add
+          i32.load
+          local.set $t7
+          local.get $__jn_frame
+          i32.const 10
+          local.get $t7
+          call $jn_gc_frame_set_root
+          local.get $t7
+          local.set $gctmp.8
+          local.get $__jn_frame
+          i32.const 4
+          local.get $gctmp.8
+          call $jn_gc_frame_set_root
+          local.get $gctmp.8
+          local.set $t8
+          local.get $__jn_frame
+          i32.const 11
+          local.get $t8
+          call $jn_gc_frame_set_root
+          local.get $t8
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t9
+          local.get $t9
+          if
+            i32.const 9
+            local.set $pc
+          else
+            i32.const 10
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          call $jnative_exception_pending
+          local.set $t10
+          local.get $t10
+          if
+            i32.const 11
+            local.set $pc
+          else
+            i32.const 12
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $this__slot
+          local.set $t11
+          local.get $__jn_frame
+          i32.const 12
+          local.get $t11
+          call $jn_gc_frame_set_root
+          local.get $t11
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t12
+          local.get $t12
+          if
+            i32.const 13
+            local.set $pc
+          else
+            i32.const 14
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $t11
+          i32.const 4
+          i32.add
+          i32.load
+          local.set $t13
+          local.get $__jn_frame
+          i32.const 13
+          local.get $t13
+          call $jn_gc_frame_set_root
+          local.get $t13
+          local.set $gctmp.14
+          local.get $__jn_frame
+          i32.const 5
+          local.get $gctmp.14
+          call $jn_gc_frame_set_root
+          local.get $gctmp.14
+          local.set $t14
+          local.get $__jn_frame
+          i32.const 14
+          local.get $t14
+          call $jn_gc_frame_set_root
+          local.get $t14
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t15
+          local.get $t15
+          if
+            i32.const 15
+            local.set $pc
+          else
+            i32.const 16
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $task__slot
+          local.set $t16
+          local.get $__jn_frame
+          i32.const 15
+          local.get $t16
+          call $jn_gc_frame_set_root
+          local.get $t14
+          local.get $t16
+          call $_JN_ArrayDeque_addLast_TT
+          call $jnative_exception_pending
+          local.set $t17
+          local.get $t17
+          if
+            i32.const 17
+            local.set $pc
+          else
+            i32.const 18
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $this__slot
+          local.set $t18
+          local.get $__jn_frame
+          i32.const 16
+          local.get $t18
+          call $jn_gc_frame_set_root
+          local.get $t18
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t19
+          local.get $t19
+          if
+            i32.const 19
+            local.set $pc
+          else
+            i32.const 20
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $t18
+          i32.const 8
+          i32.add
+          i32.load
+          local.set $t20
+          local.get $__jn_frame
+          i32.const 17
+          local.get $t20
+          call $jn_gc_frame_set_root
+          local.get $t20
+          local.set $gctmp.21
+          local.get $__jn_frame
+          i32.const 6
+          local.get $gctmp.21
+          call $jn_gc_frame_set_root
+          local.get $gctmp.21
+          local.set $t21
+          local.get $__jn_frame
+          i32.const 18
+          local.get $t21
+          call $jn_gc_frame_set_root
+          local.get $t21
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t22
+          local.get $t22
+          if
+            i32.const 21
+            local.set $pc
+          else
+            i32.const 22
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          call $jnative_exception_pending
+          local.set $t23
+          local.get $t23
+          if
+            i32.const 23
+            local.set $pc
+          else
+            i32.const 24
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $this__slot
+          local.set $t24
+          local.get $__jn_frame
+          i32.const 19
+          local.get $t24
+          call $jn_gc_frame_set_root
+          local.get $t24
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t25
+          local.get $t25
+          if
+            i32.const 25
+            local.set $pc
+          else
+            i32.const 26
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $t24
+          i32.const 24
+          i32.add
+          i32.load
+          local.set $t26
+          local.get $t26
+          i32.const 0
+          i32.ne
+          local.set $t27
+          local.get $t27
+          if
+            i32.const 27
+            local.set $pc
+          else
+            i32.const 28
+            local.set $pc
+          end
+          br $dispatch
+        )
+          local.get $this__slot
+          local.set $t28
+          local.get $__jn_frame
+          i32.const 20
+          local.get $t28
+          call $jn_gc_frame_set_root
+          local.get $t28
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t29
+          local.get $t29
+          if
+            i32.const 29
+            local.set $pc
+          else
+            i32.const 30
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          br $exit
+        )
+          local.get $t28
+          i32.const 20
+          i32.add
+          i32.load
+          local.set $t30
+          local.get $__jn_frame
+          i32.const 21
+          local.get $t30
+          call $jn_gc_frame_set_root
+          i32.const 28
+          local.set $pc
+          br $dispatch
+      )
+    )
+    call $jn_gc_frame_pop
+  )
+  (func $_JN_IndexOutOfBoundsException_init_CString (param $this i32) (param $message i32)
+    (local $pc i32)
+    (local $__jn_tid i32)
+    (local $__jn_asz i32)
+    (local $__jn_frame i32)
+    (local $this__slot i32)
+    (local $message__slot i32)
+    (local $t0 i32)
+    (local $t1 i32)
+    (local $t2 i32)
+    i32.const 6
+    call $jn_gc_frame_push
+    local.set $__jn_frame
+    local.get $__jn_frame
+    i32.const 0
+    local.get $this
+    call $jn_gc_frame_set_root
+    local.get $__jn_frame
+    i32.const 1
+    local.get $message
+    call $jn_gc_frame_set_root
+    i32.const 0
+    local.set $pc
+    (block $exit
+      (loop $dispatch
+        (block $bb2
+        (block $bb1
+        (block $bb0
+          local.get $pc
+          br_table $bb0 $bb1 $bb2 $exit
+        )
+          local.get $this
+          local.set $this__slot
+          local.get $__jn_frame
+          i32.const 2
+          local.get $this__slot
+          call $jn_gc_frame_set_root
+          local.get $this__slot
+          local.set $t0
+          local.get $__jn_frame
+          i32.const 4
+          local.get $t0
+          call $jn_gc_frame_set_root
+          local.get $message
+          local.set $message__slot
+          local.get $__jn_frame
+          i32.const 3
+          local.get $message__slot
+          call $jn_gc_frame_set_root
+          local.get $message__slot
+          local.set $t1
+          local.get $__jn_frame
+          i32.const 5
+          local.get $t1
+          call $jn_gc_frame_set_root
+          local.get $t0
+          local.get $t1
+          call $_JN_RuntimeException_init_CString
+          call $jnative_exception_pending
+          local.set $t2
+          local.get $t2
+          if
+            i32.const 1
+            local.set $pc
+          else
+            i32.const 2
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          br $exit
+      )
+    )
+    call $jn_gc_frame_pop
+  )
+  (func $_JN_EventLoop_ensurePoll (param $this i32)
+    (local $pc i32)
+    (local $__jn_tid i32)
+    (local $__jn_asz i32)
+    (local $__jn_frame i32)
+    (local $this__slot i32)
+    (local $created i32)
+    (local $t0 i32)
+    (local $t1 i32)
+    (local $t2 i32)
+    (local $t3 i32)
+    (local $t4 i32)
+    (local $t5 i32)
+    (local $t6 i32)
+    (local $t7 i32)
+    (local $t8 i32)
+    (local $t9 i32)
+    (local $t10 i32)
+    (local $t11 i32)
+    i32.const 9
+    call $jn_gc_frame_push
+    local.set $__jn_frame
+    local.get $__jn_frame
+    i32.const 0
+    local.get $this
+    call $jn_gc_frame_set_root
+    i32.const 0
+    local.set $pc
+    (block $exit
+      (loop $dispatch
+        (block $bb10
+        (block $bb9
+        (block $bb8
+        (block $bb7
+        (block $bb6
+        (block $bb5
+        (block $bb4
+        (block $bb3
+        (block $bb2
+        (block $bb1
+        (block $bb0
+          local.get $pc
+          br_table $bb0 $bb1 $bb2 $bb3 $bb4 $bb5 $bb6 $bb7 $bb8 $bb9 $bb10 $exit
+        )
+          local.get $this
+          local.set $this__slot
+          local.get $__jn_frame
+          i32.const 1
+          local.get $this__slot
+          call $jn_gc_frame_set_root
+          local.get $this__slot
+          local.set $t0
+          local.get $__jn_frame
+          i32.const 3
+          local.get $t0
+          call $jn_gc_frame_set_root
+          local.get $t0
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t1
+          local.get $t1
+          if
+            i32.const 1
+            local.set $pc
+          else
+            i32.const 2
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $t0
+          i32.const 24
+          i32.add
+          i32.load
+          local.set $t2
+          local.get $t2
+          i32.const 0
+          i32.ne
+          local.set $t3
+          local.get $t3
+          if
+            i32.const 3
+            local.set $pc
+          else
+            i32.const 4
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          i32.const 0
+          local.set $t4
+          local.get $__jn_frame
+          i32.const 4
+          local.get $t4
+          call $jn_gc_frame_set_root
+          local.get $t4
+          local.set $created
+          local.get $__jn_frame
+          i32.const 2
+          local.get $created
+          call $jn_gc_frame_set_root
+          local.get $created
+          local.set $t5
+          local.get $__jn_frame
+          i32.const 5
+          local.get $t5
+          call $jn_gc_frame_set_root
+          local.get $t5
+          i32.const 0
+          i32.eq
+          local.set $t6
+          local.get $t6
+          if
+            i32.const 5
+            local.set $pc
+          else
+            i32.const 6
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $created
+          local.set $t7
+          local.get $__jn_frame
+          i32.const 6
+          local.get $t7
+          call $jn_gc_frame_set_root
+          local.get $this__slot
+          local.set $t8
+          local.get $__jn_frame
+          i32.const 7
+          local.get $t8
+          call $jn_gc_frame_set_root
+          local.get $t8
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t9
+          local.get $t9
+          if
+            i32.const 7
+            local.set $pc
+          else
+            i32.const 8
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $t8
+          i32.const 20
+          i32.add
+          local.get $t7
+          i32.store
+          local.get $this__slot
+          local.set $t10
+          local.get $__jn_frame
+          i32.const 8
+          local.get $t10
+          call $jn_gc_frame_set_root
+          local.get $t10
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t11
+          local.get $t11
+          if
+            i32.const 9
+            local.set $pc
+          else
+            i32.const 10
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $t10
+          i32.const 24
+          i32.add
+          i32.const 1
+          i32.store
+          br $exit
+      )
+    )
+    call $jn_gc_frame_pop
+  )
+  (func $_JN_ArrayDeque_addLast_TT (param $this i32) (param $value i32)
+    (local $pc i32)
+    (local $__jn_tid i32)
+    (local $__jn_asz i32)
+    (local $__jn_frame i32)
+    (local $this__slot i32)
+    (local $value__slot i32)
+    (local $gctmp.6 i32)
+    (local $gctmp.16 i32)
+    (local $gctmp.33 i32)
+    (local $t0 i32)
+    (local $t1 i32)
+    (local $t2 i32)
+    (local $t3 i32)
+    (local $t4 i32)
+    (local $t5 i32)
+    (local $t6 i32)
+    (local $t7 i32)
+    (local $t8 i32)
+    (local $t9 i32)
+    (local $t10 i32)
+    (local $t11 i32)
+    (local $t12 i32)
+    (local $t13 i32)
+    (local $t14 i32)
+    (local $t15 i32)
+    (local $t16 i32)
+    (local $t17 i32)
+    (local $t18 i32)
+    (local $t19 i32)
+    (local $t20 i32)
+    (local $t21 i32)
+    (local $t22 i32)
+    (local $t23 i32)
+    (local $t24 i32)
+    (local $t25 i32)
+    (local $t26 i32)
+    (local $t27 i32)
+    (local $t28 i32)
+    (local $t29 i32)
+    (local $t30 i32)
+    (local $t31 i32)
+    (local $t32 i32)
+    (local $t33 i32)
+    (local $t34 i32)
+    (local $t35 i32)
+    (local $t36 i32)
+    (local $t37 i32)
+    (local $t38 i32)
+    (local $t39 i32)
+    (local $t40 i32)
+    (local $t41 i32)
+    (local $t42 i32)
+    (local $t43 i32)
+    i32.const 26
+    call $jn_gc_frame_push
+    local.set $__jn_frame
+    local.get $__jn_frame
+    i32.const 0
+    local.get $this
+    call $jn_gc_frame_set_root
+    local.get $__jn_frame
+    i32.const 1
+    local.get $value
+    call $jn_gc_frame_set_root
+    i32.const 0
+    local.set $pc
+    (block $exit
+      (loop $dispatch
+        (block $bb32
+        (block $bb31
+        (block $bb30
+        (block $bb29
+        (block $bb28
+        (block $bb27
+        (block $bb26
+        (block $bb25
+        (block $bb24
+        (block $bb23
+        (block $bb22
+        (block $bb21
+        (block $bb20
+        (block $bb19
+        (block $bb18
+        (block $bb17
+        (block $bb16
+        (block $bb15
+        (block $bb14
+        (block $bb13
+        (block $bb12
+        (block $bb11
+        (block $bb10
+        (block $bb9
+        (block $bb8
+        (block $bb7
+        (block $bb6
+        (block $bb5
+        (block $bb4
+        (block $bb3
+        (block $bb2
+        (block $bb1
+        (block $bb0
+          local.get $pc
+          br_table $bb0 $bb1 $bb2 $bb3 $bb4 $bb5 $bb6 $bb7 $bb8 $bb9 $bb10 $bb11 $bb12 $bb13 $bb14 $bb15 $bb16 $bb17 $bb18 $bb19 $bb20 $bb21 $bb22 $bb23 $bb24 $bb25 $bb26 $bb27 $bb28 $bb29 $bb30 $bb31 $bb32 $exit
+        )
+          local.get $this
+          local.set $this__slot
+          local.get $__jn_frame
+          i32.const 2
+          local.get $this__slot
+          call $jn_gc_frame_set_root
+          local.get $value
+          local.set $value__slot
+          local.get $__jn_frame
+          i32.const 3
+          local.get $value__slot
+          call $jn_gc_frame_set_root
+          local.get $this__slot
+          local.set $t0
+          local.get $__jn_frame
+          i32.const 7
+          local.get $t0
+          call $jn_gc_frame_set_root
+          local.get $t0
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t1
+          local.get $t1
+          if
+            i32.const 1
+            local.set $pc
+          else
+            i32.const 2
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $t0
+          i32.const 16
+          i32.add
+          i32.load
+          local.set $t2
+          local.get $this__slot
+          local.set $t3
+          local.get $__jn_frame
+          i32.const 8
+          local.get $t3
+          call $jn_gc_frame_set_root
+          local.get $t3
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t4
+          local.get $t4
+          if
+            i32.const 3
+            local.set $pc
+          else
+            i32.const 4
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $t3
+          i32.const 4
+          i32.add
+          i32.load
+          local.set $t5
+          local.get $__jn_frame
+          i32.const 9
+          local.get $t5
+          call $jn_gc_frame_set_root
+          local.get $t5
+          local.set $gctmp.6
+          local.get $__jn_frame
+          i32.const 4
+          local.get $gctmp.6
+          call $jn_gc_frame_set_root
+          local.get $gctmp.6
+          local.set $t6
+          local.get $__jn_frame
+          i32.const 10
+          local.get $t6
+          call $jn_gc_frame_set_root
+          local.get $t6
+          i32.eqz
+          if
+            unreachable
+          end
+          local.get $t6
+          i32.const 8
+          i32.add
+          i32.load
+          local.set $t7
+          local.get $t2
+          local.get $t7
+          i32.eq
+          local.set $t8
+          local.get $t8
+          if
+            i32.const 5
+            local.set $pc
+          else
+            i32.const 6
+            local.set $pc
+          end
+          br $dispatch
+        )
+          local.get $this__slot
+          local.set $t9
+          local.get $__jn_frame
+          i32.const 11
+          local.get $t9
+          call $jn_gc_frame_set_root
+          local.get $t9
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t10
+          local.get $t10
+          if
+            i32.const 7
+            local.set $pc
+          else
+            i32.const 8
+            local.set $pc
+          end
+          br $dispatch
+        )
+          local.get $value__slot
+          local.set $t12
+          local.get $__jn_frame
+          i32.const 12
+          local.get $t12
+          call $jn_gc_frame_set_root
+          local.get $this__slot
+          local.set $t13
+          local.get $__jn_frame
+          i32.const 13
+          local.get $t13
+          call $jn_gc_frame_set_root
+          local.get $t13
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t14
+          local.get $t14
+          if
+            i32.const 11
+            local.set $pc
+          else
+            i32.const 12
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $t9
+          call $_JN_ArrayDeque_grow
+          call $jnative_exception_pending
+          local.set $t11
+          local.get $t11
+          if
+            i32.const 9
+            local.set $pc
+          else
+            i32.const 10
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          i32.const 6
+          local.set $pc
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $t13
+          i32.const 4
+          i32.add
+          i32.load
+          local.set $t15
+          local.get $__jn_frame
+          i32.const 14
+          local.get $t15
+          call $jn_gc_frame_set_root
+          local.get $t15
+          local.set $gctmp.16
+          local.get $__jn_frame
+          i32.const 5
+          local.get $gctmp.16
+          call $jn_gc_frame_set_root
+          local.get $gctmp.16
+          local.set $t16
+          local.get $__jn_frame
+          i32.const 15
+          local.get $t16
+          call $jn_gc_frame_set_root
+          local.get $this__slot
+          local.set $t17
+          local.get $__jn_frame
+          i32.const 16
+          local.get $t17
+          call $jn_gc_frame_set_root
+          local.get $t17
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t18
+          local.get $t18
+          if
+            i32.const 13
+            local.set $pc
+          else
+            i32.const 14
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $t17
+          i32.const 12
+          i32.add
+          i32.load
+          local.set $t19
+          local.get $t16
+          i32.eqz
+          if
+            unreachable
+          end
+          local.get $t19
+          i32.const 0
+          i32.lt_s
+          local.get $t19
+          local.get $t16
+          i32.const 8
+          i32.add
+          i32.load
+          i32.ge_s
+          i32.or
+          if
+            unreachable
+          end
+          local.get $t16
+          i32.const 16
+          i32.add
+          local.get $t19
+          i32.const 4
+          i32.mul
+          i32.add
+          local.get $t12
+          i32.store
+          call $jnative_exception_pending
+          local.set $t20
+          local.get $t20
+          if
+            i32.const 15
+            local.set $pc
+          else
+            i32.const 16
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $this__slot
+          local.set $t21
+          local.get $__jn_frame
+          i32.const 17
+          local.get $t21
+          call $jn_gc_frame_set_root
+          local.get $t21
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t22
+          local.get $t22
+          if
+            i32.const 17
+            local.set $pc
+          else
+            i32.const 18
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $t21
+          i32.const 12
+          i32.add
+          i32.load
+          local.set $t23
+          local.get $t23
+          i32.const 1
+          i32.add
+          local.set $t24
+          local.get $this__slot
+          local.set $t25
+          local.get $__jn_frame
+          i32.const 18
+          local.get $t25
+          call $jn_gc_frame_set_root
+          local.get $t25
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t26
+          local.get $t26
+          if
+            i32.const 19
+            local.set $pc
+          else
+            i32.const 20
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $t25
+          i32.const 12
+          i32.add
+          local.get $t24
+          i32.store
+          local.get $this__slot
+          local.set $t27
+          local.get $__jn_frame
+          i32.const 19
+          local.get $t27
+          call $jn_gc_frame_set_root
+          local.get $t27
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t28
+          local.get $t28
+          if
+            i32.const 21
+            local.set $pc
+          else
+            i32.const 22
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $t27
+          i32.const 12
+          i32.add
+          i32.load
+          local.set $t29
+          local.get $this__slot
+          local.set $t30
+          local.get $__jn_frame
+          i32.const 20
+          local.get $t30
+          call $jn_gc_frame_set_root
+          local.get $t30
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t31
+          local.get $t31
+          if
+            i32.const 23
+            local.set $pc
+          else
+            i32.const 24
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $t30
+          i32.const 4
+          i32.add
+          i32.load
+          local.set $t32
+          local.get $__jn_frame
+          i32.const 21
+          local.get $t32
+          call $jn_gc_frame_set_root
+          local.get $t32
+          local.set $gctmp.33
+          local.get $__jn_frame
+          i32.const 6
+          local.get $gctmp.33
+          call $jn_gc_frame_set_root
+          local.get $gctmp.33
+          local.set $t33
+          local.get $__jn_frame
+          i32.const 22
+          local.get $t33
+          call $jn_gc_frame_set_root
+          local.get $t33
+          i32.eqz
+          if
+            unreachable
+          end
+          local.get $t33
+          i32.const 8
+          i32.add
+          i32.load
+          local.set $t34
+          local.get $t29
+          local.get $t34
+          i32.ge_s
+          local.set $t35
+          local.get $t35
+          if
+            i32.const 25
+            local.set $pc
+          else
+            i32.const 26
+            local.set $pc
+          end
+          br $dispatch
+        )
+          local.get $this__slot
+          local.set $t36
+          local.get $__jn_frame
+          i32.const 23
+          local.get $t36
+          call $jn_gc_frame_set_root
+          local.get $t36
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t37
+          local.get $t37
+          if
+            i32.const 27
+            local.set $pc
+          else
+            i32.const 28
+            local.set $pc
+          end
+          br $dispatch
+        )
+          local.get $this__slot
+          local.set $t38
+          local.get $__jn_frame
+          i32.const 24
+          local.get $t38
+          call $jn_gc_frame_set_root
+          local.get $t38
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t39
+          local.get $t39
+          if
+            i32.const 29
+            local.set $pc
+          else
+            i32.const 30
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $t36
+          i32.const 12
+          i32.add
+          i32.const 0
+          i32.store
+          i32.const 26
+          local.set $pc
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $t38
+          i32.const 16
+          i32.add
+          i32.load
+          local.set $t40
+          local.get $t40
+          i32.const 1
+          i32.add
+          local.set $t41
+          local.get $this__slot
+          local.set $t42
+          local.get $__jn_frame
+          i32.const 25
+          local.get $t42
+          call $jn_gc_frame_set_root
+          local.get $t42
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t43
+          local.get $t43
+          if
+            i32.const 31
+            local.set $pc
+          else
+            i32.const 32
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $t42
+          i32.const 16
+          i32.add
+          local.get $t41
+          i32.store
+          br $exit
+      )
+    )
+    call $jn_gc_frame_pop
+  )
+  (func $_JN_ArrayDeque_grow (param $this i32)
+    (local $pc i32)
+    (local $__jn_tid i32)
+    (local $__jn_asz i32)
+    (local $__jn_frame i32)
+    (local $this__slot i32)
+    (local $oldCap i32)
+    (local $gctmp.3 i32)
+    (local $newCap i32)
+    (local $neu i32)
+    (local $gctmp.11 i32)
+    (local $i i32)
+    (local $idx i32)
+    (local $gctmp.31 i32)
+    (local $gctmp.35 i32)
+    (local $t0 i32)
+    (local $t1 i32)
+    (local $t2 i32)
+    (local $t3 i32)
+    (local $t4 i32)
+    (local $t5 i32)
+    (local $t6 i32)
+    (local $t7 i32)
+    (local $t8 i32)
+    (local $t9 i32)
+    (local $t10 i32)
+    (local $t11 i32)
+    (local $t12 i32)
+    (local $t13 i32)
+    (local $t14 i32)
+    (local $t15 i32)
+    (local $t16 i32)
+    (local $t17 i32)
+    (local $t18 i32)
+    (local $t19 i32)
+    (local $t20 i32)
+    (local $t21 i32)
+    (local $t22 i32)
+    (local $t23 i32)
+    (local $t24 i32)
+    (local $t25 i32)
+    (local $t26 i32)
+    (local $t27 i32)
+    (local $t28 i32)
+    (local $t29 i32)
+    (local $t30 i32)
+    (local $t31 i32)
+    (local $t32 i32)
+    (local $t33 i32)
+    (local $t34 i32)
+    (local $t35 i32)
+    (local $t36 i32)
+    (local $t37 i32)
+    (local $t38 i32)
+    (local $t39 i32)
+    (local $t40 i32)
+    (local $t41 i32)
+    (local $t42 i32)
+    (local $t43 i32)
+    (local $t44 i32)
+    (local $t45 i32)
+    (local $t46 i32)
+    (local $t47 i32)
+    (local $t48 i32)
+    (local $t49 i32)
+    (local $t50 i32)
+    i32.const 25
+    call $jn_gc_frame_push
+    local.set $__jn_frame
+    local.get $__jn_frame
+    i32.const 0
+    local.get $this
+    call $jn_gc_frame_set_root
+    i32.const 0
+    local.set $pc
+    (block $exit
+      (loop $dispatch
+        (block $bb27
+        (block $bb26
+        (block $bb25
+        (block $bb24
+        (block $bb23
+        (block $bb22
+        (block $bb21
+        (block $bb20
+        (block $bb19
+        (block $bb18
+        (block $bb17
+        (block $bb16
+        (block $bb15
+        (block $bb14
+        (block $bb13
+        (block $bb12
+        (block $bb11
+        (block $bb10
+        (block $bb9
+        (block $bb8
+        (block $bb7
+        (block $bb6
+        (block $bb5
+        (block $bb4
+        (block $bb3
+        (block $bb2
+        (block $bb1
+        (block $bb0
+          local.get $pc
+          br_table $bb0 $bb1 $bb2 $bb3 $bb4 $bb5 $bb6 $bb7 $bb8 $bb9 $bb10 $bb11 $bb12 $bb13 $bb14 $bb15 $bb16 $bb17 $bb18 $bb19 $bb20 $bb21 $bb22 $bb23 $bb24 $bb25 $bb26 $bb27 $exit
+        )
+          local.get $this
+          local.set $this__slot
+          local.get $__jn_frame
+          i32.const 1
+          local.get $this__slot
+          call $jn_gc_frame_set_root
+          local.get $this__slot
+          local.set $t0
+          local.get $__jn_frame
+          i32.const 7
+          local.get $t0
+          call $jn_gc_frame_set_root
+          local.get $t0
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t1
+          local.get $t1
+          if
+            i32.const 1
+            local.set $pc
+          else
+            i32.const 2
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $t0
+          i32.const 4
+          i32.add
+          i32.load
+          local.set $t2
+          local.get $__jn_frame
+          i32.const 8
+          local.get $t2
+          call $jn_gc_frame_set_root
+          local.get $t2
+          local.set $gctmp.3
+          local.get $__jn_frame
+          i32.const 2
+          local.get $gctmp.3
+          call $jn_gc_frame_set_root
+          local.get $gctmp.3
+          local.set $t3
+          local.get $__jn_frame
+          i32.const 9
+          local.get $t3
+          call $jn_gc_frame_set_root
+          local.get $t3
+          i32.eqz
+          if
+            unreachable
+          end
+          local.get $t3
+          i32.const 8
+          i32.add
+          i32.load
+          local.set $t4
+          local.get $t4
+          local.set $oldCap
+          local.get $oldCap
+          local.set $t5
+          local.get $oldCap
+          local.set $t6
+          local.get $t5
+          local.get $t6
+          i32.add
+          local.set $t7
+          local.get $t7
+          local.set $newCap
+          local.get $newCap
+          local.set $t8
+          local.get $t8
+          i32.const 0
+          i32.lt_s
+          if
+            unreachable
+          end
+          local.get $t8
+          i32.const 4
+          i32.mul
+          local.set $__jn_asz
+          local.get $__jn_asz
+          i32.const 4
+          i32.div_u
+          local.get $t8
+          i32.ne
+          if
+            unreachable
+          end
+          local.get $__jn_asz
+          i32.const 16
+          i32.add
+          i32.const 1
+          call $jn_gc_alloc_array
+          local.set $t9
+          local.get $t9
+          i32.eqz
+          if
+            unreachable
+          end
+          local.get $t9
+          i32.const 130
+          i32.store
+          local.get $t9
+          i32.const 8
+          i32.add
+          local.get $t8
+          i32.store
+          local.get $__jn_frame
+          i32.const 10
+          local.get $t9
+          call $jn_gc_frame_set_root
+          call $jnative_exception_pending
+          local.set $t10
+          local.get $t10
+          if
+            i32.const 3
+            local.set $pc
+          else
+            i32.const 4
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $t9
+          local.set $gctmp.11
+          local.get $__jn_frame
+          i32.const 4
+          local.get $gctmp.11
+          call $jn_gc_frame_set_root
+          local.get $gctmp.11
+          local.set $t11
+          local.get $__jn_frame
+          i32.const 11
+          local.get $t11
+          call $jn_gc_frame_set_root
+          local.get $t11
+          local.set $neu
+          local.get $__jn_frame
+          i32.const 3
+          local.get $neu
+          call $jn_gc_frame_set_root
+          i32.const 0
+          local.set $i
+          i32.const 5
+          local.set $pc
+          br $dispatch
+        )
+          local.get $i
+          local.set $t12
+          local.get $this__slot
+          local.set $t13
+          local.get $__jn_frame
+          i32.const 12
+          local.get $t13
+          call $jn_gc_frame_set_root
+          local.get $t13
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t14
+          local.get $t14
+          if
+            i32.const 8
+            local.set $pc
+          else
+            i32.const 9
+            local.set $pc
+          end
+          br $dispatch
+        )
+          local.get $this__slot
+          local.set $t17
+          local.get $__jn_frame
+          i32.const 13
+          local.get $t17
+          call $jn_gc_frame_set_root
+          local.get $t17
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t18
+          local.get $t18
+          if
+            i32.const 10
+            local.set $pc
+          else
+            i32.const 11
+            local.set $pc
+          end
+          br $dispatch
+        )
+          local.get $neu
+          local.set $t41
+          local.get $__jn_frame
+          i32.const 20
+          local.get $t41
+          call $jn_gc_frame_set_root
+          local.get $this__slot
+          local.set $t42
+          local.get $__jn_frame
+          i32.const 21
+          local.get $t42
+          call $jn_gc_frame_set_root
+          local.get $t42
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t43
+          local.get $t43
+          if
+            i32.const 20
+            local.set $pc
+          else
+            i32.const 21
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $t13
+          i32.const 16
+          i32.add
+          i32.load
+          local.set $t15
+          local.get $t12
+          local.get $t15
+          i32.lt_s
+          local.set $t16
+          local.get $t16
+          if
+            i32.const 6
+            local.set $pc
+          else
+            i32.const 7
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $t17
+          i32.const 8
+          i32.add
+          i32.load
+          local.set $t19
+          local.get $i
+          local.set $t20
+          local.get $t19
+          local.get $t20
+          i32.add
+          local.set $t21
+          local.get $t21
+          local.set $idx
+          local.get $idx
+          local.set $t22
+          local.get $oldCap
+          local.set $t23
+          local.get $t22
+          local.get $t23
+          i32.ge_s
+          local.set $t24
+          local.get $t24
+          if
+            i32.const 12
+            local.set $pc
+          else
+            i32.const 13
+            local.set $pc
+          end
+          br $dispatch
+        )
+          local.get $idx
+          local.set $t25
+          local.get $oldCap
+          local.set $t26
+          local.get $t25
+          local.get $t26
+          i32.sub
+          local.set $t27
+          local.get $t27
+          local.set $idx
+          i32.const 13
+          local.set $pc
+          br $dispatch
+        )
+          local.get $this__slot
+          local.set $t28
+          local.get $__jn_frame
+          i32.const 14
+          local.get $t28
+          call $jn_gc_frame_set_root
+          local.get $t28
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t29
+          local.get $t29
+          if
+            i32.const 14
+            local.set $pc
+          else
+            i32.const 15
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $t28
+          i32.const 4
+          i32.add
+          i32.load
+          local.set $t30
+          local.get $__jn_frame
+          i32.const 15
+          local.get $t30
+          call $jn_gc_frame_set_root
+          local.get $t30
+          local.set $gctmp.31
+          local.get $__jn_frame
+          i32.const 5
+          local.get $gctmp.31
+          call $jn_gc_frame_set_root
+          local.get $gctmp.31
+          local.set $t31
+          local.get $__jn_frame
+          i32.const 16
+          local.get $t31
+          call $jn_gc_frame_set_root
+          local.get $idx
+          local.set $t32
+          local.get $t31
+          i32.eqz
+          if
+            unreachable
+          end
+          local.get $t32
+          i32.const 0
+          i32.lt_s
+          local.get $t32
+          local.get $t31
+          i32.const 8
+          i32.add
+          i32.load
+          i32.ge_s
+          i32.or
+          if
+            unreachable
+          end
+          local.get $t31
+          i32.const 16
+          i32.add
+          local.get $t32
+          i32.const 4
+          i32.mul
+          i32.add
+          i32.load
+          local.set $t33
+          local.get $__jn_frame
+          i32.const 17
+          local.get $t33
+          call $jn_gc_frame_set_root
+          call $jnative_exception_pending
+          local.set $t34
+          local.get $t34
+          if
+            i32.const 16
+            local.set $pc
+          else
+            i32.const 17
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $t33
+          local.set $gctmp.35
+          local.get $__jn_frame
+          i32.const 6
+          local.get $gctmp.35
+          call $jn_gc_frame_set_root
+          local.get $gctmp.35
+          local.set $t35
+          local.get $__jn_frame
+          i32.const 18
+          local.get $t35
+          call $jn_gc_frame_set_root
+          local.get $neu
+          local.set $t36
+          local.get $__jn_frame
+          i32.const 19
+          local.get $t36
+          call $jn_gc_frame_set_root
+          local.get $i
+          local.set $t37
+          local.get $t36
+          i32.eqz
+          if
+            unreachable
+          end
+          local.get $t37
+          i32.const 0
+          i32.lt_s
+          local.get $t37
+          local.get $t36
+          i32.const 8
+          i32.add
+          i32.load
+          i32.ge_s
+          i32.or
+          if
+            unreachable
+          end
+          local.get $t36
+          i32.const 16
+          i32.add
+          local.get $t37
+          i32.const 4
+          i32.mul
+          i32.add
+          local.get $t35
+          i32.store
+          call $jnative_exception_pending
+          local.set $t38
+          local.get $t38
+          if
+            i32.const 18
+            local.set $pc
+          else
+            i32.const 19
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $i
+          local.set $t39
+          local.get $t39
+          i32.const 1
+          i32.add
+          local.set $t40
+          local.get $t40
+          local.set $i
+          call $jn_gc_safepoint
+          i32.const 5
+          local.set $pc
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $t42
+          i32.const 4
+          i32.add
+          local.get $t41
+          i32.store
+          local.get $this__slot
+          local.set $t44
+          local.get $__jn_frame
+          i32.const 22
+          local.get $t44
+          call $jn_gc_frame_set_root
+          local.get $t44
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t45
+          local.get $t45
+          if
+            i32.const 22
+            local.set $pc
+          else
+            i32.const 23
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $t44
+          i32.const 8
+          i32.add
+          i32.const 0
+          i32.store
+          local.get $this__slot
+          local.set $t46
+          local.get $__jn_frame
+          i32.const 23
+          local.get $t46
+          call $jn_gc_frame_set_root
+          local.get $t46
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t47
+          local.get $t47
+          if
+            i32.const 24
+            local.set $pc
+          else
+            i32.const 25
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $t46
+          i32.const 16
+          i32.add
+          i32.load
+          local.set $t48
+          local.get $this__slot
+          local.set $t49
+          local.get $__jn_frame
+          i32.const 24
+          local.get $t49
+          call $jn_gc_frame_set_root
+          local.get $t49
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t50
+          local.get $t50
+          if
+            i32.const 26
+            local.set $pc
+          else
+            i32.const 27
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $t49
+          i32.const 12
+          i32.add
+          local.get $t48
+          i32.store
+          br $exit
+      )
+    )
+    call $jn_gc_frame_pop
+  )
+  (func $_JN_TimerEntry_init (param $this i32)
+    (local $pc i32)
+    (local $__jn_tid i32)
+    (local $__jn_asz i32)
+    (local $__jn_frame i32)
+    (local $this__slot i32)
+    (local $t0 i32)
+    (local $t1 i32)
+    (local $t3 i32)
+    (local $t4 i32)
+    i32.const 4
+    call $jn_gc_frame_push
+    local.set $__jn_frame
+    local.get $__jn_frame
+    i32.const 0
+    local.get $this
+    call $jn_gc_frame_set_root
+    i32.const 0
+    local.set $pc
+    (block $exit
+      (loop $dispatch
+        (block $bb4
+        (block $bb3
+        (block $bb2
+        (block $bb1
+        (block $bb0
+          local.get $pc
+          br_table $bb0 $bb1 $bb2 $bb3 $bb4 $exit
+        )
+          local.get $this
+          local.set $this__slot
+          local.get $__jn_frame
+          i32.const 1
+          local.get $this__slot
+          call $jn_gc_frame_set_root
+          local.get $this__slot
+          local.set $t0
+          local.get $__jn_frame
+          i32.const 2
+          local.get $t0
+          call $jn_gc_frame_set_root
+          local.get $t0
+          call $_JN_Object_init
+          call $jnative_exception_pending
+          local.set $t1
+          local.get $t1
+          if
+            i32.const 1
+            local.set $pc
+          else
+            i32.const 2
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $this__slot
+          local.set $t3
+          local.get $__jn_frame
+          i32.const 3
+          local.get $t3
+          call $jn_gc_frame_set_root
+          local.get $t3
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t4
+          local.get $t4
+          if
+            i32.const 3
+            local.set $pc
+          else
+            i32.const 4
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $t3
+          i32.const 24
+          i32.add
+          i32.const 0
+          i32.store
+          br $exit
+      )
+    )
+    call $jn_gc_frame_pop
+  )
+  (func $_JN_EventLoopRunner_run (param $this i32)
+    (local $pc i32)
+    (local $__jn_tid i32)
+    (local $__jn_asz i32)
+    (local $__jn_frame i32)
+    (local $this__slot i32)
+    (local $gctmp.3 i32)
+    (local $t0 i32)
+    (local $t1 i32)
+    (local $t2 i32)
+    (local $t3 i32)
+    (local $t4 i32)
+    (local $t5 i32)
+    i32.const 6
+    call $jn_gc_frame_push
+    local.set $__jn_frame
+    local.get $__jn_frame
+    i32.const 0
+    local.get $this
+    call $jn_gc_frame_set_root
+    i32.const 0
+    local.set $pc
+    (block $exit
+      (loop $dispatch
+        (block $bb6
+        (block $bb5
+        (block $bb4
+        (block $bb3
+        (block $bb2
+        (block $bb1
+        (block $bb0
+          local.get $pc
+          br_table $bb0 $bb1 $bb2 $bb3 $bb4 $bb5 $bb6 $exit
+        )
+          local.get $this
+          local.set $this__slot
+          local.get $__jn_frame
+          i32.const 1
+          local.get $this__slot
+          call $jn_gc_frame_set_root
+          local.get $this__slot
+          local.set $t0
+          local.get $__jn_frame
+          i32.const 3
+          local.get $t0
+          call $jn_gc_frame_set_root
+          local.get $t0
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t1
+          local.get $t1
+          if
+            i32.const 1
+            local.set $pc
+          else
+            i32.const 2
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $t0
+          i32.const 20
+          i32.add
+          i32.load
+          local.set $t2
+          local.get $__jn_frame
+          i32.const 4
+          local.get $t2
+          call $jn_gc_frame_set_root
+          local.get $t2
+          local.set $gctmp.3
+          local.get $__jn_frame
+          i32.const 2
+          local.get $gctmp.3
+          call $jn_gc_frame_set_root
+          local.get $gctmp.3
+          local.set $t3
+          local.get $__jn_frame
+          i32.const 5
+          local.get $t3
+          call $jn_gc_frame_set_root
+          local.get $t3
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t4
+          local.get $t4
+          if
+            i32.const 3
+            local.set $pc
+          else
+            i32.const 4
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $t3
+          call $_JN_EventLoop_run
+          call $jnative_exception_pending
+          local.set $t5
+          local.get $t5
+          if
+            i32.const 5
+            local.set $pc
+          else
+            i32.const 6
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          br $exit
+      )
+    )
+    call $jn_gc_frame_pop
+  )
+  (func $_JN_EventLoop_run (param $this i32)
+    (local $pc i32)
+    (local $__jn_tid i32)
+    (local $__jn_asz i32)
+    (local $__jn_frame i32)
+    (local $this__slot i32)
+    (local $gctmp.1 i32)
+    (local $t0 i32)
+    (local $t1 i32)
+    (local $t2 i32)
+    (local $t3 i64)
+    (local $t4 i32)
+    (local $t5 i32)
+    (local $t6 i32)
+    (local $t7 i32)
+    (local $t8 i32)
+    (local $t9 i32)
+    (local $t10 i32)
+    (local $t11 i32)
+    (local $t12 i32)
+    (local $t13 i64)
+    (local $t14 i32)
+    (local $t15 i32)
+    (local $t16 i32)
+    (local $t17 i32)
+    (local $t18 i32)
+    (local $t19 i32)
+    (local $t20 i32)
+    (local $t21 i32)
+    (local $t22 i32)
+    (local $t23 i32)
+    (local $t24 i32)
+    (local $t25 i32)
+    (local $t26 i32)
+    (local $t27 i32)
+    (local $t28 i64)
+    (local $t29 i32)
+    (local $t30 i32)
+    i32.const 14
+    call $jn_gc_frame_push
+    local.set $__jn_frame
+    local.get $__jn_frame
+    i32.const 0
+    local.get $this
+    call $jn_gc_frame_set_root
+    i32.const 0
+    local.set $pc
+    (block $exit
+      (loop $dispatch
+        (block $bb31
+        (block $bb30
+        (block $bb29
+        (block $bb28
+        (block $bb27
+        (block $bb26
+        (block $bb25
+        (block $bb24
+        (block $bb23
+        (block $bb22
+        (block $bb21
+        (block $bb20
+        (block $bb19
+        (block $bb18
+        (block $bb17
+        (block $bb16
+        (block $bb15
+        (block $bb14
+        (block $bb13
+        (block $bb12
+        (block $bb11
+        (block $bb10
+        (block $bb9
+        (block $bb8
+        (block $bb7
+        (block $bb6
+        (block $bb5
+        (block $bb4
+        (block $bb3
+        (block $bb2
+        (block $bb1
+        (block $bb0
+          local.get $pc
+          br_table $bb0 $bb1 $bb2 $bb3 $bb4 $bb5 $bb6 $bb7 $bb8 $bb9 $bb10 $bb11 $bb12 $bb13 $bb14 $bb15 $bb16 $bb17 $bb18 $bb19 $bb20 $bb21 $bb22 $bb23 $bb24 $bb25 $bb26 $bb27 $bb28 $bb29 $bb30 $bb31 $exit
+        )
+          local.get $this
+          local.set $this__slot
+          local.get $__jn_frame
+          i32.const 1
+          local.get $this__slot
+          call $jn_gc_frame_set_root
+          i32.const 0
+          local.set $t0
+          local.get $__jn_frame
+          i32.const 3
+          local.get $t0
+          call $jn_gc_frame_set_root
+          local.get $t0
+          local.set $gctmp.1
+          local.get $__jn_frame
+          i32.const 2
+          local.get $gctmp.1
+          call $jn_gc_frame_set_root
+          local.get $gctmp.1
+          local.set $t1
+          local.get $__jn_frame
+          i32.const 4
+          local.get $t1
+          call $jn_gc_frame_set_root
+          local.get $t1
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t2
+          local.get $t2
+          if
+            i32.const 1
+            local.set $pc
+          else
+            i32.const 2
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          i64.const 0
+          local.set $t3
+          local.get $this__slot
+          local.set $t4
+          local.get $__jn_frame
+          i32.const 5
+          local.get $t4
+          call $jn_gc_frame_set_root
+          local.get $t4
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t5
+          local.get $t5
+          if
+            i32.const 3
+            local.set $pc
+          else
+            i32.const 4
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $t4
+          i32.const 48
+          i32.add
+          local.get $t3
+          i64.store
+          local.get $this__slot
+          local.set $t6
+          local.get $__jn_frame
+          i32.const 6
+          local.get $t6
+          call $jn_gc_frame_set_root
+          local.get $t6
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t7
+          local.get $t7
+          if
+            i32.const 5
+            local.set $pc
+          else
+            i32.const 6
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $t6
+          i32.const 32
+          i32.add
+          i32.load
+          local.set $t8
+          local.get $t8
+          i32.const 0
+          i32.ne
+          local.set $t9
+          local.get $t9
+          if
+            i32.const 7
+            local.set $pc
+          else
+            i32.const 8
+            local.set $pc
+          end
+          br $dispatch
+        )
+          local.get $this__slot
+          local.set $t10
+          local.get $__jn_frame
+          i32.const 7
+          local.get $t10
+          call $jn_gc_frame_set_root
+          local.get $t10
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t11
+          local.get $t11
+          if
+            i32.const 9
+            local.set $pc
+          else
+            i32.const 10
+            local.set $pc
+          end
+          br $dispatch
+        )
+          local.get $this__slot
+          local.set $t16
+          local.get $__jn_frame
+          i32.const 9
+          local.get $t16
+          call $jn_gc_frame_set_root
+          local.get $t16
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t17
+          local.get $t17
+          if
+            i32.const 15
+            local.set $pc
+          else
+            i32.const 16
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $t10
+          call $_JN_EventLoop_processReady
+          call $jnative_exception_pending
+          local.set $t12
+          local.get $t12
+          if
+            i32.const 11
+            local.set $pc
+          else
+            i32.const 12
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          i32.const 0
+          i64.extend_i32_s
+          local.set $t13
+          local.get $this__slot
+          local.set $t14
+          local.get $__jn_frame
+          i32.const 8
+          local.get $t14
+          call $jn_gc_frame_set_root
+          local.get $t14
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t15
+          local.get $t15
+          if
+            i32.const 13
+            local.set $pc
+          else
+            i32.const 14
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $t14
+          i32.const 48
+          i32.add
+          local.get $t13
+          i64.store
+          br $exit
+        )
+          br $exit
+        )
+          local.get $t16
+          i32.const 28
+          i32.add
+          i32.const 1
+          i32.store
+          i32.const 17
+          local.set $pc
+          br $dispatch
+        )
+          local.get $this__slot
+          local.set $t18
+          local.get $__jn_frame
+          i32.const 10
+          local.get $t18
+          call $jn_gc_frame_set_root
+          local.get $t18
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t19
+          local.get $t19
+          if
+            i32.const 20
+            local.set $pc
+          else
+            i32.const 21
+            local.set $pc
+          end
+          br $dispatch
+        )
+          local.get $this__slot
+          local.set $t22
+          local.get $__jn_frame
+          i32.const 11
+          local.get $t22
+          call $jn_gc_frame_set_root
+          local.get $t22
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t23
+          local.get $t23
+          if
+            i32.const 22
+            local.set $pc
+          else
+            i32.const 23
+            local.set $pc
+          end
+          br $dispatch
+        )
+          local.get $this__slot
+          local.set $t25
+          local.get $__jn_frame
+          i32.const 12
+          local.get $t25
+          call $jn_gc_frame_set_root
+          local.get $t25
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t26
+          local.get $t26
+          if
+            i32.const 26
+            local.set $pc
+          else
+            i32.const 27
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $t18
+          i32.const 28
+          i32.add
+          i32.load
+          local.set $t20
+          local.get $t20
+          i32.const 0
+          i32.ne
+          local.set $t21
+          local.get $t21
+          if
+            i32.const 18
+            local.set $pc
+          else
+            i32.const 19
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $t22
+          call $_JN_EventLoop_tick
+          call $jnative_exception_pending
+          local.set $t24
+          local.get $t24
+          if
+            i32.const 24
+            local.set $pc
+          else
+            i32.const 25
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          call $jn_gc_safepoint
+          i32.const 17
+          local.set $pc
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $t25
+          call $_JN_EventLoop_processReady
+          call $jnative_exception_pending
+          local.set $t27
+          local.get $t27
+          if
+            i32.const 28
+            local.set $pc
+          else
+            i32.const 29
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          i32.const 0
+          i64.extend_i32_s
+          local.set $t28
+          local.get $this__slot
+          local.set $t29
+          local.get $__jn_frame
+          i32.const 13
+          local.get $t29
+          call $jn_gc_frame_set_root
+          local.get $t29
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t30
+          local.get $t30
+          if
+            i32.const 30
+            local.set $pc
+          else
+            i32.const 31
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $t29
+          i32.const 48
+          i32.add
+          local.get $t28
+          i64.store
+          br $exit
+      )
+    )
+    call $jn_gc_frame_pop
+  )
+  (func $_JN_EventLoop_processReady (param $this i32)
+    (local $pc i32)
+    (local $__jn_tid i32)
+    (local $__jn_asz i32)
+    (local $__jn_frame i32)
+    (local $this__slot i32)
+    (local $limit i32)
+    (local $gctmp.3 i32)
+    (local $n i32)
+    (local $gctmp.14 i32)
+    (local $task i32)
+    (local $gctmp.20 i32)
+    (local $gctmp.28 i32)
+    (local $gctmp.32 i32)
+    (local $gctmp.36 i32)
+    (local $t0 i32)
+    (local $t1 i32)
+    (local $t2 i32)
+    (local $t3 i32)
+    (local $t4 i32)
+    (local $t5 i32)
+    (local $t6 i32)
+    (local $t7 i32)
+    (local $t8 i32)
+    (local $t9 i32)
+    (local $t10 i32)
+    (local $t11 i32)
+    (local $t12 i32)
+    (local $t13 i32)
+    (local $t14 i32)
+    (local $t15 i32)
+    (local $t16 i32)
+    (local $t17 i32)
+    (local $t18 i32)
+    (local $t19 i32)
+    (local $t20 i32)
+    (local $t21 i32)
+    (local $t22 i32)
+    (local $t23 i32)
+    (local $t24 i32)
+    (local $t25 i32)
+    (local $t26 i32)
+    (local $t27 i32)
+    (local $t28 i32)
+    (local $t29 i32)
+    (local $t30 i32)
+    (local $t31 i32)
+    (local $t32 i32)
+    (local $t33 i32)
+    (local $t34 i32)
+    (local $t35 i32)
+    (local $t36 i32)
+    (local $t37 i32)
+    (local $t38 i32)
+    (local $t39 i32)
+    (local $t40 i32)
+    (local $t41 i32)
+    (local $t42 i32)
+    (local $t43 i32)
+    (local $t44 i32)
+    (local $t45 i32)
+    (local $t46 i32)
+    i32.const 28
+    call $jn_gc_frame_push
+    local.set $__jn_frame
+    local.get $__jn_frame
+    i32.const 0
+    local.get $this
+    call $jn_gc_frame_set_root
+    i32.const 0
+    local.set $pc
+    (block $exit
+      (loop $dispatch
+        (block $bb42
+        (block $bb41
+        (block $bb40
+        (block $bb39
+        (block $bb38
+        (block $bb37
+        (block $bb36
+        (block $bb35
+        (block $bb34
+        (block $bb33
+        (block $bb32
+        (block $bb31
+        (block $bb30
+        (block $bb29
+        (block $bb28
+        (block $bb27
+        (block $bb26
+        (block $bb25
+        (block $bb24
+        (block $bb23
+        (block $bb22
+        (block $bb21
+        (block $bb20
+        (block $bb19
+        (block $bb18
+        (block $bb17
+        (block $bb16
+        (block $bb15
+        (block $bb14
+        (block $bb13
+        (block $bb12
+        (block $bb11
+        (block $bb10
+        (block $bb9
+        (block $bb8
+        (block $bb7
+        (block $bb6
+        (block $bb5
+        (block $bb4
+        (block $bb3
+        (block $bb2
+        (block $bb1
+        (block $bb0
+          local.get $pc
+          br_table $bb0 $bb1 $bb2 $bb3 $bb4 $bb5 $bb6 $bb7 $bb8 $bb9 $bb10 $bb11 $bb12 $bb13 $bb14 $bb15 $bb16 $bb17 $bb18 $bb19 $bb20 $bb21 $bb22 $bb23 $bb24 $bb25 $bb26 $bb27 $bb28 $bb29 $bb30 $bb31 $bb32 $bb33 $bb34 $bb35 $bb36 $bb37 $bb38 $bb39 $bb40 $bb41 $bb42 $exit
+        )
+          local.get $this
+          local.set $this__slot
+          local.get $__jn_frame
+          i32.const 1
+          local.get $this__slot
+          call $jn_gc_frame_set_root
+          local.get $this__slot
+          local.set $t0
+          local.get $__jn_frame
+          i32.const 9
+          local.get $t0
+          call $jn_gc_frame_set_root
+          local.get $t0
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t1
+          local.get $t1
+          if
+            i32.const 1
+            local.set $pc
+          else
+            i32.const 2
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $t0
+          i32.const 4
+          i32.add
+          i32.load
+          local.set $t2
+          local.get $__jn_frame
+          i32.const 10
+          local.get $t2
+          call $jn_gc_frame_set_root
+          local.get $t2
+          local.set $gctmp.3
+          local.get $__jn_frame
+          i32.const 2
+          local.get $gctmp.3
+          call $jn_gc_frame_set_root
+          local.get $gctmp.3
+          local.set $t3
+          local.get $__jn_frame
+          i32.const 11
+          local.get $t3
+          call $jn_gc_frame_set_root
+          local.get $t3
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t4
+          local.get $t4
+          if
+            i32.const 3
+            local.set $pc
+          else
+            i32.const 4
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $t3
+          call $_JN_ArrayDeque_size
+          local.set $t5
+          call $jnative_exception_pending
+          local.set $t6
+          local.get $t6
+          if
+            i32.const 5
+            local.set $pc
+          else
+            i32.const 6
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $t5
+          i32.const 64
+          i32.add
+          local.set $t7
+          local.get $t7
+          local.set $limit
+          i32.const 0
+          local.set $n
+          i32.const 7
+          local.set $pc
+          br $dispatch
+        )
+          local.get $n
+          local.set $t8
+          local.get $limit
+          local.set $t9
+          local.get $t8
+          local.get $t9
+          i32.lt_s
+          local.set $t10
+          local.get $t10
+          if
+            i32.const 8
+            local.set $pc
+          else
+            i32.const 9
+            local.set $pc
+          end
+          br $dispatch
+        )
+          local.get $this__slot
+          local.set $t11
+          local.get $__jn_frame
+          i32.const 12
+          local.get $t11
+          call $jn_gc_frame_set_root
+          local.get $t11
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t12
+          local.get $t12
+          if
+            i32.const 10
+            local.set $pc
+          else
+            i32.const 11
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          br $exit
+        )
+          local.get $t11
+          i32.const 8
+          i32.add
+          i32.load
+          local.set $t13
+          local.get $__jn_frame
+          i32.const 13
+          local.get $t13
+          call $jn_gc_frame_set_root
+          local.get $t13
+          local.set $gctmp.14
+          local.get $__jn_frame
+          i32.const 3
+          local.get $gctmp.14
+          call $jn_gc_frame_set_root
+          local.get $gctmp.14
+          local.set $t14
+          local.get $__jn_frame
+          i32.const 14
+          local.get $t14
+          call $jn_gc_frame_set_root
+          local.get $t14
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t15
+          local.get $t15
+          if
+            i32.const 12
+            local.set $pc
+          else
+            i32.const 13
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          call $jnative_exception_pending
+          local.set $t16
+          local.get $t16
+          if
+            i32.const 14
+            local.set $pc
+          else
+            i32.const 15
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          i32.const 0
+          local.set $task
+          local.get $__jn_frame
+          i32.const 4
+          local.get $task
+          call $jn_gc_frame_set_root
+          local.get $this__slot
+          local.set $t17
+          local.get $__jn_frame
+          i32.const 15
+          local.get $t17
+          call $jn_gc_frame_set_root
+          local.get $t17
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t18
+          local.get $t18
+          if
+            i32.const 16
+            local.set $pc
+          else
+            i32.const 17
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $t17
+          i32.const 4
+          i32.add
+          i32.load
+          local.set $t19
+          local.get $__jn_frame
+          i32.const 16
+          local.get $t19
+          call $jn_gc_frame_set_root
+          local.get $t19
+          local.set $gctmp.20
+          local.get $__jn_frame
+          i32.const 5
+          local.get $gctmp.20
+          call $jn_gc_frame_set_root
+          local.get $gctmp.20
+          local.set $t20
+          local.get $__jn_frame
+          i32.const 17
+          local.get $t20
+          call $jn_gc_frame_set_root
+          local.get $t20
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t21
+          local.get $t21
+          if
+            i32.const 18
+            local.set $pc
+          else
+            i32.const 19
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $t20
+          call $_JN_ArrayDeque_size
+          local.set $t22
+          call $jnative_exception_pending
+          local.set $t23
+          local.get $t23
+          if
+            i32.const 20
+            local.set $pc
+          else
+            i32.const 21
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $t22
+          i32.const 0
+          i32.gt_s
+          local.set $t24
+          local.get $t24
+          if
+            i32.const 22
+            local.set $pc
+          else
+            i32.const 23
+            local.set $pc
+          end
+          br $dispatch
+        )
+          local.get $this__slot
+          local.set $t25
+          local.get $__jn_frame
+          i32.const 18
+          local.get $t25
+          call $jn_gc_frame_set_root
+          local.get $t25
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t26
+          local.get $t26
+          if
+            i32.const 24
+            local.set $pc
+          else
+            i32.const 25
+            local.set $pc
+          end
+          br $dispatch
+        )
+          local.get $this__slot
+          local.set $t33
+          local.get $__jn_frame
+          i32.const 23
+          local.get $t33
+          call $jn_gc_frame_set_root
+          local.get $t33
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t34
+          local.get $t34
+          if
+            i32.const 30
+            local.set $pc
+          else
+            i32.const 31
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $t25
+          i32.const 4
+          i32.add
+          i32.load
+          local.set $t27
+          local.get $__jn_frame
+          i32.const 19
+          local.get $t27
+          call $jn_gc_frame_set_root
+          local.get $t27
+          local.set $gctmp.28
+          local.get $__jn_frame
+          i32.const 6
+          local.get $gctmp.28
+          call $jn_gc_frame_set_root
+          local.get $gctmp.28
+          local.set $t28
+          local.get $__jn_frame
+          i32.const 20
+          local.get $t28
+          call $jn_gc_frame_set_root
+          local.get $t28
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t29
+          local.get $t29
+          if
+            i32.const 26
+            local.set $pc
+          else
+            i32.const 27
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $t28
+          call $_JN_ArrayDeque_removeFirst
+          local.set $t30
+          local.get $__jn_frame
+          i32.const 21
+          local.get $t30
+          call $jn_gc_frame_set_root
+          call $jnative_exception_pending
+          local.set $t31
+          local.get $t31
+          if
+            i32.const 28
+            local.set $pc
+          else
+            i32.const 29
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $t30
+          local.set $gctmp.32
+          local.get $__jn_frame
+          i32.const 7
+          local.get $gctmp.32
+          call $jn_gc_frame_set_root
+          local.get $gctmp.32
+          local.set $t32
+          local.get $__jn_frame
+          i32.const 22
+          local.get $t32
+          call $jn_gc_frame_set_root
+          local.get $t32
+          local.set $task
+          local.get $__jn_frame
+          i32.const 4
+          local.get $task
+          call $jn_gc_frame_set_root
+          i32.const 23
+          local.set $pc
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $t33
+          i32.const 8
+          i32.add
+          i32.load
+          local.set $t35
+          local.get $__jn_frame
+          i32.const 24
+          local.get $t35
+          call $jn_gc_frame_set_root
+          local.get $t35
+          local.set $gctmp.36
+          local.get $__jn_frame
+          i32.const 8
+          local.get $gctmp.36
+          call $jn_gc_frame_set_root
+          local.get $gctmp.36
+          local.set $t36
+          local.get $__jn_frame
+          i32.const 25
+          local.get $t36
+          call $jn_gc_frame_set_root
+          local.get $t36
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t37
+          local.get $t37
+          if
+            i32.const 32
+            local.set $pc
+          else
+            i32.const 33
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          call $jnative_exception_pending
+          local.set $t38
+          local.get $t38
+          if
+            i32.const 34
+            local.set $pc
+          else
+            i32.const 35
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $task
+          local.set $t39
+          local.get $__jn_frame
+          i32.const 26
+          local.get $t39
+          call $jn_gc_frame_set_root
+          local.get $t39
+          i32.const 0
+          i32.eq
+          local.set $t40
+          local.get $t40
+          if
+            i32.const 36
+            local.set $pc
+          else
+            i32.const 38
+            local.set $pc
+          end
+          br $dispatch
+        )
+          local.get $limit
+          local.set $t41
+          local.get $t41
+          local.set $n
+          i32.const 37
+          local.set $pc
+          br $dispatch
+        )
+          call $jn_gc_safepoint
+          i32.const 7
+          local.set $pc
+          br $dispatch
+        )
+          local.get $task
+          local.set $t42
+          local.get $__jn_frame
+          i32.const 27
+          local.get $t42
+          call $jn_gc_frame_set_root
+          local.get $t42
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t43
+          local.get $t43
+          if
+            i32.const 39
+            local.set $pc
+          else
+            i32.const 40
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $t42
+          i32.load
+          local.set $__jn_tid
+          local.get $__jn_tid
+          i32.const 43
+          i32.eq
+          if
+            local.get $t42
+            call $_JN_SleepCompleteTask_run
+          else
+          local.get $__jn_tid
+          i32.const 81
+          i32.eq
+          if
+            local.get $t42
+            call $_JN_BlockingCompleteTask_run
+          else
+          local.get $__jn_tid
+          i32.const 114
+          i32.eq
+          if
+            local.get $t42
+            call $_JN_TimeoutFireTask_run
+          else
+          local.get $__jn_tid
+          i32.const 120
+          i32.eq
+          if
+            local.get $t42
+            call $_JN_RunCallbackTask_run
+          else
+            unreachable
+          end
+          end
+          end
+          end
+          call $jnative_exception_pending
+          local.set $t44
+          local.get $t44
+          if
+            i32.const 41
+            local.set $pc
+          else
+            i32.const 42
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $n
+          local.set $t45
+          local.get $t45
+          i32.const 1
+          i32.add
+          local.set $t46
+          local.get $t46
+          local.set $n
+          i32.const 37
+          local.set $pc
+          br $dispatch
+      )
+    )
+    call $jn_gc_frame_pop
+  )
+  (func $_JN_EventLoop_tick (param $this i32)
+    (local $pc i32)
+    (local $__jn_tid i32)
+    (local $__jn_asz i32)
+    (local $__jn_frame i32)
+    (local $this__slot i32)
+    (local $t0 i32)
+    (local $t1 i32)
+    (local $t2 i32)
+    (local $t3 i32)
+    (local $t4 i32)
+    (local $t5 i32)
+    (local $t6 i32)
+    (local $t7 i32)
+    (local $t8 i32)
+    i32.const 5
+    call $jn_gc_frame_push
+    local.set $__jn_frame
+    local.get $__jn_frame
+    i32.const 0
+    local.get $this
+    call $jn_gc_frame_set_root
+    i32.const 0
+    local.set $pc
+    (block $exit
+      (loop $dispatch
+        (block $bb12
+        (block $bb11
+        (block $bb10
+        (block $bb9
+        (block $bb8
+        (block $bb7
+        (block $bb6
+        (block $bb5
+        (block $bb4
+        (block $bb3
+        (block $bb2
+        (block $bb1
+        (block $bb0
+          local.get $pc
+          br_table $bb0 $bb1 $bb2 $bb3 $bb4 $bb5 $bb6 $bb7 $bb8 $bb9 $bb10 $bb11 $bb12 $exit
+        )
+          local.get $this
+          local.set $this__slot
+          local.get $__jn_frame
+          i32.const 1
+          local.get $this__slot
+          call $jn_gc_frame_set_root
+          local.get $this__slot
+          local.set $t0
+          local.get $__jn_frame
+          i32.const 2
+          local.get $t0
+          call $jn_gc_frame_set_root
+          local.get $t0
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t1
+          local.get $t1
+          if
+            i32.const 1
+            local.set $pc
+          else
+            i32.const 2
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $t0
+          call $_JN_EventLoop_processReady
+          call $jnative_exception_pending
+          local.set $t2
+          local.get $t2
+          if
+            i32.const 3
+            local.set $pc
+          else
+            i32.const 4
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $this__slot
+          local.set $t3
+          local.get $__jn_frame
+          i32.const 3
+          local.get $t3
+          call $jn_gc_frame_set_root
+          local.get $t3
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t4
+          local.get $t4
+          if
+            i32.const 5
+            local.set $pc
+          else
+            i32.const 6
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $t3
+          call $_JN_EventLoop_processTimers
+          call $jnative_exception_pending
+          local.set $t5
+          local.get $t5
+          if
+            i32.const 7
+            local.set $pc
+          else
+            i32.const 8
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $this__slot
+          local.set $t6
+          local.get $__jn_frame
+          i32.const 4
+          local.get $t6
+          call $jn_gc_frame_set_root
+          local.get $t6
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t7
+          local.get $t7
+          if
+            i32.const 9
+            local.set $pc
+          else
+            i32.const 10
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $t6
+          call $_JN_EventLoop_pollOnce
+          call $jnative_exception_pending
+          local.set $t8
+          local.get $t8
+          if
+            i32.const 11
+            local.set $pc
+          else
+            i32.const 12
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          br $exit
+      )
+    )
+    call $jn_gc_frame_pop
+  )
+  (func $_JN_ArrayDeque_size (param $this i32) (result i32)
+    (local $pc i32)
+    (local $__jn_tid i32)
+    (local $__jn_asz i32)
+    (local $__jn_frame i32)
+    (local $ret i32)
+    (local $this__slot i32)
+    (local $t0 i32)
+    (local $t1 i32)
+    (local $t2 i32)
+    i32.const 3
+    call $jn_gc_frame_push
+    local.set $__jn_frame
+    local.get $__jn_frame
+    i32.const 0
+    local.get $this
+    call $jn_gc_frame_set_root
+    i32.const 0
+    local.set $pc
+    (block $exit
+      (loop $dispatch
+        (block $bb2
+        (block $bb1
+        (block $bb0
+          local.get $pc
+          br_table $bb0 $bb1 $bb2 $exit
+        )
+          local.get $this
+          local.set $this__slot
+          local.get $__jn_frame
+          i32.const 1
+          local.get $this__slot
+          call $jn_gc_frame_set_root
+          local.get $this__slot
+          local.set $t0
+          local.get $__jn_frame
+          i32.const 2
+          local.get $t0
+          call $jn_gc_frame_set_root
+          local.get $t0
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t1
+          local.get $t1
+          if
+            i32.const 1
+            local.set $pc
+          else
+            i32.const 2
+            local.set $pc
+          end
+          br $dispatch
+        )
+          i32.const 0
+          local.set $ret
+          br $exit
+        )
+          local.get $t0
+          i32.const 16
+          i32.add
+          i32.load
+          local.set $t2
+          local.get $t2
+          local.set $ret
+          br $exit
+      )
+    )
+    call $jn_gc_frame_pop
+    local.get $ret
+  )
+  (func $_JN_ArrayDeque_removeFirst (param $this i32) (result i32)
+    (local $pc i32)
+    (local $__jn_tid i32)
+    (local $__jn_asz i32)
+    (local $__jn_frame i32)
+    (local $ret i32)
+    (local $this__slot i32)
+    (local $gctmp.5 i32)
+    (local $gctmp.7 i32)
+    (local $value i32)
+    (local $gctmp.13 i32)
+    (local $gctmp.19 i32)
+    (local $gctmp.23 i32)
+    (local $gctmp.40 i32)
+    (local $t0 i32)
+    (local $t1 i32)
+    (local $t2 i32)
+    (local $t3 i32)
+    (local $t4 i32)
+    (local $t5 i32)
+    (local $t6 i32)
+    (local $t7 i32)
+    (local $t8 i32)
+    (local $t9 i32)
+    (local $t10 i32)
+    (local $t11 i32)
+    (local $t12 i32)
+    (local $t13 i32)
+    (local $t14 i32)
+    (local $t15 i32)
+    (local $t16 i32)
+    (local $t17 i32)
+    (local $t18 i32)
+    (local $t19 i32)
+    (local $t20 i32)
+    (local $t21 i32)
+    (local $t22 i32)
+    (local $t23 i32)
+    (local $t24 i32)
+    (local $t25 i32)
+    (local $t26 i32)
+    (local $t27 i32)
+    (local $t28 i32)
+    (local $t29 i32)
+    (local $t30 i32)
+    (local $t31 i32)
+    (local $t32 i32)
+    (local $t33 i32)
+    (local $t34 i32)
+    (local $t35 i32)
+    (local $t36 i32)
+    (local $t37 i32)
+    (local $t38 i32)
+    (local $t39 i32)
+    (local $t40 i32)
+    (local $t41 i32)
+    (local $t42 i32)
+    (local $t43 i32)
+    (local $t44 i32)
+    (local $t45 i32)
+    (local $t46 i32)
+    (local $t47 i32)
+    (local $t48 i32)
+    (local $t49 i32)
+    (local $t50 i32)
+    (local $t51 i32)
+    i32.const 34
+    call $jn_gc_frame_push
+    local.set $__jn_frame
+    local.get $__jn_frame
+    i32.const 0
+    local.get $this
+    call $jn_gc_frame_set_root
+    i32.const 0
+    local.set $pc
+    (block $exit
+      (loop $dispatch
+        (block $bb36
+        (block $bb35
+        (block $bb34
+        (block $bb33
+        (block $bb32
+        (block $bb31
+        (block $bb30
+        (block $bb29
+        (block $bb28
+        (block $bb27
+        (block $bb26
+        (block $bb25
+        (block $bb24
+        (block $bb23
+        (block $bb22
+        (block $bb21
+        (block $bb20
+        (block $bb19
+        (block $bb18
+        (block $bb17
+        (block $bb16
+        (block $bb15
+        (block $bb14
+        (block $bb13
+        (block $bb12
+        (block $bb11
+        (block $bb10
+        (block $bb9
+        (block $bb8
+        (block $bb7
+        (block $bb6
+        (block $bb5
+        (block $bb4
+        (block $bb3
+        (block $bb2
+        (block $bb1
+        (block $bb0
+          local.get $pc
+          br_table $bb0 $bb1 $bb2 $bb3 $bb4 $bb5 $bb6 $bb7 $bb8 $bb9 $bb10 $bb11 $bb12 $bb13 $bb14 $bb15 $bb16 $bb17 $bb18 $bb19 $bb20 $bb21 $bb22 $bb23 $bb24 $bb25 $bb26 $bb27 $bb28 $bb29 $bb30 $bb31 $bb32 $bb33 $bb34 $bb35 $bb36 $exit
+        )
+          local.get $this
+          local.set $this__slot
+          local.get $__jn_frame
+          i32.const 1
+          local.get $this__slot
+          call $jn_gc_frame_set_root
+          local.get $this__slot
+          local.set $t0
+          local.get $__jn_frame
+          i32.const 9
+          local.get $t0
+          call $jn_gc_frame_set_root
+          local.get $t0
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t1
+          local.get $t1
+          if
+            i32.const 1
+            local.set $pc
+          else
+            i32.const 2
+            local.set $pc
+          end
+          br $dispatch
+        )
+          i32.const 0
+          local.set $ret
+          br $exit
+        )
+          local.get $t0
+          i32.const 16
+          i32.add
+          i32.load
+          local.set $t2
+          local.get $t2
+          i32.const 0
+          i32.eq
+          local.set $t3
+          local.get $t3
+          if
+            i32.const 3
+            local.set $pc
+          else
+            i32.const 4
+            local.set $pc
+          end
+          br $dispatch
+        )
+          i32.const 16
+          call $jn_alloc_zeroed
+          local.set $t4
+          local.get $t4
+          i32.eqz
+          if
+            unreachable
+          end
+          local.get $t4
+          i32.const 111
+          i32.store
+          local.get $__jn_frame
+          i32.const 10
+          local.get $t4
+          call $jn_gc_frame_set_root
+          local.get $t4
+          local.set $gctmp.5
+          local.get $__jn_frame
+          i32.const 2
+          local.get $gctmp.5
+          call $jn_gc_frame_set_root
+          local.get $gctmp.5
+          local.set $t5
+          local.get $__jn_frame
+          i32.const 11
+          local.get $t5
+          call $jn_gc_frame_set_root
+          i32.const 2048
+          i32.const 10
+          call $jn_str
+          local.set $t6
+          local.get $__jn_frame
+          i32.const 12
+          local.get $t6
+          call $jn_gc_frame_set_root
+          local.get $t6
+          local.set $gctmp.7
+          local.get $__jn_frame
+          i32.const 3
+          local.get $gctmp.7
+          call $jn_gc_frame_set_root
+          local.get $gctmp.7
+          local.set $t7
+          local.get $__jn_frame
+          i32.const 13
+          local.get $t7
+          call $jn_gc_frame_set_root
+          local.get $t5
+          local.get $t7
+          call $_JN_NoSuchElementException_init_CString
+          call $jnative_exception_pending
+          local.set $t8
+          local.get $t8
+          if
+            i32.const 5
+            local.set $pc
+          else
+            i32.const 6
+            local.set $pc
+          end
+          br $dispatch
+        )
+          local.get $this__slot
+          local.set $t10
+          local.get $__jn_frame
+          i32.const 14
+          local.get $t10
+          call $jn_gc_frame_set_root
+          local.get $t10
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t11
+          local.get $t11
+          if
+            i32.const 9
+            local.set $pc
+          else
+            i32.const 10
+            local.set $pc
+          end
+          br $dispatch
+        )
+          i32.const 0
+          local.set $ret
+          br $exit
+        )
+          local.get $t5
+          call $jnative_exception_throw
+          call $jnative_exception_pending
+          local.set $t9
+          local.get $t9
+          if
+            i32.const 7
+            local.set $pc
+          else
+            i32.const 8
+            local.set $pc
+          end
+          br $dispatch
+        )
+          i32.const 0
+          local.set $ret
+          br $exit
+        )
+          i32.const 4
+          local.set $pc
+          br $dispatch
+        )
+          i32.const 0
+          local.set $ret
+          br $exit
+        )
+          local.get $t10
+          i32.const 4
+          i32.add
+          i32.load
+          local.set $t12
+          local.get $__jn_frame
+          i32.const 15
+          local.get $t12
+          call $jn_gc_frame_set_root
+          local.get $t12
+          local.set $gctmp.13
+          local.get $__jn_frame
+          i32.const 5
+          local.get $gctmp.13
+          call $jn_gc_frame_set_root
+          local.get $gctmp.13
+          local.set $t13
+          local.get $__jn_frame
+          i32.const 16
+          local.get $t13
+          call $jn_gc_frame_set_root
+          local.get $this__slot
+          local.set $t14
+          local.get $__jn_frame
+          i32.const 17
+          local.get $t14
+          call $jn_gc_frame_set_root
+          local.get $t14
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t15
+          local.get $t15
+          if
+            i32.const 11
+            local.set $pc
+          else
+            i32.const 12
+            local.set $pc
+          end
+          br $dispatch
+        )
+          i32.const 0
+          local.set $ret
+          br $exit
+        )
+          local.get $t14
+          i32.const 8
+          i32.add
+          i32.load
+          local.set $t16
+          local.get $t13
+          i32.eqz
+          if
+            unreachable
+          end
+          local.get $t16
+          i32.const 0
+          i32.lt_s
+          local.get $t16
+          local.get $t13
+          i32.const 8
+          i32.add
+          i32.load
+          i32.ge_s
+          i32.or
+          if
+            unreachable
+          end
+          local.get $t13
+          i32.const 16
+          i32.add
+          local.get $t16
+          i32.const 4
+          i32.mul
+          i32.add
+          i32.load
+          local.set $t17
+          local.get $__jn_frame
+          i32.const 18
+          local.get $t17
+          call $jn_gc_frame_set_root
+          call $jnative_exception_pending
+          local.set $t18
+          local.get $t18
+          if
+            i32.const 13
+            local.set $pc
+          else
+            i32.const 14
+            local.set $pc
+          end
+          br $dispatch
+        )
+          i32.const 0
+          local.set $ret
+          br $exit
+        )
+          local.get $t17
+          local.set $gctmp.19
+          local.get $__jn_frame
+          i32.const 6
+          local.get $gctmp.19
+          call $jn_gc_frame_set_root
+          local.get $gctmp.19
+          local.set $t19
+          local.get $__jn_frame
+          i32.const 19
+          local.get $t19
+          call $jn_gc_frame_set_root
+          local.get $t19
+          local.set $value
+          local.get $__jn_frame
+          i32.const 4
+          local.get $value
+          call $jn_gc_frame_set_root
+          local.get $this__slot
+          local.set $t20
+          local.get $__jn_frame
+          i32.const 20
+          local.get $t20
+          call $jn_gc_frame_set_root
+          local.get $t20
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t21
+          local.get $t21
+          if
+            i32.const 15
+            local.set $pc
+          else
+            i32.const 16
+            local.set $pc
+          end
+          br $dispatch
+        )
+          i32.const 0
+          local.set $ret
+          br $exit
+        )
+          local.get $t20
+          i32.const 4
+          i32.add
+          i32.load
+          local.set $t22
+          local.get $__jn_frame
+          i32.const 21
+          local.get $t22
+          call $jn_gc_frame_set_root
+          local.get $t22
+          local.set $gctmp.23
+          local.get $__jn_frame
+          i32.const 7
+          local.get $gctmp.23
+          call $jn_gc_frame_set_root
+          local.get $gctmp.23
+          local.set $t23
+          local.get $__jn_frame
+          i32.const 22
+          local.get $t23
+          call $jn_gc_frame_set_root
+          local.get $this__slot
+          local.set $t24
+          local.get $__jn_frame
+          i32.const 23
+          local.get $t24
+          call $jn_gc_frame_set_root
+          local.get $t24
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t25
+          local.get $t25
+          if
+            i32.const 17
+            local.set $pc
+          else
+            i32.const 18
+            local.set $pc
+          end
+          br $dispatch
+        )
+          i32.const 0
+          local.set $ret
+          br $exit
+        )
+          local.get $t24
+          i32.const 8
+          i32.add
+          i32.load
+          local.set $t26
+          local.get $t23
+          i32.eqz
+          if
+            unreachable
+          end
+          local.get $t26
+          i32.const 0
+          i32.lt_s
+          local.get $t26
+          local.get $t23
+          i32.const 8
+          i32.add
+          i32.load
+          i32.ge_s
+          i32.or
+          if
+            unreachable
+          end
+          local.get $t23
+          i32.const 16
+          i32.add
+          local.get $t26
+          i32.const 4
+          i32.mul
+          i32.add
+          i32.const 0
+          i32.store
+          call $jnative_exception_pending
+          local.set $t27
+          local.get $t27
+          if
+            i32.const 19
+            local.set $pc
+          else
+            i32.const 20
+            local.set $pc
+          end
+          br $dispatch
+        )
+          i32.const 0
+          local.set $ret
+          br $exit
+        )
+          local.get $this__slot
+          local.set $t28
+          local.get $__jn_frame
+          i32.const 24
+          local.get $t28
+          call $jn_gc_frame_set_root
+          local.get $t28
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t29
+          local.get $t29
+          if
+            i32.const 21
+            local.set $pc
+          else
+            i32.const 22
+            local.set $pc
+          end
+          br $dispatch
+        )
+          i32.const 0
+          local.set $ret
+          br $exit
+        )
+          local.get $t28
+          i32.const 8
+          i32.add
+          i32.load
+          local.set $t30
+          local.get $t30
+          i32.const 1
+          i32.add
+          local.set $t31
+          local.get $this__slot
+          local.set $t32
+          local.get $__jn_frame
+          i32.const 25
+          local.get $t32
+          call $jn_gc_frame_set_root
+          local.get $t32
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t33
+          local.get $t33
+          if
+            i32.const 23
+            local.set $pc
+          else
+            i32.const 24
+            local.set $pc
+          end
+          br $dispatch
+        )
+          i32.const 0
+          local.set $ret
+          br $exit
+        )
+          local.get $t32
+          i32.const 8
+          i32.add
+          local.get $t31
+          i32.store
+          local.get $this__slot
+          local.set $t34
+          local.get $__jn_frame
+          i32.const 26
+          local.get $t34
+          call $jn_gc_frame_set_root
+          local.get $t34
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t35
+          local.get $t35
+          if
+            i32.const 25
+            local.set $pc
+          else
+            i32.const 26
+            local.set $pc
+          end
+          br $dispatch
+        )
+          i32.const 0
+          local.set $ret
+          br $exit
+        )
+          local.get $t34
+          i32.const 8
+          i32.add
+          i32.load
+          local.set $t36
+          local.get $this__slot
+          local.set $t37
+          local.get $__jn_frame
+          i32.const 27
+          local.get $t37
+          call $jn_gc_frame_set_root
+          local.get $t37
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t38
+          local.get $t38
+          if
+            i32.const 27
+            local.set $pc
+          else
+            i32.const 28
+            local.set $pc
+          end
+          br $dispatch
+        )
+          i32.const 0
+          local.set $ret
+          br $exit
+        )
+          local.get $t37
+          i32.const 4
+          i32.add
+          i32.load
+          local.set $t39
+          local.get $__jn_frame
+          i32.const 28
+          local.get $t39
+          call $jn_gc_frame_set_root
+          local.get $t39
+          local.set $gctmp.40
+          local.get $__jn_frame
+          i32.const 8
+          local.get $gctmp.40
+          call $jn_gc_frame_set_root
+          local.get $gctmp.40
+          local.set $t40
+          local.get $__jn_frame
+          i32.const 29
+          local.get $t40
+          call $jn_gc_frame_set_root
+          local.get $t40
+          i32.eqz
+          if
+            unreachable
+          end
+          local.get $t40
+          i32.const 8
+          i32.add
+          i32.load
+          local.set $t41
+          local.get $t36
+          local.get $t41
+          i32.ge_s
+          local.set $t42
+          local.get $t42
+          if
+            i32.const 29
+            local.set $pc
+          else
+            i32.const 30
+            local.set $pc
+          end
+          br $dispatch
+        )
+          local.get $this__slot
+          local.set $t43
+          local.get $__jn_frame
+          i32.const 30
+          local.get $t43
+          call $jn_gc_frame_set_root
+          local.get $t43
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t44
+          local.get $t44
+          if
+            i32.const 31
+            local.set $pc
+          else
+            i32.const 32
+            local.set $pc
+          end
+          br $dispatch
+        )
+          local.get $this__slot
+          local.set $t45
+          local.get $__jn_frame
+          i32.const 31
+          local.get $t45
+          call $jn_gc_frame_set_root
+          local.get $t45
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t46
+          local.get $t46
+          if
+            i32.const 33
+            local.set $pc
+          else
+            i32.const 34
+            local.set $pc
+          end
+          br $dispatch
+        )
+          i32.const 0
+          local.set $ret
+          br $exit
+        )
+          local.get $t43
+          i32.const 8
+          i32.add
+          i32.const 0
+          i32.store
+          i32.const 30
+          local.set $pc
+          br $dispatch
+        )
+          i32.const 0
+          local.set $ret
+          br $exit
+        )
+          local.get $t45
+          i32.const 16
+          i32.add
+          i32.load
+          local.set $t47
+          local.get $t47
+          i32.const 1
+          i32.sub
+          local.set $t48
+          local.get $this__slot
+          local.set $t49
+          local.get $__jn_frame
+          i32.const 32
+          local.get $t49
+          call $jn_gc_frame_set_root
+          local.get $t49
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t50
+          local.get $t50
+          if
+            i32.const 35
+            local.set $pc
+          else
+            i32.const 36
+            local.set $pc
+          end
+          br $dispatch
+        )
+          i32.const 0
+          local.set $ret
+          br $exit
+        )
+          local.get $t49
+          i32.const 16
+          i32.add
+          local.get $t48
+          i32.store
+          local.get $value
+          local.set $t51
+          local.get $__jn_frame
+          i32.const 33
+          local.get $t51
+          call $jn_gc_frame_set_root
+          local.get $t51
+          local.set $ret
+          br $exit
+      )
+    )
+    call $jn_gc_frame_pop
+    local.get $ret
+  )
+  (func $_JN_EventLoop_processTimers (param $this i32)
+    (local $pc i32)
+    (local $__jn_tid i32)
+    (local $__jn_asz i32)
+    (local $__jn_frame i32)
+    (local $this__slot i32)
+    (local $now i64)
+    (local $i i32)
+    (local $done i32)
+    (local $sc.tmp568221876 i32)
+    (local $gctmp.7 i32)
+    (local $t i32)
+    (local $gctmp.16 i32)
+    (local $gctmp.21 i32)
+    (local $gctmp.30 i32)
+    (local $gctmp.35 i32)
+    (local $gctmp.43 i32)
+    (local $t0 i64)
+    (local $t1 i32)
+    (local $t2 i32)
+    (local $t3 i32)
+    (local $t4 i32)
+    (local $t5 i32)
+    (local $t6 i32)
+    (local $t7 i32)
+    (local $t8 i32)
+    (local $t9 i32)
+    (local $t10 i32)
+    (local $t11 i32)
+    (local $t12 i32)
+    (local $t13 i32)
+    (local $t14 i32)
+    (local $t15 i32)
+    (local $t16 i32)
+    (local $t17 i32)
+    (local $t18 i32)
+    (local $t19 i32)
+    (local $t20 i32)
+    (local $t21 i32)
+    (local $t22 i32)
+    (local $t23 i32)
+    (local $t24 i64)
+    (local $t25 i64)
+    (local $t26 i32)
+    (local $t27 i32)
+    (local $t28 i32)
+    (local $t29 i32)
+    (local $t30 i32)
+    (local $t31 i32)
+    (local $t32 i32)
+    (local $t33 i32)
+    (local $t34 i32)
+    (local $t36 i32)
+    (local $t37 i32)
+    (local $t38 i32)
+    (local $t39 i32)
+    (local $t40 i32)
+    (local $t41 i32)
+    (local $t42 i32)
+    (local $t43 i32)
+    (local $t44 i32)
+    (local $t45 i32)
+    i32.const 26
+    call $jn_gc_frame_push
+    local.set $__jn_frame
+    local.get $__jn_frame
+    i32.const 0
+    local.get $this
+    call $jn_gc_frame_set_root
+    i32.const 0
+    local.set $pc
+    (block $exit
+      (loop $dispatch
+        (block $bb38
+        (block $bb37
+        (block $bb36
+        (block $bb35
+        (block $bb34
+        (block $bb33
+        (block $bb32
+        (block $bb31
+        (block $bb30
+        (block $bb29
+        (block $bb28
+        (block $bb27
+        (block $bb26
+        (block $bb25
+        (block $bb24
+        (block $bb23
+        (block $bb22
+        (block $bb21
+        (block $bb20
+        (block $bb19
+        (block $bb18
+        (block $bb17
+        (block $bb16
+        (block $bb15
+        (block $bb14
+        (block $bb13
+        (block $bb12
+        (block $bb11
+        (block $bb10
+        (block $bb9
+        (block $bb8
+        (block $bb7
+        (block $bb6
+        (block $bb5
+        (block $bb4
+        (block $bb3
+        (block $bb2
+        (block $bb1
+        (block $bb0
+          local.get $pc
+          br_table $bb0 $bb1 $bb2 $bb3 $bb4 $bb5 $bb6 $bb7 $bb8 $bb9 $bb10 $bb11 $bb12 $bb13 $bb14 $bb15 $bb16 $bb17 $bb18 $bb19 $bb20 $bb21 $bb22 $bb23 $bb24 $bb25 $bb26 $bb27 $bb28 $bb29 $bb30 $bb31 $bb32 $bb33 $bb34 $bb35 $bb36 $bb37 $bb38 $exit
+        )
+          local.get $this
+          local.set $this__slot
+          local.get $__jn_frame
+          i32.const 1
+          local.get $this__slot
+          call $jn_gc_frame_set_root
+          i64.const 0
+          local.set $t0
+          local.get $t0
+          local.set $now
+          i32.const 0
+          local.set $i
+          i32.const 0
+          local.set $done
+          i32.const 1
+          local.set $pc
+          br $dispatch
+        )
+          local.get $done
+          local.set $t1
+          local.get $t1
+          i32.const 0
+          i32.eq
+          local.set $t2
+          local.get $t2
+          local.set $sc.tmp568221876
+          local.get $t2
+          if
+            i32.const 4
+            local.set $pc
+          else
+            i32.const 5
+            local.set $pc
+          end
+          br $dispatch
+        )
+          local.get $this__slot
+          local.set $t13
+          local.get $__jn_frame
+          i32.const 12
+          local.get $t13
+          call $jn_gc_frame_set_root
+          local.get $t13
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t14
+          local.get $t14
+          if
+            i32.const 12
+            local.set $pc
+          else
+            i32.const 13
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $i
+          local.set $t3
+          local.get $this__slot
+          local.set $t4
+          local.get $__jn_frame
+          i32.const 9
+          local.get $t4
+          call $jn_gc_frame_set_root
+          local.get $t4
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t5
+          local.get $t5
+          if
+            i32.const 6
+            local.set $pc
+          else
+            i32.const 7
+            local.set $pc
+          end
+          br $dispatch
+        )
+          local.get $sc.tmp568221876
+          local.set $t12
+          local.get $t12
+          if
+            i32.const 2
+            local.set $pc
+          else
+            i32.const 3
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $t4
+          i32.const 12
+          i32.add
+          i32.load
+          local.set $t6
+          local.get $__jn_frame
+          i32.const 10
+          local.get $t6
+          call $jn_gc_frame_set_root
+          local.get $t6
+          local.set $gctmp.7
+          local.get $__jn_frame
+          i32.const 2
+          local.get $gctmp.7
+          call $jn_gc_frame_set_root
+          local.get $gctmp.7
+          local.set $t7
+          local.get $__jn_frame
+          i32.const 11
+          local.get $t7
+          call $jn_gc_frame_set_root
+          local.get $t7
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t8
+          local.get $t8
+          if
+            i32.const 8
+            local.set $pc
+          else
+            i32.const 9
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $t7
+          call $_JN_ArrayList_size
+          local.set $t9
+          call $jnative_exception_pending
+          local.set $t10
+          local.get $t10
+          if
+            i32.const 10
+            local.set $pc
+          else
+            i32.const 11
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $t3
+          local.get $t9
+          i32.lt_s
+          local.set $t11
+          local.get $t11
+          local.set $sc.tmp568221876
+          i32.const 5
+          local.set $pc
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $t13
+          i32.const 12
+          i32.add
+          i32.load
+          local.set $t15
+          local.get $__jn_frame
+          i32.const 13
+          local.get $t15
+          call $jn_gc_frame_set_root
+          local.get $t15
+          local.set $gctmp.16
+          local.get $__jn_frame
+          i32.const 4
+          local.get $gctmp.16
+          call $jn_gc_frame_set_root
+          local.get $gctmp.16
+          local.set $t16
+          local.get $__jn_frame
+          i32.const 14
+          local.get $t16
+          call $jn_gc_frame_set_root
+          local.get $t16
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t17
+          local.get $t17
+          if
+            i32.const 14
+            local.set $pc
+          else
+            i32.const 15
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $i
+          local.set $t18
+          local.get $t16
+          local.get $t18
+          call $_JN_ArrayList_get_i32
+          local.set $t19
+          local.get $__jn_frame
+          i32.const 15
+          local.get $t19
+          call $jn_gc_frame_set_root
+          call $jnative_exception_pending
+          local.set $t20
+          local.get $t20
+          if
+            i32.const 16
+            local.set $pc
+          else
+            i32.const 17
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $t19
+          local.set $gctmp.21
+          local.get $__jn_frame
+          i32.const 5
+          local.get $gctmp.21
+          call $jn_gc_frame_set_root
+          local.get $gctmp.21
+          local.set $t21
+          local.get $__jn_frame
+          i32.const 16
+          local.get $t21
+          call $jn_gc_frame_set_root
+          local.get $t21
+          local.set $t
+          local.get $__jn_frame
+          i32.const 3
+          local.get $t
+          call $jn_gc_frame_set_root
+          local.get $t
+          local.set $t22
+          local.get $__jn_frame
+          i32.const 17
+          local.get $t22
+          call $jn_gc_frame_set_root
+          local.get $t22
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t23
+          local.get $t23
+          if
+            i32.const 18
+            local.set $pc
+          else
+            i32.const 19
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $t22
+          i32.const 8
+          i32.add
+          i64.load
+          local.set $t24
+          local.get $now
+          local.set $t25
+          local.get $t24
+          local.get $t25
+          i64.gt_s
+          local.set $t26
+          local.get $t26
+          if
+            i32.const 20
+            local.set $pc
+          else
+            i32.const 22
+            local.set $pc
+          end
+          br $dispatch
+        )
+          i32.const 1
+          local.set $done
+          i32.const 21
+          local.set $pc
+          br $dispatch
+        )
+          call $jn_gc_safepoint
+          i32.const 1
+          local.set $pc
+          br $dispatch
+        )
+          local.get $this__slot
+          local.set $t27
+          local.get $__jn_frame
+          i32.const 18
+          local.get $t27
+          call $jn_gc_frame_set_root
+          local.get $t27
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t28
+          local.get $t28
+          if
+            i32.const 23
+            local.set $pc
+          else
+            i32.const 24
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $t27
+          i32.const 12
+          i32.add
+          i32.load
+          local.set $t29
+          local.get $__jn_frame
+          i32.const 19
+          local.get $t29
+          call $jn_gc_frame_set_root
+          local.get $t29
+          local.set $gctmp.30
+          local.get $__jn_frame
+          i32.const 6
+          local.get $gctmp.30
+          call $jn_gc_frame_set_root
+          local.get $gctmp.30
+          local.set $t30
+          local.get $__jn_frame
+          i32.const 20
+          local.get $t30
+          call $jn_gc_frame_set_root
+          local.get $t30
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t31
+          local.get $t31
+          if
+            i32.const 25
+            local.set $pc
+          else
+            i32.const 26
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $i
+          local.set $t32
+          local.get $t30
+          local.get $t32
+          call $_JN_ArrayList_removeAt_i32
+          local.set $t33
+          local.get $__jn_frame
+          i32.const 21
+          local.get $t33
+          call $jn_gc_frame_set_root
+          call $jnative_exception_pending
+          local.set $t34
+          local.get $t34
+          if
+            i32.const 27
+            local.set $pc
+          else
+            i32.const 28
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $t33
+          local.set $gctmp.35
+          local.get $__jn_frame
+          i32.const 7
+          local.get $gctmp.35
+          call $jn_gc_frame_set_root
+          local.get $t
+          local.set $t36
+          local.get $__jn_frame
+          i32.const 22
+          local.get $t36
+          call $jn_gc_frame_set_root
+          local.get $t36
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t37
+          local.get $t37
+          if
+            i32.const 29
+            local.set $pc
+          else
+            i32.const 30
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $t36
+          i32.const 24
+          i32.add
+          i32.load
+          local.set $t38
+          local.get $t38
+          i32.const 0
+          i32.eq
+          local.set $t39
+          local.get $t39
+          if
+            i32.const 31
+            local.set $pc
+          else
+            i32.const 32
+            local.set $pc
+          end
+          br $dispatch
+        )
+          local.get $t
+          local.set $t40
+          local.get $__jn_frame
+          i32.const 23
+          local.get $t40
+          call $jn_gc_frame_set_root
+          local.get $t40
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t41
+          local.get $t41
+          if
+            i32.const 33
+            local.set $pc
+          else
+            i32.const 34
+            local.set $pc
+          end
+          br $dispatch
+        )
+          i32.const 21
+          local.set $pc
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $t40
+          i32.const 20
+          i32.add
+          i32.load
+          local.set $t42
+          local.get $__jn_frame
+          i32.const 24
+          local.get $t42
+          call $jn_gc_frame_set_root
+          local.get $t42
+          local.set $gctmp.43
+          local.get $__jn_frame
+          i32.const 8
+          local.get $gctmp.43
+          call $jn_gc_frame_set_root
+          local.get $gctmp.43
+          local.set $t43
+          local.get $__jn_frame
+          i32.const 25
+          local.get $t43
+          call $jn_gc_frame_set_root
+          local.get $t43
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t44
+          local.get $t44
+          if
+            i32.const 35
+            local.set $pc
+          else
+            i32.const 36
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $t43
+          i32.load
+          local.set $__jn_tid
+          local.get $__jn_tid
+          i32.const 43
+          i32.eq
+          if
+            local.get $t43
+            call $_JN_SleepCompleteTask_run
+          else
+          local.get $__jn_tid
+          i32.const 81
+          i32.eq
+          if
+            local.get $t43
+            call $_JN_BlockingCompleteTask_run
+          else
+          local.get $__jn_tid
+          i32.const 114
+          i32.eq
+          if
+            local.get $t43
+            call $_JN_TimeoutFireTask_run
+          else
+          local.get $__jn_tid
+          i32.const 120
+          i32.eq
+          if
+            local.get $t43
+            call $_JN_RunCallbackTask_run
+          else
+            unreachable
+          end
+          end
+          end
+          end
+          call $jnative_exception_pending
+          local.set $t45
+          local.get $t45
+          if
+            i32.const 37
+            local.set $pc
+          else
+            i32.const 38
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          i32.const 32
+          local.set $pc
+          br $dispatch
+      )
+    )
+    call $jn_gc_frame_pop
+  )
+  (func $_JN_EventLoop_pollOnce (param $this i32)
+    (local $pc i32)
+    (local $__jn_tid i32)
+    (local $__jn_asz i32)
+    (local $__jn_frame i32)
+    (local $this__slot i32)
+    (local $delay i32)
+    (local $t0 i32)
+    (local $t1 i32)
+    (local $t2 i32)
+    (local $t3 i32)
+    (local $t4 i32)
+    (local $t5 i32)
+    (local $t6 i32)
+    (local $t7 i32)
+    (local $t8 i32)
+    (local $t9 i32)
+    (local $t10 i32)
+    (local $t11 i32)
+    (local $t12 i32)
+    (local $t13 i32)
+    (local $t14 i32)
+    (local $t15 i32)
+    (local $t16 i32)
+    (local $t17 i32)
+    (local $t18 i32)
+    (local $t19 i32)
+    (local $t20 i32)
+    (local $t21 i32)
+    (local $t22 i32)
+    (local $t23 i32)
+    (local $t24 i32)
+    (local $t25 i32)
+    (local $t26 i32)
+    i32.const 11
+    call $jn_gc_frame_push
+    local.set $__jn_frame
+    local.get $__jn_frame
+    i32.const 0
+    local.get $this
+    call $jn_gc_frame_set_root
+    i32.const 0
+    local.set $pc
+    (block $exit
+      (loop $dispatch
+        (block $bb22
+        (block $bb21
+        (block $bb20
+        (block $bb19
+        (block $bb18
+        (block $bb17
+        (block $bb16
+        (block $bb15
+        (block $bb14
+        (block $bb13
+        (block $bb12
+        (block $bb11
+        (block $bb10
+        (block $bb9
+        (block $bb8
+        (block $bb7
+        (block $bb6
+        (block $bb5
+        (block $bb4
+        (block $bb3
+        (block $bb2
+        (block $bb1
+        (block $bb0
+          local.get $pc
+          br_table $bb0 $bb1 $bb2 $bb3 $bb4 $bb5 $bb6 $bb7 $bb8 $bb9 $bb10 $bb11 $bb12 $bb13 $bb14 $bb15 $bb16 $bb17 $bb18 $bb19 $bb20 $bb21 $bb22 $exit
+        )
+          local.get $this
+          local.set $this__slot
+          local.get $__jn_frame
+          i32.const 1
+          local.get $this__slot
+          call $jn_gc_frame_set_root
+          local.get $this__slot
+          local.set $t0
+          local.get $__jn_frame
+          i32.const 2
+          local.get $t0
+          call $jn_gc_frame_set_root
+          local.get $t0
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t1
+          local.get $t1
+          if
+            i32.const 1
+            local.set $pc
+          else
+            i32.const 2
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $t0
+          call $_JN_EventLoop_ensurePoll
+          call $jnative_exception_pending
+          local.set $t2
+          local.get $t2
+          if
+            i32.const 3
+            local.set $pc
+          else
+            i32.const 4
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $this__slot
+          local.set $t3
+          local.get $__jn_frame
+          i32.const 3
+          local.get $t3
+          call $jn_gc_frame_set_root
+          local.get $t3
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t4
+          local.get $t4
+          if
+            i32.const 5
+            local.set $pc
+          else
+            i32.const 6
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $t3
+          i32.const 24
+          i32.add
+          i32.load
+          local.set $t5
+          local.get $t5
+          i32.const 0
+          i32.eq
+          local.set $t6
+          local.get $t6
+          if
+            i32.const 7
+            local.set $pc
+          else
+            i32.const 8
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $this__slot
+          local.set $t7
+          local.get $__jn_frame
+          i32.const 4
+          local.get $t7
+          call $jn_gc_frame_set_root
+          local.get $t7
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t8
+          local.get $t8
+          if
+            i32.const 9
+            local.set $pc
+          else
+            i32.const 10
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $t7
+          call $_JN_EventLoop_nextTimerDelayMs
+          local.set $t9
+          call $jnative_exception_pending
+          local.set $t10
+          local.get $t10
+          if
+            i32.const 11
+            local.set $pc
+          else
+            i32.const 12
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $t9
+          local.set $delay
+          local.get $this__slot
+          local.set $t11
+          local.get $__jn_frame
+          i32.const 5
+          local.get $t11
+          call $jn_gc_frame_set_root
+          local.get $t11
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t12
+          local.get $t12
+          if
+            i32.const 13
+            local.set $pc
+          else
+            i32.const 14
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $t11
+          i32.const 20
+          i32.add
+          i32.load
+          local.set $t13
+          local.get $__jn_frame
+          i32.const 6
+          local.get $t13
+          call $jn_gc_frame_set_root
+          local.get $delay
+          local.set $t14
+          i32.const 0
+          local.set $t15
+          local.get $this__slot
+          local.set $t16
+          local.get $__jn_frame
+          i32.const 7
+          local.get $t16
+          call $jn_gc_frame_set_root
+          local.get $t16
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t17
+          local.get $t17
+          if
+            i32.const 15
+            local.set $pc
+          else
+            i32.const 16
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $t16
+          i32.const 20
+          i32.add
+          i32.load
+          local.set $t18
+          local.get $__jn_frame
+          i32.const 8
+          local.get $t18
+          call $jn_gc_frame_set_root
+          i32.const 0
+          local.set $t19
+          local.get $t19
+          i32.const 0
+          i32.ne
+          local.set $t20
+          local.get $t20
+          if
+            i32.const 17
+            local.set $pc
+          else
+            i32.const 18
+            local.set $pc
+          end
+          br $dispatch
+        )
+          local.get $this__slot
+          local.set $t21
+          local.get $__jn_frame
+          i32.const 9
+          local.get $t21
+          call $jn_gc_frame_set_root
+          local.get $t21
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t22
+          local.get $t22
+          if
+            i32.const 19
+            local.set $pc
+          else
+            i32.const 20
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          br $exit
+        )
+          local.get $t21
+          i32.const 40
+          i32.add
+          i32.load
+          local.set $t23
+          local.get $t23
+          i32.const 1
+          i32.add
+          local.set $t24
+          local.get $this__slot
+          local.set $t25
+          local.get $__jn_frame
+          i32.const 10
+          local.get $t25
+          call $jn_gc_frame_set_root
+          local.get $t25
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t26
+          local.get $t26
+          if
+            i32.const 21
+            local.set $pc
+          else
+            i32.const 22
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $t25
+          i32.const 40
+          i32.add
+          local.get $t24
+          i32.store
+          i32.const 18
+          local.set $pc
+          br $dispatch
+      )
+    )
+    call $jn_gc_frame_pop
+  )
+  (func $_JN_NoSuchElementException_init_CString (param $this i32) (param $message i32)
+    (local $pc i32)
+    (local $__jn_tid i32)
+    (local $__jn_asz i32)
+    (local $__jn_frame i32)
+    (local $this__slot i32)
+    (local $message__slot i32)
+    (local $t0 i32)
+    (local $t1 i32)
+    (local $t2 i32)
+    i32.const 6
+    call $jn_gc_frame_push
+    local.set $__jn_frame
+    local.get $__jn_frame
+    i32.const 0
+    local.get $this
+    call $jn_gc_frame_set_root
+    local.get $__jn_frame
+    i32.const 1
+    local.get $message
+    call $jn_gc_frame_set_root
+    i32.const 0
+    local.set $pc
+    (block $exit
+      (loop $dispatch
+        (block $bb2
+        (block $bb1
+        (block $bb0
+          local.get $pc
+          br_table $bb0 $bb1 $bb2 $exit
+        )
+          local.get $this
+          local.set $this__slot
+          local.get $__jn_frame
+          i32.const 2
+          local.get $this__slot
+          call $jn_gc_frame_set_root
+          local.get $this__slot
+          local.set $t0
+          local.get $__jn_frame
+          i32.const 4
+          local.get $t0
+          call $jn_gc_frame_set_root
+          local.get $message
+          local.set $message__slot
+          local.get $__jn_frame
+          i32.const 3
+          local.get $message__slot
+          call $jn_gc_frame_set_root
+          local.get $message__slot
+          local.set $t1
+          local.get $__jn_frame
+          i32.const 5
+          local.get $t1
+          call $jn_gc_frame_set_root
+          local.get $t0
+          local.get $t1
+          call $_JN_RuntimeException_init_CString
+          call $jnative_exception_pending
+          local.set $t2
+          local.get $t2
+          if
+            i32.const 1
+            local.set $pc
+          else
+            i32.const 2
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          br $exit
+      )
+    )
+    call $jn_gc_frame_pop
+  )
+  (func $_JN_ArrayList_removeAt_i32 (param $this i32) (param $index i32) (result i32)
+    (local $pc i32)
+    (local $__jn_tid i32)
+    (local $__jn_asz i32)
+    (local $__jn_frame i32)
+    (local $ret i32)
+    (local $this__slot i32)
+    (local $index__slot i32)
+    (local $old i32)
+    (local $gctmp.7 i32)
+    (local $gctmp.11 i32)
+    (local $i i32)
+    (local $gctmp.22 i32)
+    (local $gctmp.27 i32)
+    (local $gctmp.31 i32)
+    (local $gctmp.45 i32)
+    (local $t0 i32)
+    (local $t1 i32)
+    (local $t2 i32)
+    (local $t3 i32)
+    (local $t4 i32)
+    (local $t5 i32)
+    (local $t6 i32)
+    (local $t7 i32)
+    (local $t8 i32)
+    (local $t9 i32)
+    (local $t10 i32)
+    (local $t11 i32)
+    (local $t12 i32)
+    (local $t13 i32)
+    (local $t14 i32)
+    (local $t15 i32)
+    (local $t16 i32)
+    (local $t17 i32)
+    (local $t18 i32)
+    (local $t19 i32)
+    (local $t20 i32)
+    (local $t21 i32)
+    (local $t22 i32)
+    (local $t23 i32)
+    (local $t24 i32)
+    (local $t25 i32)
+    (local $t26 i32)
+    (local $t27 i32)
+    (local $t28 i32)
+    (local $t29 i32)
+    (local $t30 i32)
+    (local $t31 i32)
+    (local $t32 i32)
+    (local $t33 i32)
+    (local $t34 i32)
+    (local $t35 i32)
+    (local $t36 i32)
+    (local $t37 i32)
+    (local $t38 i32)
+    (local $t39 i32)
+    (local $t40 i32)
+    (local $t41 i32)
+    (local $t42 i32)
+    (local $t43 i32)
+    (local $t44 i32)
+    (local $t45 i32)
+    (local $t46 i32)
+    (local $t47 i32)
+    (local $t48 i32)
+    (local $t49 i32)
+    (local $t50 i32)
+    (local $t51 i32)
+    (local $t52 i32)
+    (local $t53 i32)
+    (local $t54 i32)
+    (local $t55 i32)
+    (local $t56 i32)
+    i32.const 33
+    call $jn_gc_frame_push
+    local.set $__jn_frame
+    local.get $__jn_frame
+    i32.const 0
+    local.get $this
+    call $jn_gc_frame_set_root
+    i32.const 0
+    local.set $pc
+    (block $exit
+      (loop $dispatch
+        (block $bb35
+        (block $bb34
+        (block $bb33
+        (block $bb32
+        (block $bb31
+        (block $bb30
+        (block $bb29
+        (block $bb28
+        (block $bb27
+        (block $bb26
+        (block $bb25
+        (block $bb24
+        (block $bb23
+        (block $bb22
+        (block $bb21
+        (block $bb20
+        (block $bb19
+        (block $bb18
+        (block $bb17
+        (block $bb16
+        (block $bb15
+        (block $bb14
+        (block $bb13
+        (block $bb12
+        (block $bb11
+        (block $bb10
+        (block $bb9
+        (block $bb8
+        (block $bb7
+        (block $bb6
+        (block $bb5
+        (block $bb4
+        (block $bb3
+        (block $bb2
+        (block $bb1
+        (block $bb0
+          local.get $pc
+          br_table $bb0 $bb1 $bb2 $bb3 $bb4 $bb5 $bb6 $bb7 $bb8 $bb9 $bb10 $bb11 $bb12 $bb13 $bb14 $bb15 $bb16 $bb17 $bb18 $bb19 $bb20 $bb21 $bb22 $bb23 $bb24 $bb25 $bb26 $bb27 $bb28 $bb29 $bb30 $bb31 $bb32 $bb33 $bb34 $bb35 $exit
+        )
+          local.get $this
+          local.set $this__slot
+          local.get $__jn_frame
+          i32.const 1
+          local.get $this__slot
+          call $jn_gc_frame_set_root
+          local.get $index
+          local.set $index__slot
+          local.get $this__slot
+          local.set $t0
+          local.get $__jn_frame
+          i32.const 9
+          local.get $t0
+          call $jn_gc_frame_set_root
+          local.get $t0
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t1
+          local.get $t1
+          if
+            i32.const 1
+            local.set $pc
+          else
+            i32.const 2
+            local.set $pc
+          end
+          br $dispatch
+        )
+          i32.const 0
+          local.set $ret
+          br $exit
+        )
+          local.get $index__slot
+          local.set $t2
+          local.get $t0
+          local.get $t2
+          call $_JN_ArrayList_rangeCheck_i32
+          call $jnative_exception_pending
+          local.set $t3
+          local.get $t3
+          if
+            i32.const 3
+            local.set $pc
+          else
+            i32.const 4
+            local.set $pc
+          end
+          br $dispatch
+        )
+          i32.const 0
+          local.set $ret
+          br $exit
+        )
+          local.get $this__slot
+          local.set $t4
+          local.get $__jn_frame
+          i32.const 10
+          local.get $t4
+          call $jn_gc_frame_set_root
+          local.get $t4
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t5
+          local.get $t5
+          if
+            i32.const 5
+            local.set $pc
+          else
+            i32.const 6
+            local.set $pc
+          end
+          br $dispatch
+        )
+          i32.const 0
+          local.set $ret
+          br $exit
+        )
+          local.get $t4
+          i32.const 4
+          i32.add
+          i32.load
+          local.set $t6
+          local.get $__jn_frame
+          i32.const 11
+          local.get $t6
+          call $jn_gc_frame_set_root
+          local.get $t6
+          local.set $gctmp.7
+          local.get $__jn_frame
+          i32.const 3
+          local.get $gctmp.7
+          call $jn_gc_frame_set_root
+          local.get $gctmp.7
+          local.set $t7
+          local.get $__jn_frame
+          i32.const 12
+          local.get $t7
+          call $jn_gc_frame_set_root
+          local.get $index__slot
+          local.set $t8
+          local.get $t7
+          i32.eqz
+          if
+            unreachable
+          end
+          local.get $t8
+          i32.const 0
+          i32.lt_s
+          local.get $t8
+          local.get $t7
+          i32.const 8
+          i32.add
+          i32.load
+          i32.ge_s
+          i32.or
+          if
+            unreachable
+          end
+          local.get $t7
+          i32.const 16
+          i32.add
+          local.get $t8
+          i32.const 4
+          i32.mul
+          i32.add
+          i32.load
+          local.set $t9
+          local.get $__jn_frame
+          i32.const 13
+          local.get $t9
+          call $jn_gc_frame_set_root
+          call $jnative_exception_pending
+          local.set $t10
+          local.get $t10
+          if
+            i32.const 7
+            local.set $pc
+          else
+            i32.const 8
+            local.set $pc
+          end
+          br $dispatch
+        )
+          i32.const 0
+          local.set $ret
+          br $exit
+        )
+          local.get $t9
+          local.set $gctmp.11
+          local.get $__jn_frame
+          i32.const 4
+          local.get $gctmp.11
+          call $jn_gc_frame_set_root
+          local.get $gctmp.11
+          local.set $t11
+          local.get $__jn_frame
+          i32.const 14
+          local.get $t11
+          call $jn_gc_frame_set_root
+          local.get $t11
+          local.set $old
+          local.get $__jn_frame
+          i32.const 2
+          local.get $old
+          call $jn_gc_frame_set_root
+          local.get $index__slot
+          local.set $t12
+          local.get $t12
+          local.set $i
+          i32.const 9
+          local.set $pc
+          br $dispatch
+        )
+          local.get $i
+          local.set $t13
+          local.get $t13
+          i32.const 1
+          i32.add
+          local.set $t14
+          local.get $this__slot
+          local.set $t15
+          local.get $__jn_frame
+          i32.const 15
+          local.get $t15
+          call $jn_gc_frame_set_root
+          local.get $t15
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t16
+          local.get $t16
+          if
+            i32.const 12
+            local.set $pc
+          else
+            i32.const 13
+            local.set $pc
+          end
+          br $dispatch
+        )
+          local.get $this__slot
+          local.set $t19
+          local.get $__jn_frame
+          i32.const 16
+          local.get $t19
+          call $jn_gc_frame_set_root
+          local.get $t19
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t20
+          local.get $t20
+          if
+            i32.const 14
+            local.set $pc
+          else
+            i32.const 15
+            local.set $pc
+          end
+          br $dispatch
+        )
+          local.get $this__slot
+          local.set $t36
+          local.get $__jn_frame
+          i32.const 24
+          local.get $t36
+          call $jn_gc_frame_set_root
+          local.get $t36
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t37
+          local.get $t37
+          if
+            i32.const 22
+            local.set $pc
+          else
+            i32.const 23
+            local.set $pc
+          end
+          br $dispatch
+        )
+          i32.const 0
+          local.set $ret
+          br $exit
+        )
+          local.get $t15
+          i32.const 8
+          i32.add
+          i32.load
+          local.set $t17
+          local.get $t14
+          local.get $t17
+          i32.lt_s
+          local.set $t18
+          local.get $t18
+          if
+            i32.const 10
+            local.set $pc
+          else
+            i32.const 11
+            local.set $pc
+          end
+          br $dispatch
+        )
+          i32.const 0
+          local.set $ret
+          br $exit
+        )
+          local.get $t19
+          i32.const 4
+          i32.add
+          i32.load
+          local.set $t21
+          local.get $__jn_frame
+          i32.const 17
+          local.get $t21
+          call $jn_gc_frame_set_root
+          local.get $t21
+          local.set $gctmp.22
+          local.get $__jn_frame
+          i32.const 5
+          local.get $gctmp.22
+          call $jn_gc_frame_set_root
+          local.get $gctmp.22
+          local.set $t22
+          local.get $__jn_frame
+          i32.const 18
+          local.get $t22
+          call $jn_gc_frame_set_root
+          local.get $i
+          local.set $t23
+          local.get $t23
+          i32.const 1
+          i32.add
+          local.set $t24
+          local.get $t22
+          i32.eqz
+          if
+            unreachable
+          end
+          local.get $t24
+          i32.const 0
+          i32.lt_s
+          local.get $t24
+          local.get $t22
+          i32.const 8
+          i32.add
+          i32.load
+          i32.ge_s
+          i32.or
+          if
+            unreachable
+          end
+          local.get $t22
+          i32.const 16
+          i32.add
+          local.get $t24
+          i32.const 4
+          i32.mul
+          i32.add
+          i32.load
+          local.set $t25
+          local.get $__jn_frame
+          i32.const 19
+          local.get $t25
+          call $jn_gc_frame_set_root
+          call $jnative_exception_pending
+          local.set $t26
+          local.get $t26
+          if
+            i32.const 16
+            local.set $pc
+          else
+            i32.const 17
+            local.set $pc
+          end
+          br $dispatch
+        )
+          i32.const 0
+          local.set $ret
+          br $exit
+        )
+          local.get $t25
+          local.set $gctmp.27
+          local.get $__jn_frame
+          i32.const 6
+          local.get $gctmp.27
+          call $jn_gc_frame_set_root
+          local.get $gctmp.27
+          local.set $t27
+          local.get $__jn_frame
+          i32.const 20
+          local.get $t27
+          call $jn_gc_frame_set_root
+          local.get $this__slot
+          local.set $t28
+          local.get $__jn_frame
+          i32.const 21
+          local.get $t28
+          call $jn_gc_frame_set_root
+          local.get $t28
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t29
+          local.get $t29
+          if
+            i32.const 18
+            local.set $pc
+          else
+            i32.const 19
+            local.set $pc
+          end
+          br $dispatch
+        )
+          i32.const 0
+          local.set $ret
+          br $exit
+        )
+          local.get $t28
+          i32.const 4
+          i32.add
+          i32.load
+          local.set $t30
+          local.get $__jn_frame
+          i32.const 22
+          local.get $t30
+          call $jn_gc_frame_set_root
+          local.get $t30
+          local.set $gctmp.31
+          local.get $__jn_frame
+          i32.const 7
+          local.get $gctmp.31
+          call $jn_gc_frame_set_root
+          local.get $gctmp.31
+          local.set $t31
+          local.get $__jn_frame
+          i32.const 23
+          local.get $t31
+          call $jn_gc_frame_set_root
+          local.get $i
+          local.set $t32
+          local.get $t31
+          i32.eqz
+          if
+            unreachable
+          end
+          local.get $t32
+          i32.const 0
+          i32.lt_s
+          local.get $t32
+          local.get $t31
+          i32.const 8
+          i32.add
+          i32.load
+          i32.ge_s
+          i32.or
+          if
+            unreachable
+          end
+          local.get $t31
+          i32.const 16
+          i32.add
+          local.get $t32
+          i32.const 4
+          i32.mul
+          i32.add
+          local.get $t27
+          i32.store
+          call $jnative_exception_pending
+          local.set $t33
+          local.get $t33
+          if
+            i32.const 20
+            local.set $pc
+          else
+            i32.const 21
+            local.set $pc
+          end
+          br $dispatch
+        )
+          i32.const 0
+          local.set $ret
+          br $exit
+        )
+          local.get $i
+          local.set $t34
+          local.get $t34
+          i32.const 1
+          i32.add
+          local.set $t35
+          local.get $t35
+          local.set $i
+          call $jn_gc_safepoint
+          i32.const 9
+          local.set $pc
+          br $dispatch
+        )
+          i32.const 0
+          local.set $ret
+          br $exit
+        )
+          local.get $t36
+          i32.const 8
+          i32.add
+          i32.load
+          local.set $t38
+          local.get $t38
+          i32.const 1
+          i32.sub
+          local.set $t39
+          local.get $this__slot
+          local.set $t40
+          local.get $__jn_frame
+          i32.const 25
+          local.get $t40
+          call $jn_gc_frame_set_root
+          local.get $t40
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t41
+          local.get $t41
+          if
+            i32.const 24
+            local.set $pc
+          else
+            i32.const 25
+            local.set $pc
+          end
+          br $dispatch
+        )
+          i32.const 0
+          local.set $ret
+          br $exit
+        )
+          local.get $t40
+          i32.const 8
+          i32.add
+          local.get $t39
+          i32.store
+          local.get $this__slot
+          local.set $t42
+          local.get $__jn_frame
+          i32.const 26
+          local.get $t42
+          call $jn_gc_frame_set_root
+          local.get $t42
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t43
+          local.get $t43
+          if
+            i32.const 26
+            local.set $pc
+          else
+            i32.const 27
+            local.set $pc
+          end
+          br $dispatch
+        )
+          i32.const 0
+          local.set $ret
+          br $exit
+        )
+          local.get $t42
+          i32.const 4
+          i32.add
+          i32.load
+          local.set $t44
+          local.get $__jn_frame
+          i32.const 27
+          local.get $t44
+          call $jn_gc_frame_set_root
+          local.get $t44
+          local.set $gctmp.45
+          local.get $__jn_frame
+          i32.const 8
+          local.get $gctmp.45
+          call $jn_gc_frame_set_root
+          local.get $gctmp.45
+          local.set $t45
+          local.get $__jn_frame
+          i32.const 28
+          local.get $t45
+          call $jn_gc_frame_set_root
+          local.get $this__slot
+          local.set $t46
+          local.get $__jn_frame
+          i32.const 29
+          local.get $t46
+          call $jn_gc_frame_set_root
+          local.get $t46
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t47
+          local.get $t47
+          if
+            i32.const 28
+            local.set $pc
+          else
+            i32.const 29
+            local.set $pc
+          end
+          br $dispatch
+        )
+          i32.const 0
+          local.set $ret
+          br $exit
+        )
+          local.get $t46
+          i32.const 8
+          i32.add
+          i32.load
+          local.set $t48
+          local.get $t45
+          i32.eqz
+          if
+            unreachable
+          end
+          local.get $t48
+          i32.const 0
+          i32.lt_s
+          local.get $t48
+          local.get $t45
+          i32.const 8
+          i32.add
+          i32.load
+          i32.ge_s
+          i32.or
+          if
+            unreachable
+          end
+          local.get $t45
+          i32.const 16
+          i32.add
+          local.get $t48
+          i32.const 4
+          i32.mul
+          i32.add
+          i32.const 0
+          i32.store
+          call $jnative_exception_pending
+          local.set $t49
+          local.get $t49
+          if
+            i32.const 30
+            local.set $pc
+          else
+            i32.const 31
+            local.set $pc
+          end
+          br $dispatch
+        )
+          i32.const 0
+          local.set $ret
+          br $exit
+        )
+          local.get $this__slot
+          local.set $t50
+          local.get $__jn_frame
+          i32.const 30
+          local.get $t50
+          call $jn_gc_frame_set_root
+          local.get $t50
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t51
+          local.get $t51
+          if
+            i32.const 32
+            local.set $pc
+          else
+            i32.const 33
+            local.set $pc
+          end
+          br $dispatch
+        )
+          i32.const 0
+          local.set $ret
+          br $exit
+        )
+          local.get $t50
+          i32.const 12
+          i32.add
+          i32.load
+          local.set $t52
+          local.get $t52
+          i32.const 1
+          i32.add
+          local.set $t53
+          local.get $this__slot
+          local.set $t54
+          local.get $__jn_frame
+          i32.const 31
+          local.get $t54
+          call $jn_gc_frame_set_root
+          local.get $t54
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t55
+          local.get $t55
+          if
+            i32.const 34
+            local.set $pc
+          else
+            i32.const 35
+            local.set $pc
+          end
+          br $dispatch
+        )
+          i32.const 0
+          local.set $ret
+          br $exit
+        )
+          local.get $t54
+          i32.const 12
+          i32.add
+          local.get $t53
+          i32.store
+          local.get $old
+          local.set $t56
+          local.get $__jn_frame
+          i32.const 32
+          local.get $t56
+          call $jn_gc_frame_set_root
+          local.get $t56
+          local.set $ret
+          br $exit
+      )
+    )
+    call $jn_gc_frame_pop
+    local.get $ret
+  )
+  (func $_JN_EventLoop_nextTimerDelayMs (param $this i32) (result i32)
+    (local $pc i32)
+    (local $__jn_tid i32)
+    (local $__jn_asz i32)
+    (local $__jn_frame i32)
+    (local $ret i32)
+    (local $this__slot i32)
+    (local $gctmp.3 i32)
+    (local $t i32)
+    (local $gctmp.12 i32)
+    (local $gctmp.16 i32)
+    (local $now i64)
+    (local $d i64)
+    (local $t0 i32)
+    (local $t1 i32)
+    (local $t2 i32)
+    (local $t3 i32)
+    (local $t4 i32)
+    (local $t5 i32)
+    (local $t6 i32)
+    (local $t7 i32)
+    (local $t9 i32)
+    (local $t10 i32)
+    (local $t11 i32)
+    (local $t12 i32)
+    (local $t13 i32)
+    (local $t14 i32)
+    (local $t15 i32)
+    (local $t16 i32)
+    (local $t17 i64)
+    (local $t18 i32)
+    (local $t19 i32)
+    (local $t20 i64)
+    (local $t21 i64)
+    (local $t22 i64)
+    (local $t23 i64)
+    (local $t24 i64)
+    (local $t25 i32)
+    (local $t26 i64)
+    (local $t27 i64)
+    (local $t28 i32)
+    (local $t29 i64)
+    (local $t30 i64)
+    (local $t31 i32)
+    i32.const 15
+    call $jn_gc_frame_push
+    local.set $__jn_frame
+    local.get $__jn_frame
+    i32.const 0
+    local.get $this
+    call $jn_gc_frame_set_root
+    i32.const 0
+    local.set $pc
+    (block $exit
+      (loop $dispatch
+        (block $bb22
+        (block $bb21
+        (block $bb20
+        (block $bb19
+        (block $bb18
+        (block $bb17
+        (block $bb16
+        (block $bb15
+        (block $bb14
+        (block $bb13
+        (block $bb12
+        (block $bb11
+        (block $bb10
+        (block $bb9
+        (block $bb8
+        (block $bb7
+        (block $bb6
+        (block $bb5
+        (block $bb4
+        (block $bb3
+        (block $bb2
+        (block $bb1
+        (block $bb0
+          local.get $pc
+          br_table $bb0 $bb1 $bb2 $bb3 $bb4 $bb5 $bb6 $bb7 $bb8 $bb9 $bb10 $bb11 $bb12 $bb13 $bb14 $bb15 $bb16 $bb17 $bb18 $bb19 $bb20 $bb21 $bb22 $exit
+        )
+          local.get $this
+          local.set $this__slot
+          local.get $__jn_frame
+          i32.const 1
+          local.get $this__slot
+          call $jn_gc_frame_set_root
+          local.get $this__slot
+          local.set $t0
+          local.get $__jn_frame
+          i32.const 6
+          local.get $t0
+          call $jn_gc_frame_set_root
+          local.get $t0
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t1
+          local.get $t1
+          if
+            i32.const 1
+            local.set $pc
+          else
+            i32.const 2
+            local.set $pc
+          end
+          br $dispatch
+        )
+          i32.const 0
+          local.set $ret
+          br $exit
+        )
+          local.get $t0
+          i32.const 12
+          i32.add
+          i32.load
+          local.set $t2
+          local.get $__jn_frame
+          i32.const 7
+          local.get $t2
+          call $jn_gc_frame_set_root
+          local.get $t2
+          local.set $gctmp.3
+          local.get $__jn_frame
+          i32.const 2
+          local.get $gctmp.3
+          call $jn_gc_frame_set_root
+          local.get $gctmp.3
+          local.set $t3
+          local.get $__jn_frame
+          i32.const 8
+          local.get $t3
+          call $jn_gc_frame_set_root
+          local.get $t3
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t4
+          local.get $t4
+          if
+            i32.const 3
+            local.set $pc
+          else
+            i32.const 4
+            local.set $pc
+          end
+          br $dispatch
+        )
+          i32.const 0
+          local.set $ret
+          br $exit
+        )
+          local.get $t3
+          call $_JN_ArrayList_size
+          local.set $t5
+          call $jnative_exception_pending
+          local.set $t6
+          local.get $t6
+          if
+            i32.const 5
+            local.set $pc
+          else
+            i32.const 6
+            local.set $pc
+          end
+          br $dispatch
+        )
+          i32.const 0
+          local.set $ret
+          br $exit
+        )
+          local.get $t5
+          i32.const 0
+          i32.eq
+          local.set $t7
+          local.get $t7
+          if
+            i32.const 7
+            local.set $pc
+          else
+            i32.const 8
+            local.set $pc
+          end
+          br $dispatch
+        )
+          i32.const -1
+          local.set $ret
+          br $exit
+        )
+          local.get $this__slot
+          local.set $t9
+          local.get $__jn_frame
+          i32.const 9
+          local.get $t9
+          call $jn_gc_frame_set_root
+          local.get $t9
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t10
+          local.get $t10
+          if
+            i32.const 9
+            local.set $pc
+          else
+            i32.const 10
+            local.set $pc
+          end
+          br $dispatch
+        )
+          i32.const 0
+          local.set $ret
+          br $exit
+        )
+          local.get $t9
+          i32.const 12
+          i32.add
+          i32.load
+          local.set $t11
+          local.get $__jn_frame
+          i32.const 10
+          local.get $t11
+          call $jn_gc_frame_set_root
+          local.get $t11
+          local.set $gctmp.12
+          local.get $__jn_frame
+          i32.const 4
+          local.get $gctmp.12
+          call $jn_gc_frame_set_root
+          local.get $gctmp.12
+          local.set $t12
+          local.get $__jn_frame
+          i32.const 11
+          local.get $t12
+          call $jn_gc_frame_set_root
+          local.get $t12
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t13
+          local.get $t13
+          if
+            i32.const 11
+            local.set $pc
+          else
+            i32.const 12
+            local.set $pc
+          end
+          br $dispatch
+        )
+          i32.const 0
+          local.set $ret
+          br $exit
+        )
+          local.get $t12
+          i32.const 0
+          call $_JN_ArrayList_get_i32
+          local.set $t14
+          local.get $__jn_frame
+          i32.const 12
+          local.get $t14
+          call $jn_gc_frame_set_root
+          call $jnative_exception_pending
+          local.set $t15
+          local.get $t15
+          if
+            i32.const 13
+            local.set $pc
+          else
+            i32.const 14
+            local.set $pc
+          end
+          br $dispatch
+        )
+          i32.const 0
+          local.set $ret
+          br $exit
+        )
+          local.get $t14
+          local.set $gctmp.16
+          local.get $__jn_frame
+          i32.const 5
+          local.get $gctmp.16
+          call $jn_gc_frame_set_root
+          local.get $gctmp.16
+          local.set $t16
+          local.get $__jn_frame
+          i32.const 13
+          local.get $t16
+          call $jn_gc_frame_set_root
+          local.get $t16
+          local.set $t
+          local.get $__jn_frame
+          i32.const 3
+          local.get $t
+          call $jn_gc_frame_set_root
+          i64.const 0
+          local.set $t17
+          local.get $t17
+          local.set $now
+          local.get $t
+          local.set $t18
+          local.get $__jn_frame
+          i32.const 14
+          local.get $t18
+          call $jn_gc_frame_set_root
+          local.get $t18
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t19
+          local.get $t19
+          if
+            i32.const 15
+            local.set $pc
+          else
+            i32.const 16
+            local.set $pc
+          end
+          br $dispatch
+        )
+          i32.const 0
+          local.set $ret
+          br $exit
+        )
+          local.get $t18
+          i32.const 8
+          i32.add
+          i64.load
+          local.set $t20
+          local.get $now
+          local.set $t21
+          local.get $t20
+          local.get $t21
+          i64.sub
+          local.set $t22
+          local.get $t22
+          local.set $d
+          local.get $d
+          local.set $t23
+          i32.const 0
+          i64.extend_i32_s
+          local.set $t24
+          local.get $t23
+          local.get $t24
+          i64.le_s
+          local.set $t25
+          local.get $t25
+          if
+            i32.const 17
+            local.set $pc
+          else
+            i32.const 18
+            local.set $pc
+          end
+          br $dispatch
+        )
+          i32.const 0
+          local.set $ret
+          br $exit
+        )
+          local.get $d
+          local.set $t26
+          i32.const 1000
+          i64.extend_i32_s
+          local.set $t27
+          local.get $t26
+          local.get $t27
+          i64.gt_s
+          local.set $t28
+          local.get $t28
+          if
+            i32.const 19
+            local.set $pc
+          else
+            i32.const 20
+            local.set $pc
+          end
+          br $dispatch
+        )
+          i32.const 1000
+          local.set $ret
+          br $exit
+        )
+          local.get $d
+          local.set $t29
+          i32.const 0
+          i64.extend_i32_s
+          local.set $t30
+          local.get $t29
+          local.get $t30
+          i64.gt_s
+          local.set $t31
+          local.get $t31
+          if
+            i32.const 21
+            local.set $pc
+          else
+            i32.const 22
+            local.set $pc
+          end
+          br $dispatch
+        )
+          i32.const 1
+          local.set $ret
+          br $exit
+        )
+          i32.const 0
+          local.set $ret
+          br $exit
+      )
+    )
+    call $jn_gc_frame_pop
+    local.get $ret
+  )
+  (func $_JN_EventLoopGroup_next (param $this i32) (result i32)
+    (local $pc i32)
+    (local $__jn_tid i32)
+    (local $__jn_asz i32)
+    (local $__jn_frame i32)
+    (local $ret i32)
+    (local $this__slot i32)
+    (local $l i32)
+    (local $gctmp.3 i32)
+    (local $gctmp.9 i32)
+    (local $gctmp.22 i32)
+    (local $t0 i32)
+    (local $t1 i32)
+    (local $t2 i32)
+    (local $t3 i32)
+    (local $t4 i32)
+    (local $t5 i32)
+    (local $t6 i32)
+    (local $t7 i32)
+    (local $t8 i32)
+    (local $t9 i32)
+    (local $t10 i32)
+    (local $t11 i32)
+    (local $t12 i32)
+    (local $t13 i32)
+    (local $t14 i32)
+    (local $t15 i32)
+    (local $t16 i32)
+    (local $t17 i32)
+    (local $t18 i32)
+    (local $t19 i32)
+    (local $t20 i32)
+    (local $t21 i32)
+    (local $t22 i32)
+    (local $t23 i32)
+    (local $t24 i32)
+    (local $t25 i32)
+    (local $t26 i32)
+    (local $t27 i32)
+    i32.const 20
+    call $jn_gc_frame_push
+    local.set $__jn_frame
+    local.get $__jn_frame
+    i32.const 0
+    local.get $this
+    call $jn_gc_frame_set_root
+    i32.const 0
+    local.set $pc
+    (block $exit
+      (loop $dispatch
+        (block $bb18
+        (block $bb17
+        (block $bb16
+        (block $bb15
+        (block $bb14
+        (block $bb13
+        (block $bb12
+        (block $bb11
+        (block $bb10
+        (block $bb9
+        (block $bb8
+        (block $bb7
+        (block $bb6
+        (block $bb5
+        (block $bb4
+        (block $bb3
+        (block $bb2
+        (block $bb1
+        (block $bb0
+          local.get $pc
+          br_table $bb0 $bb1 $bb2 $bb3 $bb4 $bb5 $bb6 $bb7 $bb8 $bb9 $bb10 $bb11 $bb12 $bb13 $bb14 $bb15 $bb16 $bb17 $bb18 $exit
+        )
+          local.get $this
+          local.set $this__slot
+          local.get $__jn_frame
+          i32.const 1
+          local.get $this__slot
+          call $jn_gc_frame_set_root
+          local.get $this__slot
+          local.set $t0
+          local.get $__jn_frame
+          i32.const 6
+          local.get $t0
+          call $jn_gc_frame_set_root
+          local.get $t0
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t1
+          local.get $t1
+          if
+            i32.const 1
+            local.set $pc
+          else
+            i32.const 2
+            local.set $pc
+          end
+          br $dispatch
+        )
+          i32.const 0
+          local.set $ret
+          br $exit
+        )
+          local.get $t0
+          i32.const 4
+          i32.add
+          i32.load
+          local.set $t2
+          local.get $__jn_frame
+          i32.const 7
+          local.get $t2
+          call $jn_gc_frame_set_root
+          local.get $t2
+          local.set $gctmp.3
+          local.get $__jn_frame
+          i32.const 3
+          local.get $gctmp.3
+          call $jn_gc_frame_set_root
+          local.get $gctmp.3
+          local.set $t3
+          local.get $__jn_frame
+          i32.const 8
+          local.get $t3
+          call $jn_gc_frame_set_root
+          local.get $this__slot
+          local.set $t4
+          local.get $__jn_frame
+          i32.const 9
+          local.get $t4
+          call $jn_gc_frame_set_root
+          local.get $t4
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t5
+          local.get $t5
+          if
+            i32.const 3
+            local.set $pc
+          else
+            i32.const 4
+            local.set $pc
+          end
+          br $dispatch
+        )
+          i32.const 0
+          local.set $ret
+          br $exit
+        )
+          local.get $t4
+          i32.const 8
+          i32.add
+          i32.load
+          local.set $t6
+          local.get $t3
+          i32.eqz
+          if
+            unreachable
+          end
+          local.get $t6
+          i32.const 0
+          i32.lt_s
+          local.get $t6
+          local.get $t3
+          i32.const 8
+          i32.add
+          i32.load
+          i32.ge_s
+          i32.or
+          if
+            unreachable
+          end
+          local.get $t3
+          i32.const 16
+          i32.add
+          local.get $t6
+          i32.const 4
+          i32.mul
+          i32.add
+          i32.load
+          local.set $t7
+          local.get $__jn_frame
+          i32.const 10
+          local.get $t7
+          call $jn_gc_frame_set_root
+          call $jnative_exception_pending
+          local.set $t8
+          local.get $t8
+          if
+            i32.const 5
+            local.set $pc
+          else
+            i32.const 6
+            local.set $pc
+          end
+          br $dispatch
+        )
+          i32.const 0
+          local.set $ret
+          br $exit
+        )
+          local.get $t7
+          local.set $gctmp.9
+          local.get $__jn_frame
+          i32.const 4
+          local.get $gctmp.9
+          call $jn_gc_frame_set_root
+          local.get $gctmp.9
+          local.set $t9
+          local.get $__jn_frame
+          i32.const 11
+          local.get $t9
+          call $jn_gc_frame_set_root
+          local.get $t9
+          local.set $l
+          local.get $__jn_frame
+          i32.const 2
+          local.get $l
+          call $jn_gc_frame_set_root
+          local.get $this__slot
+          local.set $t10
+          local.get $__jn_frame
+          i32.const 12
+          local.get $t10
+          call $jn_gc_frame_set_root
+          local.get $t10
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t11
+          local.get $t11
+          if
+            i32.const 7
+            local.set $pc
+          else
+            i32.const 8
+            local.set $pc
+          end
+          br $dispatch
+        )
+          i32.const 0
+          local.set $ret
+          br $exit
+        )
+          local.get $t10
+          i32.const 8
+          i32.add
+          i32.load
+          local.set $t12
+          local.get $t12
+          i32.const 1
+          i32.add
+          local.set $t13
+          local.get $this__slot
+          local.set $t14
+          local.get $__jn_frame
+          i32.const 13
+          local.get $t14
+          call $jn_gc_frame_set_root
+          local.get $t14
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t15
+          local.get $t15
+          if
+            i32.const 9
+            local.set $pc
+          else
+            i32.const 10
+            local.set $pc
+          end
+          br $dispatch
+        )
+          i32.const 0
+          local.set $ret
+          br $exit
+        )
+          local.get $t14
+          i32.const 8
+          i32.add
+          local.get $t13
+          i32.store
+          local.get $this__slot
+          local.set $t16
+          local.get $__jn_frame
+          i32.const 14
+          local.get $t16
+          call $jn_gc_frame_set_root
+          local.get $t16
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t17
+          local.get $t17
+          if
+            i32.const 11
+            local.set $pc
+          else
+            i32.const 12
+            local.set $pc
+          end
+          br $dispatch
+        )
+          i32.const 0
+          local.set $ret
+          br $exit
+        )
+          local.get $t16
+          i32.const 8
+          i32.add
+          i32.load
+          local.set $t18
+          local.get $this__slot
+          local.set $t19
+          local.get $__jn_frame
+          i32.const 15
+          local.get $t19
+          call $jn_gc_frame_set_root
+          local.get $t19
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t20
+          local.get $t20
+          if
+            i32.const 13
+            local.set $pc
+          else
+            i32.const 14
+            local.set $pc
+          end
+          br $dispatch
+        )
+          i32.const 0
+          local.set $ret
+          br $exit
+        )
+          local.get $t19
+          i32.const 4
+          i32.add
+          i32.load
+          local.set $t21
+          local.get $__jn_frame
+          i32.const 16
+          local.get $t21
+          call $jn_gc_frame_set_root
+          local.get $t21
+          local.set $gctmp.22
+          local.get $__jn_frame
+          i32.const 5
+          local.get $gctmp.22
+          call $jn_gc_frame_set_root
+          local.get $gctmp.22
+          local.set $t22
+          local.get $__jn_frame
+          i32.const 17
+          local.get $t22
+          call $jn_gc_frame_set_root
+          local.get $t22
+          i32.eqz
+          if
+            unreachable
+          end
+          local.get $t22
+          i32.const 8
+          i32.add
+          i32.load
+          local.set $t23
+          local.get $t18
+          local.get $t23
+          i32.ge_s
+          local.set $t24
+          local.get $t24
+          if
+            i32.const 15
+            local.set $pc
+          else
+            i32.const 16
+            local.set $pc
+          end
+          br $dispatch
+        )
+          local.get $this__slot
+          local.set $t25
+          local.get $__jn_frame
+          i32.const 18
+          local.get $t25
+          call $jn_gc_frame_set_root
+          local.get $t25
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t26
+          local.get $t26
+          if
+            i32.const 17
+            local.set $pc
+          else
+            i32.const 18
+            local.set $pc
+          end
+          br $dispatch
+        )
+          local.get $l
+          local.set $t27
+          local.get $__jn_frame
+          i32.const 19
+          local.get $t27
+          call $jn_gc_frame_set_root
+          local.get $t27
+          local.set $ret
+          br $exit
+        )
+          i32.const 0
+          local.set $ret
+          br $exit
+        )
+          local.get $t25
+          i32.const 8
+          i32.add
+          i32.const 0
+          i32.store
+          i32.const 16
+          local.set $pc
+          br $dispatch
+      )
+    )
+    call $jn_gc_frame_pop
+    local.get $ret
+  )
+  (func $_JN_EventLoopGroup_runAllInBackground (param $this i32)
+    (local $pc i32)
+    (local $__jn_tid i32)
+    (local $__jn_asz i32)
+    (local $__jn_frame i32)
+    (local $this__slot i32)
+    (local $i i32)
+    (local $gctmp.4 i32)
+    (local $r i32)
+    (local $gctmp.8 i32)
+    (local $gctmp.13 i32)
+    (local $gctmp.17 i32)
+    (local $gctmp.24 i32)
+    (local $t0 i32)
+    (local $t1 i32)
+    (local $t2 i32)
+    (local $t3 i32)
+    (local $t4 i32)
+    (local $t5 i32)
+    (local $t6 i32)
+    (local $t7 i32)
+    (local $t8 i32)
+    (local $t9 i32)
+    (local $t10 i32)
+    (local $t11 i32)
+    (local $t12 i32)
+    (local $t13 i32)
+    (local $t14 i32)
+    (local $t15 i32)
+    (local $t16 i32)
+    (local $t17 i32)
+    (local $t18 i32)
+    (local $t19 i32)
+    (local $t20 i32)
+    (local $t21 i32)
+    (local $t22 i32)
+    (local $t23 i32)
+    (local $t24 i32)
+    (local $t25 i32)
+    (local $t26 i32)
+    (local $t27 i32)
+    (local $t28 i32)
+    (local $t29 i32)
+    (local $t30 i32)
+    (local $t31 i32)
+    i32.const 24
+    call $jn_gc_frame_push
+    local.set $__jn_frame
+    local.get $__jn_frame
+    i32.const 0
+    local.get $this
+    call $jn_gc_frame_set_root
+    i32.const 0
+    local.set $pc
+    (block $exit
+      (loop $dispatch
+        (block $bb21
+        (block $bb20
+        (block $bb19
+        (block $bb18
+        (block $bb17
+        (block $bb16
+        (block $bb15
+        (block $bb14
+        (block $bb13
+        (block $bb12
+        (block $bb11
+        (block $bb10
+        (block $bb9
+        (block $bb8
+        (block $bb7
+        (block $bb6
+        (block $bb5
+        (block $bb4
+        (block $bb3
+        (block $bb2
+        (block $bb1
+        (block $bb0
+          local.get $pc
+          br_table $bb0 $bb1 $bb2 $bb3 $bb4 $bb5 $bb6 $bb7 $bb8 $bb9 $bb10 $bb11 $bb12 $bb13 $bb14 $bb15 $bb16 $bb17 $bb18 $bb19 $bb20 $bb21 $exit
+        )
+          local.get $this
+          local.set $this__slot
+          local.get $__jn_frame
+          i32.const 1
+          local.get $this__slot
+          call $jn_gc_frame_set_root
+          i32.const 0
+          local.set $i
+          i32.const 1
+          local.set $pc
+          br $dispatch
+        )
+          local.get $i
+          local.set $t0
+          local.get $this__slot
+          local.set $t1
+          local.get $__jn_frame
+          i32.const 8
+          local.get $t1
+          call $jn_gc_frame_set_root
+          local.get $t1
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t2
+          local.get $t2
+          if
+            i32.const 4
+            local.set $pc
+          else
+            i32.const 5
+            local.set $pc
+          end
+          br $dispatch
+        )
+          i32.const 24
+          call $jn_alloc_zeroed
+          local.set $t7
+          local.get $t7
+          i32.eqz
+          if
+            unreachable
+          end
+          local.get $t7
+          i32.const 106
+          i32.store
+          local.get $__jn_frame
+          i32.const 11
+          local.get $t7
+          call $jn_gc_frame_set_root
+          local.get $t7
+          local.set $gctmp.8
+          local.get $__jn_frame
+          i32.const 4
+          local.get $gctmp.8
+          call $jn_gc_frame_set_root
+          local.get $gctmp.8
+          local.set $t8
+          local.get $__jn_frame
+          i32.const 12
+          local.get $t8
+          call $jn_gc_frame_set_root
+          local.get $t8
+          call $_JN_EventLoopRunner_init
+          call $jnative_exception_pending
+          local.set $t9
+          local.get $t9
+          if
+            i32.const 6
+            local.set $pc
+          else
+            i32.const 7
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          br $exit
+        )
+          local.get $t1
+          i32.const 4
+          i32.add
+          i32.load
+          local.set $t3
+          local.get $__jn_frame
+          i32.const 9
+          local.get $t3
+          call $jn_gc_frame_set_root
+          local.get $t3
+          local.set $gctmp.4
+          local.get $__jn_frame
+          i32.const 2
+          local.get $gctmp.4
+          call $jn_gc_frame_set_root
+          local.get $gctmp.4
+          local.set $t4
+          local.get $__jn_frame
+          i32.const 10
+          local.get $t4
+          call $jn_gc_frame_set_root
+          local.get $t4
+          i32.eqz
+          if
+            unreachable
+          end
+          local.get $t4
+          i32.const 8
+          i32.add
+          i32.load
+          local.set $t5
+          local.get $t0
+          local.get $t5
+          i32.lt_s
+          local.set $t6
+          local.get $t6
+          if
+            i32.const 2
+            local.set $pc
+          else
+            i32.const 3
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $t8
+          local.set $r
+          local.get $__jn_frame
+          i32.const 3
+          local.get $r
+          call $jn_gc_frame_set_root
+          local.get $this__slot
+          local.set $t10
+          local.get $__jn_frame
+          i32.const 13
+          local.get $t10
+          call $jn_gc_frame_set_root
+          local.get $t10
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t11
+          local.get $t11
+          if
+            i32.const 8
+            local.set $pc
+          else
+            i32.const 9
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $t10
+          i32.const 4
+          i32.add
+          i32.load
+          local.set $t12
+          local.get $__jn_frame
+          i32.const 14
+          local.get $t12
+          call $jn_gc_frame_set_root
+          local.get $t12
+          local.set $gctmp.13
+          local.get $__jn_frame
+          i32.const 5
+          local.get $gctmp.13
+          call $jn_gc_frame_set_root
+          local.get $gctmp.13
+          local.set $t13
+          local.get $__jn_frame
+          i32.const 15
+          local.get $t13
+          call $jn_gc_frame_set_root
+          local.get $i
+          local.set $t14
+          local.get $t13
+          i32.eqz
+          if
+            unreachable
+          end
+          local.get $t14
+          i32.const 0
+          i32.lt_s
+          local.get $t14
+          local.get $t13
+          i32.const 8
+          i32.add
+          i32.load
+          i32.ge_s
+          i32.or
+          if
+            unreachable
+          end
+          local.get $t13
+          i32.const 16
+          i32.add
+          local.get $t14
+          i32.const 4
+          i32.mul
+          i32.add
+          i32.load
+          local.set $t15
+          local.get $__jn_frame
+          i32.const 16
+          local.get $t15
+          call $jn_gc_frame_set_root
+          call $jnative_exception_pending
+          local.set $t16
+          local.get $t16
+          if
+            i32.const 10
+            local.set $pc
+          else
+            i32.const 11
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $t15
+          local.set $gctmp.17
+          local.get $__jn_frame
+          i32.const 6
+          local.get $gctmp.17
+          call $jn_gc_frame_set_root
+          local.get $gctmp.17
+          local.set $t17
+          local.get $__jn_frame
+          i32.const 17
+          local.get $t17
+          call $jn_gc_frame_set_root
+          local.get $r
+          local.set $t18
+          local.get $__jn_frame
+          i32.const 18
+          local.get $t18
+          call $jn_gc_frame_set_root
+          call $jnative_exception_pending
+          local.set $t19
+          local.get $t19
+          if
+            i32.const 12
+            local.set $pc
+          else
+            i32.const 13
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $t18
+          i32.const 20
+          i32.add
+          local.get $t17
+          i32.store
+          local.get $r
+          local.set $t20
+          local.get $__jn_frame
+          i32.const 19
+          local.get $t20
+          call $jn_gc_frame_set_root
+          local.get $this__slot
+          local.set $t21
+          local.get $__jn_frame
+          i32.const 20
+          local.get $t21
+          call $jn_gc_frame_set_root
+          local.get $t21
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t22
+          local.get $t22
+          if
+            i32.const 14
+            local.set $pc
+          else
+            i32.const 15
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $t21
+          i32.const 12
+          i32.add
+          i32.load
+          local.set $t23
+          local.get $__jn_frame
+          i32.const 21
+          local.get $t23
+          call $jn_gc_frame_set_root
+          local.get $t23
+          local.set $gctmp.24
+          local.get $__jn_frame
+          i32.const 7
+          local.get $gctmp.24
+          call $jn_gc_frame_set_root
+          local.get $gctmp.24
+          local.set $t24
+          local.get $__jn_frame
+          i32.const 22
+          local.get $t24
+          call $jn_gc_frame_set_root
+          local.get $i
+          local.set $t25
+          local.get $t24
+          i32.eqz
+          if
+            unreachable
+          end
+          local.get $t25
+          i32.const 0
+          i32.lt_s
+          local.get $t25
+          local.get $t24
+          i32.const 8
+          i32.add
+          i32.load
+          i32.ge_s
+          i32.or
+          if
+            unreachable
+          end
+          local.get $t24
+          i32.const 16
+          i32.add
+          local.get $t25
+          i32.const 4
+          i32.mul
+          i32.add
+          local.get $t20
+          i32.store
+          call $jnative_exception_pending
+          local.set $t26
+          local.get $t26
+          if
+            i32.const 16
+            local.set $pc
+          else
+            i32.const 17
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $r
+          local.set $t27
+          local.get $__jn_frame
+          i32.const 23
+          local.get $t27
+          call $jn_gc_frame_set_root
+          call $jnative_exception_pending
+          local.set $t28
+          local.get $t28
+          if
+            i32.const 18
+            local.set $pc
+          else
+            i32.const 19
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          call $jnative_exception_pending
+          local.set $t29
+          local.get $t29
+          if
+            i32.const 20
+            local.set $pc
+          else
+            i32.const 21
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $i
+          local.set $t30
+          local.get $t30
+          i32.const 1
+          i32.add
+          local.set $t31
+          local.get $t31
+          local.set $i
+          call $jn_gc_safepoint
+          i32.const 1
+          local.set $pc
+          br $dispatch
+      )
+    )
+    call $jn_gc_frame_pop
+  )
+  (func $_JN_EventLoopRunner_init (param $this i32)
+    (local $pc i32)
+    (local $__jn_tid i32)
+    (local $__jn_asz i32)
+    (local $__jn_frame i32)
+    (local $this__slot i32)
+    (local $t0 i32)
+    (local $t1 i32)
+    i32.const 3
+    call $jn_gc_frame_push
+    local.set $__jn_frame
+    local.get $__jn_frame
+    i32.const 0
+    local.get $this
+    call $jn_gc_frame_set_root
+    i32.const 0
+    local.set $pc
+    (block $exit
+      (loop $dispatch
+        (block $bb2
+        (block $bb1
+        (block $bb0
+          local.get $pc
+          br_table $bb0 $bb1 $bb2 $exit
+        )
+          local.get $this
+          local.set $this__slot
+          local.get $__jn_frame
+          i32.const 1
+          local.get $this__slot
+          call $jn_gc_frame_set_root
+          local.get $this__slot
+          local.set $t0
+          local.get $__jn_frame
+          i32.const 2
+          local.get $t0
+          call $jn_gc_frame_set_root
+          local.get $t0
+          call $_JN_Thread_init
+          call $jnative_exception_pending
+          local.set $t1
+          local.get $t1
+          if
+            i32.const 1
+            local.set $pc
+          else
+            i32.const 2
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          br $exit
+      )
+    )
+    call $jn_gc_frame_pop
+  )
+  (func $_JN_Thread_init (param $this i32)
+    (local $pc i32)
+    (local $__jn_tid i32)
+    (local $__jn_asz i32)
+    (local $__jn_frame i32)
+    (local $this__slot i32)
+    i32.const 2
+    call $jn_gc_frame_push
+    local.set $__jn_frame
+    local.get $__jn_frame
+    i32.const 0
+    local.get $this
+    call $jn_gc_frame_set_root
+    i32.const 0
+    local.set $pc
+    (block $exit
+      (loop $dispatch
+        (block $bb0
+          local.get $pc
+          br_table $bb0 $exit
+        )
+          local.get $this
+          local.set $this__slot
+          local.get $__jn_frame
+          i32.const 1
+          local.get $this__slot
+          call $jn_gc_frame_set_root
+          br $exit
+      )
+    )
+    call $jn_gc_frame_pop
+  )
+  (func $_JN_EventLoopGroup_joinAll (param $this i32)
+    (local $pc i32)
+    (local $__jn_tid i32)
+    (local $__jn_asz i32)
+    (local $__jn_frame i32)
+    (local $this__slot i32)
+    (local $i i32)
+    (local $gctmp.4 i32)
+    (local $gctmp.10 i32)
+    (local $gctmp.14 i32)
+    (local $gctmp.19 i32)
+    (local $gctmp.23 i32)
+    (local $t0 i32)
+    (local $t1 i32)
+    (local $t2 i32)
+    (local $t3 i32)
+    (local $t4 i32)
+    (local $t5 i32)
+    (local $t6 i32)
+    (local $t7 i32)
+    (local $t8 i32)
+    (local $t9 i32)
+    (local $t10 i32)
+    (local $t11 i32)
+    (local $t12 i32)
+    (local $t13 i32)
+    (local $t14 i32)
+    (local $t15 i32)
+    (local $t16 i32)
+    (local $t17 i32)
+    (local $t18 i32)
+    (local $t19 i32)
+    (local $t20 i32)
+    (local $t21 i32)
+    (local $t22 i32)
+    (local $t23 i32)
+    (local $t24 i32)
+    (local $t25 i32)
+    (local $t26 i32)
+    i32.const 20
+    call $jn_gc_frame_push
+    local.set $__jn_frame
+    local.get $__jn_frame
+    i32.const 0
+    local.get $this
+    call $jn_gc_frame_set_root
+    i32.const 0
+    local.set $pc
+    (block $exit
+      (loop $dispatch
+        (block $bb17
+        (block $bb16
+        (block $bb15
+        (block $bb14
+        (block $bb13
+        (block $bb12
+        (block $bb11
+        (block $bb10
+        (block $bb9
+        (block $bb8
+        (block $bb7
+        (block $bb6
+        (block $bb5
+        (block $bb4
+        (block $bb3
+        (block $bb2
+        (block $bb1
+        (block $bb0
+          local.get $pc
+          br_table $bb0 $bb1 $bb2 $bb3 $bb4 $bb5 $bb6 $bb7 $bb8 $bb9 $bb10 $bb11 $bb12 $bb13 $bb14 $bb15 $bb16 $bb17 $exit
+        )
+          local.get $this
+          local.set $this__slot
+          local.get $__jn_frame
+          i32.const 1
+          local.get $this__slot
+          call $jn_gc_frame_set_root
+          i32.const 0
+          local.set $i
+          i32.const 1
+          local.set $pc
+          br $dispatch
+        )
+          local.get $i
+          local.set $t0
+          local.get $this__slot
+          local.set $t1
+          local.get $__jn_frame
+          i32.const 7
+          local.get $t1
+          call $jn_gc_frame_set_root
+          local.get $t1
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t2
+          local.get $t2
+          if
+            i32.const 4
+            local.set $pc
+          else
+            i32.const 5
+            local.set $pc
+          end
+          br $dispatch
+        )
+          local.get $this__slot
+          local.set $t7
+          local.get $__jn_frame
+          i32.const 10
+          local.get $t7
+          call $jn_gc_frame_set_root
+          local.get $t7
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t8
+          local.get $t8
+          if
+            i32.const 6
+            local.set $pc
+          else
+            i32.const 7
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          br $exit
+        )
+          local.get $t1
+          i32.const 12
+          i32.add
+          i32.load
+          local.set $t3
+          local.get $__jn_frame
+          i32.const 8
+          local.get $t3
+          call $jn_gc_frame_set_root
+          local.get $t3
+          local.set $gctmp.4
+          local.get $__jn_frame
+          i32.const 2
+          local.get $gctmp.4
+          call $jn_gc_frame_set_root
+          local.get $gctmp.4
+          local.set $t4
+          local.get $__jn_frame
+          i32.const 9
+          local.get $t4
+          call $jn_gc_frame_set_root
+          local.get $t4
+          i32.eqz
+          if
+            unreachable
+          end
+          local.get $t4
+          i32.const 8
+          i32.add
+          i32.load
+          local.set $t5
+          local.get $t0
+          local.get $t5
+          i32.lt_s
+          local.set $t6
+          local.get $t6
+          if
+            i32.const 2
+            local.set $pc
+          else
+            i32.const 3
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $t7
+          i32.const 12
+          i32.add
+          i32.load
+          local.set $t9
+          local.get $__jn_frame
+          i32.const 11
+          local.get $t9
+          call $jn_gc_frame_set_root
+          local.get $t9
+          local.set $gctmp.10
+          local.get $__jn_frame
+          i32.const 3
+          local.get $gctmp.10
+          call $jn_gc_frame_set_root
+          local.get $gctmp.10
+          local.set $t10
+          local.get $__jn_frame
+          i32.const 12
+          local.get $t10
+          call $jn_gc_frame_set_root
+          local.get $i
+          local.set $t11
+          local.get $t10
+          i32.eqz
+          if
+            unreachable
+          end
+          local.get $t11
+          i32.const 0
+          i32.lt_s
+          local.get $t11
+          local.get $t10
+          i32.const 8
+          i32.add
+          i32.load
+          i32.ge_s
+          i32.or
+          if
+            unreachable
+          end
+          local.get $t10
+          i32.const 16
+          i32.add
+          local.get $t11
+          i32.const 4
+          i32.mul
+          i32.add
+          i32.load
+          local.set $t12
+          local.get $__jn_frame
+          i32.const 13
+          local.get $t12
+          call $jn_gc_frame_set_root
+          call $jnative_exception_pending
+          local.set $t13
+          local.get $t13
+          if
+            i32.const 8
+            local.set $pc
+          else
+            i32.const 9
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $t12
+          local.set $gctmp.14
+          local.get $__jn_frame
+          i32.const 4
+          local.get $gctmp.14
+          call $jn_gc_frame_set_root
+          local.get $gctmp.14
+          local.set $t14
+          local.get $__jn_frame
+          i32.const 14
+          local.get $t14
+          call $jn_gc_frame_set_root
+          local.get $t14
+          i32.const 0
+          i32.ne
+          local.set $t15
+          local.get $t15
+          if
+            i32.const 10
+            local.set $pc
+          else
+            i32.const 11
+            local.set $pc
+          end
+          br $dispatch
+        )
+          local.get $this__slot
+          local.set $t16
+          local.get $__jn_frame
+          i32.const 15
+          local.get $t16
+          call $jn_gc_frame_set_root
+          local.get $t16
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t17
+          local.get $t17
+          if
+            i32.const 12
+            local.set $pc
+          else
+            i32.const 13
+            local.set $pc
+          end
+          br $dispatch
+        )
+          local.get $i
+          local.set $t25
+          local.get $t25
+          i32.const 1
+          i32.add
+          local.set $t26
+          local.get $t26
+          local.set $i
+          call $jn_gc_safepoint
+          i32.const 1
+          local.set $pc
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $t16
+          i32.const 12
+          i32.add
+          i32.load
+          local.set $t18
+          local.get $__jn_frame
+          i32.const 16
+          local.get $t18
+          call $jn_gc_frame_set_root
+          local.get $t18
+          local.set $gctmp.19
+          local.get $__jn_frame
+          i32.const 5
+          local.get $gctmp.19
+          call $jn_gc_frame_set_root
+          local.get $gctmp.19
+          local.set $t19
+          local.get $__jn_frame
+          i32.const 17
+          local.get $t19
+          call $jn_gc_frame_set_root
+          local.get $i
+          local.set $t20
+          local.get $t19
+          i32.eqz
+          if
+            unreachable
+          end
+          local.get $t20
+          i32.const 0
+          i32.lt_s
+          local.get $t20
+          local.get $t19
+          i32.const 8
+          i32.add
+          i32.load
+          i32.ge_s
+          i32.or
+          if
+            unreachable
+          end
+          local.get $t19
+          i32.const 16
+          i32.add
+          local.get $t20
+          i32.const 4
+          i32.mul
+          i32.add
+          i32.load
+          local.set $t21
+          local.get $__jn_frame
+          i32.const 18
+          local.get $t21
+          call $jn_gc_frame_set_root
+          call $jnative_exception_pending
+          local.set $t22
+          local.get $t22
+          if
+            i32.const 14
+            local.set $pc
+          else
+            i32.const 15
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $t21
+          local.set $gctmp.23
+          local.get $__jn_frame
+          i32.const 6
+          local.get $gctmp.23
+          call $jn_gc_frame_set_root
+          local.get $gctmp.23
+          local.set $t23
+          local.get $__jn_frame
+          i32.const 19
+          local.get $t23
+          call $jn_gc_frame_set_root
+          local.get $t23
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t24
+          local.get $t24
+          if
+            i32.const 16
+            local.set $pc
+          else
+            i32.const 17
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          i32.const 11
+          local.set $pc
+          br $dispatch
+      )
+    )
+    call $jn_gc_frame_pop
+  )
+  (func $_JN_SleepCompleteTask_run (param $this i32)
+    (local $pc i32)
+    (local $__jn_tid i32)
+    (local $__jn_asz i32)
+    (local $__jn_frame i32)
+    (local $this__slot i32)
+    (local $gctmp.3 i32)
+    (local $gctmp.8 i32)
+    (local $t0 i32)
+    (local $t1 i32)
+    (local $t2 i32)
+    (local $t3 i32)
+    (local $t4 i32)
+    (local $t5 i32)
+    (local $t6 i32)
+    (local $t7 i32)
+    (local $t8 i32)
+    (local $t9 i32)
+    (local $t10 i32)
+    (local $t11 i32)
+    i32.const 10
+    call $jn_gc_frame_push
+    local.set $__jn_frame
+    local.get $__jn_frame
+    i32.const 0
+    local.get $this
+    call $jn_gc_frame_set_root
+    i32.const 0
+    local.set $pc
+    (block $exit
+      (loop $dispatch
+        (block $bb10
+        (block $bb9
+        (block $bb8
+        (block $bb7
+        (block $bb6
+        (block $bb5
+        (block $bb4
+        (block $bb3
+        (block $bb2
+        (block $bb1
+        (block $bb0
+          local.get $pc
+          br_table $bb0 $bb1 $bb2 $bb3 $bb4 $bb5 $bb6 $bb7 $bb8 $bb9 $bb10 $exit
+        )
+          local.get $this
+          local.set $this__slot
+          local.get $__jn_frame
+          i32.const 1
+          local.get $this__slot
+          call $jn_gc_frame_set_root
+          local.get $this__slot
+          local.set $t0
+          local.get $__jn_frame
+          i32.const 4
+          local.get $t0
+          call $jn_gc_frame_set_root
+          local.get $t0
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t1
+          local.get $t1
+          if
+            i32.const 1
+            local.set $pc
+          else
+            i32.const 2
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $t0
+          i32.const 4
+          i32.add
+          i32.load
+          local.set $t2
+          local.get $__jn_frame
+          i32.const 5
+          local.get $t2
+          call $jn_gc_frame_set_root
+          local.get $t2
+          local.set $gctmp.3
+          local.get $__jn_frame
+          i32.const 2
+          local.get $gctmp.3
+          call $jn_gc_frame_set_root
+          local.get $gctmp.3
+          local.set $t3
+          local.get $__jn_frame
+          i32.const 6
+          local.get $t3
+          call $jn_gc_frame_set_root
+          local.get $t3
+          i32.const 0
+          i32.ne
+          local.set $t4
+          local.get $t4
+          if
+            i32.const 3
+            local.set $pc
+          else
+            i32.const 4
+            local.set $pc
+          end
+          br $dispatch
+        )
+          local.get $this__slot
+          local.set $t5
+          local.get $__jn_frame
+          i32.const 7
+          local.get $t5
+          call $jn_gc_frame_set_root
+          local.get $t5
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t6
+          local.get $t6
+          if
+            i32.const 5
+            local.set $pc
+          else
+            i32.const 6
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          br $exit
+        )
+          local.get $t5
+          i32.const 4
+          i32.add
+          i32.load
+          local.set $t7
+          local.get $__jn_frame
+          i32.const 8
+          local.get $t7
+          call $jn_gc_frame_set_root
+          local.get $t7
+          local.set $gctmp.8
+          local.get $__jn_frame
+          i32.const 3
+          local.get $gctmp.8
+          call $jn_gc_frame_set_root
+          local.get $gctmp.8
+          local.set $t8
+          local.get $__jn_frame
+          i32.const 9
+          local.get $t8
+          call $jn_gc_frame_set_root
+          local.get $t8
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t9
+          local.get $t9
+          if
+            i32.const 7
+            local.set $pc
+          else
+            i32.const 8
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $t8
+          i32.const 0
+          call $_JN_JnFuture_tryComplete_CObject
+          local.set $t10
+          call $jnative_exception_pending
+          local.set $t11
+          local.get $t11
+          if
+            i32.const 9
+            local.set $pc
+          else
+            i32.const 10
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          i32.const 4
+          local.set $pc
+          br $dispatch
+      )
+    )
+    call $jn_gc_frame_pop
+  )
+  (func $_JN_JnFuture_tryComplete_CObject (param $this i32) (param $v i32) (result i32)
+    (local $pc i32)
+    (local $__jn_tid i32)
+    (local $__jn_asz i32)
+    (local $__jn_frame i32)
+    (local $ret i32)
+    (local $this__slot i32)
+    (local $v__slot i32)
+    (local $gctmp.3 i32)
+    (local $gctmp.14 i32)
+    (local $pending i32)
+    (local $gctmp.26 i32)
+    (local $gctmp.28 i32)
+    (local $gctmp.35 i32)
+    (local $t0 i32)
+    (local $t1 i32)
+    (local $t2 i32)
+    (local $t3 i32)
+    (local $t4 i32)
+    (local $t5 i32)
+    (local $t6 i32)
+    (local $t7 i32)
+    (local $t8 i32)
+    (local $t9 i32)
+    (local $t10 i32)
+    (local $t11 i32)
+    (local $t12 i32)
+    (local $t13 i32)
+    (local $t14 i32)
+    (local $t15 i32)
+    (local $t16 i32)
+    (local $t17 i32)
+    (local $t18 i32)
+    (local $t19 i32)
+    (local $t20 i32)
+    (local $t21 i32)
+    (local $t22 i32)
+    (local $t23 i32)
+    (local $t24 i32)
+    (local $t25 i32)
+    (local $t26 i32)
+    (local $t27 i32)
+    (local $t28 i32)
+    (local $t29 i32)
+    (local $t30 i32)
+    (local $t31 i32)
+    (local $t32 i32)
+    (local $t33 i32)
+    (local $t34 i32)
+    (local $t35 i32)
+    (local $t36 i32)
+    (local $t37 i32)
+    (local $t38 i32)
+    (local $t39 i32)
+    (local $t40 i32)
+    (local $t41 i32)
+    i32.const 31
+    call $jn_gc_frame_push
+    local.set $__jn_frame
+    local.get $__jn_frame
+    i32.const 0
+    local.get $this
+    call $jn_gc_frame_set_root
+    local.get $__jn_frame
+    i32.const 1
+    local.get $v
+    call $jn_gc_frame_set_root
+    i32.const 0
+    local.set $pc
+    (block $exit
+      (loop $dispatch
+        (block $bb36
+        (block $bb35
+        (block $bb34
+        (block $bb33
+        (block $bb32
+        (block $bb31
+        (block $bb30
+        (block $bb29
+        (block $bb28
+        (block $bb27
+        (block $bb26
+        (block $bb25
+        (block $bb24
+        (block $bb23
+        (block $bb22
+        (block $bb21
+        (block $bb20
+        (block $bb19
+        (block $bb18
+        (block $bb17
+        (block $bb16
+        (block $bb15
+        (block $bb14
+        (block $bb13
+        (block $bb12
+        (block $bb11
+        (block $bb10
+        (block $bb9
+        (block $bb8
+        (block $bb7
+        (block $bb6
+        (block $bb5
+        (block $bb4
+        (block $bb3
+        (block $bb2
+        (block $bb1
+        (block $bb0
+          local.get $pc
+          br_table $bb0 $bb1 $bb2 $bb3 $bb4 $bb5 $bb6 $bb7 $bb8 $bb9 $bb10 $bb11 $bb12 $bb13 $bb14 $bb15 $bb16 $bb17 $bb18 $bb19 $bb20 $bb21 $bb22 $bb23 $bb24 $bb25 $bb26 $bb27 $bb28 $bb29 $bb30 $bb31 $bb32 $bb33 $bb34 $bb35 $bb36 $exit
+        )
+          local.get $this
+          local.set $this__slot
+          local.get $__jn_frame
+          i32.const 2
+          local.get $this__slot
+          call $jn_gc_frame_set_root
+          local.get $v
+          local.set $v__slot
+          local.get $__jn_frame
+          i32.const 3
+          local.get $v__slot
+          call $jn_gc_frame_set_root
+          local.get $this__slot
+          local.set $t0
+          local.get $__jn_frame
+          i32.const 10
+          local.get $t0
+          call $jn_gc_frame_set_root
+          local.get $t0
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t1
+          local.get $t1
+          if
+            i32.const 1
+            local.set $pc
+          else
+            i32.const 2
+            local.set $pc
+          end
+          br $dispatch
+        )
+          i32.const 0
+          local.set $ret
+          br $exit
+        )
+          local.get $t0
+          i32.const 24
+          i32.add
+          i32.load
+          local.set $t2
+          local.get $__jn_frame
+          i32.const 11
+          local.get $t2
+          call $jn_gc_frame_set_root
+          local.get $t2
+          local.set $gctmp.3
+          local.get $__jn_frame
+          i32.const 4
+          local.get $gctmp.3
+          call $jn_gc_frame_set_root
+          local.get $gctmp.3
+          local.set $t3
+          local.get $__jn_frame
+          i32.const 12
+          local.get $t3
+          call $jn_gc_frame_set_root
+          local.get $t3
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t4
+          local.get $t4
+          if
+            i32.const 3
+            local.set $pc
+          else
+            i32.const 4
+            local.set $pc
+          end
+          br $dispatch
+        )
+          i32.const 0
+          local.set $ret
+          br $exit
+        )
+          call $jnative_exception_pending
+          local.set $t5
+          local.get $t5
+          if
+            i32.const 5
+            local.set $pc
+          else
+            i32.const 6
+            local.set $pc
+          end
+          br $dispatch
+        )
+          i32.const 0
+          local.set $ret
+          br $exit
+        )
+          local.get $this__slot
+          local.set $t6
+          local.get $__jn_frame
+          i32.const 13
+          local.get $t6
+          call $jn_gc_frame_set_root
+          local.get $t6
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t7
+          local.get $t7
+          if
+            i32.const 7
+            local.set $pc
+          else
+            i32.const 8
+            local.set $pc
+          end
+          br $dispatch
+        )
+          i32.const 0
+          local.set $ret
+          br $exit
+        )
+          local.get $t6
+          i32.const 4
+          i32.add
+          i32.load
+          local.set $t8
+          global.get $g_jn_static_JnFuture_PENDING
+          local.set $t9
+          local.get $t8
+          local.get $t9
+          i32.ne
+          local.set $t10
+          local.get $t10
+          if
+            i32.const 9
+            local.set $pc
+          else
+            i32.const 10
+            local.set $pc
+          end
+          br $dispatch
+        )
+          local.get $this__slot
+          local.set $t11
+          local.get $__jn_frame
+          i32.const 14
+          local.get $t11
+          call $jn_gc_frame_set_root
+          local.get $t11
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t12
+          local.get $t12
+          if
+            i32.const 11
+            local.set $pc
+          else
+            i32.const 12
+            local.set $pc
+          end
+          br $dispatch
+        )
+          global.get $g_jn_static_JnFuture_SUCCESS
+          local.set $t17
+          local.get $this__slot
+          local.set $t18
+          local.get $__jn_frame
+          i32.const 17
+          local.get $t18
+          call $jn_gc_frame_set_root
+          local.get $t18
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t19
+          local.get $t19
+          if
+            i32.const 17
+            local.set $pc
+          else
+            i32.const 18
+            local.set $pc
+          end
+          br $dispatch
+        )
+          i32.const 0
+          local.set $ret
+          br $exit
+        )
+          local.get $t11
+          i32.const 24
+          i32.add
+          i32.load
+          local.set $t13
+          local.get $__jn_frame
+          i32.const 15
+          local.get $t13
+          call $jn_gc_frame_set_root
+          local.get $t13
+          local.set $gctmp.14
+          local.get $__jn_frame
+          i32.const 5
+          local.get $gctmp.14
+          call $jn_gc_frame_set_root
+          local.get $gctmp.14
+          local.set $t14
+          local.get $__jn_frame
+          i32.const 16
+          local.get $t14
+          call $jn_gc_frame_set_root
+          local.get $t14
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t15
+          local.get $t15
+          if
+            i32.const 13
+            local.set $pc
+          else
+            i32.const 14
+            local.set $pc
+          end
+          br $dispatch
+        )
+          i32.const 0
+          local.set $ret
+          br $exit
+        )
+          call $jnative_exception_pending
+          local.set $t16
+          local.get $t16
+          if
+            i32.const 15
+            local.set $pc
+          else
+            i32.const 16
+            local.set $pc
+          end
+          br $dispatch
+        )
+          i32.const 0
+          local.set $ret
+          br $exit
+        )
+          i32.const 0
+          local.set $ret
+          br $exit
+        )
+          i32.const 0
+          local.set $ret
+          br $exit
+        )
+          local.get $t18
+          i32.const 4
+          i32.add
+          local.get $t17
+          i32.store
+          local.get $v__slot
+          local.set $t20
+          local.get $__jn_frame
+          i32.const 18
+          local.get $t20
+          call $jn_gc_frame_set_root
+          local.get $this__slot
+          local.set $t21
+          local.get $__jn_frame
+          i32.const 19
+          local.get $t21
+          call $jn_gc_frame_set_root
+          local.get $t21
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t22
+          local.get $t22
+          if
+            i32.const 19
+            local.set $pc
+          else
+            i32.const 20
+            local.set $pc
+          end
+          br $dispatch
+        )
+          i32.const 0
+          local.set $ret
+          br $exit
+        )
+          local.get $t21
+          i32.const 8
+          i32.add
+          local.get $t20
+          i32.store
+          local.get $this__slot
+          local.set $t23
+          local.get $__jn_frame
+          i32.const 20
+          local.get $t23
+          call $jn_gc_frame_set_root
+          local.get $t23
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t24
+          local.get $t24
+          if
+            i32.const 21
+            local.set $pc
+          else
+            i32.const 22
+            local.set $pc
+          end
+          br $dispatch
+        )
+          i32.const 0
+          local.set $ret
+          br $exit
+        )
+          local.get $t23
+          i32.const 20
+          i32.add
+          i32.load
+          local.set $t25
+          local.get $__jn_frame
+          i32.const 21
+          local.get $t25
+          call $jn_gc_frame_set_root
+          local.get $t25
+          local.set $gctmp.26
+          local.get $__jn_frame
+          i32.const 7
+          local.get $gctmp.26
+          call $jn_gc_frame_set_root
+          local.get $gctmp.26
+          local.set $t26
+          local.get $__jn_frame
+          i32.const 22
+          local.get $t26
+          call $jn_gc_frame_set_root
+          local.get $t26
+          local.set $pending
+          local.get $__jn_frame
+          i32.const 6
+          local.get $pending
+          call $jn_gc_frame_set_root
+          i32.const 16
+          call $jn_alloc_zeroed
+          local.set $t27
+          local.get $t27
+          i32.eqz
+          if
+            unreachable
+          end
+          local.get $t27
+          i32.const 4
+          i32.store
+          local.get $__jn_frame
+          i32.const 23
+          local.get $t27
+          call $jn_gc_frame_set_root
+          local.get $t27
+          local.set $gctmp.28
+          local.get $__jn_frame
+          i32.const 8
+          local.get $gctmp.28
+          call $jn_gc_frame_set_root
+          local.get $gctmp.28
+          local.set $t28
+          local.get $__jn_frame
+          i32.const 24
+          local.get $t28
+          call $jn_gc_frame_set_root
+          local.get $t28
+          call $_JN_ArrayList_init
+          call $jnative_exception_pending
+          local.set $t29
+          local.get $t29
+          if
+            i32.const 23
+            local.set $pc
+          else
+            i32.const 24
+            local.set $pc
+          end
+          br $dispatch
+        )
+          i32.const 0
+          local.set $ret
+          br $exit
+        )
+          local.get $this__slot
+          local.set $t30
+          local.get $__jn_frame
+          i32.const 25
+          local.get $t30
+          call $jn_gc_frame_set_root
+          local.get $t30
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t31
+          local.get $t31
+          if
+            i32.const 25
+            local.set $pc
+          else
+            i32.const 26
+            local.set $pc
+          end
+          br $dispatch
+        )
+          i32.const 0
+          local.set $ret
+          br $exit
+        )
+          local.get $t30
+          i32.const 20
+          i32.add
+          local.get $t28
+          i32.store
+          local.get $this__slot
+          local.set $t32
+          local.get $__jn_frame
+          i32.const 26
+          local.get $t32
+          call $jn_gc_frame_set_root
+          local.get $t32
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t33
+          local.get $t33
+          if
+            i32.const 27
+            local.set $pc
+          else
+            i32.const 28
+            local.set $pc
+          end
+          br $dispatch
+        )
+          i32.const 0
+          local.set $ret
+          br $exit
+        )
+          local.get $t32
+          i32.const 24
+          i32.add
+          i32.load
+          local.set $t34
+          local.get $__jn_frame
+          i32.const 27
+          local.get $t34
+          call $jn_gc_frame_set_root
+          local.get $t34
+          local.set $gctmp.35
+          local.get $__jn_frame
+          i32.const 9
+          local.get $gctmp.35
+          call $jn_gc_frame_set_root
+          local.get $gctmp.35
+          local.set $t35
+          local.get $__jn_frame
+          i32.const 28
+          local.get $t35
+          call $jn_gc_frame_set_root
+          local.get $t35
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t36
+          local.get $t36
+          if
+            i32.const 29
+            local.set $pc
+          else
+            i32.const 30
+            local.set $pc
+          end
+          br $dispatch
+        )
+          i32.const 0
+          local.set $ret
+          br $exit
+        )
+          call $jnative_exception_pending
+          local.set $t37
+          local.get $t37
+          if
+            i32.const 31
+            local.set $pc
+          else
+            i32.const 32
+            local.set $pc
+          end
+          br $dispatch
+        )
+          i32.const 0
+          local.set $ret
+          br $exit
+        )
+          local.get $this__slot
+          local.set $t38
+          local.get $__jn_frame
+          i32.const 29
+          local.get $t38
+          call $jn_gc_frame_set_root
+          local.get $t38
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t39
+          local.get $t39
+          if
+            i32.const 33
+            local.set $pc
+          else
+            i32.const 34
+            local.set $pc
+          end
+          br $dispatch
+        )
+          i32.const 0
+          local.set $ret
+          br $exit
+        )
+          local.get $pending
+          local.set $t40
+          local.get $__jn_frame
+          i32.const 30
+          local.get $t40
+          call $jn_gc_frame_set_root
+          local.get $t38
+          local.get $t40
+          call $_JN_JnFuture_dispatchCallbacks_PCArrayList_IJnFutureCallback
+          call $jnative_exception_pending
+          local.set $t41
+          local.get $t41
+          if
+            i32.const 35
+            local.set $pc
+          else
+            i32.const 36
+            local.set $pc
+          end
+          br $dispatch
+        )
+          i32.const 0
+          local.set $ret
+          br $exit
+        )
+          i32.const 1
+          local.set $ret
+          br $exit
+      )
+    )
+    call $jn_gc_frame_pop
+    local.get $ret
+  )
+  (func $_JN_BlockingRunTask_init (param $this i32)
+    (local $pc i32)
+    (local $__jn_tid i32)
+    (local $__jn_asz i32)
+    (local $__jn_frame i32)
+    (local $this__slot i32)
+    (local $t0 i32)
+    (local $t1 i32)
+    (local $t3 i32)
+    (local $t4 i32)
+    (local $t5 i32)
+    (local $t6 i32)
+    (local $t7 i32)
+    (local $t8 i32)
+    i32.const 6
+    call $jn_gc_frame_push
+    local.set $__jn_frame
+    local.get $__jn_frame
+    i32.const 0
+    local.get $this
+    call $jn_gc_frame_set_root
+    i32.const 0
+    local.set $pc
+    (block $exit
+      (loop $dispatch
+        (block $bb8
+        (block $bb7
+        (block $bb6
+        (block $bb5
+        (block $bb4
+        (block $bb3
+        (block $bb2
+        (block $bb1
+        (block $bb0
+          local.get $pc
+          br_table $bb0 $bb1 $bb2 $bb3 $bb4 $bb5 $bb6 $bb7 $bb8 $exit
+        )
+          local.get $this
+          local.set $this__slot
+          local.get $__jn_frame
+          i32.const 1
+          local.get $this__slot
+          call $jn_gc_frame_set_root
+          local.get $this__slot
+          local.set $t0
+          local.get $__jn_frame
+          i32.const 2
+          local.get $t0
+          call $jn_gc_frame_set_root
+          local.get $t0
+          call $_JN_Object_init
+          call $jnative_exception_pending
+          local.set $t1
+          local.get $t1
+          if
+            i32.const 1
+            local.set $pc
+          else
+            i32.const 2
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $this__slot
+          local.set $t3
+          local.get $__jn_frame
+          i32.const 3
+          local.get $t3
+          call $jn_gc_frame_set_root
+          local.get $t3
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t4
+          local.get $t4
+          if
+            i32.const 3
+            local.set $pc
+          else
+            i32.const 4
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $t3
+          i32.const 4
+          i32.add
+          i32.const 0
+          i32.store
+          local.get $this__slot
+          local.set $t5
+          local.get $__jn_frame
+          i32.const 4
+          local.get $t5
+          call $jn_gc_frame_set_root
+          local.get $t5
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t6
+          local.get $t6
+          if
+            i32.const 5
+            local.set $pc
+          else
+            i32.const 6
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $t5
+          i32.const 8
+          i32.add
+          i32.const 0
+          i32.store
+          local.get $this__slot
+          local.set $t7
+          local.get $__jn_frame
+          i32.const 5
+          local.get $t7
+          call $jn_gc_frame_set_root
+          local.get $t7
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t8
+          local.get $t8
+          if
+            i32.const 7
+            local.set $pc
+          else
+            i32.const 8
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $t7
+          i32.const 12
+          i32.add
+          i32.const 0
+          i32.store
+          br $exit
+      )
+    )
+    call $jn_gc_frame_pop
+  )
+  (func $_JN_BlockingRunTask_run (param $this i32)
+    (local $pc i32)
+    (local $__jn_tid i32)
+    (local $__jn_asz i32)
+    (local $__jn_frame i32)
+    (local $this__slot i32)
+    (local $v i32)
+    (local $gctmp.3 i32)
+    (local $gctmp.7 i32)
+    (local $gctmp.13 i32)
+    (local $gctmp.16 i32)
+    (local $ex i32)
+    (local $t0 i32)
+    (local $t1 i32)
+    (local $t2 i32)
+    (local $t3 i32)
+    (local $t4 i32)
+    (local $t5 i32)
+    (local $t6 i32)
+    (local $t7 i32)
+    (local $t8 i32)
+    (local $t9 i32)
+    (local $t10 i32)
+    (local $t11 i32)
+    (local $t12 i32)
+    (local $t13 i32)
+    (local $t14 i32)
+    (local $t15 i32)
+    (local $t16 i32)
+    (local $t17 i32)
+    (local $t18 i32)
+    (local $t19 i32)
+    (local $t20 i32)
+    (local $t21 i32)
+    i32.const 21
+    call $jn_gc_frame_push
+    local.set $__jn_frame
+    local.get $__jn_frame
+    i32.const 0
+    local.get $this
+    call $jn_gc_frame_set_root
+    i32.const 0
+    local.set $pc
+    (block $exit
+      (loop $dispatch
+        (block $bb15
+        (block $bb14
+        (block $bb13
+        (block $bb12
+        (block $bb11
+        (block $bb10
+        (block $bb9
+        (block $bb8
+        (block $bb7
+        (block $bb6
+        (block $bb5
+        (block $bb4
+        (block $bb3
+        (block $bb2
+        (block $bb1
+        (block $bb0
+          local.get $pc
+          br_table $bb0 $bb1 $bb2 $bb3 $bb4 $bb5 $bb6 $bb7 $bb8 $bb9 $bb10 $bb11 $bb12 $bb13 $bb14 $bb15 $exit
+        )
+          local.get $this
+          local.set $this__slot
+          local.get $__jn_frame
+          i32.const 1
+          local.get $this__slot
+          call $jn_gc_frame_set_root
+          local.get $this__slot
+          local.set $t0
+          local.get $__jn_frame
+          i32.const 8
+          local.get $t0
+          call $jn_gc_frame_set_root
+          local.get $t0
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t1
+          local.get $t1
+          if
+            i32.const 2
+            local.set $pc
+          else
+            i32.const 3
+            local.set $pc
+          end
+          br $dispatch
+        )
+          call $jnative_exception_pending
+          local.set $t21
+          local.get $t21
+          if
+            i32.const 14
+            local.set $pc
+          else
+            i32.const 15
+            local.set $pc
+          end
+          br $dispatch
+        )
+          call $jnative_exception_peek
+          local.set $t12
+          local.get $__jn_frame
+          i32.const 15
+          local.get $t12
+          call $jn_gc_frame_set_root
+          local.get $t12
+          local.set $gctmp.13
+          local.get $__jn_frame
+          i32.const 5
+          local.get $gctmp.13
+          call $jn_gc_frame_set_root
+          local.get $gctmp.13
+          local.set $t13
+          local.get $__jn_frame
+          i32.const 16
+          local.get $t13
+          call $jn_gc_frame_set_root
+          local.get $t13
+          i32.const 48
+          call $jn_instanceof
+          local.set $t14
+          local.get $t14
+          if
+            i32.const 8
+            local.set $pc
+          else
+            i32.const 9
+            local.set $pc
+          end
+          br $dispatch
+        )
+          local.get $t0
+          i32.const 12
+          i32.add
+          i32.load
+          local.set $t2
+          local.get $__jn_frame
+          i32.const 9
+          local.get $t2
+          call $jn_gc_frame_set_root
+          local.get $t2
+          local.set $gctmp.3
+          local.get $__jn_frame
+          i32.const 3
+          local.get $gctmp.3
+          call $jn_gc_frame_set_root
+          local.get $gctmp.3
+          local.set $t3
+          local.get $__jn_frame
+          i32.const 10
+          local.get $t3
+          call $jn_gc_frame_set_root
+          local.get $t3
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t4
+          local.get $t4
+          if
+            i32.const 2
+            local.set $pc
+          else
+            i32.const 4
+            local.set $pc
+          end
+          br $dispatch
+        )
+          local.get $t3
+          i32.load
+          local.set $__jn_tid
+          local.get $__jn_tid
+          i32.const 14
+          i32.eq
+          if (result i32)
+            local.get $t3
+            call $_JN_AsyncTcpWriteSupplier_get
+          else
+          local.get $__jn_tid
+          i32.const 59
+          i32.eq
+          if (result i32)
+            local.get $t3
+            call $_JN_AsyncTcpReadAllSupplier_get
+          else
+          local.get $__jn_tid
+          i32.const 62
+          i32.eq
+          if (result i32)
+            local.get $t3
+            call $_JN_AsyncTcpAcceptSupplier_get
+          else
+          local.get $__jn_tid
+          i32.const 70
+          i32.eq
+          if (result i32)
+            local.get $t3
+            call $_JN_AsyncTcpListenSupplier_get
+          else
+          local.get $__jn_tid
+          i32.const 79
+          i32.eq
+          if (result i32)
+            local.get $t3
+            call $_JN_AsyncTcpConnectSupplier_get
+          else
+            unreachable
+          end
+          end
+          end
+          end
+          end
+          local.set $t5
+          local.get $__jn_frame
+          i32.const 11
+          local.get $t5
+          call $jn_gc_frame_set_root
+          call $jnative_exception_pending
+          local.set $t6
+          local.get $t6
+          if
+            i32.const 2
+            local.set $pc
+          else
+            i32.const 5
+            local.set $pc
+          end
+          br $dispatch
+        )
+          local.get $t5
+          local.set $gctmp.7
+          local.get $__jn_frame
+          i32.const 4
+          local.get $gctmp.7
+          call $jn_gc_frame_set_root
+          local.get $gctmp.7
+          local.set $t7
+          local.get $__jn_frame
+          i32.const 12
+          local.get $t7
+          call $jn_gc_frame_set_root
+          local.get $t7
+          local.set $v
+          local.get $__jn_frame
+          i32.const 2
+          local.get $v
+          call $jn_gc_frame_set_root
+          local.get $this__slot
+          local.set $t8
+          local.get $__jn_frame
+          i32.const 13
+          local.get $t8
+          call $jn_gc_frame_set_root
+          local.get $t8
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t9
+          local.get $t9
+          if
+            i32.const 2
+            local.set $pc
+          else
+            i32.const 6
+            local.set $pc
+          end
+          br $dispatch
+        )
+          local.get $v
+          local.set $t10
+          local.get $__jn_frame
+          i32.const 14
+          local.get $t10
+          call $jn_gc_frame_set_root
+          local.get $t8
+          local.get $t10
+          i32.const 0
+          call $_JN_BlockingRunTask_completeBlockingFuture_CObject_CException
+          call $jnative_exception_pending
+          local.set $t11
+          local.get $t11
+          if
+            i32.const 2
+            local.set $pc
+          else
+            i32.const 7
+            local.set $pc
+          end
+          br $dispatch
+        )
+          i32.const 1
+          local.set $pc
+          br $dispatch
+        )
+          call $jnative_exception_take
+          local.set $t15
+          local.get $__jn_frame
+          i32.const 17
+          local.get $t15
+          call $jn_gc_frame_set_root
+          local.get $t15
+          local.set $gctmp.16
+          local.get $__jn_frame
+          i32.const 6
+          local.get $gctmp.16
+          call $jn_gc_frame_set_root
+          local.get $gctmp.16
+          local.set $t16
+          local.get $__jn_frame
+          i32.const 18
+          local.get $t16
+          call $jn_gc_frame_set_root
+          local.get $t16
+          local.set $ex
+          local.get $__jn_frame
+          i32.const 7
+          local.get $ex
+          call $jn_gc_frame_set_root
+          local.get $this__slot
+          local.set $t17
+          local.get $__jn_frame
+          i32.const 19
+          local.get $t17
+          call $jn_gc_frame_set_root
+          local.get $t17
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t18
+          local.get $t18
+          if
+            i32.const 10
+            local.set $pc
+          else
+            i32.const 11
+            local.set $pc
+          end
+          br $dispatch
+        )
+          i32.const 1
+          local.set $pc
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $ex
+          local.set $t19
+          local.get $__jn_frame
+          i32.const 20
+          local.get $t19
+          call $jn_gc_frame_set_root
+          local.get $t17
+          i32.const 0
+          local.get $t19
+          call $_JN_BlockingRunTask_completeBlockingFuture_CObject_CException
+          call $jnative_exception_pending
+          local.set $t20
+          local.get $t20
+          if
+            i32.const 12
+            local.set $pc
+          else
+            i32.const 13
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          i32.const 1
+          local.set $pc
+          br $dispatch
+        )
+          br $exit
+        )
+          br $exit
+      )
+    )
+    call $jn_gc_frame_pop
+  )
+  (func $_JN_BlockingRunTask_completeBlockingFuture_CObject_CException (param $this i32) (param $value i32) (param $error i32)
+    (local $pc i32)
+    (local $__jn_tid i32)
+    (local $__jn_asz i32)
+    (local $__jn_frame i32)
+    (local $this__slot i32)
+    (local $value__slot i32)
+    (local $error__slot i32)
+    (local $sc.tmp1984990929 i32)
+    (local $gctmp.3 i32)
+    (local $gctmp.8 i32)
+    (local $done i32)
+    (local $gctmp.14 i32)
+    (local $gctmp.19 i32)
+    (local $gctmp.31 i32)
+    (local $gctmp.40 i32)
+    (local $gctmp.48 i32)
+    (local $t0 i32)
+    (local $t1 i32)
+    (local $t2 i32)
+    (local $t3 i32)
+    (local $t4 i32)
+    (local $t5 i32)
+    (local $t6 i32)
+    (local $t7 i32)
+    (local $t8 i32)
+    (local $t9 i32)
+    (local $t10 i32)
+    (local $t11 i32)
+    (local $t12 i32)
+    (local $t13 i32)
+    (local $t14 i32)
+    (local $t15 i32)
+    (local $t16 i32)
+    (local $t17 i32)
+    (local $t18 i32)
+    (local $t19 i32)
+    (local $t20 i32)
+    (local $t21 i32)
+    (local $t22 i32)
+    (local $t23 i32)
+    (local $t24 i32)
+    (local $t25 i32)
+    (local $t26 i32)
+    (local $t27 i32)
+    (local $t28 i32)
+    (local $t29 i32)
+    (local $t30 i32)
+    (local $t31 i32)
+    (local $t32 i32)
+    (local $t33 i32)
+    (local $t34 i32)
+    (local $t35 i32)
+    (local $t36 i32)
+    (local $t37 i32)
+    (local $t38 i32)
+    (local $t39 i32)
+    (local $t40 i32)
+    (local $t41 i32)
+    (local $t42 i32)
+    (local $t43 i32)
+    (local $t44 i32)
+    (local $t45 i32)
+    (local $t46 i32)
+    (local $t47 i32)
+    (local $t48 i32)
+    (local $t49 i32)
+    (local $t50 i32)
+    (local $t51 i32)
+    (local $t52 i32)
+    i32.const 43
+    call $jn_gc_frame_push
+    local.set $__jn_frame
+    local.get $__jn_frame
+    i32.const 0
+    local.get $this
+    call $jn_gc_frame_set_root
+    local.get $__jn_frame
+    i32.const 1
+    local.get $value
+    call $jn_gc_frame_set_root
+    local.get $__jn_frame
+    i32.const 2
+    local.get $error
+    call $jn_gc_frame_set_root
+    i32.const 0
+    local.set $pc
+    (block $exit
+      (loop $dispatch
+        (block $bb42
+        (block $bb41
+        (block $bb40
+        (block $bb39
+        (block $bb38
+        (block $bb37
+        (block $bb36
+        (block $bb35
+        (block $bb34
+        (block $bb33
+        (block $bb32
+        (block $bb31
+        (block $bb30
+        (block $bb29
+        (block $bb28
+        (block $bb27
+        (block $bb26
+        (block $bb25
+        (block $bb24
+        (block $bb23
+        (block $bb22
+        (block $bb21
+        (block $bb20
+        (block $bb19
+        (block $bb18
+        (block $bb17
+        (block $bb16
+        (block $bb15
+        (block $bb14
+        (block $bb13
+        (block $bb12
+        (block $bb11
+        (block $bb10
+        (block $bb9
+        (block $bb8
+        (block $bb7
+        (block $bb6
+        (block $bb5
+        (block $bb4
+        (block $bb3
+        (block $bb2
+        (block $bb1
+        (block $bb0
+          local.get $pc
+          br_table $bb0 $bb1 $bb2 $bb3 $bb4 $bb5 $bb6 $bb7 $bb8 $bb9 $bb10 $bb11 $bb12 $bb13 $bb14 $bb15 $bb16 $bb17 $bb18 $bb19 $bb20 $bb21 $bb22 $bb23 $bb24 $bb25 $bb26 $bb27 $bb28 $bb29 $bb30 $bb31 $bb32 $bb33 $bb34 $bb35 $bb36 $bb37 $bb38 $bb39 $bb40 $bb41 $bb42 $exit
+        )
+          local.get $this
+          local.set $this__slot
+          local.get $__jn_frame
+          i32.const 3
+          local.get $this__slot
+          call $jn_gc_frame_set_root
+          local.get $value
+          local.set $value__slot
+          local.get $__jn_frame
+          i32.const 4
+          local.get $value__slot
+          call $jn_gc_frame_set_root
+          local.get $error
+          local.set $error__slot
+          local.get $__jn_frame
+          i32.const 5
+          local.get $error__slot
+          call $jn_gc_frame_set_root
+          local.get $this__slot
+          local.set $t0
+          local.get $__jn_frame
+          i32.const 14
+          local.get $t0
+          call $jn_gc_frame_set_root
+          local.get $t0
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t1
+          local.get $t1
+          if
+            i32.const 3
+            local.set $pc
+          else
+            i32.const 4
+            local.set $pc
+          end
+          br $dispatch
+        )
+          local.get $this__slot
+          local.set $t5
+          local.get $__jn_frame
+          i32.const 17
+          local.get $t5
+          call $jn_gc_frame_set_root
+          local.get $t5
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t6
+          local.get $t6
+          if
+            i32.const 5
+            local.set $pc
+          else
+            i32.const 6
+            local.set $pc
+          end
+          br $dispatch
+        )
+          local.get $sc.tmp1984990929
+          local.set $t12
+          local.get $t12
+          if
+            i32.const 9
+            local.set $pc
+          else
+            i32.const 11
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $t0
+          i32.const 4
+          i32.add
+          i32.load
+          local.set $t2
+          local.get $__jn_frame
+          i32.const 15
+          local.get $t2
+          call $jn_gc_frame_set_root
+          local.get $t2
+          local.set $gctmp.3
+          local.get $__jn_frame
+          i32.const 6
+          local.get $gctmp.3
+          call $jn_gc_frame_set_root
+          local.get $gctmp.3
+          local.set $t3
+          local.get $__jn_frame
+          i32.const 16
+          local.get $t3
+          call $jn_gc_frame_set_root
+          local.get $t3
+          i32.const 0
+          i32.ne
+          local.set $t4
+          local.get $t4
+          local.set $sc.tmp1984990929
+          local.get $t4
+          if
+            i32.const 1
+            local.set $pc
+          else
+            i32.const 2
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $t5
+          i32.const 4
+          i32.add
+          i32.load
+          local.set $t7
+          local.get $__jn_frame
+          i32.const 18
+          local.get $t7
+          call $jn_gc_frame_set_root
+          local.get $t7
+          local.set $gctmp.8
+          local.get $__jn_frame
+          i32.const 7
+          local.get $gctmp.8
+          call $jn_gc_frame_set_root
+          local.get $gctmp.8
+          local.set $t8
+          local.get $__jn_frame
+          i32.const 19
+          local.get $t8
+          call $jn_gc_frame_set_root
+          local.get $t8
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t9
+          local.get $t9
+          if
+            i32.const 7
+            local.set $pc
+          else
+            i32.const 8
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $t8
+          i32.const 28
+          i32.add
+          i32.load
+          local.set $t10
+          local.get $t10
+          i32.const 0
+          i32.ne
+          local.set $t11
+          local.get $t11
+          local.set $sc.tmp1984990929
+          i32.const 2
+          local.set $pc
+          br $dispatch
+        )
+          i32.const 16
+          call $jn_alloc_zeroed
+          local.set $t13
+          local.get $t13
+          i32.eqz
+          if
+            unreachable
+          end
+          local.get $t13
+          i32.const 81
+          i32.store
+          local.get $__jn_frame
+          i32.const 20
+          local.get $t13
+          call $jn_gc_frame_set_root
+          local.get $t13
+          local.set $gctmp.14
+          local.get $__jn_frame
+          i32.const 9
+          local.get $gctmp.14
+          call $jn_gc_frame_set_root
+          local.get $gctmp.14
+          local.set $t14
+          local.get $__jn_frame
+          i32.const 21
+          local.get $t14
+          call $jn_gc_frame_set_root
+          local.get $t14
+          call $_JN_BlockingCompleteTask_init
+          call $jnative_exception_pending
+          local.set $t15
+          local.get $t15
+          if
+            i32.const 12
+            local.set $pc
+          else
+            i32.const 13
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $error__slot
+          local.set $t35
+          local.get $__jn_frame
+          i32.const 34
+          local.get $t35
+          call $jn_gc_frame_set_root
+          local.get $t35
+          i32.const 0
+          i32.ne
+          local.set $t36
+          local.get $t36
+          if
+            i32.const 28
+            local.set $pc
+          else
+            i32.const 30
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $t14
+          local.set $done
+          local.get $__jn_frame
+          i32.const 8
+          local.get $done
+          call $jn_gc_frame_set_root
+          local.get $this__slot
+          local.set $t16
+          local.get $__jn_frame
+          i32.const 22
+          local.get $t16
+          call $jn_gc_frame_set_root
+          local.get $t16
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t17
+          local.get $t17
+          if
+            i32.const 14
+            local.set $pc
+          else
+            i32.const 15
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $t16
+          i32.const 8
+          i32.add
+          i32.load
+          local.set $t18
+          local.get $__jn_frame
+          i32.const 23
+          local.get $t18
+          call $jn_gc_frame_set_root
+          local.get $t18
+          local.set $gctmp.19
+          local.get $__jn_frame
+          i32.const 10
+          local.get $gctmp.19
+          call $jn_gc_frame_set_root
+          local.get $gctmp.19
+          local.set $t19
+          local.get $__jn_frame
+          i32.const 24
+          local.get $t19
+          call $jn_gc_frame_set_root
+          local.get $done
+          local.set $t20
+          local.get $__jn_frame
+          i32.const 25
+          local.get $t20
+          call $jn_gc_frame_set_root
+          call $jnative_exception_pending
+          local.set $t21
+          local.get $t21
+          if
+            i32.const 16
+            local.set $pc
+          else
+            i32.const 17
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $t20
+          i32.const 4
+          i32.add
+          local.get $t19
+          i32.store
+          local.get $value__slot
+          local.set $t22
+          local.get $__jn_frame
+          i32.const 26
+          local.get $t22
+          call $jn_gc_frame_set_root
+          local.get $done
+          local.set $t23
+          local.get $__jn_frame
+          i32.const 27
+          local.get $t23
+          call $jn_gc_frame_set_root
+          call $jnative_exception_pending
+          local.set $t24
+          local.get $t24
+          if
+            i32.const 18
+            local.set $pc
+          else
+            i32.const 19
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $t23
+          i32.const 8
+          i32.add
+          local.get $t22
+          i32.store
+          local.get $error__slot
+          local.set $t25
+          local.get $__jn_frame
+          i32.const 28
+          local.get $t25
+          call $jn_gc_frame_set_root
+          local.get $done
+          local.set $t26
+          local.get $__jn_frame
+          i32.const 29
+          local.get $t26
+          call $jn_gc_frame_set_root
+          call $jnative_exception_pending
+          local.set $t27
+          local.get $t27
+          if
+            i32.const 20
+            local.set $pc
+          else
+            i32.const 21
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $t26
+          i32.const 12
+          i32.add
+          local.get $t25
+          i32.store
+          local.get $this__slot
+          local.set $t28
+          local.get $__jn_frame
+          i32.const 30
+          local.get $t28
+          call $jn_gc_frame_set_root
+          local.get $t28
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t29
+          local.get $t29
+          if
+            i32.const 22
+            local.set $pc
+          else
+            i32.const 23
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $t28
+          i32.const 4
+          i32.add
+          i32.load
+          local.set $t30
+          local.get $__jn_frame
+          i32.const 31
+          local.get $t30
+          call $jn_gc_frame_set_root
+          local.get $t30
+          local.set $gctmp.31
+          local.get $__jn_frame
+          i32.const 11
+          local.get $gctmp.31
+          call $jn_gc_frame_set_root
+          local.get $gctmp.31
+          local.set $t31
+          local.get $__jn_frame
+          i32.const 32
+          local.get $t31
+          call $jn_gc_frame_set_root
+          local.get $t31
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t32
+          local.get $t32
+          if
+            i32.const 24
+            local.set $pc
+          else
+            i32.const 25
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $done
+          local.set $t33
+          local.get $__jn_frame
+          i32.const 33
+          local.get $t33
+          call $jn_gc_frame_set_root
+          local.get $t31
+          local.get $t33
+          call $_JN_EventLoop_execute_ILoopTask
+          call $jnative_exception_pending
+          local.set $t34
+          local.get $t34
+          if
+            i32.const 26
+            local.set $pc
+          else
+            i32.const 27
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          i32.const 10
+          local.set $pc
+          br $dispatch
+        )
+          local.get $this__slot
+          local.set $t37
+          local.get $__jn_frame
+          i32.const 35
+          local.get $t37
+          call $jn_gc_frame_set_root
+          local.get $t37
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t38
+          local.get $t38
+          if
+            i32.const 31
+            local.set $pc
+          else
+            i32.const 32
+            local.set $pc
+          end
+          br $dispatch
+        )
+          i32.const 10
+          local.set $pc
+          br $dispatch
+        )
+          local.get $this__slot
+          local.set $t45
+          local.get $__jn_frame
+          i32.const 39
+          local.get $t45
+          call $jn_gc_frame_set_root
+          local.get $t45
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t46
+          local.get $t46
+          if
+            i32.const 37
+            local.set $pc
+          else
+            i32.const 38
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $t37
+          i32.const 8
+          i32.add
+          i32.load
+          local.set $t39
+          local.get $__jn_frame
+          i32.const 36
+          local.get $t39
+          call $jn_gc_frame_set_root
+          local.get $t39
+          local.set $gctmp.40
+          local.get $__jn_frame
+          i32.const 12
+          local.get $gctmp.40
+          call $jn_gc_frame_set_root
+          local.get $gctmp.40
+          local.set $t40
+          local.get $__jn_frame
+          i32.const 37
+          local.get $t40
+          call $jn_gc_frame_set_root
+          local.get $t40
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t41
+          local.get $t41
+          if
+            i32.const 33
+            local.set $pc
+          else
+            i32.const 34
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $error__slot
+          local.set $t42
+          local.get $__jn_frame
+          i32.const 38
+          local.get $t42
+          call $jn_gc_frame_set_root
+          local.get $t40
+          local.get $t42
+          call $_JN_JnFuture_tryFail_CException
+          local.set $t43
+          call $jnative_exception_pending
+          local.set $t44
+          local.get $t44
+          if
+            i32.const 35
+            local.set $pc
+          else
+            i32.const 36
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          i32.const 29
+          local.set $pc
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $t45
+          i32.const 8
+          i32.add
+          i32.load
+          local.set $t47
+          local.get $__jn_frame
+          i32.const 40
+          local.get $t47
+          call $jn_gc_frame_set_root
+          local.get $t47
+          local.set $gctmp.48
+          local.get $__jn_frame
+          i32.const 13
+          local.get $gctmp.48
+          call $jn_gc_frame_set_root
+          local.get $gctmp.48
+          local.set $t48
+          local.get $__jn_frame
+          i32.const 41
+          local.get $t48
+          call $jn_gc_frame_set_root
+          local.get $t48
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t49
+          local.get $t49
+          if
+            i32.const 39
+            local.set $pc
+          else
+            i32.const 40
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $value__slot
+          local.set $t50
+          local.get $__jn_frame
+          i32.const 42
+          local.get $t50
+          call $jn_gc_frame_set_root
+          local.get $t48
+          local.get $t50
+          call $_JN_JnFuture_tryComplete_CObject
+          local.set $t51
+          call $jnative_exception_pending
+          local.set $t52
+          local.get $t52
+          if
+            i32.const 41
+            local.set $pc
+          else
+            i32.const 42
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          i32.const 29
+          local.set $pc
+          br $dispatch
+      )
+    )
+    call $jn_gc_frame_pop
+  )
+  (func $_JN_BlockingCompleteTask_init (param $this i32)
+    (local $pc i32)
+    (local $__jn_tid i32)
+    (local $__jn_asz i32)
+    (local $__jn_frame i32)
+    (local $this__slot i32)
+    (local $t0 i32)
+    (local $t1 i32)
+    (local $t3 i32)
+    (local $t4 i32)
+    (local $t5 i32)
+    (local $t6 i32)
+    (local $t7 i32)
+    (local $t8 i32)
+    i32.const 6
+    call $jn_gc_frame_push
+    local.set $__jn_frame
+    local.get $__jn_frame
+    i32.const 0
+    local.get $this
+    call $jn_gc_frame_set_root
+    i32.const 0
+    local.set $pc
+    (block $exit
+      (loop $dispatch
+        (block $bb8
+        (block $bb7
+        (block $bb6
+        (block $bb5
+        (block $bb4
+        (block $bb3
+        (block $bb2
+        (block $bb1
+        (block $bb0
+          local.get $pc
+          br_table $bb0 $bb1 $bb2 $bb3 $bb4 $bb5 $bb6 $bb7 $bb8 $exit
+        )
+          local.get $this
+          local.set $this__slot
+          local.get $__jn_frame
+          i32.const 1
+          local.get $this__slot
+          call $jn_gc_frame_set_root
+          local.get $this__slot
+          local.set $t0
+          local.get $__jn_frame
+          i32.const 2
+          local.get $t0
+          call $jn_gc_frame_set_root
+          local.get $t0
+          call $_JN_Object_init
+          call $jnative_exception_pending
+          local.set $t1
+          local.get $t1
+          if
+            i32.const 1
+            local.set $pc
+          else
+            i32.const 2
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $this__slot
+          local.set $t3
+          local.get $__jn_frame
+          i32.const 3
+          local.get $t3
+          call $jn_gc_frame_set_root
+          local.get $t3
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t4
+          local.get $t4
+          if
+            i32.const 3
+            local.set $pc
+          else
+            i32.const 4
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $t3
+          i32.const 4
+          i32.add
+          i32.const 0
+          i32.store
+          local.get $this__slot
+          local.set $t5
+          local.get $__jn_frame
+          i32.const 4
+          local.get $t5
+          call $jn_gc_frame_set_root
+          local.get $t5
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t6
+          local.get $t6
+          if
+            i32.const 5
+            local.set $pc
+          else
+            i32.const 6
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $t5
+          i32.const 8
+          i32.add
+          i32.const 0
+          i32.store
+          local.get $this__slot
+          local.set $t7
+          local.get $__jn_frame
+          i32.const 5
+          local.get $t7
+          call $jn_gc_frame_set_root
+          local.get $t7
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t8
+          local.get $t8
+          if
+            i32.const 7
+            local.set $pc
+          else
+            i32.const 8
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $t7
+          i32.const 12
+          i32.add
+          i32.const 0
+          i32.store
+          br $exit
+      )
+    )
+    call $jn_gc_frame_pop
+  )
+  (func $_JN_AsyncMutex_lock (param $this i32) (result i32)
+    (local $pc i32)
+    (local $__jn_tid i32)
+    (local $__jn_asz i32)
+    (local $__jn_frame i32)
+    (local $ret i32)
+    (local $this__slot i32)
+    (local $f i32)
+    (local $gctmp.3 i32)
+    (local $gctmp.6 i32)
+    (local $gctmp.21 i32)
+    (local $t0 i32)
+    (local $t1 i32)
+    (local $t2 i32)
+    (local $t3 i32)
+    (local $t4 i32)
+    (local $t5 i32)
+    (local $t6 i32)
+    (local $t7 i32)
+    (local $t8 i32)
+    (local $t9 i32)
+    (local $t10 i32)
+    (local $t11 i32)
+    (local $t12 i32)
+    (local $t13 i32)
+    (local $t14 i32)
+    (local $t15 i32)
+    (local $t16 i32)
+    (local $t17 i32)
+    (local $t18 i32)
+    (local $t19 i32)
+    (local $t20 i32)
+    (local $t21 i32)
+    (local $t22 i32)
+    (local $t23 i32)
+    (local $t24 i32)
+    (local $t25 i32)
+    i32.const 20
+    call $jn_gc_frame_push
+    local.set $__jn_frame
+    local.get $__jn_frame
+    i32.const 0
+    local.get $this
+    call $jn_gc_frame_set_root
+    i32.const 0
+    local.set $pc
+    (block $exit
+      (loop $dispatch
+        (block $bb20
+        (block $bb19
+        (block $bb18
+        (block $bb17
+        (block $bb16
+        (block $bb15
+        (block $bb14
+        (block $bb13
+        (block $bb12
+        (block $bb11
+        (block $bb10
+        (block $bb9
+        (block $bb8
+        (block $bb7
+        (block $bb6
+        (block $bb5
+        (block $bb4
+        (block $bb3
+        (block $bb2
+        (block $bb1
+        (block $bb0
+          local.get $pc
+          br_table $bb0 $bb1 $bb2 $bb3 $bb4 $bb5 $bb6 $bb7 $bb8 $bb9 $bb10 $bb11 $bb12 $bb13 $bb14 $bb15 $bb16 $bb17 $bb18 $bb19 $bb20 $exit
+        )
+          local.get $this
+          local.set $this__slot
+          local.get $__jn_frame
+          i32.const 1
+          local.get $this__slot
+          call $jn_gc_frame_set_root
+          local.get $this__slot
+          local.set $t0
+          local.get $__jn_frame
+          i32.const 6
+          local.get $t0
+          call $jn_gc_frame_set_root
+          local.get $t0
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t1
+          local.get $t1
+          if
+            i32.const 1
+            local.set $pc
+          else
+            i32.const 2
+            local.set $pc
+          end
+          br $dispatch
+        )
+          i32.const 0
+          local.set $ret
+          br $exit
+        )
+          local.get $t0
+          i32.const 12
+          i32.add
+          i32.load
+          local.set $t2
+          local.get $__jn_frame
+          i32.const 7
+          local.get $t2
+          call $jn_gc_frame_set_root
+          local.get $t2
+          local.set $gctmp.3
+          local.get $__jn_frame
+          i32.const 3
+          local.get $gctmp.3
+          call $jn_gc_frame_set_root
+          local.get $gctmp.3
+          local.set $t3
+          local.get $__jn_frame
+          i32.const 8
+          local.get $t3
+          call $jn_gc_frame_set_root
+          local.get $t3
+          call $_JN_JnFuture_createPending_CEventLoop
+          local.set $t4
+          local.get $__jn_frame
+          i32.const 9
+          local.get $t4
+          call $jn_gc_frame_set_root
+          call $jnative_exception_pending
+          local.set $t5
+          local.get $t5
+          if
+            i32.const 3
+            local.set $pc
+          else
+            i32.const 4
+            local.set $pc
+          end
+          br $dispatch
+        )
+          i32.const 0
+          local.set $ret
+          br $exit
+        )
+          local.get $t4
+          local.set $gctmp.6
+          local.get $__jn_frame
+          i32.const 4
+          local.get $gctmp.6
+          call $jn_gc_frame_set_root
+          local.get $gctmp.6
+          local.set $t6
+          local.get $__jn_frame
+          i32.const 10
+          local.get $t6
+          call $jn_gc_frame_set_root
+          local.get $t6
+          local.set $f
+          local.get $__jn_frame
+          i32.const 2
+          local.get $f
+          call $jn_gc_frame_set_root
+          local.get $this__slot
+          local.set $t7
+          local.get $__jn_frame
+          i32.const 11
+          local.get $t7
+          call $jn_gc_frame_set_root
+          local.get $t7
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t8
+          local.get $t8
+          if
+            i32.const 5
+            local.set $pc
+          else
+            i32.const 6
+            local.set $pc
+          end
+          br $dispatch
+        )
+          i32.const 0
+          local.set $ret
+          br $exit
+        )
+          local.get $t7
+          i32.const 4
+          i32.add
+          i32.load
+          local.set $t9
+          local.get $t9
+          i32.const 0
+          i32.eq
+          local.set $t10
+          local.get $t10
+          if
+            i32.const 7
+            local.set $pc
+          else
+            i32.const 8
+            local.set $pc
+          end
+          br $dispatch
+        )
+          local.get $this__slot
+          local.set $t11
+          local.get $__jn_frame
+          i32.const 12
+          local.get $t11
+          call $jn_gc_frame_set_root
+          local.get $t11
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t12
+          local.get $t12
+          if
+            i32.const 9
+            local.set $pc
+          else
+            i32.const 10
+            local.set $pc
+          end
+          br $dispatch
+        )
+          local.get $this__slot
+          local.set $t18
+          local.get $__jn_frame
+          i32.const 15
+          local.get $t18
+          call $jn_gc_frame_set_root
+          local.get $t18
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t19
+          local.get $t19
+          if
+            i32.const 15
+            local.set $pc
+          else
+            i32.const 16
+            local.set $pc
+          end
+          br $dispatch
+        )
+          i32.const 0
+          local.set $ret
+          br $exit
+        )
+          local.get $t11
+          i32.const 4
+          i32.add
+          i32.const 1
+          i32.store
+          local.get $f
+          local.set $t13
+          local.get $__jn_frame
+          i32.const 13
+          local.get $t13
+          call $jn_gc_frame_set_root
+          local.get $t13
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t14
+          local.get $t14
+          if
+            i32.const 11
+            local.set $pc
+          else
+            i32.const 12
+            local.set $pc
+          end
+          br $dispatch
+        )
+          i32.const 0
+          local.set $ret
+          br $exit
+        )
+          local.get $t13
+          i32.const 0
+          call $_JN_JnFuture_tryComplete_CObject
+          local.set $t15
+          call $jnative_exception_pending
+          local.set $t16
+          local.get $t16
+          if
+            i32.const 13
+            local.set $pc
+          else
+            i32.const 14
+            local.set $pc
+          end
+          br $dispatch
+        )
+          i32.const 0
+          local.set $ret
+          br $exit
+        )
+          local.get $f
+          local.set $t17
+          local.get $__jn_frame
+          i32.const 14
+          local.get $t17
+          call $jn_gc_frame_set_root
+          local.get $t17
+          local.set $ret
+          br $exit
+        )
+          i32.const 0
+          local.set $ret
+          br $exit
+        )
+          local.get $t18
+          i32.const 8
+          i32.add
+          i32.load
+          local.set $t20
+          local.get $__jn_frame
+          i32.const 16
+          local.get $t20
+          call $jn_gc_frame_set_root
+          local.get $t20
+          local.set $gctmp.21
+          local.get $__jn_frame
+          i32.const 5
+          local.get $gctmp.21
+          call $jn_gc_frame_set_root
+          local.get $gctmp.21
+          local.set $t21
+          local.get $__jn_frame
+          i32.const 17
+          local.get $t21
+          call $jn_gc_frame_set_root
+          local.get $t21
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t22
+          local.get $t22
+          if
+            i32.const 17
+            local.set $pc
+          else
+            i32.const 18
+            local.set $pc
+          end
+          br $dispatch
+        )
+          i32.const 0
+          local.set $ret
+          br $exit
+        )
+          local.get $f
+          local.set $t23
+          local.get $__jn_frame
+          i32.const 18
+          local.get $t23
+          call $jn_gc_frame_set_root
+          local.get $t21
+          local.get $t23
+          call $_JN_ArrayList_add_TT
+          call $jnative_exception_pending
+          local.set $t24
+          local.get $t24
+          if
+            i32.const 19
+            local.set $pc
+          else
+            i32.const 20
+            local.set $pc
+          end
+          br $dispatch
+        )
+          i32.const 0
+          local.set $ret
+          br $exit
+        )
+          local.get $f
+          local.set $t25
+          local.get $__jn_frame
+          i32.const 19
+          local.get $t25
+          call $jn_gc_frame_set_root
+          local.get $t25
+          local.set $ret
+          br $exit
+      )
+    )
+    call $jn_gc_frame_pop
+    local.get $ret
+  )
+  (func $_JN_JnFuture_createPending_CEventLoop (param $loop i32) (result i32)
+    (local $pc i32)
+    (local $__jn_tid i32)
+    (local $__jn_asz i32)
+    (local $__jn_frame i32)
+    (local $ret i32)
+    (local $loop__slot i32)
+    (local $f i32)
+    (local $gctmp.1 i32)
+    (local $t0 i32)
+    (local $t1 i32)
+    (local $t2 i32)
+    (local $t3 i32)
+    (local $t4 i32)
+    (local $t5 i32)
+    (local $t6 i32)
+    i32.const 9
+    call $jn_gc_frame_push
+    local.set $__jn_frame
+    local.get $__jn_frame
+    i32.const 0
+    local.get $loop
+    call $jn_gc_frame_set_root
+    i32.const 0
+    local.set $pc
+    (block $exit
+      (loop $dispatch
+        (block $bb4
+        (block $bb3
+        (block $bb2
+        (block $bb1
+        (block $bb0
+          local.get $pc
+          br_table $bb0 $bb1 $bb2 $bb3 $bb4 $exit
+        )
+          local.get $loop
+          local.set $loop__slot
+          local.get $__jn_frame
+          i32.const 1
+          local.get $loop__slot
+          call $jn_gc_frame_set_root
+          i32.const 28
+          call $jn_alloc_zeroed
+          local.set $t0
+          local.get $t0
+          i32.eqz
+          if
+            unreachable
+          end
+          local.get $t0
+          i32.const 112
+          i32.store
+          local.get $__jn_frame
+          i32.const 4
+          local.get $t0
+          call $jn_gc_frame_set_root
+          local.get $t0
+          local.set $gctmp.1
+          local.get $__jn_frame
+          i32.const 3
+          local.get $gctmp.1
+          call $jn_gc_frame_set_root
+          local.get $gctmp.1
+          local.set $t1
+          local.get $__jn_frame
+          i32.const 5
+          local.get $t1
+          call $jn_gc_frame_set_root
+          local.get $t1
+          call $_JN_JnFuture_init
+          call $jnative_exception_pending
+          local.set $t2
+          local.get $t2
+          if
+            i32.const 1
+            local.set $pc
+          else
+            i32.const 2
+            local.set $pc
+          end
+          br $dispatch
+        )
+          i32.const 0
+          local.set $ret
+          br $exit
+        )
+          local.get $t1
+          local.set $f
+          local.get $__jn_frame
+          i32.const 2
+          local.get $f
+          call $jn_gc_frame_set_root
+          local.get $loop__slot
+          local.set $t3
+          local.get $__jn_frame
+          i32.const 6
+          local.get $t3
+          call $jn_gc_frame_set_root
+          local.get $f
+          local.set $t4
+          local.get $__jn_frame
+          i32.const 7
+          local.get $t4
+          call $jn_gc_frame_set_root
+          call $jnative_exception_pending
+          local.set $t5
+          local.get $t5
+          if
+            i32.const 3
+            local.set $pc
+          else
+            i32.const 4
+            local.set $pc
+          end
+          br $dispatch
+        )
+          i32.const 0
+          local.set $ret
+          br $exit
+        )
+          local.get $t4
+          i32.const 16
+          i32.add
+          local.get $t3
+          i32.store
+          local.get $f
+          local.set $t6
+          local.get $__jn_frame
+          i32.const 8
+          local.get $t6
+          call $jn_gc_frame_set_root
+          local.get $t6
+          local.set $ret
+          br $exit
+      )
+    )
+    call $jn_gc_frame_pop
+    local.get $ret
+  )
+  (func $_JN_JnFuture_init (param $this i32)
+    (local $pc i32)
+    (local $__jn_tid i32)
+    (local $__jn_asz i32)
+    (local $__jn_frame i32)
+    (local $this__slot i32)
+    (local $gctmp.13 i32)
+    (local $gctmp.18 i32)
+    (local $t0 i32)
+    (local $t1 i32)
+    (local $t3 i32)
+    (local $t4 i32)
+    (local $t5 i32)
+    (local $t6 i32)
+    (local $t7 i32)
+    (local $t8 i32)
+    (local $t9 i32)
+    (local $t10 i32)
+    (local $t11 i32)
+    (local $t12 i32)
+    (local $t13 i32)
+    (local $t14 i32)
+    (local $t15 i32)
+    (local $t16 i32)
+    (local $t17 i32)
+    (local $t18 i32)
+    (local $t19 i32)
+    (local $t20 i32)
+    (local $t21 i32)
+    i32.const 15
+    call $jn_gc_frame_push
+    local.set $__jn_frame
+    local.get $__jn_frame
+    i32.const 0
+    local.get $this
+    call $jn_gc_frame_set_root
+    i32.const 0
+    local.set $pc
+    (block $exit
+      (loop $dispatch
+        (block $bb18
+        (block $bb17
+        (block $bb16
+        (block $bb15
+        (block $bb14
+        (block $bb13
+        (block $bb12
+        (block $bb11
+        (block $bb10
+        (block $bb9
+        (block $bb8
+        (block $bb7
+        (block $bb6
+        (block $bb5
+        (block $bb4
+        (block $bb3
+        (block $bb2
+        (block $bb1
+        (block $bb0
+          local.get $pc
+          br_table $bb0 $bb1 $bb2 $bb3 $bb4 $bb5 $bb6 $bb7 $bb8 $bb9 $bb10 $bb11 $bb12 $bb13 $bb14 $bb15 $bb16 $bb17 $bb18 $exit
+        )
+          local.get $this
+          local.set $this__slot
+          local.get $__jn_frame
+          i32.const 1
+          local.get $this__slot
+          call $jn_gc_frame_set_root
+          local.get $this__slot
+          local.set $t0
+          local.get $__jn_frame
+          i32.const 4
+          local.get $t0
+          call $jn_gc_frame_set_root
+          local.get $t0
+          call $_JN_Object_init
+          call $jnative_exception_pending
+          local.set $t1
+          local.get $t1
+          if
+            i32.const 1
+            local.set $pc
+          else
+            i32.const 2
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          global.get $g_jn_static_JnFuture_PENDING
+          local.set $t3
+          local.get $this__slot
+          local.set $t4
+          local.get $__jn_frame
+          i32.const 5
+          local.get $t4
+          call $jn_gc_frame_set_root
+          local.get $t4
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t5
+          local.get $t5
+          if
+            i32.const 3
+            local.set $pc
+          else
+            i32.const 4
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $t4
+          i32.const 4
+          i32.add
+          local.get $t3
+          i32.store
+          local.get $this__slot
+          local.set $t6
+          local.get $__jn_frame
+          i32.const 6
+          local.get $t6
+          call $jn_gc_frame_set_root
+          local.get $t6
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t7
+          local.get $t7
+          if
+            i32.const 5
+            local.set $pc
+          else
+            i32.const 6
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $t6
+          i32.const 8
+          i32.add
+          i32.const 0
+          i32.store
+          local.get $this__slot
+          local.set $t8
+          local.get $__jn_frame
+          i32.const 7
+          local.get $t8
+          call $jn_gc_frame_set_root
+          local.get $t8
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t9
+          local.get $t9
+          if
+            i32.const 7
+            local.set $pc
+          else
+            i32.const 8
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $t8
+          i32.const 12
+          i32.add
+          i32.const 0
+          i32.store
+          local.get $this__slot
+          local.set $t10
+          local.get $__jn_frame
+          i32.const 8
+          local.get $t10
+          call $jn_gc_frame_set_root
+          local.get $t10
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t11
+          local.get $t11
+          if
+            i32.const 9
+            local.set $pc
+          else
+            i32.const 10
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $t10
+          i32.const 16
+          i32.add
+          i32.const 0
+          i32.store
+          i32.const 16
+          call $jn_alloc_zeroed
+          local.set $t12
+          local.get $t12
+          i32.eqz
+          if
+            unreachable
+          end
+          local.get $t12
+          i32.const 4
+          i32.store
+          local.get $__jn_frame
+          i32.const 9
+          local.get $t12
+          call $jn_gc_frame_set_root
+          local.get $t12
+          local.set $gctmp.13
+          local.get $__jn_frame
+          i32.const 2
+          local.get $gctmp.13
+          call $jn_gc_frame_set_root
+          local.get $gctmp.13
+          local.set $t13
+          local.get $__jn_frame
+          i32.const 10
+          local.get $t13
+          call $jn_gc_frame_set_root
+          local.get $t13
+          call $_JN_ArrayList_init
+          call $jnative_exception_pending
+          local.set $t14
+          local.get $t14
+          if
+            i32.const 11
+            local.set $pc
+          else
+            i32.const 12
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $this__slot
+          local.set $t15
+          local.get $__jn_frame
+          i32.const 11
+          local.get $t15
+          call $jn_gc_frame_set_root
+          local.get $t15
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t16
+          local.get $t16
+          if
+            i32.const 13
+            local.set $pc
+          else
+            i32.const 14
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $t15
+          i32.const 20
+          i32.add
+          local.get $t13
+          i32.store
+          i32.const 16
+          call $jn_alloc_zeroed
+          local.set $t17
+          local.get $t17
+          i32.eqz
+          if
+            unreachable
+          end
+          local.get $t17
+          i32.const 2
+          i32.store
+          local.get $__jn_frame
+          i32.const 12
+          local.get $t17
+          call $jn_gc_frame_set_root
+          local.get $t17
+          local.set $gctmp.18
+          local.get $__jn_frame
+          i32.const 3
+          local.get $gctmp.18
+          call $jn_gc_frame_set_root
+          local.get $gctmp.18
+          local.set $t18
+          local.get $__jn_frame
+          i32.const 13
+          local.get $t18
+          call $jn_gc_frame_set_root
+          local.get $t18
+          call $_JN_Mutex_init
+          call $jnative_exception_pending
+          local.set $t19
+          local.get $t19
+          if
+            i32.const 15
+            local.set $pc
+          else
+            i32.const 16
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $this__slot
+          local.set $t20
+          local.get $__jn_frame
+          i32.const 14
+          local.get $t20
+          call $jn_gc_frame_set_root
+          local.get $t20
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t21
+          local.get $t21
+          if
+            i32.const 17
+            local.set $pc
+          else
+            i32.const 18
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $t20
+          i32.const 24
+          i32.add
+          local.get $t18
+          i32.store
+          br $exit
+      )
+    )
+    call $jn_gc_frame_pop
+  )
+  (func $_JN_Mutex_init (param $this i32)
+    (local $pc i32)
+    (local $__jn_tid i32)
+    (local $__jn_asz i32)
+    (local $__jn_frame i32)
+    (local $this__slot i32)
+    (local $t0 i32)
+    i32.const 3
+    call $jn_gc_frame_push
+    local.set $__jn_frame
+    local.get $__jn_frame
+    i32.const 0
+    local.get $this
+    call $jn_gc_frame_set_root
+    i32.const 0
+    local.set $pc
+    (block $exit
+      (loop $dispatch
+        (block $bb0
+          local.get $pc
+          br_table $bb0 $exit
+        )
+          local.get $this
+          local.set $this__slot
+          local.get $__jn_frame
+          i32.const 1
+          local.get $this__slot
+          call $jn_gc_frame_set_root
+          local.get $this__slot
+          local.set $t0
+          local.get $__jn_frame
+          i32.const 2
+          local.get $t0
+          call $jn_gc_frame_set_root
+          br $exit
+      )
+    )
+    call $jn_gc_frame_pop
+  )
+  (func $_JN_AsyncMutex_unlock (param $this i32)
+    (local $pc i32)
+    (local $__jn_tid i32)
+    (local $__jn_asz i32)
+    (local $__jn_frame i32)
+    (local $this__slot i32)
+    (local $gctmp.3 i32)
+    (local $next i32)
+    (local $gctmp.11 i32)
+    (local $gctmp.15 i32)
+    (local $t0 i32)
+    (local $t1 i32)
+    (local $t2 i32)
+    (local $t3 i32)
+    (local $t4 i32)
+    (local $t5 i32)
+    (local $t6 i32)
+    (local $t7 i32)
+    (local $t8 i32)
+    (local $t9 i32)
+    (local $t10 i32)
+    (local $t11 i32)
+    (local $t12 i32)
+    (local $t13 i32)
+    (local $t14 i32)
+    (local $t15 i32)
+    (local $t16 i32)
+    (local $t17 i32)
+    (local $t18 i32)
+    (local $t19 i32)
+    (local $t20 i32)
+    (local $t21 i32)
+    i32.const 16
+    call $jn_gc_frame_push
+    local.set $__jn_frame
+    local.get $__jn_frame
+    i32.const 0
+    local.get $this
+    call $jn_gc_frame_set_root
+    i32.const 0
+    local.set $pc
+    (block $exit
+      (loop $dispatch
+        (block $bb21
+        (block $bb20
+        (block $bb19
+        (block $bb18
+        (block $bb17
+        (block $bb16
+        (block $bb15
+        (block $bb14
+        (block $bb13
+        (block $bb12
+        (block $bb11
+        (block $bb10
+        (block $bb9
+        (block $bb8
+        (block $bb7
+        (block $bb6
+        (block $bb5
+        (block $bb4
+        (block $bb3
+        (block $bb2
+        (block $bb1
+        (block $bb0
+          local.get $pc
+          br_table $bb0 $bb1 $bb2 $bb3 $bb4 $bb5 $bb6 $bb7 $bb8 $bb9 $bb10 $bb11 $bb12 $bb13 $bb14 $bb15 $bb16 $bb17 $bb18 $bb19 $bb20 $bb21 $exit
+        )
+          local.get $this
+          local.set $this__slot
+          local.get $__jn_frame
+          i32.const 1
+          local.get $this__slot
+          call $jn_gc_frame_set_root
+          local.get $this__slot
+          local.set $t0
+          local.get $__jn_frame
+          i32.const 6
+          local.get $t0
+          call $jn_gc_frame_set_root
+          local.get $t0
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t1
+          local.get $t1
+          if
+            i32.const 1
+            local.set $pc
+          else
+            i32.const 2
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $t0
+          i32.const 8
+          i32.add
+          i32.load
+          local.set $t2
+          local.get $__jn_frame
+          i32.const 7
+          local.get $t2
+          call $jn_gc_frame_set_root
+          local.get $t2
+          local.set $gctmp.3
+          local.get $__jn_frame
+          i32.const 2
+          local.get $gctmp.3
+          call $jn_gc_frame_set_root
+          local.get $gctmp.3
+          local.set $t3
+          local.get $__jn_frame
+          i32.const 8
+          local.get $t3
+          call $jn_gc_frame_set_root
+          local.get $t3
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t4
+          local.get $t4
+          if
+            i32.const 3
+            local.set $pc
+          else
+            i32.const 4
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $t3
+          call $_JN_ArrayList_size
+          local.set $t5
+          call $jnative_exception_pending
+          local.set $t6
+          local.get $t6
+          if
+            i32.const 5
+            local.set $pc
+          else
+            i32.const 6
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $t5
+          i32.const 0
+          i32.gt_s
+          local.set $t7
+          local.get $t7
+          if
+            i32.const 7
+            local.set $pc
+          else
+            i32.const 9
+            local.set $pc
+          end
+          br $dispatch
+        )
+          local.get $this__slot
+          local.set $t8
+          local.get $__jn_frame
+          i32.const 9
+          local.get $t8
+          call $jn_gc_frame_set_root
+          local.get $t8
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t9
+          local.get $t9
+          if
+            i32.const 10
+            local.set $pc
+          else
+            i32.const 11
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $this__slot
+          local.set $t20
+          local.get $__jn_frame
+          i32.const 15
+          local.get $t20
+          call $jn_gc_frame_set_root
+          local.get $t20
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t21
+          local.get $t21
+          if
+            i32.const 20
+            local.set $pc
+          else
+            i32.const 21
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $t8
+          i32.const 8
+          i32.add
+          i32.load
+          local.set $t10
+          local.get $__jn_frame
+          i32.const 10
+          local.get $t10
+          call $jn_gc_frame_set_root
+          local.get $t10
+          local.set $gctmp.11
+          local.get $__jn_frame
+          i32.const 4
+          local.get $gctmp.11
+          call $jn_gc_frame_set_root
+          local.get $gctmp.11
+          local.set $t11
+          local.get $__jn_frame
+          i32.const 11
+          local.get $t11
+          call $jn_gc_frame_set_root
+          local.get $t11
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t12
+          local.get $t12
+          if
+            i32.const 12
+            local.set $pc
+          else
+            i32.const 13
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $t11
+          i32.const 0
+          call $_JN_ArrayList_removeAt_i32
+          local.set $t13
+          local.get $__jn_frame
+          i32.const 12
+          local.get $t13
+          call $jn_gc_frame_set_root
+          call $jnative_exception_pending
+          local.set $t14
+          local.get $t14
+          if
+            i32.const 14
+            local.set $pc
+          else
+            i32.const 15
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $t13
+          local.set $gctmp.15
+          local.get $__jn_frame
+          i32.const 5
+          local.get $gctmp.15
+          call $jn_gc_frame_set_root
+          local.get $gctmp.15
+          local.set $t15
+          local.get $__jn_frame
+          i32.const 13
+          local.get $t15
+          call $jn_gc_frame_set_root
+          local.get $t15
+          local.set $next
+          local.get $__jn_frame
+          i32.const 3
+          local.get $next
+          call $jn_gc_frame_set_root
+          local.get $next
+          local.set $t16
+          local.get $__jn_frame
+          i32.const 14
+          local.get $t16
+          call $jn_gc_frame_set_root
+          local.get $t16
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t17
+          local.get $t17
+          if
+            i32.const 16
+            local.set $pc
+          else
+            i32.const 17
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $t16
+          i32.const 0
+          call $_JN_JnFuture_tryComplete_CObject
+          local.set $t18
+          call $jnative_exception_pending
+          local.set $t19
+          local.get $t19
+          if
+            i32.const 18
+            local.set $pc
+          else
+            i32.const 19
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          i32.const 8
+          local.set $pc
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $t20
+          i32.const 4
+          i32.add
+          i32.const 0
+          i32.store
+          i32.const 8
+          local.set $pc
+          br $dispatch
+      )
+    )
+    call $jn_gc_frame_pop
+  )
+  (func $_JN_AsyncSemaphore_acquire (param $this i32) (result i32)
+    (local $pc i32)
+    (local $__jn_tid i32)
+    (local $__jn_asz i32)
+    (local $__jn_frame i32)
+    (local $ret i32)
+    (local $this__slot i32)
+    (local $f i32)
+    (local $gctmp.3 i32)
+    (local $gctmp.6 i32)
+    (local $gctmp.25 i32)
+    (local $t0 i32)
+    (local $t1 i32)
+    (local $t2 i32)
+    (local $t3 i32)
+    (local $t4 i32)
+    (local $t5 i32)
+    (local $t6 i32)
+    (local $t7 i32)
+    (local $t8 i32)
+    (local $t9 i32)
+    (local $t10 i32)
+    (local $t11 i32)
+    (local $t12 i32)
+    (local $t13 i32)
+    (local $t14 i32)
+    (local $t15 i32)
+    (local $t16 i32)
+    (local $t17 i32)
+    (local $t18 i32)
+    (local $t19 i32)
+    (local $t20 i32)
+    (local $t21 i32)
+    (local $t22 i32)
+    (local $t23 i32)
+    (local $t24 i32)
+    (local $t25 i32)
+    (local $t26 i32)
+    (local $t27 i32)
+    (local $t28 i32)
+    (local $t29 i32)
+    i32.const 21
+    call $jn_gc_frame_push
+    local.set $__jn_frame
+    local.get $__jn_frame
+    i32.const 0
+    local.get $this
+    call $jn_gc_frame_set_root
+    i32.const 0
+    local.set $pc
+    (block $exit
+      (loop $dispatch
+        (block $bb22
+        (block $bb21
+        (block $bb20
+        (block $bb19
+        (block $bb18
+        (block $bb17
+        (block $bb16
+        (block $bb15
+        (block $bb14
+        (block $bb13
+        (block $bb12
+        (block $bb11
+        (block $bb10
+        (block $bb9
+        (block $bb8
+        (block $bb7
+        (block $bb6
+        (block $bb5
+        (block $bb4
+        (block $bb3
+        (block $bb2
+        (block $bb1
+        (block $bb0
+          local.get $pc
+          br_table $bb0 $bb1 $bb2 $bb3 $bb4 $bb5 $bb6 $bb7 $bb8 $bb9 $bb10 $bb11 $bb12 $bb13 $bb14 $bb15 $bb16 $bb17 $bb18 $bb19 $bb20 $bb21 $bb22 $exit
+        )
+          local.get $this
+          local.set $this__slot
+          local.get $__jn_frame
+          i32.const 1
+          local.get $this__slot
+          call $jn_gc_frame_set_root
+          local.get $this__slot
+          local.set $t0
+          local.get $__jn_frame
+          i32.const 6
+          local.get $t0
+          call $jn_gc_frame_set_root
+          local.get $t0
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t1
+          local.get $t1
+          if
+            i32.const 1
+            local.set $pc
+          else
+            i32.const 2
+            local.set $pc
+          end
+          br $dispatch
+        )
+          i32.const 0
+          local.set $ret
+          br $exit
+        )
+          local.get $t0
+          i32.const 12
+          i32.add
+          i32.load
+          local.set $t2
+          local.get $__jn_frame
+          i32.const 7
+          local.get $t2
+          call $jn_gc_frame_set_root
+          local.get $t2
+          local.set $gctmp.3
+          local.get $__jn_frame
+          i32.const 3
+          local.get $gctmp.3
+          call $jn_gc_frame_set_root
+          local.get $gctmp.3
+          local.set $t3
+          local.get $__jn_frame
+          i32.const 8
+          local.get $t3
+          call $jn_gc_frame_set_root
+          local.get $t3
+          call $_JN_JnFuture_createPending_CEventLoop
+          local.set $t4
+          local.get $__jn_frame
+          i32.const 9
+          local.get $t4
+          call $jn_gc_frame_set_root
+          call $jnative_exception_pending
+          local.set $t5
+          local.get $t5
+          if
+            i32.const 3
+            local.set $pc
+          else
+            i32.const 4
+            local.set $pc
+          end
+          br $dispatch
+        )
+          i32.const 0
+          local.set $ret
+          br $exit
+        )
+          local.get $t4
+          local.set $gctmp.6
+          local.get $__jn_frame
+          i32.const 4
+          local.get $gctmp.6
+          call $jn_gc_frame_set_root
+          local.get $gctmp.6
+          local.set $t6
+          local.get $__jn_frame
+          i32.const 10
+          local.get $t6
+          call $jn_gc_frame_set_root
+          local.get $t6
+          local.set $f
+          local.get $__jn_frame
+          i32.const 2
+          local.get $f
+          call $jn_gc_frame_set_root
+          local.get $this__slot
+          local.set $t7
+          local.get $__jn_frame
+          i32.const 11
+          local.get $t7
+          call $jn_gc_frame_set_root
+          local.get $t7
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t8
+          local.get $t8
+          if
+            i32.const 5
+            local.set $pc
+          else
+            i32.const 6
+            local.set $pc
+          end
+          br $dispatch
+        )
+          i32.const 0
+          local.set $ret
+          br $exit
+        )
+          local.get $t7
+          i32.const 4
+          i32.add
+          i32.load
+          local.set $t9
+          local.get $t9
+          i32.const 0
+          i32.gt_s
+          local.set $t10
+          local.get $t10
+          if
+            i32.const 7
+            local.set $pc
+          else
+            i32.const 8
+            local.set $pc
+          end
+          br $dispatch
+        )
+          local.get $this__slot
+          local.set $t11
+          local.get $__jn_frame
+          i32.const 12
+          local.get $t11
+          call $jn_gc_frame_set_root
+          local.get $t11
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t12
+          local.get $t12
+          if
+            i32.const 9
+            local.set $pc
+          else
+            i32.const 10
+            local.set $pc
+          end
+          br $dispatch
+        )
+          local.get $this__slot
+          local.set $t22
+          local.get $__jn_frame
+          i32.const 16
+          local.get $t22
+          call $jn_gc_frame_set_root
+          local.get $t22
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t23
+          local.get $t23
+          if
+            i32.const 17
+            local.set $pc
+          else
+            i32.const 18
+            local.set $pc
+          end
+          br $dispatch
+        )
+          i32.const 0
+          local.set $ret
+          br $exit
+        )
+          local.get $t11
+          i32.const 4
+          i32.add
+          i32.load
+          local.set $t13
+          local.get $t13
+          i32.const 1
+          i32.sub
+          local.set $t14
+          local.get $this__slot
+          local.set $t15
+          local.get $__jn_frame
+          i32.const 13
+          local.get $t15
+          call $jn_gc_frame_set_root
+          local.get $t15
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t16
+          local.get $t16
+          if
+            i32.const 11
+            local.set $pc
+          else
+            i32.const 12
+            local.set $pc
+          end
+          br $dispatch
+        )
+          i32.const 0
+          local.set $ret
+          br $exit
+        )
+          local.get $t15
+          i32.const 4
+          i32.add
+          local.get $t14
+          i32.store
+          local.get $f
+          local.set $t17
+          local.get $__jn_frame
+          i32.const 14
+          local.get $t17
+          call $jn_gc_frame_set_root
+          local.get $t17
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t18
+          local.get $t18
+          if
+            i32.const 13
+            local.set $pc
+          else
+            i32.const 14
+            local.set $pc
+          end
+          br $dispatch
+        )
+          i32.const 0
+          local.set $ret
+          br $exit
+        )
+          local.get $t17
+          i32.const 0
+          call $_JN_JnFuture_tryComplete_CObject
+          local.set $t19
+          call $jnative_exception_pending
+          local.set $t20
+          local.get $t20
+          if
+            i32.const 15
+            local.set $pc
+          else
+            i32.const 16
+            local.set $pc
+          end
+          br $dispatch
+        )
+          i32.const 0
+          local.set $ret
+          br $exit
+        )
+          local.get $f
+          local.set $t21
+          local.get $__jn_frame
+          i32.const 15
+          local.get $t21
+          call $jn_gc_frame_set_root
+          local.get $t21
+          local.set $ret
+          br $exit
+        )
+          i32.const 0
+          local.set $ret
+          br $exit
+        )
+          local.get $t22
+          i32.const 8
+          i32.add
+          i32.load
+          local.set $t24
+          local.get $__jn_frame
+          i32.const 17
+          local.get $t24
+          call $jn_gc_frame_set_root
+          local.get $t24
+          local.set $gctmp.25
+          local.get $__jn_frame
+          i32.const 5
+          local.get $gctmp.25
+          call $jn_gc_frame_set_root
+          local.get $gctmp.25
+          local.set $t25
+          local.get $__jn_frame
+          i32.const 18
+          local.get $t25
+          call $jn_gc_frame_set_root
+          local.get $t25
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t26
+          local.get $t26
+          if
+            i32.const 19
+            local.set $pc
+          else
+            i32.const 20
+            local.set $pc
+          end
+          br $dispatch
+        )
+          i32.const 0
+          local.set $ret
+          br $exit
+        )
+          local.get $f
+          local.set $t27
+          local.get $__jn_frame
+          i32.const 19
+          local.get $t27
+          call $jn_gc_frame_set_root
+          local.get $t25
+          local.get $t27
+          call $_JN_ArrayList_add_TT
+          call $jnative_exception_pending
+          local.set $t28
+          local.get $t28
+          if
+            i32.const 21
+            local.set $pc
+          else
+            i32.const 22
+            local.set $pc
+          end
+          br $dispatch
+        )
+          i32.const 0
+          local.set $ret
+          br $exit
+        )
+          local.get $f
+          local.set $t29
+          local.get $__jn_frame
+          i32.const 20
+          local.get $t29
+          call $jn_gc_frame_set_root
+          local.get $t29
+          local.set $ret
+          br $exit
+      )
+    )
+    call $jn_gc_frame_pop
+    local.get $ret
+  )
+  (func $_JN_AsyncSemaphore_release (param $this i32)
+    (local $pc i32)
+    (local $__jn_tid i32)
+    (local $__jn_asz i32)
+    (local $__jn_frame i32)
+    (local $this__slot i32)
+    (local $gctmp.3 i32)
+    (local $next i32)
+    (local $gctmp.11 i32)
+    (local $gctmp.15 i32)
+    (local $t0 i32)
+    (local $t1 i32)
+    (local $t2 i32)
+    (local $t3 i32)
+    (local $t4 i32)
+    (local $t5 i32)
+    (local $t6 i32)
+    (local $t7 i32)
+    (local $t8 i32)
+    (local $t9 i32)
+    (local $t10 i32)
+    (local $t11 i32)
+    (local $t12 i32)
+    (local $t13 i32)
+    (local $t14 i32)
+    (local $t15 i32)
+    (local $t16 i32)
+    (local $t17 i32)
+    (local $t18 i32)
+    (local $t19 i32)
+    (local $t20 i32)
+    (local $t21 i32)
+    (local $t22 i32)
+    (local $t23 i32)
+    (local $t24 i32)
+    (local $t25 i32)
+    i32.const 17
+    call $jn_gc_frame_push
+    local.set $__jn_frame
+    local.get $__jn_frame
+    i32.const 0
+    local.get $this
+    call $jn_gc_frame_set_root
+    i32.const 0
+    local.set $pc
+    (block $exit
+      (loop $dispatch
+        (block $bb23
+        (block $bb22
+        (block $bb21
+        (block $bb20
+        (block $bb19
+        (block $bb18
+        (block $bb17
+        (block $bb16
+        (block $bb15
+        (block $bb14
+        (block $bb13
+        (block $bb12
+        (block $bb11
+        (block $bb10
+        (block $bb9
+        (block $bb8
+        (block $bb7
+        (block $bb6
+        (block $bb5
+        (block $bb4
+        (block $bb3
+        (block $bb2
+        (block $bb1
+        (block $bb0
+          local.get $pc
+          br_table $bb0 $bb1 $bb2 $bb3 $bb4 $bb5 $bb6 $bb7 $bb8 $bb9 $bb10 $bb11 $bb12 $bb13 $bb14 $bb15 $bb16 $bb17 $bb18 $bb19 $bb20 $bb21 $bb22 $bb23 $exit
+        )
+          local.get $this
+          local.set $this__slot
+          local.get $__jn_frame
+          i32.const 1
+          local.get $this__slot
+          call $jn_gc_frame_set_root
+          local.get $this__slot
+          local.set $t0
+          local.get $__jn_frame
+          i32.const 6
+          local.get $t0
+          call $jn_gc_frame_set_root
+          local.get $t0
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t1
+          local.get $t1
+          if
+            i32.const 1
+            local.set $pc
+          else
+            i32.const 2
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $t0
+          i32.const 8
+          i32.add
+          i32.load
+          local.set $t2
+          local.get $__jn_frame
+          i32.const 7
+          local.get $t2
+          call $jn_gc_frame_set_root
+          local.get $t2
+          local.set $gctmp.3
+          local.get $__jn_frame
+          i32.const 2
+          local.get $gctmp.3
+          call $jn_gc_frame_set_root
+          local.get $gctmp.3
+          local.set $t3
+          local.get $__jn_frame
+          i32.const 8
+          local.get $t3
+          call $jn_gc_frame_set_root
+          local.get $t3
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t4
+          local.get $t4
+          if
+            i32.const 3
+            local.set $pc
+          else
+            i32.const 4
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $t3
+          call $_JN_ArrayList_size
+          local.set $t5
+          call $jnative_exception_pending
+          local.set $t6
+          local.get $t6
+          if
+            i32.const 5
+            local.set $pc
+          else
+            i32.const 6
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $t5
+          i32.const 0
+          i32.gt_s
+          local.set $t7
+          local.get $t7
+          if
+            i32.const 7
+            local.set $pc
+          else
+            i32.const 9
+            local.set $pc
+          end
+          br $dispatch
+        )
+          local.get $this__slot
+          local.set $t8
+          local.get $__jn_frame
+          i32.const 9
+          local.get $t8
+          call $jn_gc_frame_set_root
+          local.get $t8
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t9
+          local.get $t9
+          if
+            i32.const 10
+            local.set $pc
+          else
+            i32.const 11
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $this__slot
+          local.set $t20
+          local.get $__jn_frame
+          i32.const 15
+          local.get $t20
+          call $jn_gc_frame_set_root
+          local.get $t20
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t21
+          local.get $t21
+          if
+            i32.const 20
+            local.set $pc
+          else
+            i32.const 21
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $t8
+          i32.const 8
+          i32.add
+          i32.load
+          local.set $t10
+          local.get $__jn_frame
+          i32.const 10
+          local.get $t10
+          call $jn_gc_frame_set_root
+          local.get $t10
+          local.set $gctmp.11
+          local.get $__jn_frame
+          i32.const 4
+          local.get $gctmp.11
+          call $jn_gc_frame_set_root
+          local.get $gctmp.11
+          local.set $t11
+          local.get $__jn_frame
+          i32.const 11
+          local.get $t11
+          call $jn_gc_frame_set_root
+          local.get $t11
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t12
+          local.get $t12
+          if
+            i32.const 12
+            local.set $pc
+          else
+            i32.const 13
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $t11
+          i32.const 0
+          call $_JN_ArrayList_removeAt_i32
+          local.set $t13
+          local.get $__jn_frame
+          i32.const 12
+          local.get $t13
+          call $jn_gc_frame_set_root
+          call $jnative_exception_pending
+          local.set $t14
+          local.get $t14
+          if
+            i32.const 14
+            local.set $pc
+          else
+            i32.const 15
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $t13
+          local.set $gctmp.15
+          local.get $__jn_frame
+          i32.const 5
+          local.get $gctmp.15
+          call $jn_gc_frame_set_root
+          local.get $gctmp.15
+          local.set $t15
+          local.get $__jn_frame
+          i32.const 13
+          local.get $t15
+          call $jn_gc_frame_set_root
+          local.get $t15
+          local.set $next
+          local.get $__jn_frame
+          i32.const 3
+          local.get $next
+          call $jn_gc_frame_set_root
+          local.get $next
+          local.set $t16
+          local.get $__jn_frame
+          i32.const 14
+          local.get $t16
+          call $jn_gc_frame_set_root
+          local.get $t16
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t17
+          local.get $t17
+          if
+            i32.const 16
+            local.set $pc
+          else
+            i32.const 17
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $t16
+          i32.const 0
+          call $_JN_JnFuture_tryComplete_CObject
+          local.set $t18
+          call $jnative_exception_pending
+          local.set $t19
+          local.get $t19
+          if
+            i32.const 18
+            local.set $pc
+          else
+            i32.const 19
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          i32.const 8
+          local.set $pc
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $t20
+          i32.const 4
+          i32.add
+          i32.load
+          local.set $t22
+          local.get $t22
+          i32.const 1
+          i32.add
+          local.set $t23
+          local.get $this__slot
+          local.set $t24
+          local.get $__jn_frame
+          i32.const 16
+          local.get $t24
+          call $jn_gc_frame_set_root
+          local.get $t24
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t25
+          local.get $t25
+          if
+            i32.const 22
+            local.set $pc
+          else
+            i32.const 23
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $t24
+          i32.const 4
+          i32.add
+          local.get $t23
+          i32.store
+          i32.const 8
+          local.set $pc
+          br $dispatch
+      )
+    )
+    call $jn_gc_frame_pop
+  )
+  (func $_JN_AsyncQueue_put_CObject (param $this i32) (param $value i32)
+    (local $pc i32)
+    (local $__jn_tid i32)
+    (local $__jn_asz i32)
+    (local $__jn_frame i32)
+    (local $this__slot i32)
+    (local $value__slot i32)
+    (local $gctmp.3 i32)
+    (local $f i32)
+    (local $gctmp.11 i32)
+    (local $gctmp.15 i32)
+    (local $gctmp.24 i32)
+    (local $t0 i32)
+    (local $t1 i32)
+    (local $t2 i32)
+    (local $t3 i32)
+    (local $t4 i32)
+    (local $t5 i32)
+    (local $t6 i32)
+    (local $t7 i32)
+    (local $t8 i32)
+    (local $t9 i32)
+    (local $t10 i32)
+    (local $t11 i32)
+    (local $t12 i32)
+    (local $t13 i32)
+    (local $t14 i32)
+    (local $t15 i32)
+    (local $t16 i32)
+    (local $t17 i32)
+    (local $t18 i32)
+    (local $t19 i32)
+    (local $t20 i32)
+    (local $t21 i32)
+    (local $t22 i32)
+    (local $t23 i32)
+    (local $t24 i32)
+    (local $t25 i32)
+    (local $t26 i32)
+    (local $t27 i32)
+    i32.const 23
+    call $jn_gc_frame_push
+    local.set $__jn_frame
+    local.get $__jn_frame
+    i32.const 0
+    local.get $this
+    call $jn_gc_frame_set_root
+    local.get $__jn_frame
+    i32.const 1
+    local.get $value
+    call $jn_gc_frame_set_root
+    i32.const 0
+    local.set $pc
+    (block $exit
+      (loop $dispatch
+        (block $bb25
+        (block $bb24
+        (block $bb23
+        (block $bb22
+        (block $bb21
+        (block $bb20
+        (block $bb19
+        (block $bb18
+        (block $bb17
+        (block $bb16
+        (block $bb15
+        (block $bb14
+        (block $bb13
+        (block $bb12
+        (block $bb11
+        (block $bb10
+        (block $bb9
+        (block $bb8
+        (block $bb7
+        (block $bb6
+        (block $bb5
+        (block $bb4
+        (block $bb3
+        (block $bb2
+        (block $bb1
+        (block $bb0
+          local.get $pc
+          br_table $bb0 $bb1 $bb2 $bb3 $bb4 $bb5 $bb6 $bb7 $bb8 $bb9 $bb10 $bb11 $bb12 $bb13 $bb14 $bb15 $bb16 $bb17 $bb18 $bb19 $bb20 $bb21 $bb22 $bb23 $bb24 $bb25 $exit
+        )
+          local.get $this
+          local.set $this__slot
+          local.get $__jn_frame
+          i32.const 2
+          local.get $this__slot
+          call $jn_gc_frame_set_root
+          local.get $value
+          local.set $value__slot
+          local.get $__jn_frame
+          i32.const 3
+          local.get $value__slot
+          call $jn_gc_frame_set_root
+          local.get $this__slot
+          local.set $t0
+          local.get $__jn_frame
+          i32.const 9
+          local.get $t0
+          call $jn_gc_frame_set_root
+          local.get $t0
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t1
+          local.get $t1
+          if
+            i32.const 1
+            local.set $pc
+          else
+            i32.const 2
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $t0
+          i32.const 8
+          i32.add
+          i32.load
+          local.set $t2
+          local.get $__jn_frame
+          i32.const 10
+          local.get $t2
+          call $jn_gc_frame_set_root
+          local.get $t2
+          local.set $gctmp.3
+          local.get $__jn_frame
+          i32.const 4
+          local.get $gctmp.3
+          call $jn_gc_frame_set_root
+          local.get $gctmp.3
+          local.set $t3
+          local.get $__jn_frame
+          i32.const 11
+          local.get $t3
+          call $jn_gc_frame_set_root
+          local.get $t3
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t4
+          local.get $t4
+          if
+            i32.const 3
+            local.set $pc
+          else
+            i32.const 4
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $t3
+          call $_JN_ArrayList_size
+          local.set $t5
+          call $jnative_exception_pending
+          local.set $t6
+          local.get $t6
+          if
+            i32.const 5
+            local.set $pc
+          else
+            i32.const 6
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $t5
+          i32.const 0
+          i32.gt_s
+          local.set $t7
+          local.get $t7
+          if
+            i32.const 7
+            local.set $pc
+          else
+            i32.const 9
+            local.set $pc
+          end
+          br $dispatch
+        )
+          local.get $this__slot
+          local.set $t8
+          local.get $__jn_frame
+          i32.const 12
+          local.get $t8
+          call $jn_gc_frame_set_root
+          local.get $t8
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t9
+          local.get $t9
+          if
+            i32.const 10
+            local.set $pc
+          else
+            i32.const 11
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $this__slot
+          local.set $t21
+          local.get $__jn_frame
+          i32.const 19
+          local.get $t21
+          call $jn_gc_frame_set_root
+          local.get $t21
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t22
+          local.get $t22
+          if
+            i32.const 20
+            local.set $pc
+          else
+            i32.const 21
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $t8
+          i32.const 8
+          i32.add
+          i32.load
+          local.set $t10
+          local.get $__jn_frame
+          i32.const 13
+          local.get $t10
+          call $jn_gc_frame_set_root
+          local.get $t10
+          local.set $gctmp.11
+          local.get $__jn_frame
+          i32.const 6
+          local.get $gctmp.11
+          call $jn_gc_frame_set_root
+          local.get $gctmp.11
+          local.set $t11
+          local.get $__jn_frame
+          i32.const 14
+          local.get $t11
+          call $jn_gc_frame_set_root
+          local.get $t11
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t12
+          local.get $t12
+          if
+            i32.const 12
+            local.set $pc
+          else
+            i32.const 13
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $t11
+          i32.const 0
+          call $_JN_ArrayList_removeAt_i32
+          local.set $t13
+          local.get $__jn_frame
+          i32.const 15
+          local.get $t13
+          call $jn_gc_frame_set_root
+          call $jnative_exception_pending
+          local.set $t14
+          local.get $t14
+          if
+            i32.const 14
+            local.set $pc
+          else
+            i32.const 15
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $t13
+          local.set $gctmp.15
+          local.get $__jn_frame
+          i32.const 7
+          local.get $gctmp.15
+          call $jn_gc_frame_set_root
+          local.get $gctmp.15
+          local.set $t15
+          local.get $__jn_frame
+          i32.const 16
+          local.get $t15
+          call $jn_gc_frame_set_root
+          local.get $t15
+          local.set $f
+          local.get $__jn_frame
+          i32.const 5
+          local.get $f
+          call $jn_gc_frame_set_root
+          local.get $f
+          local.set $t16
+          local.get $__jn_frame
+          i32.const 17
+          local.get $t16
+          call $jn_gc_frame_set_root
+          local.get $t16
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t17
+          local.get $t17
+          if
+            i32.const 16
+            local.set $pc
+          else
+            i32.const 17
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $value__slot
+          local.set $t18
+          local.get $__jn_frame
+          i32.const 18
+          local.get $t18
+          call $jn_gc_frame_set_root
+          local.get $t16
+          local.get $t18
+          call $_JN_JnFuture_tryComplete_CObject
+          local.set $t19
+          call $jnative_exception_pending
+          local.set $t20
+          local.get $t20
+          if
+            i32.const 18
+            local.set $pc
+          else
+            i32.const 19
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          i32.const 8
+          local.set $pc
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $t21
+          i32.const 4
+          i32.add
+          i32.load
+          local.set $t23
+          local.get $__jn_frame
+          i32.const 20
+          local.get $t23
+          call $jn_gc_frame_set_root
+          local.get $t23
+          local.set $gctmp.24
+          local.get $__jn_frame
+          i32.const 8
+          local.get $gctmp.24
+          call $jn_gc_frame_set_root
+          local.get $gctmp.24
+          local.set $t24
+          local.get $__jn_frame
+          i32.const 21
+          local.get $t24
+          call $jn_gc_frame_set_root
+          local.get $t24
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t25
+          local.get $t25
+          if
+            i32.const 22
+            local.set $pc
+          else
+            i32.const 23
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $value__slot
+          local.set $t26
+          local.get $__jn_frame
+          i32.const 22
+          local.get $t26
+          call $jn_gc_frame_set_root
+          local.get $t24
+          local.get $t26
+          call $_JN_ArrayDeque_addLast_TT
+          call $jnative_exception_pending
+          local.set $t27
+          local.get $t27
+          if
+            i32.const 24
+            local.set $pc
+          else
+            i32.const 25
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          i32.const 8
+          local.set $pc
+          br $dispatch
+      )
+    )
+    call $jn_gc_frame_pop
+  )
+  (func $_JN_AsyncQueue_take (param $this i32) (result i32)
+    (local $pc i32)
+    (local $__jn_tid i32)
+    (local $__jn_asz i32)
+    (local $__jn_frame i32)
+    (local $ret i32)
+    (local $this__slot i32)
+    (local $f i32)
+    (local $gctmp.3 i32)
+    (local $gctmp.6 i32)
+    (local $gctmp.10 i32)
+    (local $v i32)
+    (local $gctmp.18 i32)
+    (local $gctmp.22 i32)
+    (local $gctmp.32 i32)
+    (local $t0 i32)
+    (local $t1 i32)
+    (local $t2 i32)
+    (local $t3 i32)
+    (local $t4 i32)
+    (local $t5 i32)
+    (local $t6 i32)
+    (local $t7 i32)
+    (local $t8 i32)
+    (local $t9 i32)
+    (local $t10 i32)
+    (local $t11 i32)
+    (local $t12 i32)
+    (local $t13 i32)
+    (local $t14 i32)
+    (local $t15 i32)
+    (local $t16 i32)
+    (local $t17 i32)
+    (local $t18 i32)
+    (local $t19 i32)
+    (local $t20 i32)
+    (local $t21 i32)
+    (local $t22 i32)
+    (local $t23 i32)
+    (local $t24 i32)
+    (local $t25 i32)
+    (local $t26 i32)
+    (local $t27 i32)
+    (local $t28 i32)
+    (local $t29 i32)
+    (local $t30 i32)
+    (local $t31 i32)
+    (local $t32 i32)
+    (local $t33 i32)
+    (local $t34 i32)
+    (local $t35 i32)
+    (local $t36 i32)
+    i32.const 31
+    call $jn_gc_frame_push
+    local.set $__jn_frame
+    local.get $__jn_frame
+    i32.const 0
+    local.get $this
+    call $jn_gc_frame_set_root
+    i32.const 0
+    local.set $pc
+    (block $exit
+      (loop $dispatch
+        (block $bb28
+        (block $bb27
+        (block $bb26
+        (block $bb25
+        (block $bb24
+        (block $bb23
+        (block $bb22
+        (block $bb21
+        (block $bb20
+        (block $bb19
+        (block $bb18
+        (block $bb17
+        (block $bb16
+        (block $bb15
+        (block $bb14
+        (block $bb13
+        (block $bb12
+        (block $bb11
+        (block $bb10
+        (block $bb9
+        (block $bb8
+        (block $bb7
+        (block $bb6
+        (block $bb5
+        (block $bb4
+        (block $bb3
+        (block $bb2
+        (block $bb1
+        (block $bb0
+          local.get $pc
+          br_table $bb0 $bb1 $bb2 $bb3 $bb4 $bb5 $bb6 $bb7 $bb8 $bb9 $bb10 $bb11 $bb12 $bb13 $bb14 $bb15 $bb16 $bb17 $bb18 $bb19 $bb20 $bb21 $bb22 $bb23 $bb24 $bb25 $bb26 $bb27 $bb28 $exit
+        )
+          local.get $this
+          local.set $this__slot
+          local.get $__jn_frame
+          i32.const 1
+          local.get $this__slot
+          call $jn_gc_frame_set_root
+          local.get $this__slot
+          local.set $t0
+          local.get $__jn_frame
+          i32.const 10
+          local.get $t0
+          call $jn_gc_frame_set_root
+          local.get $t0
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t1
+          local.get $t1
+          if
+            i32.const 1
+            local.set $pc
+          else
+            i32.const 2
+            local.set $pc
+          end
+          br $dispatch
+        )
+          i32.const 0
+          local.set $ret
+          br $exit
+        )
+          local.get $t0
+          i32.const 12
+          i32.add
+          i32.load
+          local.set $t2
+          local.get $__jn_frame
+          i32.const 11
+          local.get $t2
+          call $jn_gc_frame_set_root
+          local.get $t2
+          local.set $gctmp.3
+          local.get $__jn_frame
+          i32.const 3
+          local.get $gctmp.3
+          call $jn_gc_frame_set_root
+          local.get $gctmp.3
+          local.set $t3
+          local.get $__jn_frame
+          i32.const 12
+          local.get $t3
+          call $jn_gc_frame_set_root
+          local.get $t3
+          call $_JN_JnFuture_createPending_CEventLoop
+          local.set $t4
+          local.get $__jn_frame
+          i32.const 13
+          local.get $t4
+          call $jn_gc_frame_set_root
+          call $jnative_exception_pending
+          local.set $t5
+          local.get $t5
+          if
+            i32.const 3
+            local.set $pc
+          else
+            i32.const 4
+            local.set $pc
+          end
+          br $dispatch
+        )
+          i32.const 0
+          local.set $ret
+          br $exit
+        )
+          local.get $t4
+          local.set $gctmp.6
+          local.get $__jn_frame
+          i32.const 4
+          local.get $gctmp.6
+          call $jn_gc_frame_set_root
+          local.get $gctmp.6
+          local.set $t6
+          local.get $__jn_frame
+          i32.const 14
+          local.get $t6
+          call $jn_gc_frame_set_root
+          local.get $t6
+          local.set $f
+          local.get $__jn_frame
+          i32.const 2
+          local.get $f
+          call $jn_gc_frame_set_root
+          local.get $this__slot
+          local.set $t7
+          local.get $__jn_frame
+          i32.const 15
+          local.get $t7
+          call $jn_gc_frame_set_root
+          local.get $t7
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t8
+          local.get $t8
+          if
+            i32.const 5
+            local.set $pc
+          else
+            i32.const 6
+            local.set $pc
+          end
+          br $dispatch
+        )
+          i32.const 0
+          local.set $ret
+          br $exit
+        )
+          local.get $t7
+          i32.const 4
+          i32.add
+          i32.load
+          local.set $t9
+          local.get $__jn_frame
+          i32.const 16
+          local.get $t9
+          call $jn_gc_frame_set_root
+          local.get $t9
+          local.set $gctmp.10
+          local.get $__jn_frame
+          i32.const 5
+          local.get $gctmp.10
+          call $jn_gc_frame_set_root
+          local.get $gctmp.10
+          local.set $t10
+          local.get $__jn_frame
+          i32.const 17
+          local.get $t10
+          call $jn_gc_frame_set_root
+          local.get $t10
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t11
+          local.get $t11
+          if
+            i32.const 7
+            local.set $pc
+          else
+            i32.const 8
+            local.set $pc
+          end
+          br $dispatch
+        )
+          i32.const 0
+          local.set $ret
+          br $exit
+        )
+          local.get $t10
+          call $_JN_ArrayDeque_size
+          local.set $t12
+          call $jnative_exception_pending
+          local.set $t13
+          local.get $t13
+          if
+            i32.const 9
+            local.set $pc
+          else
+            i32.const 10
+            local.set $pc
+          end
+          br $dispatch
+        )
+          i32.const 0
+          local.set $ret
+          br $exit
+        )
+          local.get $t12
+          i32.const 0
+          i32.gt_s
+          local.set $t14
+          local.get $t14
+          if
+            i32.const 11
+            local.set $pc
+          else
+            i32.const 12
+            local.set $pc
+          end
+          br $dispatch
+        )
+          local.get $this__slot
+          local.set $t15
+          local.get $__jn_frame
+          i32.const 18
+          local.get $t15
+          call $jn_gc_frame_set_root
+          local.get $t15
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t16
+          local.get $t16
+          if
+            i32.const 13
+            local.set $pc
+          else
+            i32.const 14
+            local.set $pc
+          end
+          br $dispatch
+        )
+          local.get $this__slot
+          local.set $t29
+          local.get $__jn_frame
+          i32.const 26
+          local.get $t29
+          call $jn_gc_frame_set_root
+          local.get $t29
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t30
+          local.get $t30
+          if
+            i32.const 23
+            local.set $pc
+          else
+            i32.const 24
+            local.set $pc
+          end
+          br $dispatch
+        )
+          i32.const 0
+          local.set $ret
+          br $exit
+        )
+          local.get $t15
+          i32.const 4
+          i32.add
+          i32.load
+          local.set $t17
+          local.get $__jn_frame
+          i32.const 19
+          local.get $t17
+          call $jn_gc_frame_set_root
+          local.get $t17
+          local.set $gctmp.18
+          local.get $__jn_frame
+          i32.const 7
+          local.get $gctmp.18
+          call $jn_gc_frame_set_root
+          local.get $gctmp.18
+          local.set $t18
+          local.get $__jn_frame
+          i32.const 20
+          local.get $t18
+          call $jn_gc_frame_set_root
+          local.get $t18
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t19
+          local.get $t19
+          if
+            i32.const 15
+            local.set $pc
+          else
+            i32.const 16
+            local.set $pc
+          end
+          br $dispatch
+        )
+          i32.const 0
+          local.set $ret
+          br $exit
+        )
+          local.get $t18
+          call $_JN_ArrayDeque_removeFirst
+          local.set $t20
+          local.get $__jn_frame
+          i32.const 21
+          local.get $t20
+          call $jn_gc_frame_set_root
+          call $jnative_exception_pending
+          local.set $t21
+          local.get $t21
+          if
+            i32.const 17
+            local.set $pc
+          else
+            i32.const 18
+            local.set $pc
+          end
+          br $dispatch
+        )
+          i32.const 0
+          local.set $ret
+          br $exit
+        )
+          local.get $t20
+          local.set $gctmp.22
+          local.get $__jn_frame
+          i32.const 8
+          local.get $gctmp.22
+          call $jn_gc_frame_set_root
+          local.get $gctmp.22
+          local.set $t22
+          local.get $__jn_frame
+          i32.const 22
+          local.get $t22
+          call $jn_gc_frame_set_root
+          local.get $t22
+          local.set $v
+          local.get $__jn_frame
+          i32.const 6
+          local.get $v
+          call $jn_gc_frame_set_root
+          local.get $f
+          local.set $t23
+          local.get $__jn_frame
+          i32.const 23
+          local.get $t23
+          call $jn_gc_frame_set_root
+          local.get $t23
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t24
+          local.get $t24
+          if
+            i32.const 19
+            local.set $pc
+          else
+            i32.const 20
+            local.set $pc
+          end
+          br $dispatch
+        )
+          i32.const 0
+          local.set $ret
+          br $exit
+        )
+          local.get $v
+          local.set $t25
+          local.get $__jn_frame
+          i32.const 24
+          local.get $t25
+          call $jn_gc_frame_set_root
+          local.get $t23
+          local.get $t25
+          call $_JN_JnFuture_tryComplete_CObject
+          local.set $t26
+          call $jnative_exception_pending
+          local.set $t27
+          local.get $t27
+          if
+            i32.const 21
+            local.set $pc
+          else
+            i32.const 22
+            local.set $pc
+          end
+          br $dispatch
+        )
+          i32.const 0
+          local.set $ret
+          br $exit
+        )
+          local.get $f
+          local.set $t28
+          local.get $__jn_frame
+          i32.const 25
+          local.get $t28
+          call $jn_gc_frame_set_root
+          local.get $t28
+          local.set $ret
+          br $exit
+        )
+          i32.const 0
+          local.set $ret
+          br $exit
+        )
+          local.get $t29
+          i32.const 8
+          i32.add
+          i32.load
+          local.set $t31
+          local.get $__jn_frame
+          i32.const 27
+          local.get $t31
+          call $jn_gc_frame_set_root
+          local.get $t31
+          local.set $gctmp.32
+          local.get $__jn_frame
+          i32.const 9
+          local.get $gctmp.32
+          call $jn_gc_frame_set_root
+          local.get $gctmp.32
+          local.set $t32
+          local.get $__jn_frame
+          i32.const 28
+          local.get $t32
+          call $jn_gc_frame_set_root
+          local.get $t32
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t33
+          local.get $t33
+          if
+            i32.const 25
+            local.set $pc
+          else
+            i32.const 26
+            local.set $pc
+          end
+          br $dispatch
+        )
+          i32.const 0
+          local.set $ret
+          br $exit
+        )
+          local.get $f
+          local.set $t34
+          local.get $__jn_frame
+          i32.const 29
+          local.get $t34
+          call $jn_gc_frame_set_root
+          local.get $t32
+          local.get $t34
+          call $_JN_ArrayList_add_TT
+          call $jnative_exception_pending
+          local.set $t35
+          local.get $t35
+          if
+            i32.const 27
+            local.set $pc
+          else
+            i32.const 28
+            local.set $pc
+          end
+          br $dispatch
+        )
+          i32.const 0
+          local.set $ret
+          br $exit
+        )
+          local.get $f
+          local.set $t36
+          local.get $__jn_frame
+          i32.const 30
+          local.get $t36
+          call $jn_gc_frame_set_root
+          local.get $t36
+          local.set $ret
+          br $exit
+      )
+    )
+    call $jn_gc_frame_pop
+    local.get $ret
+  )
+  (func $_JN_AsyncTcpConnectSupplier_get (param $this i32) (result i32)
+    (local $pc i32)
+    (local $__jn_tid i32)
+    (local $__jn_asz i32)
+    (local $__jn_frame i32)
+    (local $ret i32)
+    (local $this__slot i32)
+    (local $sock i32)
+    (local $gctmp.3 i32)
+    (local $gctmp.9 i32)
+    (local $out i32)
+    (local $gctmp.11 i32)
+    (local $gctmp.16 i32)
+    (local $t0 i32)
+    (local $t1 i32)
+    (local $t2 i32)
+    (local $t3 i32)
+    (local $t4 i32)
+    (local $t5 i32)
+    (local $t6 i32)
+    (local $t7 i32)
+    (local $t8 i32)
+    (local $t9 i32)
+    (local $t10 i32)
+    (local $t11 i32)
+    (local $t12 i32)
+    (local $t13 i32)
+    (local $t14 i32)
+    (local $t15 i32)
+    (local $t16 i32)
+    (local $t17 i32)
+    (local $t18 i32)
+    (local $t19 i32)
+    (local $t20 i32)
+    (local $t21 i32)
+    (local $t22 i32)
+    i32.const 23
+    call $jn_gc_frame_push
+    local.set $__jn_frame
+    local.get $__jn_frame
+    i32.const 0
+    local.get $this
+    call $jn_gc_frame_set_root
+    i32.const 0
+    local.set $pc
+    (block $exit
+      (loop $dispatch
+        (block $bb14
+        (block $bb13
+        (block $bb12
+        (block $bb11
+        (block $bb10
+        (block $bb9
+        (block $bb8
+        (block $bb7
+        (block $bb6
+        (block $bb5
+        (block $bb4
+        (block $bb3
+        (block $bb2
+        (block $bb1
+        (block $bb0
+          local.get $pc
+          br_table $bb0 $bb1 $bb2 $bb3 $bb4 $bb5 $bb6 $bb7 $bb8 $bb9 $bb10 $bb11 $bb12 $bb13 $bb14 $exit
+        )
+          local.get $this
+          local.set $this__slot
+          local.get $__jn_frame
+          i32.const 1
+          local.get $this__slot
+          call $jn_gc_frame_set_root
+          local.get $this__slot
+          local.set $t0
+          local.get $__jn_frame
+          i32.const 8
+          local.get $t0
+          call $jn_gc_frame_set_root
+          local.get $t0
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t1
+          local.get $t1
+          if
+            i32.const 1
+            local.set $pc
+          else
+            i32.const 2
+            local.set $pc
+          end
+          br $dispatch
+        )
+          i32.const 0
+          local.set $ret
+          br $exit
+        )
+          local.get $t0
+          i32.const 8
+          i32.add
+          i32.load
+          local.set $t2
+          local.get $__jn_frame
+          i32.const 9
+          local.get $t2
+          call $jn_gc_frame_set_root
+          local.get $t2
+          local.set $gctmp.3
+          local.get $__jn_frame
+          i32.const 3
+          local.get $gctmp.3
+          call $jn_gc_frame_set_root
+          local.get $gctmp.3
+          local.set $t3
+          local.get $__jn_frame
+          i32.const 10
+          local.get $t3
+          call $jn_gc_frame_set_root
+          local.get $this__slot
+          local.set $t4
+          local.get $__jn_frame
+          i32.const 11
+          local.get $t4
+          call $jn_gc_frame_set_root
+          local.get $t4
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t5
+          local.get $t5
+          if
+            i32.const 3
+            local.set $pc
+          else
+            i32.const 4
+            local.set $pc
+          end
+          br $dispatch
+        )
+          i32.const 0
+          local.set $ret
+          br $exit
+        )
+          local.get $t4
+          i32.const 12
+          i32.add
+          i32.load
+          local.set $t6
+          i32.const 0
+          local.set $t7
+          local.get $__jn_frame
+          i32.const 12
+          local.get $t7
+          call $jn_gc_frame_set_root
+          call $jnative_exception_pending
+          local.set $t8
+          local.get $t8
+          if
+            i32.const 5
+            local.set $pc
+          else
+            i32.const 6
+            local.set $pc
+          end
+          br $dispatch
+        )
+          i32.const 0
+          local.set $ret
+          br $exit
+        )
+          local.get $t7
+          local.set $gctmp.9
+          local.get $__jn_frame
+          i32.const 4
+          local.get $gctmp.9
+          call $jn_gc_frame_set_root
+          local.get $gctmp.9
+          local.set $t9
+          local.get $__jn_frame
+          i32.const 13
+          local.get $t9
+          call $jn_gc_frame_set_root
+          local.get $t9
+          local.set $sock
+          local.get $__jn_frame
+          i32.const 2
+          local.get $sock
+          call $jn_gc_frame_set_root
+          i32.const 12
+          call $jn_alloc_zeroed
+          local.set $t10
+          local.get $t10
+          i32.eqz
+          if
+            unreachable
+          end
+          local.get $t10
+          i32.const 23
+          i32.store
+          local.get $__jn_frame
+          i32.const 14
+          local.get $t10
+          call $jn_gc_frame_set_root
+          local.get $t10
+          local.set $gctmp.11
+          local.get $__jn_frame
+          i32.const 6
+          local.get $gctmp.11
+          call $jn_gc_frame_set_root
+          local.get $gctmp.11
+          local.set $t11
+          local.get $__jn_frame
+          i32.const 15
+          local.get $t11
+          call $jn_gc_frame_set_root
+          local.get $t11
+          call $_JN_AsyncTcpSocket_init
+          call $jnative_exception_pending
+          local.set $t12
+          local.get $t12
+          if
+            i32.const 7
+            local.set $pc
+          else
+            i32.const 8
+            local.set $pc
+          end
+          br $dispatch
+        )
+          i32.const 0
+          local.set $ret
+          br $exit
+        )
+          local.get $t11
+          local.set $out
+          local.get $__jn_frame
+          i32.const 5
+          local.get $out
+          call $jn_gc_frame_set_root
+          local.get $this__slot
+          local.set $t13
+          local.get $__jn_frame
+          i32.const 16
+          local.get $t13
+          call $jn_gc_frame_set_root
+          local.get $t13
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t14
+          local.get $t14
+          if
+            i32.const 9
+            local.set $pc
+          else
+            i32.const 10
+            local.set $pc
+          end
+          br $dispatch
+        )
+          i32.const 0
+          local.set $ret
+          br $exit
+        )
+          local.get $t13
+          i32.const 4
+          i32.add
+          i32.load
+          local.set $t15
+          local.get $__jn_frame
+          i32.const 17
+          local.get $t15
+          call $jn_gc_frame_set_root
+          local.get $t15
+          local.set $gctmp.16
+          local.get $__jn_frame
+          i32.const 7
+          local.get $gctmp.16
+          call $jn_gc_frame_set_root
+          local.get $gctmp.16
+          local.set $t16
+          local.get $__jn_frame
+          i32.const 18
+          local.get $t16
+          call $jn_gc_frame_set_root
+          local.get $out
+          local.set $t17
+          local.get $__jn_frame
+          i32.const 19
+          local.get $t17
+          call $jn_gc_frame_set_root
+          call $jnative_exception_pending
+          local.set $t18
+          local.get $t18
+          if
+            i32.const 11
+            local.set $pc
+          else
+            i32.const 12
+            local.set $pc
+          end
+          br $dispatch
+        )
+          i32.const 0
+          local.set $ret
+          br $exit
+        )
+          local.get $t17
+          i32.const 4
+          i32.add
+          local.get $t16
+          i32.store
+          local.get $sock
+          local.set $t19
+          local.get $__jn_frame
+          i32.const 20
+          local.get $t19
+          call $jn_gc_frame_set_root
+          local.get $out
+          local.set $t20
+          local.get $__jn_frame
+          i32.const 21
+          local.get $t20
+          call $jn_gc_frame_set_root
+          call $jnative_exception_pending
+          local.set $t21
+          local.get $t21
+          if
+            i32.const 13
+            local.set $pc
+          else
+            i32.const 14
+            local.set $pc
+          end
+          br $dispatch
+        )
+          i32.const 0
+          local.set $ret
+          br $exit
+        )
+          local.get $t20
+          i32.const 8
+          i32.add
+          local.get $t19
+          i32.store
+          local.get $out
+          local.set $t22
+          local.get $__jn_frame
+          i32.const 22
+          local.get $t22
+          call $jn_gc_frame_set_root
+          local.get $t22
+          local.set $ret
+          br $exit
+      )
+    )
+    call $jn_gc_frame_pop
+    local.get $ret
+  )
+  (func $_JN_AsyncTcpSocket_init (param $this i32)
+    (local $pc i32)
+    (local $__jn_tid i32)
+    (local $__jn_asz i32)
+    (local $__jn_frame i32)
+    (local $this__slot i32)
+    (local $t0 i32)
+    (local $t1 i32)
+    i32.const 3
+    call $jn_gc_frame_push
+    local.set $__jn_frame
+    local.get $__jn_frame
+    i32.const 0
+    local.get $this
+    call $jn_gc_frame_set_root
+    i32.const 0
+    local.set $pc
+    (block $exit
+      (loop $dispatch
+        (block $bb2
+        (block $bb1
+        (block $bb0
+          local.get $pc
+          br_table $bb0 $bb1 $bb2 $exit
+        )
+          local.get $this
+          local.set $this__slot
+          local.get $__jn_frame
+          i32.const 1
+          local.get $this__slot
+          call $jn_gc_frame_set_root
+          local.get $this__slot
+          local.set $t0
+          local.get $__jn_frame
+          i32.const 2
+          local.get $t0
+          call $jn_gc_frame_set_root
+          local.get $t0
+          call $_JN_Object_init
+          call $jnative_exception_pending
+          local.set $t1
+          local.get $t1
+          if
+            i32.const 1
+            local.set $pc
+          else
+            i32.const 2
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          br $exit
+      )
+    )
+    call $jn_gc_frame_pop
+  )
+  (func $_JN_AsyncTcpSocket_writeAll_Ai8 (param $this i32) (param $data i32) (result i32)
+    (local $pc i32)
+    (local $__jn_tid i32)
+    (local $__jn_asz i32)
+    (local $__jn_frame i32)
+    (local $ret i32)
+    (local $this__slot i32)
+    (local $data__slot i32)
+    (local $sup i32)
+    (local $gctmp.1 i32)
+    (local $gctmp.6 i32)
+    (local $gctmp.15 i32)
+    (local $gctmp.19 i32)
+    (local $t0 i32)
+    (local $t1 i32)
+    (local $t2 i32)
+    (local $t3 i32)
+    (local $t4 i32)
+    (local $t5 i32)
+    (local $t6 i32)
+    (local $t7 i32)
+    (local $t8 i32)
+    (local $t9 i32)
+    (local $t10 i32)
+    (local $t11 i32)
+    (local $t12 i32)
+    (local $t13 i32)
+    (local $t14 i32)
+    (local $t15 i32)
+    (local $t16 i32)
+    (local $t17 i32)
+    (local $t18 i32)
+    (local $t19 i32)
+    i32.const 23
+    call $jn_gc_frame_push
+    local.set $__jn_frame
+    local.get $__jn_frame
+    i32.const 0
+    local.get $this
+    call $jn_gc_frame_set_root
+    local.get $__jn_frame
+    i32.const 1
+    local.get $data
+    call $jn_gc_frame_set_root
+    i32.const 0
+    local.set $pc
+    (block $exit
+      (loop $dispatch
+        (block $bb12
+        (block $bb11
+        (block $bb10
+        (block $bb9
+        (block $bb8
+        (block $bb7
+        (block $bb6
+        (block $bb5
+        (block $bb4
+        (block $bb3
+        (block $bb2
+        (block $bb1
+        (block $bb0
+          local.get $pc
+          br_table $bb0 $bb1 $bb2 $bb3 $bb4 $bb5 $bb6 $bb7 $bb8 $bb9 $bb10 $bb11 $bb12 $exit
+        )
+          local.get $this
+          local.set $this__slot
+          local.get $__jn_frame
+          i32.const 2
+          local.get $this__slot
+          call $jn_gc_frame_set_root
+          local.get $data
+          local.set $data__slot
+          local.get $__jn_frame
+          i32.const 3
+          local.get $data__slot
+          call $jn_gc_frame_set_root
+          i32.const 12
+          call $jn_alloc_zeroed
+          local.set $t0
+          local.get $t0
+          i32.eqz
+          if
+            unreachable
+          end
+          local.get $t0
+          i32.const 14
+          i32.store
+          local.get $__jn_frame
+          i32.const 9
+          local.get $t0
+          call $jn_gc_frame_set_root
+          local.get $t0
+          local.set $gctmp.1
+          local.get $__jn_frame
+          i32.const 5
+          local.get $gctmp.1
+          call $jn_gc_frame_set_root
+          local.get $gctmp.1
+          local.set $t1
+          local.get $__jn_frame
+          i32.const 10
+          local.get $t1
+          call $jn_gc_frame_set_root
+          local.get $t1
+          call $_JN_AsyncTcpWriteSupplier_init
+          call $jnative_exception_pending
+          local.set $t2
+          local.get $t2
+          if
+            i32.const 1
+            local.set $pc
+          else
+            i32.const 2
+            local.set $pc
+          end
+          br $dispatch
+        )
+          i32.const 0
+          local.set $ret
+          br $exit
+        )
+          local.get $t1
+          local.set $sup
+          local.get $__jn_frame
+          i32.const 4
+          local.get $sup
+          call $jn_gc_frame_set_root
+          local.get $this__slot
+          local.set $t3
+          local.get $__jn_frame
+          i32.const 11
+          local.get $t3
+          call $jn_gc_frame_set_root
+          local.get $t3
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t4
+          local.get $t4
+          if
+            i32.const 3
+            local.set $pc
+          else
+            i32.const 4
+            local.set $pc
+          end
+          br $dispatch
+        )
+          i32.const 0
+          local.set $ret
+          br $exit
+        )
+          local.get $t3
+          i32.const 8
+          i32.add
+          i32.load
+          local.set $t5
+          local.get $__jn_frame
+          i32.const 12
+          local.get $t5
+          call $jn_gc_frame_set_root
+          local.get $t5
+          local.set $gctmp.6
+          local.get $__jn_frame
+          i32.const 6
+          local.get $gctmp.6
+          call $jn_gc_frame_set_root
+          local.get $gctmp.6
+          local.set $t6
+          local.get $__jn_frame
+          i32.const 13
+          local.get $t6
+          call $jn_gc_frame_set_root
+          local.get $sup
+          local.set $t7
+          local.get $__jn_frame
+          i32.const 14
+          local.get $t7
+          call $jn_gc_frame_set_root
+          call $jnative_exception_pending
+          local.set $t8
+          local.get $t8
+          if
+            i32.const 5
+            local.set $pc
+          else
+            i32.const 6
+            local.set $pc
+          end
+          br $dispatch
+        )
+          i32.const 0
+          local.set $ret
+          br $exit
+        )
+          local.get $t7
+          i32.const 4
+          i32.add
+          local.get $t6
+          i32.store
+          local.get $data__slot
+          local.set $t9
+          local.get $__jn_frame
+          i32.const 15
+          local.get $t9
+          call $jn_gc_frame_set_root
+          local.get $sup
+          local.set $t10
+          local.get $__jn_frame
+          i32.const 16
+          local.get $t10
+          call $jn_gc_frame_set_root
+          call $jnative_exception_pending
+          local.set $t11
+          local.get $t11
+          if
+            i32.const 7
+            local.set $pc
+          else
+            i32.const 8
+            local.set $pc
+          end
+          br $dispatch
+        )
+          i32.const 0
+          local.set $ret
+          br $exit
+        )
+          local.get $t10
+          i32.const 8
+          i32.add
+          local.get $t9
+          i32.store
+          local.get $this__slot
+          local.set $t12
+          local.get $__jn_frame
+          i32.const 17
+          local.get $t12
+          call $jn_gc_frame_set_root
+          local.get $t12
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t13
+          local.get $t13
+          if
+            i32.const 9
+            local.set $pc
+          else
+            i32.const 10
+            local.set $pc
+          end
+          br $dispatch
+        )
+          i32.const 0
+          local.set $ret
+          br $exit
+        )
+          local.get $t12
+          i32.const 4
+          i32.add
+          i32.load
+          local.set $t14
+          local.get $__jn_frame
+          i32.const 18
+          local.get $t14
+          call $jn_gc_frame_set_root
+          local.get $t14
+          local.set $gctmp.15
+          local.get $__jn_frame
+          i32.const 7
+          local.get $gctmp.15
+          call $jn_gc_frame_set_root
+          local.get $gctmp.15
+          local.set $t15
+          local.get $__jn_frame
+          i32.const 19
+          local.get $t15
+          call $jn_gc_frame_set_root
+          local.get $sup
+          local.set $t16
+          local.get $__jn_frame
+          i32.const 20
+          local.get $t16
+          call $jn_gc_frame_set_root
+          local.get $t15
+          local.get $t16
+          call $_JN_Async_blockingOnLoop_CEventLoop_IBlockingSupplier
+          local.set $t17
+          local.get $__jn_frame
+          i32.const 21
+          local.get $t17
+          call $jn_gc_frame_set_root
+          call $jnative_exception_pending
+          local.set $t18
+          local.get $t18
+          if
+            i32.const 11
+            local.set $pc
+          else
+            i32.const 12
+            local.set $pc
+          end
+          br $dispatch
+        )
+          i32.const 0
+          local.set $ret
+          br $exit
+        )
+          local.get $t17
+          local.set $gctmp.19
+          local.get $__jn_frame
+          i32.const 8
+          local.get $gctmp.19
+          call $jn_gc_frame_set_root
+          local.get $gctmp.19
+          local.set $t19
+          local.get $__jn_frame
+          i32.const 22
+          local.get $t19
+          call $jn_gc_frame_set_root
+          local.get $t19
+          local.set $ret
+          br $exit
+      )
+    )
+    call $jn_gc_frame_pop
+    local.get $ret
+  )
+  (func $_JN_AsyncTcpWriteSupplier_init (param $this i32)
+    (local $pc i32)
+    (local $__jn_tid i32)
+    (local $__jn_asz i32)
+    (local $__jn_frame i32)
+    (local $this__slot i32)
+    (local $t0 i32)
+    (local $t1 i32)
+    i32.const 3
+    call $jn_gc_frame_push
+    local.set $__jn_frame
+    local.get $__jn_frame
+    i32.const 0
+    local.get $this
+    call $jn_gc_frame_set_root
+    i32.const 0
+    local.set $pc
+    (block $exit
+      (loop $dispatch
+        (block $bb2
+        (block $bb1
+        (block $bb0
+          local.get $pc
+          br_table $bb0 $bb1 $bb2 $exit
+        )
+          local.get $this
+          local.set $this__slot
+          local.get $__jn_frame
+          i32.const 1
+          local.get $this__slot
+          call $jn_gc_frame_set_root
+          local.get $this__slot
+          local.set $t0
+          local.get $__jn_frame
+          i32.const 2
+          local.get $t0
+          call $jn_gc_frame_set_root
+          local.get $t0
+          call $_JN_Object_init
+          call $jnative_exception_pending
+          local.set $t1
+          local.get $t1
+          if
+            i32.const 1
+            local.set $pc
+          else
+            i32.const 2
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          br $exit
+      )
+    )
+    call $jn_gc_frame_pop
+  )
+  (func $_JN_Async_blockingOnLoop_CEventLoop_IBlockingSupplier (param $loop i32) (param $supplier i32) (result i32)
+    (local $pc i32)
+    (local $__jn_tid i32)
+    (local $__jn_asz i32)
+    (local $__jn_frame i32)
+    (local $ret i32)
+    (local $loop__slot i32)
+    (local $supplier__slot i32)
+    (local $f i32)
+    (local $gctmp.3 i32)
+    (local $task i32)
+    (local $gctmp.6 i32)
+    (local $gctmp.18 i32)
+    (local $t0 i32)
+    (local $t1 i32)
+    (local $t2 i32)
+    (local $t3 i32)
+    (local $t4 i32)
+    (local $t5 i32)
+    (local $t6 i32)
+    (local $t7 i32)
+    (local $t8 i32)
+    (local $t9 i32)
+    (local $t10 i32)
+    (local $t11 i32)
+    (local $t12 i32)
+    (local $t13 i32)
+    (local $t14 i32)
+    (local $t15 i32)
+    (local $t16 i32)
+    (local $t17 i32)
+    (local $t18 i32)
+    (local $t19 i32)
+    (local $t20 i32)
+    (local $t21 i32)
+    (local $t22 i32)
+    i32.const 24
+    call $jn_gc_frame_push
+    local.set $__jn_frame
+    local.get $__jn_frame
+    i32.const 0
+    local.get $loop
+    call $jn_gc_frame_set_root
+    local.get $__jn_frame
+    i32.const 1
+    local.get $supplier
+    call $jn_gc_frame_set_root
+    i32.const 0
+    local.set $pc
+    (block $exit
+      (loop $dispatch
+        (block $bb16
+        (block $bb15
+        (block $bb14
+        (block $bb13
+        (block $bb12
+        (block $bb11
+        (block $bb10
+        (block $bb9
+        (block $bb8
+        (block $bb7
+        (block $bb6
+        (block $bb5
+        (block $bb4
+        (block $bb3
+        (block $bb2
+        (block $bb1
+        (block $bb0
+          local.get $pc
+          br_table $bb0 $bb1 $bb2 $bb3 $bb4 $bb5 $bb6 $bb7 $bb8 $bb9 $bb10 $bb11 $bb12 $bb13 $bb14 $bb15 $bb16 $exit
+        )
+          local.get $loop
+          local.set $loop__slot
+          local.get $__jn_frame
+          i32.const 2
+          local.get $loop__slot
+          call $jn_gc_frame_set_root
+          local.get $supplier
+          local.set $supplier__slot
+          local.get $__jn_frame
+          i32.const 3
+          local.get $supplier__slot
+          call $jn_gc_frame_set_root
+          local.get $loop__slot
+          local.set $t0
+          local.get $__jn_frame
+          i32.const 9
+          local.get $t0
+          call $jn_gc_frame_set_root
+          local.get $t0
+          call $_JN_JnFuture_createPending_CEventLoop
+          local.set $t1
+          local.get $__jn_frame
+          i32.const 10
+          local.get $t1
+          call $jn_gc_frame_set_root
+          call $jnative_exception_pending
+          local.set $t2
+          local.get $t2
+          if
+            i32.const 1
+            local.set $pc
+          else
+            i32.const 2
+            local.set $pc
+          end
+          br $dispatch
+        )
+          i32.const 0
+          local.set $ret
+          br $exit
+        )
+          local.get $t1
+          local.set $gctmp.3
+          local.get $__jn_frame
+          i32.const 5
+          local.get $gctmp.3
+          call $jn_gc_frame_set_root
+          local.get $gctmp.3
+          local.set $t3
+          local.get $__jn_frame
+          i32.const 11
+          local.get $t3
+          call $jn_gc_frame_set_root
+          local.get $t3
+          local.set $f
+          local.get $__jn_frame
+          i32.const 4
+          local.get $f
+          call $jn_gc_frame_set_root
+          call $_JN_Async_ensurePool
+          call $jnative_exception_pending
+          local.set $t4
+          local.get $t4
+          if
+            i32.const 3
+            local.set $pc
+          else
+            i32.const 4
+            local.set $pc
+          end
+          br $dispatch
+        )
+          i32.const 0
+          local.set $ret
+          br $exit
+        )
+          i32.const 16
+          call $jn_alloc_zeroed
+          local.set $t5
+          local.get $t5
+          i32.eqz
+          if
+            unreachable
+          end
+          local.get $t5
+          i32.const 34
+          i32.store
+          local.get $__jn_frame
+          i32.const 12
+          local.get $t5
+          call $jn_gc_frame_set_root
+          local.get $t5
+          local.set $gctmp.6
+          local.get $__jn_frame
+          i32.const 7
+          local.get $gctmp.6
+          call $jn_gc_frame_set_root
+          local.get $gctmp.6
+          local.set $t6
+          local.get $__jn_frame
+          i32.const 13
+          local.get $t6
+          call $jn_gc_frame_set_root
+          local.get $t6
+          call $_JN_BlockingRunTask_init
+          call $jnative_exception_pending
+          local.set $t7
+          local.get $t7
+          if
+            i32.const 5
+            local.set $pc
+          else
+            i32.const 6
+            local.set $pc
+          end
+          br $dispatch
+        )
+          i32.const 0
+          local.set $ret
+          br $exit
+        )
+          local.get $t6
+          local.set $task
+          local.get $__jn_frame
+          i32.const 6
+          local.get $task
+          call $jn_gc_frame_set_root
+          local.get $loop__slot
+          local.set $t8
+          local.get $__jn_frame
+          i32.const 14
+          local.get $t8
+          call $jn_gc_frame_set_root
+          local.get $task
+          local.set $t9
+          local.get $__jn_frame
+          i32.const 15
+          local.get $t9
+          call $jn_gc_frame_set_root
+          call $jnative_exception_pending
+          local.set $t10
+          local.get $t10
+          if
+            i32.const 7
+            local.set $pc
+          else
+            i32.const 8
+            local.set $pc
+          end
+          br $dispatch
+        )
+          i32.const 0
+          local.set $ret
+          br $exit
+        )
+          local.get $t9
+          i32.const 4
+          i32.add
+          local.get $t8
+          i32.store
+          local.get $f
+          local.set $t11
+          local.get $__jn_frame
+          i32.const 16
+          local.get $t11
+          call $jn_gc_frame_set_root
+          local.get $task
+          local.set $t12
+          local.get $__jn_frame
+          i32.const 17
+          local.get $t12
+          call $jn_gc_frame_set_root
+          call $jnative_exception_pending
+          local.set $t13
+          local.get $t13
+          if
+            i32.const 9
+            local.set $pc
+          else
+            i32.const 10
+            local.set $pc
+          end
+          br $dispatch
+        )
+          i32.const 0
+          local.set $ret
+          br $exit
+        )
+          local.get $t12
+          i32.const 8
+          i32.add
+          local.get $t11
+          i32.store
+          local.get $supplier__slot
+          local.set $t14
+          local.get $__jn_frame
+          i32.const 18
+          local.get $t14
+          call $jn_gc_frame_set_root
+          local.get $task
+          local.set $t15
+          local.get $__jn_frame
+          i32.const 19
+          local.get $t15
+          call $jn_gc_frame_set_root
+          call $jnative_exception_pending
+          local.set $t16
+          local.get $t16
+          if
+            i32.const 11
+            local.set $pc
+          else
+            i32.const 12
+            local.set $pc
+          end
+          br $dispatch
+        )
+          i32.const 0
+          local.set $ret
+          br $exit
+        )
+          local.get $t15
+          i32.const 12
+          i32.add
+          local.get $t14
+          i32.store
+          global.get $g_jn_static_Async_sharedPool
+          local.set $t17
+          local.get $__jn_frame
+          i32.const 20
+          local.get $t17
+          call $jn_gc_frame_set_root
+          local.get $t17
+          local.set $gctmp.18
+          local.get $__jn_frame
+          i32.const 8
+          local.get $gctmp.18
+          call $jn_gc_frame_set_root
+          local.get $gctmp.18
+          local.set $t18
+          local.get $__jn_frame
+          i32.const 21
+          local.get $t18
+          call $jn_gc_frame_set_root
+          local.get $t18
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t19
+          local.get $t19
+          if
+            i32.const 13
+            local.set $pc
+          else
+            i32.const 14
+            local.set $pc
+          end
+          br $dispatch
+        )
+          i32.const 0
+          local.set $ret
+          br $exit
+        )
+          local.get $task
+          local.set $t20
+          local.get $__jn_frame
+          i32.const 22
+          local.get $t20
+          call $jn_gc_frame_set_root
+          local.get $t18
+          local.get $t20
+          call $_JN_ThreadPoolExecutor_execute_IPoolTask
+          call $jnative_exception_pending
+          local.set $t21
+          local.get $t21
+          if
+            i32.const 15
+            local.set $pc
+          else
+            i32.const 16
+            local.set $pc
+          end
+          br $dispatch
+        )
+          i32.const 0
+          local.set $ret
+          br $exit
+        )
+          local.get $f
+          local.set $t22
+          local.get $__jn_frame
+          i32.const 23
+          local.get $t22
+          call $jn_gc_frame_set_root
+          local.get $t22
+          local.set $ret
+          br $exit
+      )
+    )
+    call $jn_gc_frame_pop
+    local.get $ret
+  )
+  (func $_JN_Async_ensurePool
+    (local $pc i32)
+    (local $__jn_tid i32)
+    (local $__jn_asz i32)
+    (local $__jn_frame i32)
+    (local $gctmp.4 i32)
+    (local $t0 i32)
+    (local $t1 i32)
+    (local $t2 i32)
+    (local $t3 i32)
+    (local $t4 i32)
+    i32.const 3
+    call $jn_gc_frame_push
+    local.set $__jn_frame
+    i32.const 0
+    local.set $pc
+    (block $exit
+      (loop $dispatch
+        (block $bb4
+        (block $bb3
+        (block $bb2
+        (block $bb1
+        (block $bb0
+          local.get $pc
+          br_table $bb0 $bb1 $bb2 $bb3 $bb4 $exit
+        )
+          global.get $g_jn_static_Async_poolInit
+          local.set $t0
+          local.get $t0
+          i32.const 0
+          i32.ne
+          local.set $t1
+          local.get $t1
+          if
+            i32.const 1
+            local.set $pc
+          else
+            i32.const 2
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          call $_JN_ThreadPoolExecutor_createDefault
+          local.set $t2
+          local.get $__jn_frame
+          i32.const 1
+          local.get $t2
+          call $jn_gc_frame_set_root
+          call $jnative_exception_pending
+          local.set $t3
+          local.get $t3
+          if
+            i32.const 3
+            local.set $pc
+          else
+            i32.const 4
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $t2
+          local.set $gctmp.4
+          local.get $__jn_frame
+          i32.const 0
+          local.get $gctmp.4
+          call $jn_gc_frame_set_root
+          local.get $gctmp.4
+          local.set $t4
+          local.get $__jn_frame
+          i32.const 2
+          local.get $t4
+          call $jn_gc_frame_set_root
+          local.get $t4
+          global.set $g_jn_static_Async_sharedPool
+          i32.const 1
+          global.set $g_jn_static_Async_poolInit
+          br $exit
+      )
+    )
+    call $jn_gc_frame_pop
+  )
+  (func $_JN_ThreadPoolExecutor_execute_IPoolTask (param $this i32) (param $task i32)
+    (local $pc i32)
+    (local $__jn_tid i32)
+    (local $__jn_asz i32)
+    (local $__jn_frame i32)
+    (local $this__slot i32)
+    (local $task__slot i32)
+    (local $gctmp.5 i32)
+    (local $gctmp.15 i32)
+    (local $gctmp.19 i32)
+    (local $gctmp.21 i32)
+    (local $gctmp.27 i32)
+    (local $gctmp.34 i32)
+    (local $gctmp.39 i32)
+    (local $t0 i32)
+    (local $t1 i32)
+    (local $t2 i32)
+    (local $t3 i32)
+    (local $t4 i32)
+    (local $t5 i32)
+    (local $t6 i32)
+    (local $t7 i32)
+    (local $t8 i32)
+    (local $t9 i32)
+    (local $t10 i32)
+    (local $t11 i32)
+    (local $t12 i32)
+    (local $t13 i32)
+    (local $t14 i32)
+    (local $t15 i32)
+    (local $t16 i32)
+    (local $t17 i32)
+    (local $t18 i32)
+    (local $t19 i32)
+    (local $t20 i32)
+    (local $t21 i32)
+    (local $t22 i32)
+    (local $t23 i32)
+    (local $t24 i32)
+    (local $t25 i32)
+    (local $t26 i32)
+    (local $t27 i32)
+    (local $t28 i32)
+    (local $t29 i32)
+    (local $t30 i32)
+    (local $t31 i32)
+    (local $t32 i32)
+    (local $t33 i32)
+    (local $t34 i32)
+    (local $t35 i32)
+    (local $t36 i32)
+    (local $t37 i32)
+    (local $t38 i32)
+    (local $t39 i32)
+    (local $t40 i32)
+    (local $t41 i32)
+    i32.const 33
+    call $jn_gc_frame_push
+    local.set $__jn_frame
+    local.get $__jn_frame
+    i32.const 0
+    local.get $this
+    call $jn_gc_frame_set_root
+    local.get $__jn_frame
+    i32.const 1
+    local.get $task
+    call $jn_gc_frame_set_root
+    i32.const 0
+    local.set $pc
+    (block $exit
+      (loop $dispatch
+        (block $bb38
+        (block $bb37
+        (block $bb36
+        (block $bb35
+        (block $bb34
+        (block $bb33
+        (block $bb32
+        (block $bb31
+        (block $bb30
+        (block $bb29
+        (block $bb28
+        (block $bb27
+        (block $bb26
+        (block $bb25
+        (block $bb24
+        (block $bb23
+        (block $bb22
+        (block $bb21
+        (block $bb20
+        (block $bb19
+        (block $bb18
+        (block $bb17
+        (block $bb16
+        (block $bb15
+        (block $bb14
+        (block $bb13
+        (block $bb12
+        (block $bb11
+        (block $bb10
+        (block $bb9
+        (block $bb8
+        (block $bb7
+        (block $bb6
+        (block $bb5
+        (block $bb4
+        (block $bb3
+        (block $bb2
+        (block $bb1
+        (block $bb0
+          local.get $pc
+          br_table $bb0 $bb1 $bb2 $bb3 $bb4 $bb5 $bb6 $bb7 $bb8 $bb9 $bb10 $bb11 $bb12 $bb13 $bb14 $bb15 $bb16 $bb17 $bb18 $bb19 $bb20 $bb21 $bb22 $bb23 $bb24 $bb25 $bb26 $bb27 $bb28 $bb29 $bb30 $bb31 $bb32 $bb33 $bb34 $bb35 $bb36 $bb37 $bb38 $exit
+        )
+          local.get $this
+          local.set $this__slot
+          local.get $__jn_frame
+          i32.const 2
+          local.get $this__slot
+          call $jn_gc_frame_set_root
+          local.get $task
+          local.set $task__slot
+          local.get $__jn_frame
+          i32.const 3
+          local.get $task__slot
+          call $jn_gc_frame_set_root
+          local.get $task__slot
+          local.set $t0
+          local.get $__jn_frame
+          i32.const 11
+          local.get $t0
+          call $jn_gc_frame_set_root
+          local.get $t0
+          i32.const 0
+          i32.eq
+          local.set $t1
+          local.get $t1
+          if
+            i32.const 1
+            local.set $pc
+          else
+            i32.const 2
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $this__slot
+          local.set $t2
+          local.get $__jn_frame
+          i32.const 12
+          local.get $t2
+          call $jn_gc_frame_set_root
+          local.get $t2
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t3
+          local.get $t3
+          if
+            i32.const 3
+            local.set $pc
+          else
+            i32.const 4
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $t2
+          i32.const 8
+          i32.add
+          i32.load
+          local.set $t4
+          local.get $__jn_frame
+          i32.const 13
+          local.get $t4
+          call $jn_gc_frame_set_root
+          local.get $t4
+          local.set $gctmp.5
+          local.get $__jn_frame
+          i32.const 4
+          local.get $gctmp.5
+          call $jn_gc_frame_set_root
+          local.get $gctmp.5
+          local.set $t5
+          local.get $__jn_frame
+          i32.const 14
+          local.get $t5
+          call $jn_gc_frame_set_root
+          local.get $t5
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t6
+          local.get $t6
+          if
+            i32.const 5
+            local.set $pc
+          else
+            i32.const 6
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          call $jnative_exception_pending
+          local.set $t7
+          local.get $t7
+          if
+            i32.const 7
+            local.set $pc
+          else
+            i32.const 8
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $this__slot
+          local.set $t8
+          local.get $__jn_frame
+          i32.const 15
+          local.get $t8
+          call $jn_gc_frame_set_root
+          local.get $t8
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t9
+          local.get $t9
+          if
+            i32.const 9
+            local.set $pc
+          else
+            i32.const 10
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $t8
+          i32.const 24
+          i32.add
+          i32.load
+          local.set $t10
+          local.get $t10
+          i32.const 0
+          i32.ne
+          local.set $t11
+          local.get $t11
+          if
+            i32.const 11
+            local.set $pc
+          else
+            i32.const 12
+            local.set $pc
+          end
+          br $dispatch
+        )
+          local.get $this__slot
+          local.set $t12
+          local.get $__jn_frame
+          i32.const 16
+          local.get $t12
+          call $jn_gc_frame_set_root
+          local.get $t12
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t13
+          local.get $t13
+          if
+            i32.const 13
+            local.set $pc
+          else
+            i32.const 14
+            local.set $pc
+          end
+          br $dispatch
+        )
+          local.get $this__slot
+          local.set $t24
+          local.get $__jn_frame
+          i32.const 23
+          local.get $t24
+          call $jn_gc_frame_set_root
+          local.get $t24
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t25
+          local.get $t25
+          if
+            i32.const 23
+            local.set $pc
+          else
+            i32.const 24
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $t12
+          i32.const 8
+          i32.add
+          i32.load
+          local.set $t14
+          local.get $__jn_frame
+          i32.const 17
+          local.get $t14
+          call $jn_gc_frame_set_root
+          local.get $t14
+          local.set $gctmp.15
+          local.get $__jn_frame
+          i32.const 5
+          local.get $gctmp.15
+          call $jn_gc_frame_set_root
+          local.get $gctmp.15
+          local.set $t15
+          local.get $__jn_frame
+          i32.const 18
+          local.get $t15
+          call $jn_gc_frame_set_root
+          local.get $t15
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t16
+          local.get $t16
+          if
+            i32.const 15
+            local.set $pc
+          else
+            i32.const 16
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          call $jnative_exception_pending
+          local.set $t17
+          local.get $t17
+          if
+            i32.const 17
+            local.set $pc
+          else
+            i32.const 18
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          i32.const 16
+          call $jn_alloc_zeroed
+          local.set $t18
+          local.get $t18
+          i32.eqz
+          if
+            unreachable
+          end
+          local.get $t18
+          i32.const 48
+          i32.store
+          local.get $__jn_frame
+          i32.const 19
+          local.get $t18
+          call $jn_gc_frame_set_root
+          local.get $t18
+          local.set $gctmp.19
+          local.get $__jn_frame
+          i32.const 6
+          local.get $gctmp.19
+          call $jn_gc_frame_set_root
+          local.get $gctmp.19
+          local.set $t19
+          local.get $__jn_frame
+          i32.const 20
+          local.get $t19
+          call $jn_gc_frame_set_root
+          i32.const 2501
+          i32.const 31
+          call $jn_str
+          local.set $t20
+          local.get $__jn_frame
+          i32.const 21
+          local.get $t20
+          call $jn_gc_frame_set_root
+          local.get $t20
+          local.set $gctmp.21
+          local.get $__jn_frame
+          i32.const 7
+          local.get $gctmp.21
+          call $jn_gc_frame_set_root
+          local.get $gctmp.21
+          local.set $t21
+          local.get $__jn_frame
+          i32.const 22
+          local.get $t21
+          call $jn_gc_frame_set_root
+          local.get $t19
+          local.get $t21
+          call $_JN_RuntimeException_init_CString
+          call $jnative_exception_pending
+          local.set $t22
+          local.get $t22
+          if
+            i32.const 19
+            local.set $pc
+          else
+            i32.const 20
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $t19
+          call $jnative_exception_throw
+          call $jnative_exception_pending
+          local.set $t23
+          local.get $t23
+          if
+            i32.const 21
+            local.set $pc
+          else
+            i32.const 22
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          i32.const 12
+          local.set $pc
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $t24
+          i32.const 4
+          i32.add
+          i32.load
+          local.set $t26
+          local.get $__jn_frame
+          i32.const 24
+          local.get $t26
+          call $jn_gc_frame_set_root
+          local.get $t26
+          local.set $gctmp.27
+          local.get $__jn_frame
+          i32.const 8
+          local.get $gctmp.27
+          call $jn_gc_frame_set_root
+          local.get $gctmp.27
+          local.set $t27
+          local.get $__jn_frame
+          i32.const 25
+          local.get $t27
+          call $jn_gc_frame_set_root
+          local.get $t27
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t28
+          local.get $t28
+          if
+            i32.const 25
+            local.set $pc
+          else
+            i32.const 26
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $task__slot
+          local.set $t29
+          local.get $__jn_frame
+          i32.const 26
+          local.get $t29
+          call $jn_gc_frame_set_root
+          local.get $t27
+          local.get $t29
+          call $_JN_ArrayDeque_addLast_TT
+          call $jnative_exception_pending
+          local.set $t30
+          local.get $t30
+          if
+            i32.const 27
+            local.set $pc
+          else
+            i32.const 28
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $this__slot
+          local.set $t31
+          local.get $__jn_frame
+          i32.const 27
+          local.get $t31
+          call $jn_gc_frame_set_root
+          local.get $t31
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t32
+          local.get $t32
+          if
+            i32.const 29
+            local.set $pc
+          else
+            i32.const 30
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $t31
+          i32.const 12
+          i32.add
+          i32.load
+          local.set $t33
+          local.get $__jn_frame
+          i32.const 28
+          local.get $t33
+          call $jn_gc_frame_set_root
+          local.get $t33
+          local.set $gctmp.34
+          local.get $__jn_frame
+          i32.const 9
+          local.get $gctmp.34
+          call $jn_gc_frame_set_root
+          local.get $gctmp.34
+          local.set $t34
+          local.get $__jn_frame
+          i32.const 29
+          local.get $t34
+          call $jn_gc_frame_set_root
+          local.get $t34
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t35
+          local.get $t35
+          if
+            i32.const 31
+            local.set $pc
+          else
+            i32.const 32
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $this__slot
+          local.set $t36
+          local.get $__jn_frame
+          i32.const 30
+          local.get $t36
+          call $jn_gc_frame_set_root
+          local.get $t36
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t37
+          local.get $t37
+          if
+            i32.const 33
+            local.set $pc
+          else
+            i32.const 34
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $t36
+          i32.const 8
+          i32.add
+          i32.load
+          local.set $t38
+          local.get $__jn_frame
+          i32.const 31
+          local.get $t38
+          call $jn_gc_frame_set_root
+          local.get $t38
+          local.set $gctmp.39
+          local.get $__jn_frame
+          i32.const 10
+          local.get $gctmp.39
+          call $jn_gc_frame_set_root
+          local.get $gctmp.39
+          local.set $t39
+          local.get $__jn_frame
+          i32.const 32
+          local.get $t39
+          call $jn_gc_frame_set_root
+          local.get $t39
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t40
+          local.get $t40
+          if
+            i32.const 35
+            local.set $pc
+          else
+            i32.const 36
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          call $jnative_exception_pending
+          local.set $t41
+          local.get $t41
+          if
+            i32.const 37
+            local.set $pc
+          else
+            i32.const 38
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          br $exit
+      )
+    )
+    call $jn_gc_frame_pop
+  )
+  (func $_JN_ThreadPoolExecutor_createDefault (result i32)
+    (local $pc i32)
+    (local $__jn_tid i32)
+    (local $__jn_asz i32)
+    (local $__jn_frame i32)
+    (local $ret i32)
+    (local $n i32)
+    (local $gctmp.1 i32)
+    (local $t0 i32)
+    (local $t1 i32)
+    (local $t2 i32)
+    (local $t3 i32)
+    i32.const 3
+    call $jn_gc_frame_push
+    local.set $__jn_frame
+    i32.const 0
+    local.set $pc
+    (block $exit
+      (loop $dispatch
+        (block $bb2
+        (block $bb1
+        (block $bb0
+          local.get $pc
+          br_table $bb0 $bb1 $bb2 $exit
+        )
+          i32.const 4
+          local.set $n
+          i32.const 32
+          call $jn_alloc_zeroed
+          local.set $t0
+          local.get $t0
+          i32.eqz
+          if
+            unreachable
+          end
+          local.get $t0
+          i32.const 56
+          i32.store
+          local.get $__jn_frame
+          i32.const 1
+          local.get $t0
+          call $jn_gc_frame_set_root
+          local.get $t0
+          local.set $gctmp.1
+          local.get $__jn_frame
+          i32.const 0
+          local.get $gctmp.1
+          call $jn_gc_frame_set_root
+          local.get $gctmp.1
+          local.set $t1
+          local.get $__jn_frame
+          i32.const 2
+          local.get $t1
+          call $jn_gc_frame_set_root
+          local.get $n
+          local.set $t2
+          local.get $t1
+          local.get $t2
+          call $_JN_ThreadPoolExecutor_init_i32
+          call $jnative_exception_pending
+          local.set $t3
+          local.get $t3
+          if
+            i32.const 1
+            local.set $pc
+          else
+            i32.const 2
+            local.set $pc
+          end
+          br $dispatch
+        )
+          i32.const 0
+          local.set $ret
+          br $exit
+        )
+          local.get $t1
+          local.set $ret
+          br $exit
+      )
+    )
+    call $jn_gc_frame_pop
+    local.get $ret
+  )
+  (func $_JN_ThreadPoolExecutor_init_i32 (param $this i32) (param $workers i32)
+    (local $pc i32)
+    (local $__jn_tid i32)
+    (local $__jn_asz i32)
+    (local $__jn_frame i32)
+    (local $this__slot i32)
+    (local $workers__slot i32)
+    (local $gctmp.4 i32)
+    (local $gctmp.9 i32)
+    (local $gctmp.14 i32)
+    (local $gctmp.36 i32)
+    (local $i i32)
+    (local $w i32)
+    (local $gctmp.45 i32)
+    (local $gctmp.54 i32)
+    (local $t0 i32)
+    (local $t1 i32)
+    (local $t3 i32)
+    (local $t4 i32)
+    (local $t5 i32)
+    (local $t6 i32)
+    (local $t7 i32)
+    (local $t8 i32)
+    (local $t9 i32)
+    (local $t10 i32)
+    (local $t11 i32)
+    (local $t12 i32)
+    (local $t13 i32)
+    (local $t14 i32)
+    (local $t15 i32)
+    (local $t16 i32)
+    (local $t17 i32)
+    (local $t18 i32)
+    (local $t19 i32)
+    (local $t20 i32)
+    (local $t21 i32)
+    (local $t22 i32)
+    (local $t23 i32)
+    (local $t24 i32)
+    (local $t25 i32)
+    (local $t26 i32)
+    (local $t27 i32)
+    (local $t28 i32)
+    (local $t29 i32)
+    (local $t30 i32)
+    (local $t31 i32)
+    (local $t32 i32)
+    (local $t33 i32)
+    (local $t34 i32)
+    (local $t35 i32)
+    (local $t36 i32)
+    (local $t37 i32)
+    (local $t38 i32)
+    (local $t39 i32)
+    (local $t40 i32)
+    (local $t41 i32)
+    (local $t42 i32)
+    (local $t43 i32)
+    (local $t44 i32)
+    (local $t45 i32)
+    (local $t46 i32)
+    (local $t47 i32)
+    (local $t48 i32)
+    (local $t49 i32)
+    (local $t50 i32)
+    (local $t51 i32)
+    (local $t52 i32)
+    (local $t53 i32)
+    (local $t54 i32)
+    (local $t55 i32)
+    (local $t56 i32)
+    (local $t57 i32)
+    (local $t58 i32)
+    (local $t59 i32)
+    (local $t60 i32)
+    (local $t61 i32)
+    i32.const 38
+    call $jn_gc_frame_push
+    local.set $__jn_frame
+    local.get $__jn_frame
+    i32.const 0
+    local.get $this
+    call $jn_gc_frame_set_root
+    i32.const 0
+    local.set $pc
+    (block $exit
+      (loop $dispatch
+        (block $bb49
+        (block $bb48
+        (block $bb47
+        (block $bb46
+        (block $bb45
+        (block $bb44
+        (block $bb43
+        (block $bb42
+        (block $bb41
+        (block $bb40
+        (block $bb39
+        (block $bb38
+        (block $bb37
+        (block $bb36
+        (block $bb35
+        (block $bb34
+        (block $bb33
+        (block $bb32
+        (block $bb31
+        (block $bb30
+        (block $bb29
+        (block $bb28
+        (block $bb27
+        (block $bb26
+        (block $bb25
+        (block $bb24
+        (block $bb23
+        (block $bb22
+        (block $bb21
+        (block $bb20
+        (block $bb19
+        (block $bb18
+        (block $bb17
+        (block $bb16
+        (block $bb15
+        (block $bb14
+        (block $bb13
+        (block $bb12
+        (block $bb11
+        (block $bb10
+        (block $bb9
+        (block $bb8
+        (block $bb7
+        (block $bb6
+        (block $bb5
+        (block $bb4
+        (block $bb3
+        (block $bb2
+        (block $bb1
+        (block $bb0
+          local.get $pc
+          br_table $bb0 $bb1 $bb2 $bb3 $bb4 $bb5 $bb6 $bb7 $bb8 $bb9 $bb10 $bb11 $bb12 $bb13 $bb14 $bb15 $bb16 $bb17 $bb18 $bb19 $bb20 $bb21 $bb22 $bb23 $bb24 $bb25 $bb26 $bb27 $bb28 $bb29 $bb30 $bb31 $bb32 $bb33 $bb34 $bb35 $bb36 $bb37 $bb38 $bb39 $bb40 $bb41 $bb42 $bb43 $bb44 $bb45 $bb46 $bb47 $bb48 $bb49 $exit
+        )
+          local.get $this
+          local.set $this__slot
+          local.get $__jn_frame
+          i32.const 1
+          local.get $this__slot
+          call $jn_gc_frame_set_root
+          local.get $workers
+          local.set $workers__slot
+          local.get $this__slot
+          local.set $t0
+          local.get $__jn_frame
+          i32.const 9
+          local.get $t0
+          call $jn_gc_frame_set_root
+          local.get $t0
+          call $_JN_Object_init
+          call $jnative_exception_pending
+          local.set $t1
+          local.get $t1
+          if
+            i32.const 1
+            local.set $pc
+          else
+            i32.const 2
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          i32.const 20
+          call $jn_alloc_zeroed
+          local.set $t3
+          local.get $t3
+          i32.eqz
+          if
+            unreachable
+          end
+          local.get $t3
+          i32.const 90
+          i32.store
+          local.get $__jn_frame
+          i32.const 10
+          local.get $t3
+          call $jn_gc_frame_set_root
+          local.get $t3
+          local.set $gctmp.4
+          local.get $__jn_frame
+          i32.const 2
+          local.get $gctmp.4
+          call $jn_gc_frame_set_root
+          local.get $gctmp.4
+          local.set $t4
+          local.get $__jn_frame
+          i32.const 11
+          local.get $t4
+          call $jn_gc_frame_set_root
+          local.get $t4
+          call $_JN_ArrayDeque_init
+          call $jnative_exception_pending
+          local.set $t5
+          local.get $t5
+          if
+            i32.const 3
+            local.set $pc
+          else
+            i32.const 4
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $this__slot
+          local.set $t6
+          local.get $__jn_frame
+          i32.const 12
+          local.get $t6
+          call $jn_gc_frame_set_root
+          local.get $t6
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t7
+          local.get $t7
+          if
+            i32.const 5
+            local.set $pc
+          else
+            i32.const 6
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $t6
+          i32.const 4
+          i32.add
+          local.get $t4
+          i32.store
+          i32.const 16
+          call $jn_alloc_zeroed
+          local.set $t8
+          local.get $t8
+          i32.eqz
+          if
+            unreachable
+          end
+          local.get $t8
+          i32.const 2
+          i32.store
+          local.get $__jn_frame
+          i32.const 13
+          local.get $t8
+          call $jn_gc_frame_set_root
+          local.get $t8
+          local.set $gctmp.9
+          local.get $__jn_frame
+          i32.const 3
+          local.get $gctmp.9
+          call $jn_gc_frame_set_root
+          local.get $gctmp.9
+          local.set $t9
+          local.get $__jn_frame
+          i32.const 14
+          local.get $t9
+          call $jn_gc_frame_set_root
+          local.get $t9
+          call $_JN_Mutex_init
+          call $jnative_exception_pending
+          local.set $t10
+          local.get $t10
+          if
+            i32.const 7
+            local.set $pc
+          else
+            i32.const 8
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $this__slot
+          local.set $t11
+          local.get $__jn_frame
+          i32.const 15
+          local.get $t11
+          call $jn_gc_frame_set_root
+          local.get $t11
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t12
+          local.get $t12
+          if
+            i32.const 9
+            local.set $pc
+          else
+            i32.const 10
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $t11
+          i32.const 8
+          i32.add
+          local.get $t9
+          i32.store
+          i32.const 16
+          call $jn_alloc_zeroed
+          local.set $t13
+          local.get $t13
+          i32.eqz
+          if
+            unreachable
+          end
+          local.get $t13
+          i32.const 55
+          i32.store
+          local.get $__jn_frame
+          i32.const 16
+          local.get $t13
+          call $jn_gc_frame_set_root
+          local.get $t13
+          local.set $gctmp.14
+          local.get $__jn_frame
+          i32.const 4
+          local.get $gctmp.14
+          call $jn_gc_frame_set_root
+          local.get $gctmp.14
+          local.set $t14
+          local.get $__jn_frame
+          i32.const 17
+          local.get $t14
+          call $jn_gc_frame_set_root
+          local.get $t14
+          call $_JN_Condition_init
+          call $jnative_exception_pending
+          local.set $t15
+          local.get $t15
+          if
+            i32.const 11
+            local.set $pc
+          else
+            i32.const 12
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $this__slot
+          local.set $t16
+          local.get $__jn_frame
+          i32.const 18
+          local.get $t16
+          call $jn_gc_frame_set_root
+          local.get $t16
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t17
+          local.get $t17
+          if
+            i32.const 13
+            local.set $pc
+          else
+            i32.const 14
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $t16
+          i32.const 12
+          i32.add
+          local.get $t14
+          i32.store
+          local.get $workers__slot
+          local.set $t18
+          local.get $this__slot
+          local.set $t19
+          local.get $__jn_frame
+          i32.const 19
+          local.get $t19
+          call $jn_gc_frame_set_root
+          local.get $t19
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t20
+          local.get $t20
+          if
+            i32.const 15
+            local.set $pc
+          else
+            i32.const 16
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $t19
+          i32.const 16
+          i32.add
+          local.get $t18
+          i32.store
+          local.get $this__slot
+          local.set $t21
+          local.get $__jn_frame
+          i32.const 20
+          local.get $t21
+          call $jn_gc_frame_set_root
+          local.get $t21
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t22
+          local.get $t22
+          if
+            i32.const 17
+            local.set $pc
+          else
+            i32.const 18
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $t21
+          i32.const 16
+          i32.add
+          i32.load
+          local.set $t23
+          local.get $t23
+          i32.const 1
+          i32.lt_s
+          local.set $t24
+          local.get $t24
+          if
+            i32.const 19
+            local.set $pc
+          else
+            i32.const 20
+            local.set $pc
+          end
+          br $dispatch
+        )
+          local.get $this__slot
+          local.set $t25
+          local.get $__jn_frame
+          i32.const 21
+          local.get $t25
+          call $jn_gc_frame_set_root
+          local.get $t25
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t26
+          local.get $t26
+          if
+            i32.const 21
+            local.set $pc
+          else
+            i32.const 22
+            local.set $pc
+          end
+          br $dispatch
+        )
+          local.get $this__slot
+          local.set $t27
+          local.get $__jn_frame
+          i32.const 22
+          local.get $t27
+          call $jn_gc_frame_set_root
+          local.get $t27
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t28
+          local.get $t28
+          if
+            i32.const 23
+            local.set $pc
+          else
+            i32.const 24
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $t25
+          i32.const 16
+          i32.add
+          i32.const 1
+          i32.store
+          i32.const 20
+          local.set $pc
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $t27
+          i32.const 20
+          i32.add
+          i32.const 0
+          i32.store
+          local.get $this__slot
+          local.set $t29
+          local.get $__jn_frame
+          i32.const 23
+          local.get $t29
+          call $jn_gc_frame_set_root
+          local.get $t29
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t30
+          local.get $t30
+          if
+            i32.const 25
+            local.set $pc
+          else
+            i32.const 26
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $t29
+          i32.const 24
+          i32.add
+          i32.const 0
+          i32.store
+          local.get $this__slot
+          local.set $t31
+          local.get $__jn_frame
+          i32.const 24
+          local.get $t31
+          call $jn_gc_frame_set_root
+          local.get $t31
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t32
+          local.get $t32
+          if
+            i32.const 27
+            local.set $pc
+          else
+            i32.const 28
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $t31
+          i32.const 16
+          i32.add
+          i32.load
+          local.set $t33
+          local.get $t33
+          i32.const 0
+          i32.lt_s
+          if
+            unreachable
+          end
+          local.get $t33
+          i32.const 4
+          i32.mul
+          local.set $__jn_asz
+          local.get $__jn_asz
+          i32.const 4
+          i32.div_u
+          local.get $t33
+          i32.ne
+          if
+            unreachable
+          end
+          local.get $__jn_asz
+          i32.const 16
+          i32.add
+          i32.const 1
+          call $jn_gc_alloc_array
+          local.set $t34
+          local.get $t34
+          i32.eqz
+          if
+            unreachable
+          end
+          local.get $t34
+          i32.const 126
+          i32.store
+          local.get $t34
+          i32.const 8
+          i32.add
+          local.get $t33
+          i32.store
+          local.get $__jn_frame
+          i32.const 25
+          local.get $t34
+          call $jn_gc_frame_set_root
+          call $jnative_exception_pending
+          local.set $t35
+          local.get $t35
+          if
+            i32.const 29
+            local.set $pc
+          else
+            i32.const 30
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $t34
+          local.set $gctmp.36
+          local.get $__jn_frame
+          i32.const 5
+          local.get $gctmp.36
+          call $jn_gc_frame_set_root
+          local.get $gctmp.36
+          local.set $t36
+          local.get $__jn_frame
+          i32.const 26
+          local.get $t36
+          call $jn_gc_frame_set_root
+          local.get $this__slot
+          local.set $t37
+          local.get $__jn_frame
+          i32.const 27
+          local.get $t37
+          call $jn_gc_frame_set_root
+          local.get $t37
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t38
+          local.get $t38
+          if
+            i32.const 31
+            local.set $pc
+          else
+            i32.const 32
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $t37
+          i32.const 28
+          i32.add
+          local.get $t36
+          i32.store
+          i32.const 0
+          local.set $i
+          i32.const 33
+          local.set $pc
+          br $dispatch
+        )
+          local.get $i
+          local.set $t39
+          local.get $this__slot
+          local.set $t40
+          local.get $__jn_frame
+          i32.const 28
+          local.get $t40
+          call $jn_gc_frame_set_root
+          local.get $t40
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t41
+          local.get $t41
+          if
+            i32.const 36
+            local.set $pc
+          else
+            i32.const 37
+            local.set $pc
+          end
+          br $dispatch
+        )
+          i32.const 24
+          call $jn_alloc_zeroed
+          local.set $t44
+          local.get $t44
+          i32.eqz
+          if
+            unreachable
+          end
+          local.get $t44
+          i32.const 52
+          i32.store
+          local.get $__jn_frame
+          i32.const 29
+          local.get $t44
+          call $jn_gc_frame_set_root
+          local.get $t44
+          local.set $gctmp.45
+          local.get $__jn_frame
+          i32.const 7
+          local.get $gctmp.45
+          call $jn_gc_frame_set_root
+          local.get $gctmp.45
+          local.set $t45
+          local.get $__jn_frame
+          i32.const 30
+          local.get $t45
+          call $jn_gc_frame_set_root
+          local.get $t45
+          call $_JN_ThreadPoolWorker_init
+          call $jnative_exception_pending
+          local.set $t46
+          local.get $t46
+          if
+            i32.const 38
+            local.set $pc
+          else
+            i32.const 39
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          br $exit
+        )
+          local.get $t40
+          i32.const 16
+          i32.add
+          i32.load
+          local.set $t42
+          local.get $t39
+          local.get $t42
+          i32.lt_s
+          local.set $t43
+          local.get $t43
+          if
+            i32.const 34
+            local.set $pc
+          else
+            i32.const 35
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $t45
+          local.set $w
+          local.get $__jn_frame
+          i32.const 6
+          local.get $w
+          call $jn_gc_frame_set_root
+          local.get $this__slot
+          local.set $t47
+          local.get $__jn_frame
+          i32.const 31
+          local.get $t47
+          call $jn_gc_frame_set_root
+          local.get $w
+          local.set $t48
+          local.get $__jn_frame
+          i32.const 32
+          local.get $t48
+          call $jn_gc_frame_set_root
+          call $jnative_exception_pending
+          local.set $t49
+          local.get $t49
+          if
+            i32.const 40
+            local.set $pc
+          else
+            i32.const 41
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $t48
+          i32.const 20
+          i32.add
+          local.get $t47
+          i32.store
+          local.get $w
+          local.set $t50
+          local.get $__jn_frame
+          i32.const 33
+          local.get $t50
+          call $jn_gc_frame_set_root
+          local.get $this__slot
+          local.set $t51
+          local.get $__jn_frame
+          i32.const 34
+          local.get $t51
+          call $jn_gc_frame_set_root
+          local.get $t51
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t52
+          local.get $t52
+          if
+            i32.const 42
+            local.set $pc
+          else
+            i32.const 43
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $t51
+          i32.const 28
+          i32.add
+          i32.load
+          local.set $t53
+          local.get $__jn_frame
+          i32.const 35
+          local.get $t53
+          call $jn_gc_frame_set_root
+          local.get $t53
+          local.set $gctmp.54
+          local.get $__jn_frame
+          i32.const 8
+          local.get $gctmp.54
+          call $jn_gc_frame_set_root
+          local.get $gctmp.54
+          local.set $t54
+          local.get $__jn_frame
+          i32.const 36
+          local.get $t54
+          call $jn_gc_frame_set_root
+          local.get $i
+          local.set $t55
+          local.get $t54
+          i32.eqz
+          if
+            unreachable
+          end
+          local.get $t55
+          i32.const 0
+          i32.lt_s
+          local.get $t55
+          local.get $t54
+          i32.const 8
+          i32.add
+          i32.load
+          i32.ge_s
+          i32.or
+          if
+            unreachable
+          end
+          local.get $t54
+          i32.const 16
+          i32.add
+          local.get $t55
+          i32.const 4
+          i32.mul
+          i32.add
+          local.get $t50
+          i32.store
+          call $jnative_exception_pending
+          local.set $t56
+          local.get $t56
+          if
+            i32.const 44
+            local.set $pc
+          else
+            i32.const 45
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $w
+          local.set $t57
+          local.get $__jn_frame
+          i32.const 37
+          local.get $t57
+          call $jn_gc_frame_set_root
+          call $jnative_exception_pending
+          local.set $t58
+          local.get $t58
+          if
+            i32.const 46
+            local.set $pc
+          else
+            i32.const 47
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          call $jnative_exception_pending
+          local.set $t59
+          local.get $t59
+          if
+            i32.const 48
+            local.set $pc
+          else
+            i32.const 49
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $i
+          local.set $t60
+          local.get $t60
+          i32.const 1
+          i32.add
+          local.set $t61
+          local.get $t61
+          local.set $i
+          call $jn_gc_safepoint
+          i32.const 33
+          local.set $pc
+          br $dispatch
+      )
+    )
+    call $jn_gc_frame_pop
+  )
+  (func $_JN_ArrayDeque_init (param $this i32)
+    (local $pc i32)
+    (local $__jn_tid i32)
+    (local $__jn_asz i32)
+    (local $__jn_frame i32)
+    (local $this__slot i32)
+    (local $gctmp.5 i32)
+    (local $t0 i32)
+    (local $t1 i32)
+    (local $t3 i32)
+    (local $t4 i32)
+    (local $t5 i32)
+    (local $t6 i32)
+    (local $t7 i32)
+    (local $t8 i32)
+    (local $t9 i32)
+    (local $t10 i32)
+    (local $t11 i32)
+    (local $t12 i32)
+    (local $t13 i32)
+    i32.const 10
+    call $jn_gc_frame_push
+    local.set $__jn_frame
+    local.get $__jn_frame
+    i32.const 0
+    local.get $this
+    call $jn_gc_frame_set_root
+    i32.const 0
+    local.set $pc
+    (block $exit
+      (loop $dispatch
+        (block $bb12
+        (block $bb11
+        (block $bb10
+        (block $bb9
+        (block $bb8
+        (block $bb7
+        (block $bb6
+        (block $bb5
+        (block $bb4
+        (block $bb3
+        (block $bb2
+        (block $bb1
+        (block $bb0
+          local.get $pc
+          br_table $bb0 $bb1 $bb2 $bb3 $bb4 $bb5 $bb6 $bb7 $bb8 $bb9 $bb10 $bb11 $bb12 $exit
+        )
+          local.get $this
+          local.set $this__slot
+          local.get $__jn_frame
+          i32.const 1
+          local.get $this__slot
+          call $jn_gc_frame_set_root
+          local.get $this__slot
+          local.set $t0
+          local.get $__jn_frame
+          i32.const 3
+          local.get $t0
+          call $jn_gc_frame_set_root
+          local.get $t0
+          call $_JN_Object_init
+          call $jnative_exception_pending
+          local.set $t1
+          local.get $t1
+          if
+            i32.const 1
+            local.set $pc
+          else
+            i32.const 2
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          i32.const 8
+          i32.const 0
+          i32.lt_s
+          if
+            unreachable
+          end
+          i32.const 8
+          i32.const 4
+          i32.mul
+          local.set $__jn_asz
+          local.get $__jn_asz
+          i32.const 4
+          i32.div_u
+          i32.const 8
+          i32.ne
+          if
+            unreachable
+          end
+          local.get $__jn_asz
+          i32.const 16
+          i32.add
+          i32.const 1
+          call $jn_gc_alloc_array
+          local.set $t3
+          local.get $t3
+          i32.eqz
+          if
+            unreachable
+          end
+          local.get $t3
+          i32.const 130
+          i32.store
+          local.get $t3
+          i32.const 8
+          i32.add
+          i32.const 8
+          i32.store
+          local.get $__jn_frame
+          i32.const 4
+          local.get $t3
+          call $jn_gc_frame_set_root
+          call $jnative_exception_pending
+          local.set $t4
+          local.get $t4
+          if
+            i32.const 3
+            local.set $pc
+          else
+            i32.const 4
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $t3
+          local.set $gctmp.5
+          local.get $__jn_frame
+          i32.const 2
+          local.get $gctmp.5
+          call $jn_gc_frame_set_root
+          local.get $gctmp.5
+          local.set $t5
+          local.get $__jn_frame
+          i32.const 5
+          local.get $t5
+          call $jn_gc_frame_set_root
+          local.get $this__slot
+          local.set $t6
+          local.get $__jn_frame
+          i32.const 6
+          local.get $t6
+          call $jn_gc_frame_set_root
+          local.get $t6
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t7
+          local.get $t7
+          if
+            i32.const 5
+            local.set $pc
+          else
+            i32.const 6
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $t6
+          i32.const 4
+          i32.add
+          local.get $t5
+          i32.store
+          local.get $this__slot
+          local.set $t8
+          local.get $__jn_frame
+          i32.const 7
+          local.get $t8
+          call $jn_gc_frame_set_root
+          local.get $t8
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t9
+          local.get $t9
+          if
+            i32.const 7
+            local.set $pc
+          else
+            i32.const 8
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $t8
+          i32.const 8
+          i32.add
+          i32.const 0
+          i32.store
+          local.get $this__slot
+          local.set $t10
+          local.get $__jn_frame
+          i32.const 8
+          local.get $t10
+          call $jn_gc_frame_set_root
+          local.get $t10
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t11
+          local.get $t11
+          if
+            i32.const 9
+            local.set $pc
+          else
+            i32.const 10
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $t10
+          i32.const 12
+          i32.add
+          i32.const 0
+          i32.store
+          local.get $this__slot
+          local.set $t12
+          local.get $__jn_frame
+          i32.const 9
+          local.get $t12
+          call $jn_gc_frame_set_root
+          local.get $t12
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t13
+          local.get $t13
+          if
+            i32.const 11
+            local.set $pc
+          else
+            i32.const 12
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $t12
+          i32.const 16
+          i32.add
+          i32.const 0
+          i32.store
+          br $exit
+      )
+    )
+    call $jn_gc_frame_pop
+  )
+  (func $_JN_Condition_init (param $this i32)
+    (local $pc i32)
+    (local $__jn_tid i32)
+    (local $__jn_asz i32)
+    (local $__jn_frame i32)
+    (local $this__slot i32)
+    (local $t0 i32)
+    i32.const 3
+    call $jn_gc_frame_push
+    local.set $__jn_frame
+    local.get $__jn_frame
+    i32.const 0
+    local.get $this
+    call $jn_gc_frame_set_root
+    i32.const 0
+    local.set $pc
+    (block $exit
+      (loop $dispatch
+        (block $bb0
+          local.get $pc
+          br_table $bb0 $exit
+        )
+          local.get $this
+          local.set $this__slot
+          local.get $__jn_frame
+          i32.const 1
+          local.get $this__slot
+          call $jn_gc_frame_set_root
+          local.get $this__slot
+          local.set $t0
+          local.get $__jn_frame
+          i32.const 2
+          local.get $t0
+          call $jn_gc_frame_set_root
+          br $exit
+      )
+    )
+    call $jn_gc_frame_pop
+  )
+  (func $_JN_ThreadPoolWorker_init (param $this i32)
+    (local $pc i32)
+    (local $__jn_tid i32)
+    (local $__jn_asz i32)
+    (local $__jn_frame i32)
+    (local $this__slot i32)
+    (local $t0 i32)
+    (local $t1 i32)
+    i32.const 3
+    call $jn_gc_frame_push
+    local.set $__jn_frame
+    local.get $__jn_frame
+    i32.const 0
+    local.get $this
+    call $jn_gc_frame_set_root
+    i32.const 0
+    local.set $pc
+    (block $exit
+      (loop $dispatch
+        (block $bb2
+        (block $bb1
+        (block $bb0
+          local.get $pc
+          br_table $bb0 $bb1 $bb2 $exit
+        )
+          local.get $this
+          local.set $this__slot
+          local.get $__jn_frame
+          i32.const 1
+          local.get $this__slot
+          call $jn_gc_frame_set_root
+          local.get $this__slot
+          local.set $t0
+          local.get $__jn_frame
+          i32.const 2
+          local.get $t0
+          call $jn_gc_frame_set_root
+          local.get $t0
+          call $_JN_Thread_init
+          call $jnative_exception_pending
+          local.set $t1
+          local.get $t1
+          if
+            i32.const 1
+            local.set $pc
+          else
+            i32.const 2
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          br $exit
+      )
+    )
+    call $jn_gc_frame_pop
+  )
+  (func $_JN_AsyncTcpSocket_writeAsync_Ai8 (param $this i32) (param $data i32) (result i32)
+    (local $pc i32)
+    (local $__jn_tid i32)
+    (local $__jn_asz i32)
+    (local $__jn_frame i32)
+    (local $ret i32)
+    (local $this__slot i32)
+    (local $data__slot i32)
+    (local $gctmp.5 i32)
+    (local $t0 i32)
+    (local $t1 i32)
+    (local $t2 i32)
+    (local $t3 i32)
+    (local $t4 i32)
+    (local $t5 i32)
+    i32.const 9
+    call $jn_gc_frame_push
+    local.set $__jn_frame
+    local.get $__jn_frame
+    i32.const 0
+    local.get $this
+    call $jn_gc_frame_set_root
+    local.get $__jn_frame
+    i32.const 1
+    local.get $data
+    call $jn_gc_frame_set_root
+    i32.const 0
+    local.set $pc
+    (block $exit
+      (loop $dispatch
+        (block $bb4
+        (block $bb3
+        (block $bb2
+        (block $bb1
+        (block $bb0
+          local.get $pc
+          br_table $bb0 $bb1 $bb2 $bb3 $bb4 $exit
+        )
+          local.get $this
+          local.set $this__slot
+          local.get $__jn_frame
+          i32.const 2
+          local.get $this__slot
+          call $jn_gc_frame_set_root
+          local.get $data
+          local.set $data__slot
+          local.get $__jn_frame
+          i32.const 3
+          local.get $data__slot
+          call $jn_gc_frame_set_root
+          local.get $this__slot
+          local.set $t0
+          local.get $__jn_frame
+          i32.const 5
+          local.get $t0
+          call $jn_gc_frame_set_root
+          local.get $t0
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t1
+          local.get $t1
+          if
+            i32.const 1
+            local.set $pc
+          else
+            i32.const 2
+            local.set $pc
+          end
+          br $dispatch
+        )
+          i32.const 0
+          local.set $ret
+          br $exit
+        )
+          local.get $data__slot
+          local.set $t2
+          local.get $__jn_frame
+          i32.const 6
+          local.get $t2
+          call $jn_gc_frame_set_root
+          local.get $t0
+          local.get $t2
+          call $_JN_AsyncTcpSocket_writeAll_Ai8
+          local.set $t3
+          local.get $__jn_frame
+          i32.const 7
+          local.get $t3
+          call $jn_gc_frame_set_root
+          call $jnative_exception_pending
+          local.set $t4
+          local.get $t4
+          if
+            i32.const 3
+            local.set $pc
+          else
+            i32.const 4
+            local.set $pc
+          end
+          br $dispatch
+        )
+          i32.const 0
+          local.set $ret
+          br $exit
+        )
+          local.get $t3
+          local.set $gctmp.5
+          local.get $__jn_frame
+          i32.const 4
+          local.get $gctmp.5
+          call $jn_gc_frame_set_root
+          local.get $gctmp.5
+          local.set $t5
+          local.get $__jn_frame
+          i32.const 8
+          local.get $t5
+          call $jn_gc_frame_set_root
+          local.get $t5
+          local.set $ret
+          br $exit
+      )
+    )
+    call $jn_gc_frame_pop
+    local.get $ret
+  )
+  (func $_JN_AsyncTcpSocket_readAll (param $this i32) (result i32)
+    (local $pc i32)
+    (local $__jn_tid i32)
+    (local $__jn_asz i32)
+    (local $__jn_frame i32)
+    (local $ret i32)
+    (local $this__slot i32)
+    (local $sup i32)
+    (local $gctmp.1 i32)
+    (local $gctmp.6 i32)
+    (local $gctmp.12 i32)
+    (local $gctmp.16 i32)
+    (local $t0 i32)
+    (local $t1 i32)
+    (local $t2 i32)
+    (local $t3 i32)
+    (local $t4 i32)
+    (local $t5 i32)
+    (local $t6 i32)
+    (local $t7 i32)
+    (local $t8 i32)
+    (local $t9 i32)
+    (local $t10 i32)
+    (local $t11 i32)
+    (local $t12 i32)
+    (local $t13 i32)
+    (local $t14 i32)
+    (local $t15 i32)
+    (local $t16 i32)
+    i32.const 19
+    call $jn_gc_frame_push
+    local.set $__jn_frame
+    local.get $__jn_frame
+    i32.const 0
+    local.get $this
+    call $jn_gc_frame_set_root
+    i32.const 0
+    local.set $pc
+    (block $exit
+      (loop $dispatch
+        (block $bb10
+        (block $bb9
+        (block $bb8
+        (block $bb7
+        (block $bb6
+        (block $bb5
+        (block $bb4
+        (block $bb3
+        (block $bb2
+        (block $bb1
+        (block $bb0
+          local.get $pc
+          br_table $bb0 $bb1 $bb2 $bb3 $bb4 $bb5 $bb6 $bb7 $bb8 $bb9 $bb10 $exit
+        )
+          local.get $this
+          local.set $this__slot
+          local.get $__jn_frame
+          i32.const 1
+          local.get $this__slot
+          call $jn_gc_frame_set_root
+          i32.const 8
+          call $jn_alloc_zeroed
+          local.set $t0
+          local.get $t0
+          i32.eqz
+          if
+            unreachable
+          end
+          local.get $t0
+          i32.const 59
+          i32.store
+          local.get $__jn_frame
+          i32.const 7
+          local.get $t0
+          call $jn_gc_frame_set_root
+          local.get $t0
+          local.set $gctmp.1
+          local.get $__jn_frame
+          i32.const 3
+          local.get $gctmp.1
+          call $jn_gc_frame_set_root
+          local.get $gctmp.1
+          local.set $t1
+          local.get $__jn_frame
+          i32.const 8
+          local.get $t1
+          call $jn_gc_frame_set_root
+          local.get $t1
+          call $_JN_AsyncTcpReadAllSupplier_init
+          call $jnative_exception_pending
+          local.set $t2
+          local.get $t2
+          if
+            i32.const 1
+            local.set $pc
+          else
+            i32.const 2
+            local.set $pc
+          end
+          br $dispatch
+        )
+          i32.const 0
+          local.set $ret
+          br $exit
+        )
+          local.get $t1
+          local.set $sup
+          local.get $__jn_frame
+          i32.const 2
+          local.get $sup
+          call $jn_gc_frame_set_root
+          local.get $this__slot
+          local.set $t3
+          local.get $__jn_frame
+          i32.const 9
+          local.get $t3
+          call $jn_gc_frame_set_root
+          local.get $t3
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t4
+          local.get $t4
+          if
+            i32.const 3
+            local.set $pc
+          else
+            i32.const 4
+            local.set $pc
+          end
+          br $dispatch
+        )
+          i32.const 0
+          local.set $ret
+          br $exit
+        )
+          local.get $t3
+          i32.const 8
+          i32.add
+          i32.load
+          local.set $t5
+          local.get $__jn_frame
+          i32.const 10
+          local.get $t5
+          call $jn_gc_frame_set_root
+          local.get $t5
+          local.set $gctmp.6
+          local.get $__jn_frame
+          i32.const 4
+          local.get $gctmp.6
+          call $jn_gc_frame_set_root
+          local.get $gctmp.6
+          local.set $t6
+          local.get $__jn_frame
+          i32.const 11
+          local.get $t6
+          call $jn_gc_frame_set_root
+          local.get $sup
+          local.set $t7
+          local.get $__jn_frame
+          i32.const 12
+          local.get $t7
+          call $jn_gc_frame_set_root
+          call $jnative_exception_pending
+          local.set $t8
+          local.get $t8
+          if
+            i32.const 5
+            local.set $pc
+          else
+            i32.const 6
+            local.set $pc
+          end
+          br $dispatch
+        )
+          i32.const 0
+          local.set $ret
+          br $exit
+        )
+          local.get $t7
+          i32.const 4
+          i32.add
+          local.get $t6
+          i32.store
+          local.get $this__slot
+          local.set $t9
+          local.get $__jn_frame
+          i32.const 13
+          local.get $t9
+          call $jn_gc_frame_set_root
+          local.get $t9
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t10
+          local.get $t10
+          if
+            i32.const 7
+            local.set $pc
+          else
+            i32.const 8
+            local.set $pc
+          end
+          br $dispatch
+        )
+          i32.const 0
+          local.set $ret
+          br $exit
+        )
+          local.get $t9
+          i32.const 4
+          i32.add
+          i32.load
+          local.set $t11
+          local.get $__jn_frame
+          i32.const 14
+          local.get $t11
+          call $jn_gc_frame_set_root
+          local.get $t11
+          local.set $gctmp.12
+          local.get $__jn_frame
+          i32.const 5
+          local.get $gctmp.12
+          call $jn_gc_frame_set_root
+          local.get $gctmp.12
+          local.set $t12
+          local.get $__jn_frame
+          i32.const 15
+          local.get $t12
+          call $jn_gc_frame_set_root
+          local.get $sup
+          local.set $t13
+          local.get $__jn_frame
+          i32.const 16
+          local.get $t13
+          call $jn_gc_frame_set_root
+          local.get $t12
+          local.get $t13
+          call $_JN_Async_blockingOnLoop_CEventLoop_IBlockingSupplier
+          local.set $t14
+          local.get $__jn_frame
+          i32.const 17
+          local.get $t14
+          call $jn_gc_frame_set_root
+          call $jnative_exception_pending
+          local.set $t15
+          local.get $t15
+          if
+            i32.const 9
+            local.set $pc
+          else
+            i32.const 10
+            local.set $pc
+          end
+          br $dispatch
+        )
+          i32.const 0
+          local.set $ret
+          br $exit
+        )
+          local.get $t14
+          local.set $gctmp.16
+          local.get $__jn_frame
+          i32.const 6
+          local.get $gctmp.16
+          call $jn_gc_frame_set_root
+          local.get $gctmp.16
+          local.set $t16
+          local.get $__jn_frame
+          i32.const 18
+          local.get $t16
+          call $jn_gc_frame_set_root
+          local.get $t16
+          local.set $ret
+          br $exit
+      )
+    )
+    call $jn_gc_frame_pop
+    local.get $ret
+  )
+  (func $_JN_AsyncTcpReadAllSupplier_init (param $this i32)
+    (local $pc i32)
+    (local $__jn_tid i32)
+    (local $__jn_asz i32)
+    (local $__jn_frame i32)
+    (local $this__slot i32)
+    (local $t0 i32)
+    (local $t1 i32)
+    i32.const 3
+    call $jn_gc_frame_push
+    local.set $__jn_frame
+    local.get $__jn_frame
+    i32.const 0
+    local.get $this
+    call $jn_gc_frame_set_root
+    i32.const 0
+    local.set $pc
+    (block $exit
+      (loop $dispatch
+        (block $bb2
+        (block $bb1
+        (block $bb0
+          local.get $pc
+          br_table $bb0 $bb1 $bb2 $exit
+        )
+          local.get $this
+          local.set $this__slot
+          local.get $__jn_frame
+          i32.const 1
+          local.get $this__slot
+          call $jn_gc_frame_set_root
+          local.get $this__slot
+          local.set $t0
+          local.get $__jn_frame
+          i32.const 2
+          local.get $t0
+          call $jn_gc_frame_set_root
+          local.get $t0
+          call $_JN_Object_init
+          call $jnative_exception_pending
+          local.set $t1
+          local.get $t1
+          if
+            i32.const 1
+            local.set $pc
+          else
+            i32.const 2
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          br $exit
+      )
+    )
+    call $jn_gc_frame_pop
+  )
+  (func $_JN_AsyncTcpSocket_readAsync (param $this i32) (result i32)
+    (local $pc i32)
+    (local $__jn_tid i32)
+    (local $__jn_asz i32)
+    (local $__jn_frame i32)
+    (local $ret i32)
+    (local $this__slot i32)
+    (local $gctmp.4 i32)
+    (local $t0 i32)
+    (local $t1 i32)
+    (local $t2 i32)
+    (local $t3 i32)
+    (local $t4 i32)
+    i32.const 6
+    call $jn_gc_frame_push
+    local.set $__jn_frame
+    local.get $__jn_frame
+    i32.const 0
+    local.get $this
+    call $jn_gc_frame_set_root
+    i32.const 0
+    local.set $pc
+    (block $exit
+      (loop $dispatch
+        (block $bb4
+        (block $bb3
+        (block $bb2
+        (block $bb1
+        (block $bb0
+          local.get $pc
+          br_table $bb0 $bb1 $bb2 $bb3 $bb4 $exit
+        )
+          local.get $this
+          local.set $this__slot
+          local.get $__jn_frame
+          i32.const 1
+          local.get $this__slot
+          call $jn_gc_frame_set_root
+          local.get $this__slot
+          local.set $t0
+          local.get $__jn_frame
+          i32.const 3
+          local.get $t0
+          call $jn_gc_frame_set_root
+          local.get $t0
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t1
+          local.get $t1
+          if
+            i32.const 1
+            local.set $pc
+          else
+            i32.const 2
+            local.set $pc
+          end
+          br $dispatch
+        )
+          i32.const 0
+          local.set $ret
+          br $exit
+        )
+          local.get $t0
+          call $_JN_AsyncTcpSocket_readAll
+          local.set $t2
+          local.get $__jn_frame
+          i32.const 4
+          local.get $t2
+          call $jn_gc_frame_set_root
+          call $jnative_exception_pending
+          local.set $t3
+          local.get $t3
+          if
+            i32.const 3
+            local.set $pc
+          else
+            i32.const 4
+            local.set $pc
+          end
+          br $dispatch
+        )
+          i32.const 0
+          local.set $ret
+          br $exit
+        )
+          local.get $t2
+          local.set $gctmp.4
+          local.get $__jn_frame
+          i32.const 2
+          local.get $gctmp.4
+          call $jn_gc_frame_set_root
+          local.get $gctmp.4
+          local.set $t4
+          local.get $__jn_frame
+          i32.const 5
+          local.get $t4
+          call $jn_gc_frame_set_root
+          local.get $t4
+          local.set $ret
+          br $exit
+      )
+    )
+    call $jn_gc_frame_pop
+    local.get $ret
+  )
+  (func $_JN_AsyncTcpSocket_close (param $this i32)
+    (local $pc i32)
+    (local $__jn_tid i32)
+    (local $__jn_asz i32)
+    (local $__jn_frame i32)
+    (local $this__slot i32)
+    (local $gctmp.3 i32)
+    (local $gctmp.8 i32)
+    (local $t0 i32)
+    (local $t1 i32)
+    (local $t2 i32)
+    (local $t3 i32)
+    (local $t4 i32)
+    (local $t5 i32)
+    (local $t6 i32)
+    (local $t7 i32)
+    (local $t8 i32)
+    (local $t9 i32)
+    i32.const 10
+    call $jn_gc_frame_push
+    local.set $__jn_frame
+    local.get $__jn_frame
+    i32.const 0
+    local.get $this
+    call $jn_gc_frame_set_root
+    i32.const 0
+    local.set $pc
+    (block $exit
+      (loop $dispatch
+        (block $bb8
+        (block $bb7
+        (block $bb6
+        (block $bb5
+        (block $bb4
+        (block $bb3
+        (block $bb2
+        (block $bb1
+        (block $bb0
+          local.get $pc
+          br_table $bb0 $bb1 $bb2 $bb3 $bb4 $bb5 $bb6 $bb7 $bb8 $exit
+        )
+          local.get $this
+          local.set $this__slot
+          local.get $__jn_frame
+          i32.const 1
+          local.get $this__slot
+          call $jn_gc_frame_set_root
+          local.get $this__slot
+          local.set $t0
+          local.get $__jn_frame
+          i32.const 4
+          local.get $t0
+          call $jn_gc_frame_set_root
+          local.get $t0
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t1
+          local.get $t1
+          if
+            i32.const 1
+            local.set $pc
+          else
+            i32.const 2
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $t0
+          i32.const 8
+          i32.add
+          i32.load
+          local.set $t2
+          local.get $__jn_frame
+          i32.const 5
+          local.get $t2
+          call $jn_gc_frame_set_root
+          local.get $t2
+          local.set $gctmp.3
+          local.get $__jn_frame
+          i32.const 2
+          local.get $gctmp.3
+          call $jn_gc_frame_set_root
+          local.get $gctmp.3
+          local.set $t3
+          local.get $__jn_frame
+          i32.const 6
+          local.get $t3
+          call $jn_gc_frame_set_root
+          local.get $t3
+          i32.const 0
+          i32.ne
+          local.set $t4
+          local.get $t4
+          if
+            i32.const 3
+            local.set $pc
+          else
+            i32.const 4
+            local.set $pc
+          end
+          br $dispatch
+        )
+          local.get $this__slot
+          local.set $t5
+          local.get $__jn_frame
+          i32.const 7
+          local.get $t5
+          call $jn_gc_frame_set_root
+          local.get $t5
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t6
+          local.get $t6
+          if
+            i32.const 5
+            local.set $pc
+          else
+            i32.const 6
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          br $exit
+        )
+          local.get $t5
+          i32.const 8
+          i32.add
+          i32.load
+          local.set $t7
+          local.get $__jn_frame
+          i32.const 8
+          local.get $t7
+          call $jn_gc_frame_set_root
+          local.get $t7
+          local.set $gctmp.8
+          local.get $__jn_frame
+          i32.const 3
+          local.get $gctmp.8
+          call $jn_gc_frame_set_root
+          local.get $gctmp.8
+          local.set $t8
+          local.get $__jn_frame
+          i32.const 9
+          local.get $t8
+          call $jn_gc_frame_set_root
+          local.get $t8
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t9
+          local.get $t9
+          if
+            i32.const 7
+            local.set $pc
+          else
+            i32.const 8
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          i32.const 4
+          local.set $pc
+          br $dispatch
+      )
+    )
+    call $jn_gc_frame_pop
+  )
+  (func $_JN_AsyncTcpWriteSupplier_get (param $this i32) (result i32)
+    (local $pc i32)
+    (local $__jn_tid i32)
+    (local $__jn_asz i32)
+    (local $__jn_frame i32)
+    (local $ret i32)
+    (local $this__slot i32)
+    (local $gctmp.3 i32)
+    (local $gctmp.8 i32)
+    (local $t0 i32)
+    (local $t1 i32)
+    (local $t2 i32)
+    (local $t3 i32)
+    (local $t4 i32)
+    (local $t5 i32)
+    (local $t6 i32)
+    (local $t7 i32)
+    (local $t8 i32)
+    (local $t9 i32)
+    i32.const 10
+    call $jn_gc_frame_push
+    local.set $__jn_frame
+    local.get $__jn_frame
+    i32.const 0
+    local.get $this
+    call $jn_gc_frame_set_root
+    i32.const 0
+    local.set $pc
+    (block $exit
+      (loop $dispatch
+        (block $bb8
+        (block $bb7
+        (block $bb6
+        (block $bb5
+        (block $bb4
+        (block $bb3
+        (block $bb2
+        (block $bb1
+        (block $bb0
+          local.get $pc
+          br_table $bb0 $bb1 $bb2 $bb3 $bb4 $bb5 $bb6 $bb7 $bb8 $exit
+        )
+          local.get $this
+          local.set $this__slot
+          local.get $__jn_frame
+          i32.const 1
+          local.get $this__slot
+          call $jn_gc_frame_set_root
+          local.get $this__slot
+          local.set $t0
+          local.get $__jn_frame
+          i32.const 4
+          local.get $t0
+          call $jn_gc_frame_set_root
+          local.get $t0
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t1
+          local.get $t1
+          if
+            i32.const 1
+            local.set $pc
+          else
+            i32.const 2
+            local.set $pc
+          end
+          br $dispatch
+        )
+          i32.const 0
+          local.set $ret
+          br $exit
+        )
+          local.get $t0
+          i32.const 4
+          i32.add
+          i32.load
+          local.set $t2
+          local.get $__jn_frame
+          i32.const 5
+          local.get $t2
+          call $jn_gc_frame_set_root
+          local.get $t2
+          local.set $gctmp.3
+          local.get $__jn_frame
+          i32.const 2
+          local.get $gctmp.3
+          call $jn_gc_frame_set_root
+          local.get $gctmp.3
+          local.set $t3
+          local.get $__jn_frame
+          i32.const 6
+          local.get $t3
+          call $jn_gc_frame_set_root
+          local.get $t3
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t4
+          local.get $t4
+          if
+            i32.const 3
+            local.set $pc
+          else
+            i32.const 4
+            local.set $pc
+          end
+          br $dispatch
+        )
+          i32.const 0
+          local.set $ret
+          br $exit
+        )
+          local.get $this__slot
+          local.set $t5
+          local.get $__jn_frame
+          i32.const 7
+          local.get $t5
+          call $jn_gc_frame_set_root
+          local.get $t5
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t6
+          local.get $t6
+          if
+            i32.const 5
+            local.set $pc
+          else
+            i32.const 6
+            local.set $pc
+          end
+          br $dispatch
+        )
+          i32.const 0
+          local.set $ret
+          br $exit
+        )
+          local.get $t5
+          i32.const 8
+          i32.add
+          i32.load
+          local.set $t7
+          local.get $__jn_frame
+          i32.const 8
+          local.get $t7
+          call $jn_gc_frame_set_root
+          local.get $t7
+          local.set $gctmp.8
+          local.get $__jn_frame
+          i32.const 3
+          local.get $gctmp.8
+          call $jn_gc_frame_set_root
+          local.get $gctmp.8
+          local.set $t8
+          local.get $__jn_frame
+          i32.const 9
+          local.get $t8
+          call $jn_gc_frame_set_root
+          call $jnative_exception_pending
+          local.set $t9
+          local.get $t9
+          if
+            i32.const 7
+            local.set $pc
+          else
+            i32.const 8
+            local.set $pc
+          end
+          br $dispatch
+        )
+          i32.const 0
+          local.set $ret
+          br $exit
+        )
+          i32.const 0
+          local.set $ret
+          br $exit
+      )
+    )
+    call $jn_gc_frame_pop
+    local.get $ret
+  )
+  (func $_JN_AsyncTcpReadAllSupplier_get (param $this i32) (result i32)
+    (local $pc i32)
+    (local $__jn_tid i32)
+    (local $__jn_asz i32)
+    (local $__jn_frame i32)
+    (local $ret i32)
+    (local $this__slot i32)
+    (local $gctmp.3 i32)
+    (local $gctmp.7 i32)
+    (local $t0 i32)
+    (local $t1 i32)
+    (local $t2 i32)
+    (local $t3 i32)
+    (local $t4 i32)
+    (local $t5 i32)
+    (local $t6 i32)
+    (local $t7 i32)
+    i32.const 9
+    call $jn_gc_frame_push
+    local.set $__jn_frame
+    local.get $__jn_frame
+    i32.const 0
+    local.get $this
+    call $jn_gc_frame_set_root
+    i32.const 0
+    local.set $pc
+    (block $exit
+      (loop $dispatch
+        (block $bb6
+        (block $bb5
+        (block $bb4
+        (block $bb3
+        (block $bb2
+        (block $bb1
+        (block $bb0
+          local.get $pc
+          br_table $bb0 $bb1 $bb2 $bb3 $bb4 $bb5 $bb6 $exit
+        )
+          local.get $this
+          local.set $this__slot
+          local.get $__jn_frame
+          i32.const 1
+          local.get $this__slot
+          call $jn_gc_frame_set_root
+          local.get $this__slot
+          local.set $t0
+          local.get $__jn_frame
+          i32.const 4
+          local.get $t0
+          call $jn_gc_frame_set_root
+          local.get $t0
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t1
+          local.get $t1
+          if
+            i32.const 1
+            local.set $pc
+          else
+            i32.const 2
+            local.set $pc
+          end
+          br $dispatch
+        )
+          i32.const 0
+          local.set $ret
+          br $exit
+        )
+          local.get $t0
+          i32.const 4
+          i32.add
+          i32.load
+          local.set $t2
+          local.get $__jn_frame
+          i32.const 5
+          local.get $t2
+          call $jn_gc_frame_set_root
+          local.get $t2
+          local.set $gctmp.3
+          local.get $__jn_frame
+          i32.const 2
+          local.get $gctmp.3
+          call $jn_gc_frame_set_root
+          local.get $gctmp.3
+          local.set $t3
+          local.get $__jn_frame
+          i32.const 6
+          local.get $t3
+          call $jn_gc_frame_set_root
+          local.get $t3
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t4
+          local.get $t4
+          if
+            i32.const 3
+            local.set $pc
+          else
+            i32.const 4
+            local.set $pc
+          end
+          br $dispatch
+        )
+          i32.const 0
+          local.set $ret
+          br $exit
+        )
+          i32.const 0
+          local.set $t5
+          local.get $__jn_frame
+          i32.const 7
+          local.get $t5
+          call $jn_gc_frame_set_root
+          call $jnative_exception_pending
+          local.set $t6
+          local.get $t6
+          if
+            i32.const 5
+            local.set $pc
+          else
+            i32.const 6
+            local.set $pc
+          end
+          br $dispatch
+        )
+          i32.const 0
+          local.set $ret
+          br $exit
+        )
+          local.get $t5
+          local.set $gctmp.7
+          local.get $__jn_frame
+          i32.const 3
+          local.get $gctmp.7
+          call $jn_gc_frame_set_root
+          local.get $gctmp.7
+          local.set $t7
+          local.get $__jn_frame
+          i32.const 8
+          local.get $t7
+          call $jn_gc_frame_set_root
+          local.get $t7
+          local.set $ret
+          br $exit
+      )
+    )
+    call $jn_gc_frame_pop
+    local.get $ret
+  )
+  (func $_JN_AsyncTcpAcceptSupplier_init_CEventLoop_CTcpServer (param $this i32) (param $loop i32) (param $server i32)
+    (local $pc i32)
+    (local $__jn_tid i32)
+    (local $__jn_asz i32)
+    (local $__jn_frame i32)
+    (local $this__slot i32)
+    (local $loop__slot i32)
+    (local $server__slot i32)
+    (local $t0 i32)
+    (local $t1 i32)
+    (local $t3 i32)
+    (local $t4 i32)
+    (local $t5 i32)
+    (local $t6 i32)
+    (local $t7 i32)
+    (local $t8 i32)
+    i32.const 11
+    call $jn_gc_frame_push
+    local.set $__jn_frame
+    local.get $__jn_frame
+    i32.const 0
+    local.get $this
+    call $jn_gc_frame_set_root
+    local.get $__jn_frame
+    i32.const 1
+    local.get $loop
+    call $jn_gc_frame_set_root
+    local.get $__jn_frame
+    i32.const 2
+    local.get $server
+    call $jn_gc_frame_set_root
+    i32.const 0
+    local.set $pc
+    (block $exit
+      (loop $dispatch
+        (block $bb6
+        (block $bb5
+        (block $bb4
+        (block $bb3
+        (block $bb2
+        (block $bb1
+        (block $bb0
+          local.get $pc
+          br_table $bb0 $bb1 $bb2 $bb3 $bb4 $bb5 $bb6 $exit
+        )
+          local.get $this
+          local.set $this__slot
+          local.get $__jn_frame
+          i32.const 3
+          local.get $this__slot
+          call $jn_gc_frame_set_root
+          local.get $loop
+          local.set $loop__slot
+          local.get $__jn_frame
+          i32.const 4
+          local.get $loop__slot
+          call $jn_gc_frame_set_root
+          local.get $server
+          local.set $server__slot
+          local.get $__jn_frame
+          i32.const 5
+          local.get $server__slot
+          call $jn_gc_frame_set_root
+          local.get $this__slot
+          local.set $t0
+          local.get $__jn_frame
+          i32.const 6
+          local.get $t0
+          call $jn_gc_frame_set_root
+          local.get $t0
+          call $_JN_Object_init
+          call $jnative_exception_pending
+          local.set $t1
+          local.get $t1
+          if
+            i32.const 1
+            local.set $pc
+          else
+            i32.const 2
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $loop__slot
+          local.set $t3
+          local.get $__jn_frame
+          i32.const 7
+          local.get $t3
+          call $jn_gc_frame_set_root
+          local.get $this__slot
+          local.set $t4
+          local.get $__jn_frame
+          i32.const 8
+          local.get $t4
+          call $jn_gc_frame_set_root
+          local.get $t4
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t5
+          local.get $t5
+          if
+            i32.const 3
+            local.set $pc
+          else
+            i32.const 4
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $t4
+          i32.const 4
+          i32.add
+          local.get $t3
+          i32.store
+          local.get $server__slot
+          local.set $t6
+          local.get $__jn_frame
+          i32.const 9
+          local.get $t6
+          call $jn_gc_frame_set_root
+          local.get $this__slot
+          local.set $t7
+          local.get $__jn_frame
+          i32.const 10
+          local.get $t7
+          call $jn_gc_frame_set_root
+          local.get $t7
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t8
+          local.get $t8
+          if
+            i32.const 5
+            local.set $pc
+          else
+            i32.const 6
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $t7
+          i32.const 8
+          i32.add
+          local.get $t6
+          i32.store
+          br $exit
+      )
+    )
+    call $jn_gc_frame_pop
+  )
+  (func $_JN_AsyncTcpAcceptSupplier_get (param $this i32) (result i32)
+    (local $pc i32)
+    (local $__jn_tid i32)
+    (local $__jn_asz i32)
+    (local $__jn_frame i32)
+    (local $ret i32)
+    (local $this__slot i32)
+    (local $sock i32)
+    (local $gctmp.3 i32)
+    (local $gctmp.7 i32)
+    (local $out i32)
+    (local $gctmp.9 i32)
+    (local $gctmp.14 i32)
+    (local $t0 i32)
+    (local $t1 i32)
+    (local $t2 i32)
+    (local $t3 i32)
+    (local $t4 i32)
+    (local $t5 i32)
+    (local $t6 i32)
+    (local $t7 i32)
+    (local $t8 i32)
+    (local $t9 i32)
+    (local $t10 i32)
+    (local $t11 i32)
+    (local $t12 i32)
+    (local $t13 i32)
+    (local $t14 i32)
+    (local $t15 i32)
+    (local $t16 i32)
+    (local $t17 i32)
+    (local $t18 i32)
+    (local $t19 i32)
+    (local $t20 i32)
+    i32.const 22
+    call $jn_gc_frame_push
+    local.set $__jn_frame
+    local.get $__jn_frame
+    i32.const 0
+    local.get $this
+    call $jn_gc_frame_set_root
+    i32.const 0
+    local.set $pc
+    (block $exit
+      (loop $dispatch
+        (block $bb14
+        (block $bb13
+        (block $bb12
+        (block $bb11
+        (block $bb10
+        (block $bb9
+        (block $bb8
+        (block $bb7
+        (block $bb6
+        (block $bb5
+        (block $bb4
+        (block $bb3
+        (block $bb2
+        (block $bb1
+        (block $bb0
+          local.get $pc
+          br_table $bb0 $bb1 $bb2 $bb3 $bb4 $bb5 $bb6 $bb7 $bb8 $bb9 $bb10 $bb11 $bb12 $bb13 $bb14 $exit
+        )
+          local.get $this
+          local.set $this__slot
+          local.get $__jn_frame
+          i32.const 1
+          local.get $this__slot
+          call $jn_gc_frame_set_root
+          local.get $this__slot
+          local.set $t0
+          local.get $__jn_frame
+          i32.const 8
+          local.get $t0
+          call $jn_gc_frame_set_root
+          local.get $t0
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t1
+          local.get $t1
+          if
+            i32.const 1
+            local.set $pc
+          else
+            i32.const 2
+            local.set $pc
+          end
+          br $dispatch
+        )
+          i32.const 0
+          local.set $ret
+          br $exit
+        )
+          local.get $t0
+          i32.const 8
+          i32.add
+          i32.load
+          local.set $t2
+          local.get $__jn_frame
+          i32.const 9
+          local.get $t2
+          call $jn_gc_frame_set_root
+          local.get $t2
+          local.set $gctmp.3
+          local.get $__jn_frame
+          i32.const 3
+          local.get $gctmp.3
+          call $jn_gc_frame_set_root
+          local.get $gctmp.3
+          local.set $t3
+          local.get $__jn_frame
+          i32.const 10
+          local.get $t3
+          call $jn_gc_frame_set_root
+          local.get $t3
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t4
+          local.get $t4
+          if
+            i32.const 3
+            local.set $pc
+          else
+            i32.const 4
+            local.set $pc
+          end
+          br $dispatch
+        )
+          i32.const 0
+          local.set $ret
+          br $exit
+        )
+          i32.const 0
+          local.set $t5
+          local.get $__jn_frame
+          i32.const 11
+          local.get $t5
+          call $jn_gc_frame_set_root
+          call $jnative_exception_pending
+          local.set $t6
+          local.get $t6
+          if
+            i32.const 5
+            local.set $pc
+          else
+            i32.const 6
+            local.set $pc
+          end
+          br $dispatch
+        )
+          i32.const 0
+          local.set $ret
+          br $exit
+        )
+          local.get $t5
+          local.set $gctmp.7
+          local.get $__jn_frame
+          i32.const 4
+          local.get $gctmp.7
+          call $jn_gc_frame_set_root
+          local.get $gctmp.7
+          local.set $t7
+          local.get $__jn_frame
+          i32.const 12
+          local.get $t7
+          call $jn_gc_frame_set_root
+          local.get $t7
+          local.set $sock
+          local.get $__jn_frame
+          i32.const 2
+          local.get $sock
+          call $jn_gc_frame_set_root
+          i32.const 12
+          call $jn_alloc_zeroed
+          local.set $t8
+          local.get $t8
+          i32.eqz
+          if
+            unreachable
+          end
+          local.get $t8
+          i32.const 23
+          i32.store
+          local.get $__jn_frame
+          i32.const 13
+          local.get $t8
+          call $jn_gc_frame_set_root
+          local.get $t8
+          local.set $gctmp.9
+          local.get $__jn_frame
+          i32.const 6
+          local.get $gctmp.9
+          call $jn_gc_frame_set_root
+          local.get $gctmp.9
+          local.set $t9
+          local.get $__jn_frame
+          i32.const 14
+          local.get $t9
+          call $jn_gc_frame_set_root
+          local.get $t9
+          call $_JN_AsyncTcpSocket_init
+          call $jnative_exception_pending
+          local.set $t10
+          local.get $t10
+          if
+            i32.const 7
+            local.set $pc
+          else
+            i32.const 8
+            local.set $pc
+          end
+          br $dispatch
+        )
+          i32.const 0
+          local.set $ret
+          br $exit
+        )
+          local.get $t9
+          local.set $out
+          local.get $__jn_frame
+          i32.const 5
+          local.get $out
+          call $jn_gc_frame_set_root
+          local.get $this__slot
+          local.set $t11
+          local.get $__jn_frame
+          i32.const 15
+          local.get $t11
+          call $jn_gc_frame_set_root
+          local.get $t11
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t12
+          local.get $t12
+          if
+            i32.const 9
+            local.set $pc
+          else
+            i32.const 10
+            local.set $pc
+          end
+          br $dispatch
+        )
+          i32.const 0
+          local.set $ret
+          br $exit
+        )
+          local.get $t11
+          i32.const 4
+          i32.add
+          i32.load
+          local.set $t13
+          local.get $__jn_frame
+          i32.const 16
+          local.get $t13
+          call $jn_gc_frame_set_root
+          local.get $t13
+          local.set $gctmp.14
+          local.get $__jn_frame
+          i32.const 7
+          local.get $gctmp.14
+          call $jn_gc_frame_set_root
+          local.get $gctmp.14
+          local.set $t14
+          local.get $__jn_frame
+          i32.const 17
+          local.get $t14
+          call $jn_gc_frame_set_root
+          local.get $out
+          local.set $t15
+          local.get $__jn_frame
+          i32.const 18
+          local.get $t15
+          call $jn_gc_frame_set_root
+          call $jnative_exception_pending
+          local.set $t16
+          local.get $t16
+          if
+            i32.const 11
+            local.set $pc
+          else
+            i32.const 12
+            local.set $pc
+          end
+          br $dispatch
+        )
+          i32.const 0
+          local.set $ret
+          br $exit
+        )
+          local.get $t15
+          i32.const 4
+          i32.add
+          local.get $t14
+          i32.store
+          local.get $sock
+          local.set $t17
+          local.get $__jn_frame
+          i32.const 19
+          local.get $t17
+          call $jn_gc_frame_set_root
+          local.get $out
+          local.set $t18
+          local.get $__jn_frame
+          i32.const 20
+          local.get $t18
+          call $jn_gc_frame_set_root
+          call $jnative_exception_pending
+          local.set $t19
+          local.get $t19
+          if
+            i32.const 13
+            local.set $pc
+          else
+            i32.const 14
+            local.set $pc
+          end
+          br $dispatch
+        )
+          i32.const 0
+          local.set $ret
+          br $exit
+        )
+          local.get $t18
+          i32.const 8
+          i32.add
+          local.get $t17
+          i32.store
+          local.get $out
+          local.set $t20
+          local.get $__jn_frame
+          i32.const 21
+          local.get $t20
+          call $jn_gc_frame_set_root
+          local.get $t20
+          local.set $ret
+          br $exit
+      )
+    )
+    call $jn_gc_frame_pop
+    local.get $ret
+  )
+  (func $_JN_AsyncTcpServer_accept (param $this i32) (result i32)
+    (local $pc i32)
+    (local $__jn_tid i32)
+    (local $__jn_asz i32)
+    (local $__jn_frame i32)
+    (local $ret i32)
+    (local $this__slot i32)
+    (local $gctmp.3 i32)
+    (local $gctmp.5 i32)
+    (local $gctmp.9 i32)
+    (local $gctmp.13 i32)
+    (local $gctmp.17 i32)
+    (local $t0 i32)
+    (local $t1 i32)
+    (local $t2 i32)
+    (local $t3 i32)
+    (local $t4 i32)
+    (local $t5 i32)
+    (local $t6 i32)
+    (local $t7 i32)
+    (local $t8 i32)
+    (local $t9 i32)
+    (local $t10 i32)
+    (local $t11 i32)
+    (local $t12 i32)
+    (local $t13 i32)
+    (local $t14 i32)
+    (local $t15 i32)
+    (local $t16 i32)
+    (local $t17 i32)
+    i32.const 20
+    call $jn_gc_frame_push
+    local.set $__jn_frame
+    local.get $__jn_frame
+    i32.const 0
+    local.get $this
+    call $jn_gc_frame_set_root
+    i32.const 0
+    local.set $pc
+    (block $exit
+      (loop $dispatch
+        (block $bb10
+        (block $bb9
+        (block $bb8
+        (block $bb7
+        (block $bb6
+        (block $bb5
+        (block $bb4
+        (block $bb3
+        (block $bb2
+        (block $bb1
+        (block $bb0
+          local.get $pc
+          br_table $bb0 $bb1 $bb2 $bb3 $bb4 $bb5 $bb6 $bb7 $bb8 $bb9 $bb10 $exit
+        )
+          local.get $this
+          local.set $this__slot
+          local.get $__jn_frame
+          i32.const 1
+          local.get $this__slot
+          call $jn_gc_frame_set_root
+          local.get $this__slot
+          local.set $t0
+          local.get $__jn_frame
+          i32.const 7
+          local.get $t0
+          call $jn_gc_frame_set_root
+          local.get $t0
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t1
+          local.get $t1
+          if
+            i32.const 1
+            local.set $pc
+          else
+            i32.const 2
+            local.set $pc
+          end
+          br $dispatch
+        )
+          i32.const 0
+          local.set $ret
+          br $exit
+        )
+          local.get $t0
+          i32.const 4
+          i32.add
+          i32.load
+          local.set $t2
+          local.get $__jn_frame
+          i32.const 8
+          local.get $t2
+          call $jn_gc_frame_set_root
+          local.get $t2
+          local.set $gctmp.3
+          local.get $__jn_frame
+          i32.const 2
+          local.get $gctmp.3
+          call $jn_gc_frame_set_root
+          local.get $gctmp.3
+          local.set $t3
+          local.get $__jn_frame
+          i32.const 9
+          local.get $t3
+          call $jn_gc_frame_set_root
+          i32.const 12
+          call $jn_alloc_zeroed
+          local.set $t4
+          local.get $t4
+          i32.eqz
+          if
+            unreachable
+          end
+          local.get $t4
+          i32.const 62
+          i32.store
+          local.get $__jn_frame
+          i32.const 10
+          local.get $t4
+          call $jn_gc_frame_set_root
+          local.get $t4
+          local.set $gctmp.5
+          local.get $__jn_frame
+          i32.const 3
+          local.get $gctmp.5
+          call $jn_gc_frame_set_root
+          local.get $gctmp.5
+          local.set $t5
+          local.get $__jn_frame
+          i32.const 11
+          local.get $t5
+          call $jn_gc_frame_set_root
+          local.get $this__slot
+          local.set $t6
+          local.get $__jn_frame
+          i32.const 12
+          local.get $t6
+          call $jn_gc_frame_set_root
+          local.get $t6
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t7
+          local.get $t7
+          if
+            i32.const 3
+            local.set $pc
+          else
+            i32.const 4
+            local.set $pc
+          end
+          br $dispatch
+        )
+          i32.const 0
+          local.set $ret
+          br $exit
+        )
+          local.get $t6
+          i32.const 4
+          i32.add
+          i32.load
+          local.set $t8
+          local.get $__jn_frame
+          i32.const 13
+          local.get $t8
+          call $jn_gc_frame_set_root
+          local.get $t8
+          local.set $gctmp.9
+          local.get $__jn_frame
+          i32.const 4
+          local.get $gctmp.9
+          call $jn_gc_frame_set_root
+          local.get $gctmp.9
+          local.set $t9
+          local.get $__jn_frame
+          i32.const 14
+          local.get $t9
+          call $jn_gc_frame_set_root
+          local.get $this__slot
+          local.set $t10
+          local.get $__jn_frame
+          i32.const 15
+          local.get $t10
+          call $jn_gc_frame_set_root
+          local.get $t10
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t11
+          local.get $t11
+          if
+            i32.const 5
+            local.set $pc
+          else
+            i32.const 6
+            local.set $pc
+          end
+          br $dispatch
+        )
+          i32.const 0
+          local.set $ret
+          br $exit
+        )
+          local.get $t10
+          i32.const 8
+          i32.add
+          i32.load
+          local.set $t12
+          local.get $__jn_frame
+          i32.const 16
+          local.get $t12
+          call $jn_gc_frame_set_root
+          local.get $t12
+          local.set $gctmp.13
+          local.get $__jn_frame
+          i32.const 5
+          local.get $gctmp.13
+          call $jn_gc_frame_set_root
+          local.get $gctmp.13
+          local.set $t13
+          local.get $__jn_frame
+          i32.const 17
+          local.get $t13
+          call $jn_gc_frame_set_root
+          local.get $t5
+          local.get $t9
+          local.get $t13
+          call $_JN_AsyncTcpAcceptSupplier_init_CEventLoop_CTcpServer
+          call $jnative_exception_pending
+          local.set $t14
+          local.get $t14
+          if
+            i32.const 7
+            local.set $pc
+          else
+            i32.const 8
+            local.set $pc
+          end
+          br $dispatch
+        )
+          i32.const 0
+          local.set $ret
+          br $exit
+        )
+          local.get $t3
+          local.get $t5
+          call $_JN_Async_blockingOnLoop_CEventLoop_IBlockingSupplier
+          local.set $t15
+          local.get $__jn_frame
+          i32.const 18
+          local.get $t15
+          call $jn_gc_frame_set_root
+          call $jnative_exception_pending
+          local.set $t16
+          local.get $t16
+          if
+            i32.const 9
+            local.set $pc
+          else
+            i32.const 10
+            local.set $pc
+          end
+          br $dispatch
+        )
+          i32.const 0
+          local.set $ret
+          br $exit
+        )
+          local.get $t15
+          local.set $gctmp.17
+          local.get $__jn_frame
+          i32.const 6
+          local.get $gctmp.17
+          call $jn_gc_frame_set_root
+          local.get $gctmp.17
+          local.set $t17
+          local.get $__jn_frame
+          i32.const 19
+          local.get $t17
+          call $jn_gc_frame_set_root
+          local.get $t17
+          local.set $ret
+          br $exit
+      )
+    )
+    call $jn_gc_frame_pop
+    local.get $ret
+  )
+  (func $_JN_AsyncTcpServer_close (param $this i32)
+    (local $pc i32)
+    (local $__jn_tid i32)
+    (local $__jn_asz i32)
+    (local $__jn_frame i32)
+    (local $this__slot i32)
+    (local $gctmp.3 i32)
+    (local $t0 i32)
+    (local $t1 i32)
+    (local $t2 i32)
+    (local $t3 i32)
+    (local $t4 i32)
+    i32.const 6
+    call $jn_gc_frame_push
+    local.set $__jn_frame
+    local.get $__jn_frame
+    i32.const 0
+    local.get $this
+    call $jn_gc_frame_set_root
+    i32.const 0
+    local.set $pc
+    (block $exit
+      (loop $dispatch
+        (block $bb4
+        (block $bb3
+        (block $bb2
+        (block $bb1
+        (block $bb0
+          local.get $pc
+          br_table $bb0 $bb1 $bb2 $bb3 $bb4 $exit
+        )
+          local.get $this
+          local.set $this__slot
+          local.get $__jn_frame
+          i32.const 1
+          local.get $this__slot
+          call $jn_gc_frame_set_root
+          local.get $this__slot
+          local.set $t0
+          local.get $__jn_frame
+          i32.const 3
+          local.get $t0
+          call $jn_gc_frame_set_root
+          local.get $t0
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t1
+          local.get $t1
+          if
+            i32.const 1
+            local.set $pc
+          else
+            i32.const 2
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $t0
+          i32.const 8
+          i32.add
+          i32.load
+          local.set $t2
+          local.get $__jn_frame
+          i32.const 4
+          local.get $t2
+          call $jn_gc_frame_set_root
+          local.get $t2
+          local.set $gctmp.3
+          local.get $__jn_frame
+          i32.const 2
+          local.get $gctmp.3
+          call $jn_gc_frame_set_root
+          local.get $gctmp.3
+          local.set $t3
+          local.get $__jn_frame
+          i32.const 5
+          local.get $t3
+          call $jn_gc_frame_set_root
+          local.get $t3
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t4
+          local.get $t4
+          if
+            i32.const 3
+            local.set $pc
+          else
+            i32.const 4
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          br $exit
+      )
+    )
+    call $jn_gc_frame_pop
+  )
+  (func $_JN_AsyncTcpListenSupplier_get (param $this i32) (result i32)
+    (local $pc i32)
+    (local $__jn_tid i32)
+    (local $__jn_asz i32)
+    (local $__jn_frame i32)
+    (local $ret i32)
+    (local $this__slot i32)
+    (local $out i32)
+    (local $gctmp.1 i32)
+    (local $gctmp.6 i32)
+    (local $gctmp.12 i32)
+    (local $gctmp.18 i32)
+    (local $t0 i32)
+    (local $t1 i32)
+    (local $t2 i32)
+    (local $t3 i32)
+    (local $t4 i32)
+    (local $t5 i32)
+    (local $t6 i32)
+    (local $t7 i32)
+    (local $t8 i32)
+    (local $t9 i32)
+    (local $t10 i32)
+    (local $t11 i32)
+    (local $t12 i32)
+    (local $t13 i32)
+    (local $t14 i32)
+    (local $t15 i32)
+    (local $t16 i32)
+    (local $t17 i32)
+    (local $t18 i32)
+    (local $t19 i32)
+    (local $t20 i32)
+    (local $t21 i32)
+    i32.const 21
+    call $jn_gc_frame_push
+    local.set $__jn_frame
+    local.get $__jn_frame
+    i32.const 0
+    local.get $this
+    call $jn_gc_frame_set_root
+    i32.const 0
+    local.set $pc
+    (block $exit
+      (loop $dispatch
+        (block $bb14
+        (block $bb13
+        (block $bb12
+        (block $bb11
+        (block $bb10
+        (block $bb9
+        (block $bb8
+        (block $bb7
+        (block $bb6
+        (block $bb5
+        (block $bb4
+        (block $bb3
+        (block $bb2
+        (block $bb1
+        (block $bb0
+          local.get $pc
+          br_table $bb0 $bb1 $bb2 $bb3 $bb4 $bb5 $bb6 $bb7 $bb8 $bb9 $bb10 $bb11 $bb12 $bb13 $bb14 $exit
+        )
+          local.get $this
+          local.set $this__slot
+          local.get $__jn_frame
+          i32.const 1
+          local.get $this__slot
+          call $jn_gc_frame_set_root
+          i32.const 12
+          call $jn_alloc_zeroed
+          local.set $t0
+          local.get $t0
+          i32.eqz
+          if
+            unreachable
+          end
+          local.get $t0
+          i32.const 13
+          i32.store
+          local.get $__jn_frame
+          i32.const 7
+          local.get $t0
+          call $jn_gc_frame_set_root
+          local.get $t0
+          local.set $gctmp.1
+          local.get $__jn_frame
+          i32.const 3
+          local.get $gctmp.1
+          call $jn_gc_frame_set_root
+          local.get $gctmp.1
+          local.set $t1
+          local.get $__jn_frame
+          i32.const 8
+          local.get $t1
+          call $jn_gc_frame_set_root
+          local.get $t1
+          call $_JN_AsyncTcpServer_init
+          call $jnative_exception_pending
+          local.set $t2
+          local.get $t2
+          if
+            i32.const 1
+            local.set $pc
+          else
+            i32.const 2
+            local.set $pc
+          end
+          br $dispatch
+        )
+          i32.const 0
+          local.set $ret
+          br $exit
+        )
+          local.get $t1
+          local.set $out
+          local.get $__jn_frame
+          i32.const 2
+          local.get $out
+          call $jn_gc_frame_set_root
+          local.get $this__slot
+          local.set $t3
+          local.get $__jn_frame
+          i32.const 9
+          local.get $t3
+          call $jn_gc_frame_set_root
+          local.get $t3
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t4
+          local.get $t4
+          if
+            i32.const 3
+            local.set $pc
+          else
+            i32.const 4
+            local.set $pc
+          end
+          br $dispatch
+        )
+          i32.const 0
+          local.set $ret
+          br $exit
+        )
+          local.get $t3
+          i32.const 4
+          i32.add
+          i32.load
+          local.set $t5
+          local.get $__jn_frame
+          i32.const 10
+          local.get $t5
+          call $jn_gc_frame_set_root
+          local.get $t5
+          local.set $gctmp.6
+          local.get $__jn_frame
+          i32.const 4
+          local.get $gctmp.6
+          call $jn_gc_frame_set_root
+          local.get $gctmp.6
+          local.set $t6
+          local.get $__jn_frame
+          i32.const 11
+          local.get $t6
+          call $jn_gc_frame_set_root
+          local.get $out
+          local.set $t7
+          local.get $__jn_frame
+          i32.const 12
+          local.get $t7
+          call $jn_gc_frame_set_root
+          call $jnative_exception_pending
+          local.set $t8
+          local.get $t8
+          if
+            i32.const 5
+            local.set $pc
+          else
+            i32.const 6
+            local.set $pc
+          end
+          br $dispatch
+        )
+          i32.const 0
+          local.set $ret
+          br $exit
+        )
+          local.get $t7
+          i32.const 4
+          i32.add
+          local.get $t6
+          i32.store
+          local.get $this__slot
+          local.set $t9
+          local.get $__jn_frame
+          i32.const 13
+          local.get $t9
+          call $jn_gc_frame_set_root
+          local.get $t9
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t10
+          local.get $t10
+          if
+            i32.const 7
+            local.set $pc
+          else
+            i32.const 8
+            local.set $pc
+          end
+          br $dispatch
+        )
+          i32.const 0
+          local.set $ret
+          br $exit
+        )
+          local.get $t9
+          i32.const 8
+          i32.add
+          i32.load
+          local.set $t11
+          local.get $__jn_frame
+          i32.const 14
+          local.get $t11
+          call $jn_gc_frame_set_root
+          local.get $t11
+          local.set $gctmp.12
+          local.get $__jn_frame
+          i32.const 5
+          local.get $gctmp.12
+          call $jn_gc_frame_set_root
+          local.get $gctmp.12
+          local.set $t12
+          local.get $__jn_frame
+          i32.const 15
+          local.get $t12
+          call $jn_gc_frame_set_root
+          local.get $this__slot
+          local.set $t13
+          local.get $__jn_frame
+          i32.const 16
+          local.get $t13
+          call $jn_gc_frame_set_root
+          local.get $t13
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t14
+          local.get $t14
+          if
+            i32.const 9
+            local.set $pc
+          else
+            i32.const 10
+            local.set $pc
+          end
+          br $dispatch
+        )
+          i32.const 0
+          local.set $ret
+          br $exit
+        )
+          local.get $t13
+          i32.const 12
+          i32.add
+          i32.load
+          local.set $t15
+          i32.const 0
+          local.set $t16
+          local.get $__jn_frame
+          i32.const 17
+          local.get $t16
+          call $jn_gc_frame_set_root
+          call $jnative_exception_pending
+          local.set $t17
+          local.get $t17
+          if
+            i32.const 11
+            local.set $pc
+          else
+            i32.const 12
+            local.set $pc
+          end
+          br $dispatch
+        )
+          i32.const 0
+          local.set $ret
+          br $exit
+        )
+          local.get $t16
+          local.set $gctmp.18
+          local.get $__jn_frame
+          i32.const 6
+          local.get $gctmp.18
+          call $jn_gc_frame_set_root
+          local.get $gctmp.18
+          local.set $t18
+          local.get $__jn_frame
+          i32.const 18
+          local.get $t18
+          call $jn_gc_frame_set_root
+          local.get $out
+          local.set $t19
+          local.get $__jn_frame
+          i32.const 19
+          local.get $t19
+          call $jn_gc_frame_set_root
+          call $jnative_exception_pending
+          local.set $t20
+          local.get $t20
+          if
+            i32.const 13
+            local.set $pc
+          else
+            i32.const 14
+            local.set $pc
+          end
+          br $dispatch
+        )
+          i32.const 0
+          local.set $ret
+          br $exit
+        )
+          local.get $t19
+          i32.const 8
+          i32.add
+          local.get $t18
+          i32.store
+          local.get $out
+          local.set $t21
+          local.get $__jn_frame
+          i32.const 20
+          local.get $t21
+          call $jn_gc_frame_set_root
+          local.get $t21
+          local.set $ret
+          br $exit
+      )
+    )
+    call $jn_gc_frame_pop
+    local.get $ret
+  )
+  (func $_JN_AsyncTcpServer_init (param $this i32)
+    (local $pc i32)
+    (local $__jn_tid i32)
+    (local $__jn_asz i32)
+    (local $__jn_frame i32)
+    (local $this__slot i32)
+    (local $t0 i32)
+    (local $t1 i32)
+    i32.const 3
+    call $jn_gc_frame_push
+    local.set $__jn_frame
+    local.get $__jn_frame
+    i32.const 0
+    local.get $this
+    call $jn_gc_frame_set_root
+    i32.const 0
+    local.set $pc
+    (block $exit
+      (loop $dispatch
+        (block $bb2
+        (block $bb1
+        (block $bb0
+          local.get $pc
+          br_table $bb0 $bb1 $bb2 $exit
+        )
+          local.get $this
+          local.set $this__slot
+          local.get $__jn_frame
+          i32.const 1
+          local.get $this__slot
+          call $jn_gc_frame_set_root
+          local.get $this__slot
+          local.set $t0
+          local.get $__jn_frame
+          i32.const 2
+          local.get $t0
+          call $jn_gc_frame_set_root
+          local.get $t0
+          call $_JN_Object_init
+          call $jnative_exception_pending
+          local.set $t1
+          local.get $t1
+          if
+            i32.const 1
+            local.set $pc
+          else
+            i32.const 2
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          br $exit
+      )
+    )
+    call $jn_gc_frame_pop
+  )
+  (func $_JN_JsHandle_init_i32 (param $this i32) (param $id i32)
+    (local $pc i32)
+    (local $__jn_tid i32)
+    (local $__jn_asz i32)
+    (local $__jn_frame i32)
+    (local $this__slot i32)
+    (local $id__slot i32)
+    (local $t0 i32)
+    (local $t1 i32)
+    (local $t3 i32)
+    (local $t4 i32)
+    (local $t5 i32)
+    i32.const 4
+    call $jn_gc_frame_push
+    local.set $__jn_frame
+    local.get $__jn_frame
+    i32.const 0
+    local.get $this
+    call $jn_gc_frame_set_root
+    i32.const 0
+    local.set $pc
+    (block $exit
+      (loop $dispatch
+        (block $bb4
+        (block $bb3
+        (block $bb2
+        (block $bb1
+        (block $bb0
+          local.get $pc
+          br_table $bb0 $bb1 $bb2 $bb3 $bb4 $exit
+        )
+          local.get $this
+          local.set $this__slot
+          local.get $__jn_frame
+          i32.const 1
+          local.get $this__slot
+          call $jn_gc_frame_set_root
+          local.get $id
+          local.set $id__slot
+          local.get $this__slot
+          local.set $t0
+          local.get $__jn_frame
+          i32.const 2
+          local.get $t0
+          call $jn_gc_frame_set_root
+          local.get $t0
+          call $_JN_Object_init
+          call $jnative_exception_pending
+          local.set $t1
+          local.get $t1
+          if
+            i32.const 1
+            local.set $pc
+          else
+            i32.const 2
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $id__slot
+          local.set $t3
+          local.get $this__slot
+          local.set $t4
+          local.get $__jn_frame
+          i32.const 3
+          local.get $t4
+          call $jn_gc_frame_set_root
+          local.get $t4
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t5
+          local.get $t5
+          if
+            i32.const 3
+            local.set $pc
+          else
+            i32.const 4
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $t4
+          i32.const 4
+          i32.add
+          local.get $t3
+          i32.store
+          br $exit
+      )
+    )
+    call $jn_gc_frame_pop
+  )
+  (func $_JN_JsHandle_id (param $this i32) (result i32)
+    (local $pc i32)
+    (local $__jn_tid i32)
+    (local $__jn_asz i32)
+    (local $__jn_frame i32)
+    (local $ret i32)
+    (local $this__slot i32)
+    (local $t0 i32)
+    (local $t1 i32)
+    (local $t2 i32)
+    i32.const 3
+    call $jn_gc_frame_push
+    local.set $__jn_frame
+    local.get $__jn_frame
+    i32.const 0
+    local.get $this
+    call $jn_gc_frame_set_root
+    i32.const 0
+    local.set $pc
+    (block $exit
+      (loop $dispatch
+        (block $bb2
+        (block $bb1
+        (block $bb0
+          local.get $pc
+          br_table $bb0 $bb1 $bb2 $exit
+        )
+          local.get $this
+          local.set $this__slot
+          local.get $__jn_frame
+          i32.const 1
+          local.get $this__slot
+          call $jn_gc_frame_set_root
+          local.get $this__slot
+          local.set $t0
+          local.get $__jn_frame
+          i32.const 2
+          local.get $t0
+          call $jn_gc_frame_set_root
+          local.get $t0
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t1
+          local.get $t1
+          if
+            i32.const 1
+            local.set $pc
+          else
+            i32.const 2
+            local.set $pc
+          end
+          br $dispatch
+        )
+          i32.const 0
+          local.set $ret
+          br $exit
+        )
+          local.get $t0
+          i32.const 4
+          i32.add
+          i32.load
+          local.set $t2
+          local.get $t2
+          local.set $ret
+          br $exit
+      )
+    )
+    call $jn_gc_frame_pop
+    local.get $ret
+  )
+  (func $_JN_JsObject_init_CJsHandle (param $this i32) (param $handle i32)
+    (local $pc i32)
+    (local $__jn_tid i32)
+    (local $__jn_asz i32)
+    (local $__jn_frame i32)
+    (local $this__slot i32)
+    (local $handle__slot i32)
+    (local $t0 i32)
+    (local $t1 i32)
+    (local $t3 i32)
+    (local $t4 i32)
+    (local $t5 i32)
+    i32.const 7
+    call $jn_gc_frame_push
+    local.set $__jn_frame
+    local.get $__jn_frame
+    i32.const 0
+    local.get $this
+    call $jn_gc_frame_set_root
+    local.get $__jn_frame
+    i32.const 1
+    local.get $handle
+    call $jn_gc_frame_set_root
+    i32.const 0
+    local.set $pc
+    (block $exit
+      (loop $dispatch
+        (block $bb4
+        (block $bb3
+        (block $bb2
+        (block $bb1
+        (block $bb0
+          local.get $pc
+          br_table $bb0 $bb1 $bb2 $bb3 $bb4 $exit
+        )
+          local.get $this
+          local.set $this__slot
+          local.get $__jn_frame
+          i32.const 2
+          local.get $this__slot
+          call $jn_gc_frame_set_root
+          local.get $handle
+          local.set $handle__slot
+          local.get $__jn_frame
+          i32.const 3
+          local.get $handle__slot
+          call $jn_gc_frame_set_root
+          local.get $this__slot
+          local.set $t0
+          local.get $__jn_frame
+          i32.const 4
+          local.get $t0
+          call $jn_gc_frame_set_root
+          local.get $t0
+          call $_JN_Object_init
+          call $jnative_exception_pending
+          local.set $t1
+          local.get $t1
+          if
+            i32.const 1
+            local.set $pc
+          else
+            i32.const 2
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $handle__slot
+          local.set $t3
+          local.get $__jn_frame
+          i32.const 5
+          local.get $t3
+          call $jn_gc_frame_set_root
+          local.get $this__slot
+          local.set $t4
+          local.get $__jn_frame
+          i32.const 6
+          local.get $t4
+          call $jn_gc_frame_set_root
+          local.get $t4
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t5
+          local.get $t5
+          if
+            i32.const 3
+            local.set $pc
+          else
+            i32.const 4
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $t4
+          i32.const 4
+          i32.add
+          local.get $t3
+          i32.store
+          br $exit
+      )
+    )
+    call $jn_gc_frame_pop
+  )
+  (func $_JN_JsObject_handleId (param $this i32) (result i32)
+    (local $pc i32)
+    (local $__jn_tid i32)
+    (local $__jn_asz i32)
+    (local $__jn_frame i32)
+    (local $ret i32)
+    (local $this__slot i32)
+    (local $gctmp.3 i32)
+    (local $gctmp.8 i32)
+    (local $t0 i32)
+    (local $t1 i32)
+    (local $t2 i32)
+    (local $t3 i32)
+    (local $t4 i32)
+    (local $t5 i32)
+    (local $t6 i32)
+    (local $t7 i32)
+    (local $t8 i32)
+    (local $t9 i32)
+    (local $t10 i32)
+    i32.const 10
+    call $jn_gc_frame_push
+    local.set $__jn_frame
+    local.get $__jn_frame
+    i32.const 0
+    local.get $this
+    call $jn_gc_frame_set_root
+    i32.const 0
+    local.set $pc
+    (block $exit
+      (loop $dispatch
+        (block $bb8
+        (block $bb7
+        (block $bb6
+        (block $bb5
+        (block $bb4
+        (block $bb3
+        (block $bb2
+        (block $bb1
+        (block $bb0
+          local.get $pc
+          br_table $bb0 $bb1 $bb2 $bb3 $bb4 $bb5 $bb6 $bb7 $bb8 $exit
+        )
+          local.get $this
+          local.set $this__slot
+          local.get $__jn_frame
+          i32.const 1
+          local.get $this__slot
+          call $jn_gc_frame_set_root
+          local.get $this__slot
+          local.set $t0
+          local.get $__jn_frame
+          i32.const 4
+          local.get $t0
+          call $jn_gc_frame_set_root
+          local.get $t0
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t1
+          local.get $t1
+          if
+            i32.const 1
+            local.set $pc
+          else
+            i32.const 2
+            local.set $pc
+          end
+          br $dispatch
+        )
+          i32.const 0
+          local.set $ret
+          br $exit
+        )
+          local.get $t0
+          i32.const 4
+          i32.add
+          i32.load
+          local.set $t2
+          local.get $__jn_frame
+          i32.const 5
+          local.get $t2
+          call $jn_gc_frame_set_root
+          local.get $t2
+          local.set $gctmp.3
+          local.get $__jn_frame
+          i32.const 2
+          local.get $gctmp.3
+          call $jn_gc_frame_set_root
+          local.get $gctmp.3
+          local.set $t3
+          local.get $__jn_frame
+          i32.const 6
+          local.get $t3
+          call $jn_gc_frame_set_root
+          local.get $t3
+          i32.const 0
+          i32.eq
+          local.set $t4
+          local.get $t4
+          if
+            i32.const 3
+            local.set $pc
+          else
+            i32.const 4
+            local.set $pc
+          end
+          br $dispatch
+        )
+          i32.const 0
+          local.set $ret
+          br $exit
+        )
+          local.get $this__slot
+          local.set $t5
+          local.get $__jn_frame
+          i32.const 7
+          local.get $t5
+          call $jn_gc_frame_set_root
+          local.get $t5
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t6
+          local.get $t6
+          if
+            i32.const 5
+            local.set $pc
+          else
+            i32.const 6
+            local.set $pc
+          end
+          br $dispatch
+        )
+          i32.const 0
+          local.set $ret
+          br $exit
+        )
+          local.get $t5
+          i32.const 4
+          i32.add
+          i32.load
+          local.set $t7
+          local.get $__jn_frame
+          i32.const 8
+          local.get $t7
+          call $jn_gc_frame_set_root
+          local.get $t7
+          local.set $gctmp.8
+          local.get $__jn_frame
+          i32.const 3
+          local.get $gctmp.8
+          call $jn_gc_frame_set_root
+          local.get $gctmp.8
+          local.set $t8
+          local.get $__jn_frame
+          i32.const 9
+          local.get $t8
+          call $jn_gc_frame_set_root
+          local.get $t8
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t9
+          local.get $t9
+          if
+            i32.const 7
+            local.set $pc
+          else
+            i32.const 8
+            local.set $pc
+          end
+          br $dispatch
+        )
+          i32.const 0
+          local.set $ret
+          br $exit
+        )
+          local.get $t8
+          i32.const 4
+          i32.add
+          i32.load
+          local.set $t10
+          local.get $t10
+          local.set $ret
+          br $exit
+      )
+    )
+    call $jn_gc_frame_pop
+    local.get $ret
+  )
+  (func $_JN_Console_log_CString (param $this i32) (param $message i32)
+    (local $pc i32)
+    (local $__jn_tid i32)
+    (local $__jn_asz i32)
+    (local $__jn_frame i32)
+    (local $this__slot i32)
+    (local $message__slot i32)
+    (local $t0 i32)
+    (local $t1 i32)
+    i32.const 5
+    call $jn_gc_frame_push
+    local.set $__jn_frame
+    local.get $__jn_frame
+    i32.const 0
+    local.get $this
+    call $jn_gc_frame_set_root
+    local.get $__jn_frame
+    i32.const 1
+    local.get $message
+    call $jn_gc_frame_set_root
+    i32.const 0
+    local.set $pc
+    (block $exit
+      (loop $dispatch
+        (block $bb2
+        (block $bb1
+        (block $bb0
+          local.get $pc
+          br_table $bb0 $bb1 $bb2 $exit
+        )
+          local.get $this
+          local.set $this__slot
+          local.get $__jn_frame
+          i32.const 2
+          local.get $this__slot
+          call $jn_gc_frame_set_root
+          local.get $message
+          local.set $message__slot
+          local.get $__jn_frame
+          i32.const 3
+          local.get $message__slot
+          call $jn_gc_frame_set_root
+          local.get $message__slot
+          local.set $t0
+          local.get $__jn_frame
+          i32.const 4
+          local.get $t0
+          call $jn_gc_frame_set_root
+          local.get $t0
+          call $jn_console_log
+          call $jnative_exception_pending
+          local.set $t1
+          local.get $t1
+          if
+            i32.const 1
+            local.set $pc
+          else
+            i32.const 2
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          br $exit
+      )
+    )
+    call $jn_gc_frame_pop
+  )
+  (func $_JN_Console_warn_CString (param $this i32) (param $message i32)
+    (local $pc i32)
+    (local $__jn_tid i32)
+    (local $__jn_asz i32)
+    (local $__jn_frame i32)
+    (local $this__slot i32)
+    (local $message__slot i32)
+    (local $t0 i32)
+    (local $t1 i32)
+    i32.const 5
+    call $jn_gc_frame_push
+    local.set $__jn_frame
+    local.get $__jn_frame
+    i32.const 0
+    local.get $this
+    call $jn_gc_frame_set_root
+    local.get $__jn_frame
+    i32.const 1
+    local.get $message
+    call $jn_gc_frame_set_root
+    i32.const 0
+    local.set $pc
+    (block $exit
+      (loop $dispatch
+        (block $bb2
+        (block $bb1
+        (block $bb0
+          local.get $pc
+          br_table $bb0 $bb1 $bb2 $exit
+        )
+          local.get $this
+          local.set $this__slot
+          local.get $__jn_frame
+          i32.const 2
+          local.get $this__slot
+          call $jn_gc_frame_set_root
+          local.get $message
+          local.set $message__slot
+          local.get $__jn_frame
+          i32.const 3
+          local.get $message__slot
+          call $jn_gc_frame_set_root
+          local.get $message__slot
+          local.set $t0
+          local.get $__jn_frame
+          i32.const 4
+          local.get $t0
+          call $jn_gc_frame_set_root
+          local.get $t0
+          call $jn_console_log
+          call $jnative_exception_pending
+          local.set $t1
+          local.get $t1
+          if
+            i32.const 1
+            local.set $pc
+          else
+            i32.const 2
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          br $exit
+      )
+    )
+    call $jn_gc_frame_pop
+  )
+  (func $_JN_Console_error_CString (param $this i32) (param $message i32)
+    (local $pc i32)
+    (local $__jn_tid i32)
+    (local $__jn_asz i32)
+    (local $__jn_frame i32)
+    (local $this__slot i32)
+    (local $message__slot i32)
+    (local $t0 i32)
+    (local $t1 i32)
+    i32.const 5
+    call $jn_gc_frame_push
+    local.set $__jn_frame
+    local.get $__jn_frame
+    i32.const 0
+    local.get $this
+    call $jn_gc_frame_set_root
+    local.get $__jn_frame
+    i32.const 1
+    local.get $message
+    call $jn_gc_frame_set_root
+    i32.const 0
+    local.set $pc
+    (block $exit
+      (loop $dispatch
+        (block $bb2
+        (block $bb1
+        (block $bb0
+          local.get $pc
+          br_table $bb0 $bb1 $bb2 $exit
+        )
+          local.get $this
+          local.set $this__slot
+          local.get $__jn_frame
+          i32.const 2
+          local.get $this__slot
+          call $jn_gc_frame_set_root
+          local.get $message
+          local.set $message__slot
+          local.get $__jn_frame
+          i32.const 3
+          local.get $message__slot
+          call $jn_gc_frame_set_root
+          local.get $message__slot
+          local.set $t0
+          local.get $__jn_frame
+          i32.const 4
+          local.get $t0
+          call $jn_gc_frame_set_root
+          local.get $t0
+          call $jn_console_log
+          call $jnative_exception_pending
+          local.set $t1
+          local.get $t1
+          if
+            i32.const 1
+            local.set $pc
+          else
+            i32.const 2
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          br $exit
+      )
+    )
+    call $jn_gc_frame_pop
+  )
+  (func $_JN_Document_init_CJsHandle (param $this i32) (param $handle i32)
+    (local $pc i32)
+    (local $__jn_tid i32)
+    (local $__jn_asz i32)
+    (local $__jn_frame i32)
+    (local $this__slot i32)
+    (local $handle__slot i32)
+    (local $t0 i32)
+    (local $t1 i32)
+    (local $t2 i32)
+    i32.const 6
+    call $jn_gc_frame_push
+    local.set $__jn_frame
+    local.get $__jn_frame
+    i32.const 0
+    local.get $this
+    call $jn_gc_frame_set_root
+    local.get $__jn_frame
+    i32.const 1
+    local.get $handle
+    call $jn_gc_frame_set_root
+    i32.const 0
+    local.set $pc
+    (block $exit
+      (loop $dispatch
+        (block $bb2
+        (block $bb1
+        (block $bb0
+          local.get $pc
+          br_table $bb0 $bb1 $bb2 $exit
+        )
+          local.get $this
+          local.set $this__slot
+          local.get $__jn_frame
+          i32.const 2
+          local.get $this__slot
+          call $jn_gc_frame_set_root
+          local.get $handle
+          local.set $handle__slot
+          local.get $__jn_frame
+          i32.const 3
+          local.get $handle__slot
+          call $jn_gc_frame_set_root
+          local.get $this__slot
+          local.set $t0
+          local.get $__jn_frame
+          i32.const 4
+          local.get $t0
+          call $jn_gc_frame_set_root
+          local.get $handle__slot
+          local.set $t1
+          local.get $__jn_frame
+          i32.const 5
+          local.get $t1
+          call $jn_gc_frame_set_root
+          local.get $t0
+          local.get $t1
+          call $_JN_JsObject_init_CJsHandle
+          call $jnative_exception_pending
+          local.set $t2
+          local.get $t2
+          if
+            i32.const 1
+            local.set $pc
+          else
+            i32.const 2
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          br $exit
+      )
+    )
+    call $jn_gc_frame_pop
+  )
+  (func $_JN_Document_getElementById_CString (param $this i32) (param $id i32) (result i32)
+    (local $pc i32)
+    (local $__jn_tid i32)
+    (local $__jn_asz i32)
+    (local $__jn_frame i32)
+    (local $ret i32)
+    (local $this__slot i32)
+    (local $id__slot i32)
+    (local $h i32)
+    (local $gctmp.6 i32)
+    (local $gctmp.8 i32)
+    (local $t0 i32)
+    (local $t1 i32)
+    (local $t2 i32)
+    (local $t3 i32)
+    (local $t4 i32)
+    (local $t5 i32)
+    (local $t6 i32)
+    (local $t7 i32)
+    (local $t8 i32)
+    (local $t9 i32)
+    (local $t10 i32)
+    (local $t11 i32)
+    i32.const 11
+    call $jn_gc_frame_push
+    local.set $__jn_frame
+    local.get $__jn_frame
+    i32.const 0
+    local.get $this
+    call $jn_gc_frame_set_root
+    local.get $__jn_frame
+    i32.const 1
+    local.get $id
+    call $jn_gc_frame_set_root
+    i32.const 0
+    local.set $pc
+    (block $exit
+      (loop $dispatch
+        (block $bb8
+        (block $bb7
+        (block $bb6
+        (block $bb5
+        (block $bb4
+        (block $bb3
+        (block $bb2
+        (block $bb1
+        (block $bb0
+          local.get $pc
+          br_table $bb0 $bb1 $bb2 $bb3 $bb4 $bb5 $bb6 $bb7 $bb8 $exit
+        )
+          local.get $this
+          local.set $this__slot
+          local.get $__jn_frame
+          i32.const 2
+          local.get $this__slot
+          call $jn_gc_frame_set_root
+          local.get $id
+          local.set $id__slot
+          local.get $__jn_frame
+          i32.const 3
+          local.get $id__slot
+          call $jn_gc_frame_set_root
+          local.get $id__slot
+          local.set $t0
+          local.get $__jn_frame
+          i32.const 6
+          local.get $t0
+          call $jn_gc_frame_set_root
+          local.get $t0
+          call $jn_get_element_by_id
+          local.set $t1
+          call $jnative_exception_pending
+          local.set $t2
+          local.get $t2
+          if
+            i32.const 1
+            local.set $pc
+          else
+            i32.const 2
+            local.set $pc
+          end
+          br $dispatch
+        )
+          i32.const 0
+          local.set $ret
+          br $exit
+        )
+          local.get $t1
+          local.set $h
+          local.get $h
+          local.set $t3
+          local.get $t3
+          i32.const 0
+          i32.eq
+          local.set $t4
+          local.get $t4
+          if
+            i32.const 3
+            local.set $pc
+          else
+            i32.const 4
+            local.set $pc
+          end
+          br $dispatch
+        )
+          i32.const 0
+          local.set $ret
+          br $exit
+        )
+          i32.const 8
+          call $jn_alloc_zeroed
+          local.set $t5
+          local.get $t5
+          i32.eqz
+          if
+            unreachable
+          end
+          local.get $t5
+          i32.const 73
+          i32.store
+          local.get $__jn_frame
+          i32.const 7
+          local.get $t5
+          call $jn_gc_frame_set_root
+          local.get $t5
+          local.set $gctmp.6
+          local.get $__jn_frame
+          i32.const 4
+          local.get $gctmp.6
+          call $jn_gc_frame_set_root
+          local.get $gctmp.6
+          local.set $t6
+          local.get $__jn_frame
+          i32.const 8
+          local.get $t6
+          call $jn_gc_frame_set_root
+          i32.const 8
+          call $jn_alloc_zeroed
+          local.set $t7
+          local.get $t7
+          i32.eqz
+          if
+            unreachable
+          end
+          local.get $t7
+          i32.const 97
+          i32.store
+          local.get $__jn_frame
+          i32.const 9
+          local.get $t7
+          call $jn_gc_frame_set_root
+          local.get $t7
+          local.set $gctmp.8
+          local.get $__jn_frame
+          i32.const 5
+          local.get $gctmp.8
+          call $jn_gc_frame_set_root
+          local.get $gctmp.8
+          local.set $t8
+          local.get $__jn_frame
+          i32.const 10
+          local.get $t8
+          call $jn_gc_frame_set_root
+          local.get $h
+          local.set $t9
+          local.get $t8
+          local.get $t9
+          call $_JN_JsHandle_init_i32
+          call $jnative_exception_pending
+          local.set $t10
+          local.get $t10
+          if
+            i32.const 5
+            local.set $pc
+          else
+            i32.const 6
+            local.set $pc
+          end
+          br $dispatch
+        )
+          i32.const 0
+          local.set $ret
+          br $exit
+        )
+          local.get $t6
+          local.get $t8
+          call $_JN_Element_init_CJsHandle
+          call $jnative_exception_pending
+          local.set $t11
+          local.get $t11
+          if
+            i32.const 7
+            local.set $pc
+          else
+            i32.const 8
+            local.set $pc
+          end
+          br $dispatch
+        )
+          i32.const 0
+          local.set $ret
+          br $exit
+        )
+          local.get $t6
+          local.set $ret
+          br $exit
+      )
+    )
+    call $jn_gc_frame_pop
+    local.get $ret
+  )
+  (func $_JN_Element_init_CJsHandle (param $this i32) (param $handle i32)
+    (local $pc i32)
+    (local $__jn_tid i32)
+    (local $__jn_asz i32)
+    (local $__jn_frame i32)
+    (local $this__slot i32)
+    (local $handle__slot i32)
+    (local $t0 i32)
+    (local $t1 i32)
+    (local $t2 i32)
+    i32.const 6
+    call $jn_gc_frame_push
+    local.set $__jn_frame
+    local.get $__jn_frame
+    i32.const 0
+    local.get $this
+    call $jn_gc_frame_set_root
+    local.get $__jn_frame
+    i32.const 1
+    local.get $handle
+    call $jn_gc_frame_set_root
+    i32.const 0
+    local.set $pc
+    (block $exit
+      (loop $dispatch
+        (block $bb2
+        (block $bb1
+        (block $bb0
+          local.get $pc
+          br_table $bb0 $bb1 $bb2 $exit
+        )
+          local.get $this
+          local.set $this__slot
+          local.get $__jn_frame
+          i32.const 2
+          local.get $this__slot
+          call $jn_gc_frame_set_root
+          local.get $handle
+          local.set $handle__slot
+          local.get $__jn_frame
+          i32.const 3
+          local.get $handle__slot
+          call $jn_gc_frame_set_root
+          local.get $this__slot
+          local.set $t0
+          local.get $__jn_frame
+          i32.const 4
+          local.get $t0
+          call $jn_gc_frame_set_root
+          local.get $handle__slot
+          local.set $t1
+          local.get $__jn_frame
+          i32.const 5
+          local.get $t1
+          call $jn_gc_frame_set_root
+          local.get $t0
+          local.get $t1
+          call $_JN_JsObject_init_CJsHandle
+          call $jnative_exception_pending
+          local.set $t2
+          local.get $t2
+          if
+            i32.const 1
+            local.set $pc
+          else
+            i32.const 2
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          br $exit
+      )
+    )
+    call $jn_gc_frame_pop
+  )
+  (func $_JN_Document_createElement_CString (param $this i32) (param $tag i32) (result i32)
+    (local $pc i32)
+    (local $__jn_tid i32)
+    (local $__jn_asz i32)
+    (local $__jn_frame i32)
+    (local $ret i32)
+    (local $this__slot i32)
+    (local $tag__slot i32)
+    (local $h i32)
+    (local $gctmp.4 i32)
+    (local $gctmp.6 i32)
+    (local $t0 i32)
+    (local $t1 i32)
+    (local $t2 i32)
+    (local $t3 i32)
+    (local $t4 i32)
+    (local $t5 i32)
+    (local $t6 i32)
+    (local $t7 i32)
+    (local $t8 i32)
+    (local $t9 i32)
+    i32.const 11
+    call $jn_gc_frame_push
+    local.set $__jn_frame
+    local.get $__jn_frame
+    i32.const 0
+    local.get $this
+    call $jn_gc_frame_set_root
+    local.get $__jn_frame
+    i32.const 1
+    local.get $tag
+    call $jn_gc_frame_set_root
+    i32.const 0
+    local.set $pc
+    (block $exit
+      (loop $dispatch
+        (block $bb6
+        (block $bb5
+        (block $bb4
+        (block $bb3
+        (block $bb2
+        (block $bb1
+        (block $bb0
+          local.get $pc
+          br_table $bb0 $bb1 $bb2 $bb3 $bb4 $bb5 $bb6 $exit
+        )
+          local.get $this
+          local.set $this__slot
+          local.get $__jn_frame
+          i32.const 2
+          local.get $this__slot
+          call $jn_gc_frame_set_root
+          local.get $tag
+          local.set $tag__slot
+          local.get $__jn_frame
+          i32.const 3
+          local.get $tag__slot
+          call $jn_gc_frame_set_root
+          local.get $tag__slot
+          local.set $t0
+          local.get $__jn_frame
+          i32.const 6
+          local.get $t0
+          call $jn_gc_frame_set_root
+          local.get $t0
+          call $jn_create_element
+          local.set $t1
+          call $jnative_exception_pending
+          local.set $t2
+          local.get $t2
+          if
+            i32.const 1
+            local.set $pc
+          else
+            i32.const 2
+            local.set $pc
+          end
+          br $dispatch
+        )
+          i32.const 0
+          local.set $ret
+          br $exit
+        )
+          local.get $t1
+          local.set $h
+          i32.const 8
+          call $jn_alloc_zeroed
+          local.set $t3
+          local.get $t3
+          i32.eqz
+          if
+            unreachable
+          end
+          local.get $t3
+          i32.const 73
+          i32.store
+          local.get $__jn_frame
+          i32.const 7
+          local.get $t3
+          call $jn_gc_frame_set_root
+          local.get $t3
+          local.set $gctmp.4
+          local.get $__jn_frame
+          i32.const 4
+          local.get $gctmp.4
+          call $jn_gc_frame_set_root
+          local.get $gctmp.4
+          local.set $t4
+          local.get $__jn_frame
+          i32.const 8
+          local.get $t4
+          call $jn_gc_frame_set_root
+          i32.const 8
+          call $jn_alloc_zeroed
+          local.set $t5
+          local.get $t5
+          i32.eqz
+          if
+            unreachable
+          end
+          local.get $t5
+          i32.const 97
+          i32.store
+          local.get $__jn_frame
+          i32.const 9
+          local.get $t5
+          call $jn_gc_frame_set_root
+          local.get $t5
+          local.set $gctmp.6
+          local.get $__jn_frame
+          i32.const 5
+          local.get $gctmp.6
+          call $jn_gc_frame_set_root
+          local.get $gctmp.6
+          local.set $t6
+          local.get $__jn_frame
+          i32.const 10
+          local.get $t6
+          call $jn_gc_frame_set_root
+          local.get $h
+          local.set $t7
+          local.get $t6
+          local.get $t7
+          call $_JN_JsHandle_init_i32
+          call $jnative_exception_pending
+          local.set $t8
+          local.get $t8
+          if
+            i32.const 3
+            local.set $pc
+          else
+            i32.const 4
+            local.set $pc
+          end
+          br $dispatch
+        )
+          i32.const 0
+          local.set $ret
+          br $exit
+        )
+          local.get $t4
+          local.get $t6
+          call $_JN_Element_init_CJsHandle
+          call $jnative_exception_pending
+          local.set $t9
+          local.get $t9
+          if
+            i32.const 5
+            local.set $pc
+          else
+            i32.const 6
+            local.set $pc
+          end
+          br $dispatch
+        )
+          i32.const 0
+          local.set $ret
+          br $exit
+        )
+          local.get $t4
+          local.set $ret
+          br $exit
+      )
+    )
+    call $jn_gc_frame_pop
+    local.get $ret
+  )
+  (func $_JN_Document_body (param $this i32) (result i32)
+    (local $pc i32)
+    (local $__jn_tid i32)
+    (local $__jn_asz i32)
+    (local $__jn_frame i32)
+    (local $ret i32)
+    (local $this__slot i32)
+    (local $gctmp.1 i32)
+    (local $gctmp.3 i32)
+    (local $t0 i32)
+    (local $t1 i32)
+    (local $t2 i32)
+    (local $t3 i32)
+    (local $t5 i32)
+    (local $t6 i32)
+    (local $t7 i32)
+    i32.const 8
+    call $jn_gc_frame_push
+    local.set $__jn_frame
+    local.get $__jn_frame
+    i32.const 0
+    local.get $this
+    call $jn_gc_frame_set_root
+    i32.const 0
+    local.set $pc
+    (block $exit
+      (loop $dispatch
+        (block $bb6
+        (block $bb5
+        (block $bb4
+        (block $bb3
+        (block $bb2
+        (block $bb1
+        (block $bb0
+          local.get $pc
+          br_table $bb0 $bb1 $bb2 $bb3 $bb4 $bb5 $bb6 $exit
+        )
+          local.get $this
+          local.set $this__slot
+          local.get $__jn_frame
+          i32.const 1
+          local.get $this__slot
+          call $jn_gc_frame_set_root
+          i32.const 8
+          call $jn_alloc_zeroed
+          local.set $t0
+          local.get $t0
+          i32.eqz
+          if
+            unreachable
+          end
+          local.get $t0
+          i32.const 73
+          i32.store
+          local.get $__jn_frame
+          i32.const 4
+          local.get $t0
+          call $jn_gc_frame_set_root
+          local.get $t0
+          local.set $gctmp.1
+          local.get $__jn_frame
+          i32.const 2
+          local.get $gctmp.1
+          call $jn_gc_frame_set_root
+          local.get $gctmp.1
+          local.set $t1
+          local.get $__jn_frame
+          i32.const 5
+          local.get $t1
+          call $jn_gc_frame_set_root
+          i32.const 8
+          call $jn_alloc_zeroed
+          local.set $t2
+          local.get $t2
+          i32.eqz
+          if
+            unreachable
+          end
+          local.get $t2
+          i32.const 97
+          i32.store
+          local.get $__jn_frame
+          i32.const 6
+          local.get $t2
+          call $jn_gc_frame_set_root
+          local.get $t2
+          local.set $gctmp.3
+          local.get $__jn_frame
+          i32.const 3
+          local.get $gctmp.3
+          call $jn_gc_frame_set_root
+          local.get $gctmp.3
+          local.set $t3
+          local.get $__jn_frame
+          i32.const 7
+          local.get $t3
+          call $jn_gc_frame_set_root
+          call $jnative_exception_pending
+          local.set $t5
+          local.get $t5
+          if
+            i32.const 1
+            local.set $pc
+          else
+            i32.const 2
+            local.set $pc
+          end
+          br $dispatch
+        )
+          i32.const 0
+          local.set $ret
+          br $exit
+        )
+          local.get $t3
+          i32.const 12
+          call $_JN_JsHandle_init_i32
+          call $jnative_exception_pending
+          local.set $t6
+          local.get $t6
+          if
+            i32.const 3
+            local.set $pc
+          else
+            i32.const 4
+            local.set $pc
+          end
+          br $dispatch
+        )
+          i32.const 0
+          local.set $ret
+          br $exit
+        )
+          local.get $t1
+          local.get $t3
+          call $_JN_Element_init_CJsHandle
+          call $jnative_exception_pending
+          local.set $t7
+          local.get $t7
+          if
+            i32.const 5
+            local.set $pc
+          else
+            i32.const 6
+            local.set $pc
+          end
+          br $dispatch
+        )
+          i32.const 0
+          local.set $ret
+          br $exit
+        )
+          local.get $t1
+          local.set $ret
+          br $exit
+      )
+    )
+    call $jn_gc_frame_pop
+    local.get $ret
+  )
+  (func $_JN_Element_setText_CString (param $this i32) (param $text i32)
+    (local $pc i32)
+    (local $__jn_tid i32)
+    (local $__jn_asz i32)
+    (local $__jn_frame i32)
+    (local $this__slot i32)
+    (local $text__slot i32)
+    (local $t0 i32)
+    (local $t1 i32)
+    (local $t2 i32)
+    (local $t3 i32)
+    (local $t4 i32)
+    (local $t5 i32)
+    i32.const 6
+    call $jn_gc_frame_push
+    local.set $__jn_frame
+    local.get $__jn_frame
+    i32.const 0
+    local.get $this
+    call $jn_gc_frame_set_root
+    local.get $__jn_frame
+    i32.const 1
+    local.get $text
+    call $jn_gc_frame_set_root
+    i32.const 0
+    local.set $pc
+    (block $exit
+      (loop $dispatch
+        (block $bb6
+        (block $bb5
+        (block $bb4
+        (block $bb3
+        (block $bb2
+        (block $bb1
+        (block $bb0
+          local.get $pc
+          br_table $bb0 $bb1 $bb2 $bb3 $bb4 $bb5 $bb6 $exit
+        )
+          local.get $this
+          local.set $this__slot
+          local.get $__jn_frame
+          i32.const 2
+          local.get $this__slot
+          call $jn_gc_frame_set_root
+          local.get $text
+          local.set $text__slot
+          local.get $__jn_frame
+          i32.const 3
+          local.get $text__slot
+          call $jn_gc_frame_set_root
+          local.get $this__slot
+          local.set $t0
+          local.get $__jn_frame
+          i32.const 4
+          local.get $t0
+          call $jn_gc_frame_set_root
+          local.get $t0
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t1
+          local.get $t1
+          if
+            i32.const 1
+            local.set $pc
+          else
+            i32.const 2
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $t0
+          i32.load
+          local.set $__jn_tid
+          local.get $__jn_tid
+          i32.const 15
+          i32.eq
+          if (result i32)
+            local.get $t0
+            call $_JN_JsObject_handleId
+          else
+          local.get $__jn_tid
+          i32.const 28
+          i32.eq
+          if (result i32)
+            local.get $t0
+            call $_JN_JsObject_handleId
+          else
+          local.get $__jn_tid
+          i32.const 36
+          i32.eq
+          if (result i32)
+            local.get $t0
+            call $_JN_JsObject_handleId
+          else
+          local.get $__jn_tid
+          i32.const 40
+          i32.eq
+          if (result i32)
+            local.get $t0
+            call $_JN_JsObject_handleId
+          else
+          local.get $__jn_tid
+          i32.const 50
+          i32.eq
+          if (result i32)
+            local.get $t0
+            call $_JN_JsObject_handleId
+          else
+          local.get $__jn_tid
+          i32.const 66
+          i32.eq
+          if (result i32)
+            local.get $t0
+            call $_JN_JsObject_handleId
+          else
+          local.get $__jn_tid
+          i32.const 73
+          i32.eq
+          if (result i32)
+            local.get $t0
+            call $_JN_JsObject_handleId
+          else
+          local.get $__jn_tid
+          i32.const 76
+          i32.eq
+          if (result i32)
+            local.get $t0
+            call $_JN_JsObject_handleId
+          else
+          local.get $__jn_tid
+          i32.const 101
+          i32.eq
+          if (result i32)
+            local.get $t0
+            call $_JN_JsObject_handleId
+          else
+            unreachable
+          end
+          end
+          end
+          end
+          end
+          end
+          end
+          end
+          end
+          local.set $t2
+          call $jnative_exception_pending
+          local.set $t3
+          local.get $t3
+          if
+            i32.const 3
+            local.set $pc
+          else
+            i32.const 4
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $text__slot
+          local.set $t4
+          local.get $__jn_frame
+          i32.const 5
+          local.get $t4
+          call $jn_gc_frame_set_root
+          local.get $t2
+          local.get $t4
+          call $jn_set_text
+          call $jnative_exception_pending
+          local.set $t5
+          local.get $t5
+          if
+            i32.const 5
+            local.set $pc
+          else
+            i32.const 6
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          br $exit
+      )
+    )
+    call $jn_gc_frame_pop
+  )
+  (func $_JN_Element_getText (param $this i32) (result i32)
+    (local $pc i32)
+    (local $__jn_tid i32)
+    (local $__jn_asz i32)
+    (local $__jn_frame i32)
+    (local $ret i32)
+    (local $this__slot i32)
+    (local $gctmp.6 i32)
+    (local $t0 i32)
+    (local $t1 i32)
+    (local $t2 i32)
+    (local $t3 i32)
+    (local $t4 i32)
+    (local $t5 i32)
+    (local $t6 i32)
+    i32.const 6
+    call $jn_gc_frame_push
+    local.set $__jn_frame
+    local.get $__jn_frame
+    i32.const 0
+    local.get $this
+    call $jn_gc_frame_set_root
+    i32.const 0
+    local.set $pc
+    (block $exit
+      (loop $dispatch
+        (block $bb6
+        (block $bb5
+        (block $bb4
+        (block $bb3
+        (block $bb2
+        (block $bb1
+        (block $bb0
+          local.get $pc
+          br_table $bb0 $bb1 $bb2 $bb3 $bb4 $bb5 $bb6 $exit
+        )
+          local.get $this
+          local.set $this__slot
+          local.get $__jn_frame
+          i32.const 1
+          local.get $this__slot
+          call $jn_gc_frame_set_root
+          local.get $this__slot
+          local.set $t0
+          local.get $__jn_frame
+          i32.const 3
+          local.get $t0
+          call $jn_gc_frame_set_root
+          local.get $t0
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t1
+          local.get $t1
+          if
+            i32.const 1
+            local.set $pc
+          else
+            i32.const 2
+            local.set $pc
+          end
+          br $dispatch
+        )
+          i32.const 0
+          local.set $ret
+          br $exit
+        )
+          local.get $t0
+          i32.load
+          local.set $__jn_tid
+          local.get $__jn_tid
+          i32.const 15
+          i32.eq
+          if (result i32)
+            local.get $t0
+            call $_JN_JsObject_handleId
+          else
+          local.get $__jn_tid
+          i32.const 28
+          i32.eq
+          if (result i32)
+            local.get $t0
+            call $_JN_JsObject_handleId
+          else
+          local.get $__jn_tid
+          i32.const 36
+          i32.eq
+          if (result i32)
+            local.get $t0
+            call $_JN_JsObject_handleId
+          else
+          local.get $__jn_tid
+          i32.const 40
+          i32.eq
+          if (result i32)
+            local.get $t0
+            call $_JN_JsObject_handleId
+          else
+          local.get $__jn_tid
+          i32.const 50
+          i32.eq
+          if (result i32)
+            local.get $t0
+            call $_JN_JsObject_handleId
+          else
+          local.get $__jn_tid
+          i32.const 66
+          i32.eq
+          if (result i32)
+            local.get $t0
+            call $_JN_JsObject_handleId
+          else
+          local.get $__jn_tid
+          i32.const 73
+          i32.eq
+          if (result i32)
+            local.get $t0
+            call $_JN_JsObject_handleId
+          else
+          local.get $__jn_tid
+          i32.const 76
+          i32.eq
+          if (result i32)
+            local.get $t0
+            call $_JN_JsObject_handleId
+          else
+          local.get $__jn_tid
+          i32.const 101
+          i32.eq
+          if (result i32)
+            local.get $t0
+            call $_JN_JsObject_handleId
+          else
+            unreachable
+          end
+          end
+          end
+          end
+          end
+          end
+          end
+          end
+          end
+          local.set $t2
+          call $jnative_exception_pending
+          local.set $t3
+          local.get $t3
+          if
+            i32.const 3
+            local.set $pc
+          else
+            i32.const 4
+            local.set $pc
+          end
+          br $dispatch
+        )
+          i32.const 0
+          local.set $ret
+          br $exit
+        )
+          i32.const 0
+          local.set $t4
+          local.get $__jn_frame
+          i32.const 4
+          local.get $t4
+          call $jn_gc_frame_set_root
+          call $jnative_exception_pending
+          local.set $t5
+          local.get $t5
+          if
+            i32.const 5
+            local.set $pc
+          else
+            i32.const 6
+            local.set $pc
+          end
+          br $dispatch
+        )
+          i32.const 0
+          local.set $ret
+          br $exit
+        )
+          local.get $t4
+          local.set $gctmp.6
+          local.get $__jn_frame
+          i32.const 2
+          local.get $gctmp.6
+          call $jn_gc_frame_set_root
+          local.get $gctmp.6
+          local.set $t6
+          local.get $__jn_frame
+          i32.const 5
+          local.get $t6
+          call $jn_gc_frame_set_root
+          local.get $t6
+          local.set $ret
+          br $exit
+      )
+    )
+    call $jn_gc_frame_pop
+    local.get $ret
+  )
+  (func $_JN_Element_setAttribute_CString_CString (param $this i32) (param $name i32) (param $value i32)
+    (local $pc i32)
+    (local $__jn_tid i32)
+    (local $__jn_asz i32)
+    (local $__jn_frame i32)
+    (local $this__slot i32)
+    (local $name__slot i32)
+    (local $value__slot i32)
+    (local $t0 i32)
+    (local $t1 i32)
+    (local $t2 i32)
+    (local $t3 i32)
+    (local $t4 i32)
+    (local $t5 i32)
+    (local $t6 i32)
+    i32.const 9
+    call $jn_gc_frame_push
+    local.set $__jn_frame
+    local.get $__jn_frame
+    i32.const 0
+    local.get $this
+    call $jn_gc_frame_set_root
+    local.get $__jn_frame
+    i32.const 1
+    local.get $name
+    call $jn_gc_frame_set_root
+    local.get $__jn_frame
+    i32.const 2
+    local.get $value
+    call $jn_gc_frame_set_root
+    i32.const 0
+    local.set $pc
+    (block $exit
+      (loop $dispatch
+        (block $bb6
+        (block $bb5
+        (block $bb4
+        (block $bb3
+        (block $bb2
+        (block $bb1
+        (block $bb0
+          local.get $pc
+          br_table $bb0 $bb1 $bb2 $bb3 $bb4 $bb5 $bb6 $exit
+        )
+          local.get $this
+          local.set $this__slot
+          local.get $__jn_frame
+          i32.const 3
+          local.get $this__slot
+          call $jn_gc_frame_set_root
+          local.get $name
+          local.set $name__slot
+          local.get $__jn_frame
+          i32.const 4
+          local.get $name__slot
+          call $jn_gc_frame_set_root
+          local.get $value
+          local.set $value__slot
+          local.get $__jn_frame
+          i32.const 5
+          local.get $value__slot
+          call $jn_gc_frame_set_root
+          local.get $this__slot
+          local.set $t0
+          local.get $__jn_frame
+          i32.const 6
+          local.get $t0
+          call $jn_gc_frame_set_root
+          local.get $t0
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t1
+          local.get $t1
+          if
+            i32.const 1
+            local.set $pc
+          else
+            i32.const 2
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $t0
+          i32.load
+          local.set $__jn_tid
+          local.get $__jn_tid
+          i32.const 15
+          i32.eq
+          if (result i32)
+            local.get $t0
+            call $_JN_JsObject_handleId
+          else
+          local.get $__jn_tid
+          i32.const 28
+          i32.eq
+          if (result i32)
+            local.get $t0
+            call $_JN_JsObject_handleId
+          else
+          local.get $__jn_tid
+          i32.const 36
+          i32.eq
+          if (result i32)
+            local.get $t0
+            call $_JN_JsObject_handleId
+          else
+          local.get $__jn_tid
+          i32.const 40
+          i32.eq
+          if (result i32)
+            local.get $t0
+            call $_JN_JsObject_handleId
+          else
+          local.get $__jn_tid
+          i32.const 50
+          i32.eq
+          if (result i32)
+            local.get $t0
+            call $_JN_JsObject_handleId
+          else
+          local.get $__jn_tid
+          i32.const 66
+          i32.eq
+          if (result i32)
+            local.get $t0
+            call $_JN_JsObject_handleId
+          else
+          local.get $__jn_tid
+          i32.const 73
+          i32.eq
+          if (result i32)
+            local.get $t0
+            call $_JN_JsObject_handleId
+          else
+          local.get $__jn_tid
+          i32.const 76
+          i32.eq
+          if (result i32)
+            local.get $t0
+            call $_JN_JsObject_handleId
+          else
+          local.get $__jn_tid
+          i32.const 101
+          i32.eq
+          if (result i32)
+            local.get $t0
+            call $_JN_JsObject_handleId
+          else
+            unreachable
+          end
+          end
+          end
+          end
+          end
+          end
+          end
+          end
+          end
+          local.set $t2
+          call $jnative_exception_pending
+          local.set $t3
+          local.get $t3
+          if
+            i32.const 3
+            local.set $pc
+          else
+            i32.const 4
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $name__slot
+          local.set $t4
+          local.get $__jn_frame
+          i32.const 7
+          local.get $t4
+          call $jn_gc_frame_set_root
+          local.get $value__slot
+          local.set $t5
+          local.get $__jn_frame
+          i32.const 8
+          local.get $t5
+          call $jn_gc_frame_set_root
+          call $jnative_exception_pending
+          local.set $t6
+          local.get $t6
+          if
+            i32.const 5
+            local.set $pc
+          else
+            i32.const 6
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          br $exit
+      )
+    )
+    call $jn_gc_frame_pop
+  )
+  (func $_JN_Element_appendChild_CElement (param $this i32) (param $child i32)
+    (local $pc i32)
+    (local $__jn_tid i32)
+    (local $__jn_asz i32)
+    (local $__jn_frame i32)
+    (local $this__slot i32)
+    (local $child__slot i32)
+    (local $t0 i32)
+    (local $t1 i32)
+    (local $t2 i32)
+    (local $t3 i32)
+    (local $t4 i32)
+    (local $t5 i32)
+    (local $t6 i32)
+    (local $t7 i32)
+    (local $t8 i32)
+    (local $t9 i32)
+    (local $t10 i32)
+    i32.const 7
+    call $jn_gc_frame_push
+    local.set $__jn_frame
+    local.get $__jn_frame
+    i32.const 0
+    local.get $this
+    call $jn_gc_frame_set_root
+    local.get $__jn_frame
+    i32.const 1
+    local.get $child
+    call $jn_gc_frame_set_root
+    i32.const 0
+    local.set $pc
+    (block $exit
+      (loop $dispatch
+        (block $bb12
+        (block $bb11
+        (block $bb10
+        (block $bb9
+        (block $bb8
+        (block $bb7
+        (block $bb6
+        (block $bb5
+        (block $bb4
+        (block $bb3
+        (block $bb2
+        (block $bb1
+        (block $bb0
+          local.get $pc
+          br_table $bb0 $bb1 $bb2 $bb3 $bb4 $bb5 $bb6 $bb7 $bb8 $bb9 $bb10 $bb11 $bb12 $exit
+        )
+          local.get $this
+          local.set $this__slot
+          local.get $__jn_frame
+          i32.const 2
+          local.get $this__slot
+          call $jn_gc_frame_set_root
+          local.get $child
+          local.set $child__slot
+          local.get $__jn_frame
+          i32.const 3
+          local.get $child__slot
+          call $jn_gc_frame_set_root
+          local.get $child__slot
+          local.set $t0
+          local.get $__jn_frame
+          i32.const 4
+          local.get $t0
+          call $jn_gc_frame_set_root
+          local.get $t0
+          i32.const 0
+          i32.ne
+          local.set $t1
+          local.get $t1
+          if
+            i32.const 1
+            local.set $pc
+          else
+            i32.const 2
+            local.set $pc
+          end
+          br $dispatch
+        )
+          local.get $this__slot
+          local.set $t2
+          local.get $__jn_frame
+          i32.const 5
+          local.get $t2
+          call $jn_gc_frame_set_root
+          local.get $t2
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t3
+          local.get $t3
+          if
+            i32.const 3
+            local.set $pc
+          else
+            i32.const 4
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          br $exit
+        )
+          local.get $t2
+          i32.load
+          local.set $__jn_tid
+          local.get $__jn_tid
+          i32.const 15
+          i32.eq
+          if (result i32)
+            local.get $t2
+            call $_JN_JsObject_handleId
+          else
+          local.get $__jn_tid
+          i32.const 28
+          i32.eq
+          if (result i32)
+            local.get $t2
+            call $_JN_JsObject_handleId
+          else
+          local.get $__jn_tid
+          i32.const 36
+          i32.eq
+          if (result i32)
+            local.get $t2
+            call $_JN_JsObject_handleId
+          else
+          local.get $__jn_tid
+          i32.const 40
+          i32.eq
+          if (result i32)
+            local.get $t2
+            call $_JN_JsObject_handleId
+          else
+          local.get $__jn_tid
+          i32.const 50
+          i32.eq
+          if (result i32)
+            local.get $t2
+            call $_JN_JsObject_handleId
+          else
+          local.get $__jn_tid
+          i32.const 66
+          i32.eq
+          if (result i32)
+            local.get $t2
+            call $_JN_JsObject_handleId
+          else
+          local.get $__jn_tid
+          i32.const 73
+          i32.eq
+          if (result i32)
+            local.get $t2
+            call $_JN_JsObject_handleId
+          else
+          local.get $__jn_tid
+          i32.const 76
+          i32.eq
+          if (result i32)
+            local.get $t2
+            call $_JN_JsObject_handleId
+          else
+          local.get $__jn_tid
+          i32.const 101
+          i32.eq
+          if (result i32)
+            local.get $t2
+            call $_JN_JsObject_handleId
+          else
+            unreachable
+          end
+          end
+          end
+          end
+          end
+          end
+          end
+          end
+          end
+          local.set $t4
+          call $jnative_exception_pending
+          local.set $t5
+          local.get $t5
+          if
+            i32.const 5
+            local.set $pc
+          else
+            i32.const 6
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $child__slot
+          local.set $t6
+          local.get $__jn_frame
+          i32.const 6
+          local.get $t6
+          call $jn_gc_frame_set_root
+          local.get $t6
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t7
+          local.get $t7
+          if
+            i32.const 7
+            local.set $pc
+          else
+            i32.const 8
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $t6
+          i32.load
+          local.set $__jn_tid
+          local.get $__jn_tid
+          i32.const 15
+          i32.eq
+          if (result i32)
+            local.get $t6
+            call $_JN_JsObject_handleId
+          else
+          local.get $__jn_tid
+          i32.const 28
+          i32.eq
+          if (result i32)
+            local.get $t6
+            call $_JN_JsObject_handleId
+          else
+          local.get $__jn_tid
+          i32.const 36
+          i32.eq
+          if (result i32)
+            local.get $t6
+            call $_JN_JsObject_handleId
+          else
+          local.get $__jn_tid
+          i32.const 40
+          i32.eq
+          if (result i32)
+            local.get $t6
+            call $_JN_JsObject_handleId
+          else
+          local.get $__jn_tid
+          i32.const 50
+          i32.eq
+          if (result i32)
+            local.get $t6
+            call $_JN_JsObject_handleId
+          else
+          local.get $__jn_tid
+          i32.const 66
+          i32.eq
+          if (result i32)
+            local.get $t6
+            call $_JN_JsObject_handleId
+          else
+          local.get $__jn_tid
+          i32.const 73
+          i32.eq
+          if (result i32)
+            local.get $t6
+            call $_JN_JsObject_handleId
+          else
+          local.get $__jn_tid
+          i32.const 76
+          i32.eq
+          if (result i32)
+            local.get $t6
+            call $_JN_JsObject_handleId
+          else
+          local.get $__jn_tid
+          i32.const 101
+          i32.eq
+          if (result i32)
+            local.get $t6
+            call $_JN_JsObject_handleId
+          else
+            unreachable
+          end
+          end
+          end
+          end
+          end
+          end
+          end
+          end
+          end
+          local.set $t8
+          call $jnative_exception_pending
+          local.set $t9
+          local.get $t9
+          if
+            i32.const 9
+            local.set $pc
+          else
+            i32.const 10
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $t4
+          local.get $t8
+          call $jn_append_child
+          call $jnative_exception_pending
+          local.set $t10
+          local.get $t10
+          if
+            i32.const 11
+            local.set $pc
+          else
+            i32.const 12
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          i32.const 2
+          local.set $pc
+          br $dispatch
+      )
+    )
+    call $jn_gc_frame_pop
+  )
+  (func $_JN_Element_addEventListener_CString_IBrowserEventHandler (param $this i32) (param $type i32) (param $handler i32)
+    (local $pc i32)
+    (local $__jn_tid i32)
+    (local $__jn_asz i32)
+    (local $__jn_frame i32)
+    (local $this__slot i32)
+    (local $type__slot i32)
+    (local $handler__slot i32)
+    (local $t0 i32)
+    (local $t1 i32)
+    (local $t2 i32)
+    (local $t3 i32)
+    (local $t4 i32)
+    (local $t5 i32)
+    (local $t6 i32)
+    i32.const 9
+    call $jn_gc_frame_push
+    local.set $__jn_frame
+    local.get $__jn_frame
+    i32.const 0
+    local.get $this
+    call $jn_gc_frame_set_root
+    local.get $__jn_frame
+    i32.const 1
+    local.get $type
+    call $jn_gc_frame_set_root
+    local.get $__jn_frame
+    i32.const 2
+    local.get $handler
+    call $jn_gc_frame_set_root
+    i32.const 0
+    local.set $pc
+    (block $exit
+      (loop $dispatch
+        (block $bb6
+        (block $bb5
+        (block $bb4
+        (block $bb3
+        (block $bb2
+        (block $bb1
+        (block $bb0
+          local.get $pc
+          br_table $bb0 $bb1 $bb2 $bb3 $bb4 $bb5 $bb6 $exit
+        )
+          local.get $this
+          local.set $this__slot
+          local.get $__jn_frame
+          i32.const 3
+          local.get $this__slot
+          call $jn_gc_frame_set_root
+          local.get $type
+          local.set $type__slot
+          local.get $__jn_frame
+          i32.const 4
+          local.get $type__slot
+          call $jn_gc_frame_set_root
+          local.get $handler
+          local.set $handler__slot
+          local.get $__jn_frame
+          i32.const 5
+          local.get $handler__slot
+          call $jn_gc_frame_set_root
+          local.get $this__slot
+          local.set $t0
+          local.get $__jn_frame
+          i32.const 6
+          local.get $t0
+          call $jn_gc_frame_set_root
+          local.get $t0
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t1
+          local.get $t1
+          if
+            i32.const 1
+            local.set $pc
+          else
+            i32.const 2
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $t0
+          i32.load
+          local.set $__jn_tid
+          local.get $__jn_tid
+          i32.const 15
+          i32.eq
+          if (result i32)
+            local.get $t0
+            call $_JN_JsObject_handleId
+          else
+          local.get $__jn_tid
+          i32.const 28
+          i32.eq
+          if (result i32)
+            local.get $t0
+            call $_JN_JsObject_handleId
+          else
+          local.get $__jn_tid
+          i32.const 36
+          i32.eq
+          if (result i32)
+            local.get $t0
+            call $_JN_JsObject_handleId
+          else
+          local.get $__jn_tid
+          i32.const 40
+          i32.eq
+          if (result i32)
+            local.get $t0
+            call $_JN_JsObject_handleId
+          else
+          local.get $__jn_tid
+          i32.const 50
+          i32.eq
+          if (result i32)
+            local.get $t0
+            call $_JN_JsObject_handleId
+          else
+          local.get $__jn_tid
+          i32.const 66
+          i32.eq
+          if (result i32)
+            local.get $t0
+            call $_JN_JsObject_handleId
+          else
+          local.get $__jn_tid
+          i32.const 73
+          i32.eq
+          if (result i32)
+            local.get $t0
+            call $_JN_JsObject_handleId
+          else
+          local.get $__jn_tid
+          i32.const 76
+          i32.eq
+          if (result i32)
+            local.get $t0
+            call $_JN_JsObject_handleId
+          else
+          local.get $__jn_tid
+          i32.const 101
+          i32.eq
+          if (result i32)
+            local.get $t0
+            call $_JN_JsObject_handleId
+          else
+            unreachable
+          end
+          end
+          end
+          end
+          end
+          end
+          end
+          end
+          end
+          local.set $t2
+          call $jnative_exception_pending
+          local.set $t3
+          local.get $t3
+          if
+            i32.const 3
+            local.set $pc
+          else
+            i32.const 4
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $type__slot
+          local.set $t4
+          local.get $__jn_frame
+          i32.const 7
+          local.get $t4
+          call $jn_gc_frame_set_root
+          local.get $handler__slot
+          local.set $t5
+          local.get $__jn_frame
+          i32.const 8
+          local.get $t5
+          call $jn_gc_frame_set_root
+          local.get $t5
+          call $jn_register_dom_callback
+          local.set $__jn_tid
+          local.get $t2
+          local.get $t4
+          local.get $__jn_tid
+          call $jn_delegate_event
+          call $jnative_exception_pending
+          local.set $t6
+          local.get $t6
+          if
+            i32.const 5
+            local.set $pc
+          else
+            i32.const 6
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          br $exit
+      )
+    )
+    call $jn_gc_frame_pop
+  )
+  (func $_JN_Element_asInput (param $this i32) (result i32)
+    (local $pc i32)
+    (local $__jn_tid i32)
+    (local $__jn_asz i32)
+    (local $__jn_frame i32)
+    (local $ret i32)
+    (local $this__slot i32)
+    (local $gctmp.1 i32)
+    (local $gctmp.5 i32)
+    (local $t0 i32)
+    (local $t1 i32)
+    (local $t2 i32)
+    (local $t3 i32)
+    (local $t4 i32)
+    (local $t5 i32)
+    (local $t6 i32)
+    i32.const 9
+    call $jn_gc_frame_push
+    local.set $__jn_frame
+    local.get $__jn_frame
+    i32.const 0
+    local.get $this
+    call $jn_gc_frame_set_root
+    i32.const 0
+    local.set $pc
+    (block $exit
+      (loop $dispatch
+        (block $bb4
+        (block $bb3
+        (block $bb2
+        (block $bb1
+        (block $bb0
+          local.get $pc
+          br_table $bb0 $bb1 $bb2 $bb3 $bb4 $exit
+        )
+          local.get $this
+          local.set $this__slot
+          local.get $__jn_frame
+          i32.const 1
+          local.get $this__slot
+          call $jn_gc_frame_set_root
+          i32.const 8
+          call $jn_alloc_zeroed
+          local.set $t0
+          local.get $t0
+          i32.eqz
+          if
+            unreachable
+          end
+          local.get $t0
+          i32.const 15
+          i32.store
+          local.get $__jn_frame
+          i32.const 4
+          local.get $t0
+          call $jn_gc_frame_set_root
+          local.get $t0
+          local.set $gctmp.1
+          local.get $__jn_frame
+          i32.const 2
+          local.get $gctmp.1
+          call $jn_gc_frame_set_root
+          local.get $gctmp.1
+          local.set $t1
+          local.get $__jn_frame
+          i32.const 5
+          local.get $t1
+          call $jn_gc_frame_set_root
+          local.get $this__slot
+          local.set $t2
+          local.get $__jn_frame
+          i32.const 6
+          local.get $t2
+          call $jn_gc_frame_set_root
+          local.get $t2
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t3
+          local.get $t3
+          if
+            i32.const 1
+            local.set $pc
+          else
+            i32.const 2
+            local.set $pc
+          end
+          br $dispatch
+        )
+          i32.const 0
+          local.set $ret
+          br $exit
+        )
+          local.get $t2
+          i32.const 4
+          i32.add
+          i32.load
+          local.set $t4
+          local.get $__jn_frame
+          i32.const 7
+          local.get $t4
+          call $jn_gc_frame_set_root
+          local.get $t4
+          local.set $gctmp.5
+          local.get $__jn_frame
+          i32.const 3
+          local.get $gctmp.5
+          call $jn_gc_frame_set_root
+          local.get $gctmp.5
+          local.set $t5
+          local.get $__jn_frame
+          i32.const 8
+          local.get $t5
+          call $jn_gc_frame_set_root
+          local.get $t1
+          local.get $t5
+          call $_JN_HtmlInputElement_init_CJsHandle
+          call $jnative_exception_pending
+          local.set $t6
+          local.get $t6
+          if
+            i32.const 3
+            local.set $pc
+          else
+            i32.const 4
+            local.set $pc
+          end
+          br $dispatch
+        )
+          i32.const 0
+          local.set $ret
+          br $exit
+        )
+          local.get $t1
+          local.set $ret
+          br $exit
+      )
+    )
+    call $jn_gc_frame_pop
+    local.get $ret
+  )
+  (func $_JN_HtmlInputElement_init_CJsHandle (param $this i32) (param $handle i32)
+    (local $pc i32)
+    (local $__jn_tid i32)
+    (local $__jn_asz i32)
+    (local $__jn_frame i32)
+    (local $this__slot i32)
+    (local $handle__slot i32)
+    (local $t0 i32)
+    (local $t1 i32)
+    (local $t2 i32)
+    i32.const 6
+    call $jn_gc_frame_push
+    local.set $__jn_frame
+    local.get $__jn_frame
+    i32.const 0
+    local.get $this
+    call $jn_gc_frame_set_root
+    local.get $__jn_frame
+    i32.const 1
+    local.get $handle
+    call $jn_gc_frame_set_root
+    i32.const 0
+    local.set $pc
+    (block $exit
+      (loop $dispatch
+        (block $bb2
+        (block $bb1
+        (block $bb0
+          local.get $pc
+          br_table $bb0 $bb1 $bb2 $exit
+        )
+          local.get $this
+          local.set $this__slot
+          local.get $__jn_frame
+          i32.const 2
+          local.get $this__slot
+          call $jn_gc_frame_set_root
+          local.get $handle
+          local.set $handle__slot
+          local.get $__jn_frame
+          i32.const 3
+          local.get $handle__slot
+          call $jn_gc_frame_set_root
+          local.get $this__slot
+          local.set $t0
+          local.get $__jn_frame
+          i32.const 4
+          local.get $t0
+          call $jn_gc_frame_set_root
+          local.get $handle__slot
+          local.set $t1
+          local.get $__jn_frame
+          i32.const 5
+          local.get $t1
+          call $jn_gc_frame_set_root
+          local.get $t0
+          local.get $t1
+          call $_JN_Element_init_CJsHandle
+          call $jnative_exception_pending
+          local.set $t2
+          local.get $t2
+          if
+            i32.const 1
+            local.set $pc
+          else
+            i32.const 2
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          br $exit
+      )
+    )
+    call $jn_gc_frame_pop
+  )
+  (func $_JN_Element_asButton (param $this i32) (result i32)
+    (local $pc i32)
+    (local $__jn_tid i32)
+    (local $__jn_asz i32)
+    (local $__jn_frame i32)
+    (local $ret i32)
+    (local $this__slot i32)
+    (local $gctmp.1 i32)
+    (local $gctmp.5 i32)
+    (local $t0 i32)
+    (local $t1 i32)
+    (local $t2 i32)
+    (local $t3 i32)
+    (local $t4 i32)
+    (local $t5 i32)
+    (local $t6 i32)
+    i32.const 9
+    call $jn_gc_frame_push
+    local.set $__jn_frame
+    local.get $__jn_frame
+    i32.const 0
+    local.get $this
+    call $jn_gc_frame_set_root
+    i32.const 0
+    local.set $pc
+    (block $exit
+      (loop $dispatch
+        (block $bb4
+        (block $bb3
+        (block $bb2
+        (block $bb1
+        (block $bb0
+          local.get $pc
+          br_table $bb0 $bb1 $bb2 $bb3 $bb4 $exit
+        )
+          local.get $this
+          local.set $this__slot
+          local.get $__jn_frame
+          i32.const 1
+          local.get $this__slot
+          call $jn_gc_frame_set_root
+          i32.const 8
+          call $jn_alloc_zeroed
+          local.set $t0
+          local.get $t0
+          i32.eqz
+          if
+            unreachable
+          end
+          local.get $t0
+          i32.const 66
+          i32.store
+          local.get $__jn_frame
+          i32.const 4
+          local.get $t0
+          call $jn_gc_frame_set_root
+          local.get $t0
+          local.set $gctmp.1
+          local.get $__jn_frame
+          i32.const 2
+          local.get $gctmp.1
+          call $jn_gc_frame_set_root
+          local.get $gctmp.1
+          local.set $t1
+          local.get $__jn_frame
+          i32.const 5
+          local.get $t1
+          call $jn_gc_frame_set_root
+          local.get $this__slot
+          local.set $t2
+          local.get $__jn_frame
+          i32.const 6
+          local.get $t2
+          call $jn_gc_frame_set_root
+          local.get $t2
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t3
+          local.get $t3
+          if
+            i32.const 1
+            local.set $pc
+          else
+            i32.const 2
+            local.set $pc
+          end
+          br $dispatch
+        )
+          i32.const 0
+          local.set $ret
+          br $exit
+        )
+          local.get $t2
+          i32.const 4
+          i32.add
+          i32.load
+          local.set $t4
+          local.get $__jn_frame
+          i32.const 7
+          local.get $t4
+          call $jn_gc_frame_set_root
+          local.get $t4
+          local.set $gctmp.5
+          local.get $__jn_frame
+          i32.const 3
+          local.get $gctmp.5
+          call $jn_gc_frame_set_root
+          local.get $gctmp.5
+          local.set $t5
+          local.get $__jn_frame
+          i32.const 8
+          local.get $t5
+          call $jn_gc_frame_set_root
+          local.get $t1
+          local.get $t5
+          call $_JN_HtmlButtonElement_init_CJsHandle
+          call $jnative_exception_pending
+          local.set $t6
+          local.get $t6
+          if
+            i32.const 3
+            local.set $pc
+          else
+            i32.const 4
+            local.set $pc
+          end
+          br $dispatch
+        )
+          i32.const 0
+          local.set $ret
+          br $exit
+        )
+          local.get $t1
+          local.set $ret
+          br $exit
+      )
+    )
+    call $jn_gc_frame_pop
+    local.get $ret
+  )
+  (func $_JN_HtmlButtonElement_init_CJsHandle (param $this i32) (param $handle i32)
+    (local $pc i32)
+    (local $__jn_tid i32)
+    (local $__jn_asz i32)
+    (local $__jn_frame i32)
+    (local $this__slot i32)
+    (local $handle__slot i32)
+    (local $t0 i32)
+    (local $t1 i32)
+    (local $t2 i32)
+    i32.const 6
+    call $jn_gc_frame_push
+    local.set $__jn_frame
+    local.get $__jn_frame
+    i32.const 0
+    local.get $this
+    call $jn_gc_frame_set_root
+    local.get $__jn_frame
+    i32.const 1
+    local.get $handle
+    call $jn_gc_frame_set_root
+    i32.const 0
+    local.set $pc
+    (block $exit
+      (loop $dispatch
+        (block $bb2
+        (block $bb1
+        (block $bb0
+          local.get $pc
+          br_table $bb0 $bb1 $bb2 $exit
+        )
+          local.get $this
+          local.set $this__slot
+          local.get $__jn_frame
+          i32.const 2
+          local.get $this__slot
+          call $jn_gc_frame_set_root
+          local.get $handle
+          local.set $handle__slot
+          local.get $__jn_frame
+          i32.const 3
+          local.get $handle__slot
+          call $jn_gc_frame_set_root
+          local.get $this__slot
+          local.set $t0
+          local.get $__jn_frame
+          i32.const 4
+          local.get $t0
+          call $jn_gc_frame_set_root
+          local.get $handle__slot
+          local.set $t1
+          local.get $__jn_frame
+          i32.const 5
+          local.get $t1
+          call $jn_gc_frame_set_root
+          local.get $t0
+          local.get $t1
+          call $_JN_Element_init_CJsHandle
+          call $jnative_exception_pending
+          local.set $t2
+          local.get $t2
+          if
+            i32.const 1
+            local.set $pc
+          else
+            i32.const 2
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          br $exit
+      )
+    )
+    call $jn_gc_frame_pop
+  )
+  (func $_JN_HtmlInputElement_value (param $this i32) (result i32)
+    (local $pc i32)
+    (local $__jn_tid i32)
+    (local $__jn_asz i32)
+    (local $__jn_frame i32)
+    (local $ret i32)
+    (local $this__slot i32)
+    (local $gctmp.6 i32)
+    (local $t0 i32)
+    (local $t1 i32)
+    (local $t2 i32)
+    (local $t3 i32)
+    (local $t4 i32)
+    (local $t5 i32)
+    (local $t6 i32)
+    i32.const 6
+    call $jn_gc_frame_push
+    local.set $__jn_frame
+    local.get $__jn_frame
+    i32.const 0
+    local.get $this
+    call $jn_gc_frame_set_root
+    i32.const 0
+    local.set $pc
+    (block $exit
+      (loop $dispatch
+        (block $bb6
+        (block $bb5
+        (block $bb4
+        (block $bb3
+        (block $bb2
+        (block $bb1
+        (block $bb0
+          local.get $pc
+          br_table $bb0 $bb1 $bb2 $bb3 $bb4 $bb5 $bb6 $exit
+        )
+          local.get $this
+          local.set $this__slot
+          local.get $__jn_frame
+          i32.const 1
+          local.get $this__slot
+          call $jn_gc_frame_set_root
+          local.get $this__slot
+          local.set $t0
+          local.get $__jn_frame
+          i32.const 3
+          local.get $t0
+          call $jn_gc_frame_set_root
+          local.get $t0
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t1
+          local.get $t1
+          if
+            i32.const 1
+            local.set $pc
+          else
+            i32.const 2
+            local.set $pc
+          end
+          br $dispatch
+        )
+          i32.const 0
+          local.set $ret
+          br $exit
+        )
+          local.get $t0
+          i32.load
+          local.set $__jn_tid
+          local.get $__jn_tid
+          i32.const 15
+          i32.eq
+          if (result i32)
+            local.get $t0
+            call $_JN_JsObject_handleId
+          else
+          local.get $__jn_tid
+          i32.const 28
+          i32.eq
+          if (result i32)
+            local.get $t0
+            call $_JN_JsObject_handleId
+          else
+          local.get $__jn_tid
+          i32.const 36
+          i32.eq
+          if (result i32)
+            local.get $t0
+            call $_JN_JsObject_handleId
+          else
+          local.get $__jn_tid
+          i32.const 40
+          i32.eq
+          if (result i32)
+            local.get $t0
+            call $_JN_JsObject_handleId
+          else
+          local.get $__jn_tid
+          i32.const 50
+          i32.eq
+          if (result i32)
+            local.get $t0
+            call $_JN_JsObject_handleId
+          else
+          local.get $__jn_tid
+          i32.const 66
+          i32.eq
+          if (result i32)
+            local.get $t0
+            call $_JN_JsObject_handleId
+          else
+          local.get $__jn_tid
+          i32.const 73
+          i32.eq
+          if (result i32)
+            local.get $t0
+            call $_JN_JsObject_handleId
+          else
+          local.get $__jn_tid
+          i32.const 76
+          i32.eq
+          if (result i32)
+            local.get $t0
+            call $_JN_JsObject_handleId
+          else
+          local.get $__jn_tid
+          i32.const 101
+          i32.eq
+          if (result i32)
+            local.get $t0
+            call $_JN_JsObject_handleId
+          else
+            unreachable
+          end
+          end
+          end
+          end
+          end
+          end
+          end
+          end
+          end
+          local.set $t2
+          call $jnative_exception_pending
+          local.set $t3
+          local.get $t3
+          if
+            i32.const 3
+            local.set $pc
+          else
+            i32.const 4
+            local.set $pc
+          end
+          br $dispatch
+        )
+          i32.const 0
+          local.set $ret
+          br $exit
+        )
+          local.get $t2
+          call $jn_input_value
+          local.set $t4
+          local.get $__jn_frame
+          i32.const 4
+          local.get $t4
+          call $jn_gc_frame_set_root
+          call $jnative_exception_pending
+          local.set $t5
+          local.get $t5
+          if
+            i32.const 5
+            local.set $pc
+          else
+            i32.const 6
+            local.set $pc
+          end
+          br $dispatch
+        )
+          i32.const 0
+          local.set $ret
+          br $exit
+        )
+          local.get $t4
+          local.set $gctmp.6
+          local.get $__jn_frame
+          i32.const 2
+          local.get $gctmp.6
+          call $jn_gc_frame_set_root
+          local.get $gctmp.6
+          local.set $t6
+          local.get $__jn_frame
+          i32.const 5
+          local.get $t6
+          call $jn_gc_frame_set_root
+          local.get $t6
+          local.set $ret
+          br $exit
+      )
+    )
+    call $jn_gc_frame_pop
+    local.get $ret
+  )
+  (func $_JN_HtmlInputElement_setValue_CString (param $this i32) (param $value i32)
+    (local $pc i32)
+    (local $__jn_tid i32)
+    (local $__jn_asz i32)
+    (local $__jn_frame i32)
+    (local $this__slot i32)
+    (local $value__slot i32)
+    (local $t0 i32)
+    (local $t1 i32)
+    (local $t2 i32)
+    (local $t3 i32)
+    (local $t4 i32)
+    (local $t5 i32)
+    i32.const 6
+    call $jn_gc_frame_push
+    local.set $__jn_frame
+    local.get $__jn_frame
+    i32.const 0
+    local.get $this
+    call $jn_gc_frame_set_root
+    local.get $__jn_frame
+    i32.const 1
+    local.get $value
+    call $jn_gc_frame_set_root
+    i32.const 0
+    local.set $pc
+    (block $exit
+      (loop $dispatch
+        (block $bb6
+        (block $bb5
+        (block $bb4
+        (block $bb3
+        (block $bb2
+        (block $bb1
+        (block $bb0
+          local.get $pc
+          br_table $bb0 $bb1 $bb2 $bb3 $bb4 $bb5 $bb6 $exit
+        )
+          local.get $this
+          local.set $this__slot
+          local.get $__jn_frame
+          i32.const 2
+          local.get $this__slot
+          call $jn_gc_frame_set_root
+          local.get $value
+          local.set $value__slot
+          local.get $__jn_frame
+          i32.const 3
+          local.get $value__slot
+          call $jn_gc_frame_set_root
+          local.get $this__slot
+          local.set $t0
+          local.get $__jn_frame
+          i32.const 4
+          local.get $t0
+          call $jn_gc_frame_set_root
+          local.get $t0
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t1
+          local.get $t1
+          if
+            i32.const 1
+            local.set $pc
+          else
+            i32.const 2
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $t0
+          i32.load
+          local.set $__jn_tid
+          local.get $__jn_tid
+          i32.const 15
+          i32.eq
+          if (result i32)
+            local.get $t0
+            call $_JN_JsObject_handleId
+          else
+          local.get $__jn_tid
+          i32.const 28
+          i32.eq
+          if (result i32)
+            local.get $t0
+            call $_JN_JsObject_handleId
+          else
+          local.get $__jn_tid
+          i32.const 36
+          i32.eq
+          if (result i32)
+            local.get $t0
+            call $_JN_JsObject_handleId
+          else
+          local.get $__jn_tid
+          i32.const 40
+          i32.eq
+          if (result i32)
+            local.get $t0
+            call $_JN_JsObject_handleId
+          else
+          local.get $__jn_tid
+          i32.const 50
+          i32.eq
+          if (result i32)
+            local.get $t0
+            call $_JN_JsObject_handleId
+          else
+          local.get $__jn_tid
+          i32.const 66
+          i32.eq
+          if (result i32)
+            local.get $t0
+            call $_JN_JsObject_handleId
+          else
+          local.get $__jn_tid
+          i32.const 73
+          i32.eq
+          if (result i32)
+            local.get $t0
+            call $_JN_JsObject_handleId
+          else
+          local.get $__jn_tid
+          i32.const 76
+          i32.eq
+          if (result i32)
+            local.get $t0
+            call $_JN_JsObject_handleId
+          else
+          local.get $__jn_tid
+          i32.const 101
+          i32.eq
+          if (result i32)
+            local.get $t0
+            call $_JN_JsObject_handleId
+          else
+            unreachable
+          end
+          end
+          end
+          end
+          end
+          end
+          end
+          end
+          end
+          local.set $t2
+          call $jnative_exception_pending
+          local.set $t3
+          local.get $t3
+          if
+            i32.const 3
+            local.set $pc
+          else
+            i32.const 4
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $value__slot
+          local.set $t4
+          local.get $__jn_frame
+          i32.const 5
+          local.get $t4
+          call $jn_gc_frame_set_root
+          local.get $t2
+          local.get $t4
+          call $jn_input_set_value
+          call $jnative_exception_pending
+          local.set $t5
+          local.get $t5
+          if
+            i32.const 5
+            local.set $pc
+          else
+            i32.const 6
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          br $exit
+      )
+    )
+    call $jn_gc_frame_pop
+  )
+  (func $_JN_BrowserEvent_type (param $this i32) (result i32)
+    (local $pc i32)
+    (local $__jn_tid i32)
+    (local $__jn_asz i32)
+    (local $__jn_frame i32)
+    (local $ret i32)
+    (local $this__slot i32)
+    (local $gctmp.6 i32)
+    (local $t0 i32)
+    (local $t1 i32)
+    (local $t2 i32)
+    (local $t3 i32)
+    (local $t4 i32)
+    (local $t5 i32)
+    (local $t6 i32)
+    i32.const 6
+    call $jn_gc_frame_push
+    local.set $__jn_frame
+    local.get $__jn_frame
+    i32.const 0
+    local.get $this
+    call $jn_gc_frame_set_root
+    i32.const 0
+    local.set $pc
+    (block $exit
+      (loop $dispatch
+        (block $bb6
+        (block $bb5
+        (block $bb4
+        (block $bb3
+        (block $bb2
+        (block $bb1
+        (block $bb0
+          local.get $pc
+          br_table $bb0 $bb1 $bb2 $bb3 $bb4 $bb5 $bb6 $exit
+        )
+          local.get $this
+          local.set $this__slot
+          local.get $__jn_frame
+          i32.const 1
+          local.get $this__slot
+          call $jn_gc_frame_set_root
+          local.get $this__slot
+          local.set $t0
+          local.get $__jn_frame
+          i32.const 3
+          local.get $t0
+          call $jn_gc_frame_set_root
+          local.get $t0
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t1
+          local.get $t1
+          if
+            i32.const 1
+            local.set $pc
+          else
+            i32.const 2
+            local.set $pc
+          end
+          br $dispatch
+        )
+          i32.const 0
+          local.set $ret
+          br $exit
+        )
+          local.get $t0
+          i32.load
+          local.set $__jn_tid
+          local.get $__jn_tid
+          i32.const 15
+          i32.eq
+          if (result i32)
+            local.get $t0
+            call $_JN_JsObject_handleId
+          else
+          local.get $__jn_tid
+          i32.const 28
+          i32.eq
+          if (result i32)
+            local.get $t0
+            call $_JN_JsObject_handleId
+          else
+          local.get $__jn_tid
+          i32.const 36
+          i32.eq
+          if (result i32)
+            local.get $t0
+            call $_JN_JsObject_handleId
+          else
+          local.get $__jn_tid
+          i32.const 40
+          i32.eq
+          if (result i32)
+            local.get $t0
+            call $_JN_JsObject_handleId
+          else
+          local.get $__jn_tid
+          i32.const 50
+          i32.eq
+          if (result i32)
+            local.get $t0
+            call $_JN_JsObject_handleId
+          else
+          local.get $__jn_tid
+          i32.const 66
+          i32.eq
+          if (result i32)
+            local.get $t0
+            call $_JN_JsObject_handleId
+          else
+          local.get $__jn_tid
+          i32.const 73
+          i32.eq
+          if (result i32)
+            local.get $t0
+            call $_JN_JsObject_handleId
+          else
+          local.get $__jn_tid
+          i32.const 76
+          i32.eq
+          if (result i32)
+            local.get $t0
+            call $_JN_JsObject_handleId
+          else
+          local.get $__jn_tid
+          i32.const 101
+          i32.eq
+          if (result i32)
+            local.get $t0
+            call $_JN_JsObject_handleId
+          else
+            unreachable
+          end
+          end
+          end
+          end
+          end
+          end
+          end
+          end
+          end
+          local.set $t2
+          call $jnative_exception_pending
+          local.set $t3
+          local.get $t3
+          if
+            i32.const 3
+            local.set $pc
+          else
+            i32.const 4
+            local.set $pc
+          end
+          br $dispatch
+        )
+          i32.const 0
+          local.set $ret
+          br $exit
+        )
+          i32.const 0
+          local.set $t4
+          local.get $__jn_frame
+          i32.const 4
+          local.get $t4
+          call $jn_gc_frame_set_root
+          call $jnative_exception_pending
+          local.set $t5
+          local.get $t5
+          if
+            i32.const 5
+            local.set $pc
+          else
+            i32.const 6
+            local.set $pc
+          end
+          br $dispatch
+        )
+          i32.const 0
+          local.set $ret
+          br $exit
+        )
+          local.get $t4
+          local.set $gctmp.6
+          local.get $__jn_frame
+          i32.const 2
+          local.get $gctmp.6
+          call $jn_gc_frame_set_root
+          local.get $gctmp.6
+          local.set $t6
+          local.get $__jn_frame
+          i32.const 5
+          local.get $t6
+          call $jn_gc_frame_set_root
+          local.get $t6
+          local.set $ret
+          br $exit
+      )
+    )
+    call $jn_gc_frame_pop
+    local.get $ret
+  )
+  (func $_JN_Storage_init_CJsHandle (param $this i32) (param $handle i32)
+    (local $pc i32)
+    (local $__jn_tid i32)
+    (local $__jn_asz i32)
+    (local $__jn_frame i32)
+    (local $this__slot i32)
+    (local $handle__slot i32)
+    (local $t0 i32)
+    (local $t1 i32)
+    (local $t2 i32)
+    i32.const 6
+    call $jn_gc_frame_push
+    local.set $__jn_frame
+    local.get $__jn_frame
+    i32.const 0
+    local.get $this
+    call $jn_gc_frame_set_root
+    local.get $__jn_frame
+    i32.const 1
+    local.get $handle
+    call $jn_gc_frame_set_root
+    i32.const 0
+    local.set $pc
+    (block $exit
+      (loop $dispatch
+        (block $bb2
+        (block $bb1
+        (block $bb0
+          local.get $pc
+          br_table $bb0 $bb1 $bb2 $exit
+        )
+          local.get $this
+          local.set $this__slot
+          local.get $__jn_frame
+          i32.const 2
+          local.get $this__slot
+          call $jn_gc_frame_set_root
+          local.get $handle
+          local.set $handle__slot
+          local.get $__jn_frame
+          i32.const 3
+          local.get $handle__slot
+          call $jn_gc_frame_set_root
+          local.get $this__slot
+          local.set $t0
+          local.get $__jn_frame
+          i32.const 4
+          local.get $t0
+          call $jn_gc_frame_set_root
+          local.get $handle__slot
+          local.set $t1
+          local.get $__jn_frame
+          i32.const 5
+          local.get $t1
+          call $jn_gc_frame_set_root
+          local.get $t0
+          local.get $t1
+          call $_JN_JsObject_init_CJsHandle
+          call $jnative_exception_pending
+          local.set $t2
+          local.get $t2
+          if
+            i32.const 1
+            local.set $pc
+          else
+            i32.const 2
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          br $exit
+      )
+    )
+    call $jn_gc_frame_pop
+  )
+  (func $_JN_Storage_set_CString_CString (param $this i32) (param $key i32) (param $value i32)
+    (local $pc i32)
+    (local $__jn_tid i32)
+    (local $__jn_asz i32)
+    (local $__jn_frame i32)
+    (local $this__slot i32)
+    (local $key__slot i32)
+    (local $value__slot i32)
+    (local $t0 i32)
+    (local $t1 i32)
+    (local $t2 i32)
+    (local $t3 i32)
+    (local $t4 i32)
+    (local $t5 i32)
+    (local $t6 i32)
+    i32.const 9
+    call $jn_gc_frame_push
+    local.set $__jn_frame
+    local.get $__jn_frame
+    i32.const 0
+    local.get $this
+    call $jn_gc_frame_set_root
+    local.get $__jn_frame
+    i32.const 1
+    local.get $key
+    call $jn_gc_frame_set_root
+    local.get $__jn_frame
+    i32.const 2
+    local.get $value
+    call $jn_gc_frame_set_root
+    i32.const 0
+    local.set $pc
+    (block $exit
+      (loop $dispatch
+        (block $bb6
+        (block $bb5
+        (block $bb4
+        (block $bb3
+        (block $bb2
+        (block $bb1
+        (block $bb0
+          local.get $pc
+          br_table $bb0 $bb1 $bb2 $bb3 $bb4 $bb5 $bb6 $exit
+        )
+          local.get $this
+          local.set $this__slot
+          local.get $__jn_frame
+          i32.const 3
+          local.get $this__slot
+          call $jn_gc_frame_set_root
+          local.get $key
+          local.set $key__slot
+          local.get $__jn_frame
+          i32.const 4
+          local.get $key__slot
+          call $jn_gc_frame_set_root
+          local.get $value
+          local.set $value__slot
+          local.get $__jn_frame
+          i32.const 5
+          local.get $value__slot
+          call $jn_gc_frame_set_root
+          local.get $this__slot
+          local.set $t0
+          local.get $__jn_frame
+          i32.const 6
+          local.get $t0
+          call $jn_gc_frame_set_root
+          local.get $t0
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t1
+          local.get $t1
+          if
+            i32.const 1
+            local.set $pc
+          else
+            i32.const 2
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $t0
+          i32.load
+          local.set $__jn_tid
+          local.get $__jn_tid
+          i32.const 15
+          i32.eq
+          if (result i32)
+            local.get $t0
+            call $_JN_JsObject_handleId
+          else
+          local.get $__jn_tid
+          i32.const 28
+          i32.eq
+          if (result i32)
+            local.get $t0
+            call $_JN_JsObject_handleId
+          else
+          local.get $__jn_tid
+          i32.const 36
+          i32.eq
+          if (result i32)
+            local.get $t0
+            call $_JN_JsObject_handleId
+          else
+          local.get $__jn_tid
+          i32.const 40
+          i32.eq
+          if (result i32)
+            local.get $t0
+            call $_JN_JsObject_handleId
+          else
+          local.get $__jn_tid
+          i32.const 50
+          i32.eq
+          if (result i32)
+            local.get $t0
+            call $_JN_JsObject_handleId
+          else
+          local.get $__jn_tid
+          i32.const 66
+          i32.eq
+          if (result i32)
+            local.get $t0
+            call $_JN_JsObject_handleId
+          else
+          local.get $__jn_tid
+          i32.const 73
+          i32.eq
+          if (result i32)
+            local.get $t0
+            call $_JN_JsObject_handleId
+          else
+          local.get $__jn_tid
+          i32.const 76
+          i32.eq
+          if (result i32)
+            local.get $t0
+            call $_JN_JsObject_handleId
+          else
+          local.get $__jn_tid
+          i32.const 101
+          i32.eq
+          if (result i32)
+            local.get $t0
+            call $_JN_JsObject_handleId
+          else
+            unreachable
+          end
+          end
+          end
+          end
+          end
+          end
+          end
+          end
+          end
+          local.set $t2
+          call $jnative_exception_pending
+          local.set $t3
+          local.get $t3
+          if
+            i32.const 3
+            local.set $pc
+          else
+            i32.const 4
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $key__slot
+          local.set $t4
+          local.get $__jn_frame
+          i32.const 7
+          local.get $t4
+          call $jn_gc_frame_set_root
+          local.get $value__slot
+          local.set $t5
+          local.get $__jn_frame
+          i32.const 8
+          local.get $t5
+          call $jn_gc_frame_set_root
+          call $jnative_exception_pending
+          local.set $t6
+          local.get $t6
+          if
+            i32.const 5
+            local.set $pc
+          else
+            i32.const 6
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          br $exit
+      )
+    )
+    call $jn_gc_frame_pop
+  )
+  (func $_JN_Storage_get_CString (param $this i32) (param $key i32) (result i32)
+    (local $pc i32)
+    (local $__jn_tid i32)
+    (local $__jn_asz i32)
+    (local $__jn_frame i32)
+    (local $ret i32)
+    (local $this__slot i32)
+    (local $key__slot i32)
+    (local $gctmp.7 i32)
+    (local $t0 i32)
+    (local $t1 i32)
+    (local $t2 i32)
+    (local $t3 i32)
+    (local $t4 i32)
+    (local $t5 i32)
+    (local $t6 i32)
+    (local $t7 i32)
+    i32.const 9
+    call $jn_gc_frame_push
+    local.set $__jn_frame
+    local.get $__jn_frame
+    i32.const 0
+    local.get $this
+    call $jn_gc_frame_set_root
+    local.get $__jn_frame
+    i32.const 1
+    local.get $key
+    call $jn_gc_frame_set_root
+    i32.const 0
+    local.set $pc
+    (block $exit
+      (loop $dispatch
+        (block $bb6
+        (block $bb5
+        (block $bb4
+        (block $bb3
+        (block $bb2
+        (block $bb1
+        (block $bb0
+          local.get $pc
+          br_table $bb0 $bb1 $bb2 $bb3 $bb4 $bb5 $bb6 $exit
+        )
+          local.get $this
+          local.set $this__slot
+          local.get $__jn_frame
+          i32.const 2
+          local.get $this__slot
+          call $jn_gc_frame_set_root
+          local.get $key
+          local.set $key__slot
+          local.get $__jn_frame
+          i32.const 3
+          local.get $key__slot
+          call $jn_gc_frame_set_root
+          local.get $this__slot
+          local.set $t0
+          local.get $__jn_frame
+          i32.const 5
+          local.get $t0
+          call $jn_gc_frame_set_root
+          local.get $t0
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t1
+          local.get $t1
+          if
+            i32.const 1
+            local.set $pc
+          else
+            i32.const 2
+            local.set $pc
+          end
+          br $dispatch
+        )
+          i32.const 0
+          local.set $ret
+          br $exit
+        )
+          local.get $t0
+          i32.load
+          local.set $__jn_tid
+          local.get $__jn_tid
+          i32.const 15
+          i32.eq
+          if (result i32)
+            local.get $t0
+            call $_JN_JsObject_handleId
+          else
+          local.get $__jn_tid
+          i32.const 28
+          i32.eq
+          if (result i32)
+            local.get $t0
+            call $_JN_JsObject_handleId
+          else
+          local.get $__jn_tid
+          i32.const 36
+          i32.eq
+          if (result i32)
+            local.get $t0
+            call $_JN_JsObject_handleId
+          else
+          local.get $__jn_tid
+          i32.const 40
+          i32.eq
+          if (result i32)
+            local.get $t0
+            call $_JN_JsObject_handleId
+          else
+          local.get $__jn_tid
+          i32.const 50
+          i32.eq
+          if (result i32)
+            local.get $t0
+            call $_JN_JsObject_handleId
+          else
+          local.get $__jn_tid
+          i32.const 66
+          i32.eq
+          if (result i32)
+            local.get $t0
+            call $_JN_JsObject_handleId
+          else
+          local.get $__jn_tid
+          i32.const 73
+          i32.eq
+          if (result i32)
+            local.get $t0
+            call $_JN_JsObject_handleId
+          else
+          local.get $__jn_tid
+          i32.const 76
+          i32.eq
+          if (result i32)
+            local.get $t0
+            call $_JN_JsObject_handleId
+          else
+          local.get $__jn_tid
+          i32.const 101
+          i32.eq
+          if (result i32)
+            local.get $t0
+            call $_JN_JsObject_handleId
+          else
+            unreachable
+          end
+          end
+          end
+          end
+          end
+          end
+          end
+          end
+          end
+          local.set $t2
+          call $jnative_exception_pending
+          local.set $t3
+          local.get $t3
+          if
+            i32.const 3
+            local.set $pc
+          else
+            i32.const 4
+            local.set $pc
+          end
+          br $dispatch
+        )
+          i32.const 0
+          local.set $ret
+          br $exit
+        )
+          local.get $key__slot
+          local.set $t4
+          local.get $__jn_frame
+          i32.const 6
+          local.get $t4
+          call $jn_gc_frame_set_root
+          i32.const 0
+          local.set $t5
+          local.get $__jn_frame
+          i32.const 7
+          local.get $t5
+          call $jn_gc_frame_set_root
+          call $jnative_exception_pending
+          local.set $t6
+          local.get $t6
+          if
+            i32.const 5
+            local.set $pc
+          else
+            i32.const 6
+            local.set $pc
+          end
+          br $dispatch
+        )
+          i32.const 0
+          local.set $ret
+          br $exit
+        )
+          local.get $t5
+          local.set $gctmp.7
+          local.get $__jn_frame
+          i32.const 4
+          local.get $gctmp.7
+          call $jn_gc_frame_set_root
+          local.get $gctmp.7
+          local.set $t7
+          local.get $__jn_frame
+          i32.const 8
+          local.get $t7
+          call $jn_gc_frame_set_root
+          local.get $t7
+          local.set $ret
+          br $exit
+      )
+    )
+    call $jn_gc_frame_pop
+    local.get $ret
+  )
+  (func $_JN_Window_document (param $this i32) (result i32)
+    (local $pc i32)
+    (local $__jn_tid i32)
+    (local $__jn_asz i32)
+    (local $__jn_frame i32)
+    (local $ret i32)
+    (local $this__slot i32)
+    (local $gctmp.2 i32)
+    (local $t0 i32)
+    (local $t1 i32)
+    (local $t2 i32)
+    i32.const 5
+    call $jn_gc_frame_push
+    local.set $__jn_frame
+    local.get $__jn_frame
+    i32.const 0
+    local.get $this
+    call $jn_gc_frame_set_root
+    i32.const 0
+    local.set $pc
+    (block $exit
+      (loop $dispatch
+        (block $bb2
+        (block $bb1
+        (block $bb0
+          local.get $pc
+          br_table $bb0 $bb1 $bb2 $exit
+        )
+          local.get $this
+          local.set $this__slot
+          local.get $__jn_frame
+          i32.const 1
+          local.get $this__slot
+          call $jn_gc_frame_set_root
+          call $_JN_Browser_document
+          local.set $t0
+          local.get $__jn_frame
+          i32.const 3
+          local.get $t0
+          call $jn_gc_frame_set_root
+          call $jnative_exception_pending
+          local.set $t1
+          local.get $t1
+          if
+            i32.const 1
+            local.set $pc
+          else
+            i32.const 2
+            local.set $pc
+          end
+          br $dispatch
+        )
+          i32.const 0
+          local.set $ret
+          br $exit
+        )
+          local.get $t0
+          local.set $gctmp.2
+          local.get $__jn_frame
+          i32.const 2
+          local.get $gctmp.2
+          call $jn_gc_frame_set_root
+          local.get $gctmp.2
+          local.set $t2
+          local.get $__jn_frame
+          i32.const 4
+          local.get $t2
+          call $jn_gc_frame_set_root
+          local.get $t2
+          local.set $ret
+          br $exit
+      )
+    )
+    call $jn_gc_frame_pop
+    local.get $ret
+  )
+  (func $_JN_Window_localStorage (param $this i32) (result i32)
+    (local $pc i32)
+    (local $__jn_tid i32)
+    (local $__jn_asz i32)
+    (local $__jn_frame i32)
+    (local $ret i32)
+    (local $this__slot i32)
+    (local $gctmp.2 i32)
+    (local $t0 i32)
+    (local $t1 i32)
+    (local $t2 i32)
+    i32.const 5
+    call $jn_gc_frame_push
+    local.set $__jn_frame
+    local.get $__jn_frame
+    i32.const 0
+    local.get $this
+    call $jn_gc_frame_set_root
+    i32.const 0
+    local.set $pc
+    (block $exit
+      (loop $dispatch
+        (block $bb2
+        (block $bb1
+        (block $bb0
+          local.get $pc
+          br_table $bb0 $bb1 $bb2 $exit
+        )
+          local.get $this
+          local.set $this__slot
+          local.get $__jn_frame
+          i32.const 1
+          local.get $this__slot
+          call $jn_gc_frame_set_root
+          call $_JN_Browser_localStorage
+          local.set $t0
+          local.get $__jn_frame
+          i32.const 3
+          local.get $t0
+          call $jn_gc_frame_set_root
+          call $jnative_exception_pending
+          local.set $t1
+          local.get $t1
+          if
+            i32.const 1
+            local.set $pc
+          else
+            i32.const 2
+            local.set $pc
+          end
+          br $dispatch
+        )
+          i32.const 0
+          local.set $ret
+          br $exit
+        )
+          local.get $t0
+          local.set $gctmp.2
+          local.get $__jn_frame
+          i32.const 2
+          local.get $gctmp.2
+          call $jn_gc_frame_set_root
+          local.get $gctmp.2
+          local.set $t2
+          local.get $__jn_frame
+          i32.const 4
+          local.get $t2
+          call $jn_gc_frame_set_root
+          local.get $t2
+          local.set $ret
+          br $exit
+      )
+    )
+    call $jn_gc_frame_pop
+    local.get $ret
+  )
+  (func $_JN_Browser_localStorage (result i32)
+    (local $pc i32)
+    (local $__jn_tid i32)
+    (local $__jn_asz i32)
+    (local $__jn_frame i32)
+    (local $ret i32)
+    (local $gctmp.1 i32)
+    (local $gctmp.3 i32)
+    (local $t0 i32)
+    (local $t1 i32)
+    (local $t2 i32)
+    (local $t3 i32)
+    (local $t4 i32)
+    (local $t5 i32)
+    i32.const 6
+    call $jn_gc_frame_push
+    local.set $__jn_frame
+    i32.const 0
+    local.set $pc
+    (block $exit
+      (loop $dispatch
+        (block $bb4
+        (block $bb3
+        (block $bb2
+        (block $bb1
+        (block $bb0
+          local.get $pc
+          br_table $bb0 $bb1 $bb2 $bb3 $bb4 $exit
+        )
+          i32.const 8
+          call $jn_alloc_zeroed
+          local.set $t0
+          local.get $t0
+          i32.eqz
+          if
+            unreachable
+          end
+          local.get $t0
+          i32.const 40
+          i32.store
+          local.get $__jn_frame
+          i32.const 2
+          local.get $t0
+          call $jn_gc_frame_set_root
+          local.get $t0
+          local.set $gctmp.1
+          local.get $__jn_frame
+          i32.const 0
+          local.get $gctmp.1
+          call $jn_gc_frame_set_root
+          local.get $gctmp.1
+          local.set $t1
+          local.get $__jn_frame
+          i32.const 3
+          local.get $t1
+          call $jn_gc_frame_set_root
+          i32.const 8
+          call $jn_alloc_zeroed
+          local.set $t2
+          local.get $t2
+          i32.eqz
+          if
+            unreachable
+          end
+          local.get $t2
+          i32.const 97
+          i32.store
+          local.get $__jn_frame
+          i32.const 4
+          local.get $t2
+          call $jn_gc_frame_set_root
+          local.get $t2
+          local.set $gctmp.3
+          local.get $__jn_frame
+          i32.const 1
+          local.get $gctmp.3
+          call $jn_gc_frame_set_root
+          local.get $gctmp.3
+          local.set $t3
+          local.get $__jn_frame
+          i32.const 5
+          local.get $t3
+          call $jn_gc_frame_set_root
+          local.get $t3
+          i32.const 4
+          call $_JN_JsHandle_init_i32
+          call $jnative_exception_pending
+          local.set $t4
+          local.get $t4
+          if
+            i32.const 1
+            local.set $pc
+          else
+            i32.const 2
+            local.set $pc
+          end
+          br $dispatch
+        )
+          i32.const 0
+          local.set $ret
+          br $exit
+        )
+          local.get $t1
+          local.get $t3
+          call $_JN_Storage_init_CJsHandle
+          call $jnative_exception_pending
+          local.set $t5
+          local.get $t5
+          if
+            i32.const 3
+            local.set $pc
+          else
+            i32.const 4
+            local.set $pc
+          end
+          br $dispatch
+        )
+          i32.const 0
+          local.set $ret
+          br $exit
+        )
+          local.get $t1
+          local.set $ret
+          br $exit
+      )
+    )
+    call $jn_gc_frame_pop
+    local.get $ret
+  )
+  (func $_JN_Browser_document (result i32)
+    (local $pc i32)
+    (local $__jn_tid i32)
+    (local $__jn_asz i32)
+    (local $__jn_frame i32)
+    (local $ret i32)
+    (local $gctmp.1 i32)
+    (local $gctmp.3 i32)
+    (local $t0 i32)
+    (local $t1 i32)
+    (local $t2 i32)
+    (local $t3 i32)
+    (local $t4 i32)
+    (local $t5 i32)
+    i32.const 6
+    call $jn_gc_frame_push
+    local.set $__jn_frame
+    i32.const 0
+    local.set $pc
+    (block $exit
+      (loop $dispatch
+        (block $bb4
+        (block $bb3
+        (block $bb2
+        (block $bb1
+        (block $bb0
+          local.get $pc
+          br_table $bb0 $bb1 $bb2 $bb3 $bb4 $exit
+        )
+          i32.const 8
+          call $jn_alloc_zeroed
+          local.set $t0
+          local.get $t0
+          i32.eqz
+          if
+            unreachable
+          end
+          local.get $t0
+          i32.const 50
+          i32.store
+          local.get $__jn_frame
+          i32.const 2
+          local.get $t0
+          call $jn_gc_frame_set_root
+          local.get $t0
+          local.set $gctmp.1
+          local.get $__jn_frame
+          i32.const 0
+          local.get $gctmp.1
+          call $jn_gc_frame_set_root
+          local.get $gctmp.1
+          local.set $t1
+          local.get $__jn_frame
+          i32.const 3
+          local.get $t1
+          call $jn_gc_frame_set_root
+          i32.const 8
+          call $jn_alloc_zeroed
+          local.set $t2
+          local.get $t2
+          i32.eqz
+          if
+            unreachable
+          end
+          local.get $t2
+          i32.const 97
+          i32.store
+          local.get $__jn_frame
+          i32.const 4
+          local.get $t2
+          call $jn_gc_frame_set_root
+          local.get $t2
+          local.set $gctmp.3
+          local.get $__jn_frame
+          i32.const 1
+          local.get $gctmp.3
+          call $jn_gc_frame_set_root
+          local.get $gctmp.3
+          local.set $t3
+          local.get $__jn_frame
+          i32.const 5
+          local.get $t3
+          call $jn_gc_frame_set_root
+          local.get $t3
+          i32.const 2
+          call $_JN_JsHandle_init_i32
+          call $jnative_exception_pending
+          local.set $t4
+          local.get $t4
+          if
+            i32.const 1
+            local.set $pc
+          else
+            i32.const 2
+            local.set $pc
+          end
+          br $dispatch
+        )
+          i32.const 0
+          local.set $ret
+          br $exit
+        )
+          local.get $t1
+          local.get $t3
+          call $_JN_Document_init_CJsHandle
+          call $jnative_exception_pending
+          local.set $t5
+          local.get $t5
+          if
+            i32.const 3
+            local.set $pc
+          else
+            i32.const 4
+            local.set $pc
+          end
+          br $dispatch
+        )
+          i32.const 0
+          local.set $ret
+          br $exit
+        )
+          local.get $t1
+          local.set $ret
+          br $exit
+      )
+    )
+    call $jn_gc_frame_pop
+    local.get $ret
+  )
+  (func $_JN_BlockingCompleteTask_run (param $this i32)
+    (local $pc i32)
+    (local $__jn_tid i32)
+    (local $__jn_asz i32)
+    (local $__jn_frame i32)
+    (local $this__slot i32)
+    (local $gctmp.3 i32)
+    (local $gctmp.8 i32)
+    (local $gctmp.13 i32)
+    (local $gctmp.19 i32)
+    (local $gctmp.24 i32)
+    (local $t0 i32)
+    (local $t1 i32)
+    (local $t2 i32)
+    (local $t3 i32)
+    (local $t4 i32)
+    (local $t5 i32)
+    (local $t6 i32)
+    (local $t7 i32)
+    (local $t8 i32)
+    (local $t9 i32)
+    (local $t10 i32)
+    (local $t11 i32)
+    (local $t12 i32)
+    (local $t13 i32)
+    (local $t14 i32)
+    (local $t15 i32)
+    (local $t16 i32)
+    (local $t17 i32)
+    (local $t18 i32)
+    (local $t19 i32)
+    (local $t20 i32)
+    (local $t21 i32)
+    (local $t22 i32)
+    (local $t23 i32)
+    (local $t24 i32)
+    (local $t25 i32)
+    (local $t26 i32)
+    i32.const 22
+    call $jn_gc_frame_push
+    local.set $__jn_frame
+    local.get $__jn_frame
+    i32.const 0
+    local.get $this
+    call $jn_gc_frame_set_root
+    i32.const 0
+    local.set $pc
+    (block $exit
+      (loop $dispatch
+        (block $bb21
+        (block $bb20
+        (block $bb19
+        (block $bb18
+        (block $bb17
+        (block $bb16
+        (block $bb15
+        (block $bb14
+        (block $bb13
+        (block $bb12
+        (block $bb11
+        (block $bb10
+        (block $bb9
+        (block $bb8
+        (block $bb7
+        (block $bb6
+        (block $bb5
+        (block $bb4
+        (block $bb3
+        (block $bb2
+        (block $bb1
+        (block $bb0
+          local.get $pc
+          br_table $bb0 $bb1 $bb2 $bb3 $bb4 $bb5 $bb6 $bb7 $bb8 $bb9 $bb10 $bb11 $bb12 $bb13 $bb14 $bb15 $bb16 $bb17 $bb18 $bb19 $bb20 $bb21 $exit
+        )
+          local.get $this
+          local.set $this__slot
+          local.get $__jn_frame
+          i32.const 1
+          local.get $this__slot
+          call $jn_gc_frame_set_root
+          local.get $this__slot
+          local.set $t0
+          local.get $__jn_frame
+          i32.const 7
+          local.get $t0
+          call $jn_gc_frame_set_root
+          local.get $t0
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t1
+          local.get $t1
+          if
+            i32.const 1
+            local.set $pc
+          else
+            i32.const 2
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $t0
+          i32.const 12
+          i32.add
+          i32.load
+          local.set $t2
+          local.get $__jn_frame
+          i32.const 8
+          local.get $t2
+          call $jn_gc_frame_set_root
+          local.get $t2
+          local.set $gctmp.3
+          local.get $__jn_frame
+          i32.const 2
+          local.get $gctmp.3
+          call $jn_gc_frame_set_root
+          local.get $gctmp.3
+          local.set $t3
+          local.get $__jn_frame
+          i32.const 9
+          local.get $t3
+          call $jn_gc_frame_set_root
+          local.get $t3
+          i32.const 0
+          i32.ne
+          local.set $t4
+          local.get $t4
+          if
+            i32.const 3
+            local.set $pc
+          else
+            i32.const 5
+            local.set $pc
+          end
+          br $dispatch
+        )
+          local.get $this__slot
+          local.set $t5
+          local.get $__jn_frame
+          i32.const 10
+          local.get $t5
+          call $jn_gc_frame_set_root
+          local.get $t5
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t6
+          local.get $t6
+          if
+            i32.const 6
+            local.set $pc
+          else
+            i32.const 7
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $this__slot
+          local.set $t16
+          local.get $__jn_frame
+          i32.const 16
+          local.get $t16
+          call $jn_gc_frame_set_root
+          local.get $t16
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t17
+          local.get $t17
+          if
+            i32.const 14
+            local.set $pc
+          else
+            i32.const 15
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $t5
+          i32.const 4
+          i32.add
+          i32.load
+          local.set $t7
+          local.get $__jn_frame
+          i32.const 11
+          local.get $t7
+          call $jn_gc_frame_set_root
+          local.get $t7
+          local.set $gctmp.8
+          local.get $__jn_frame
+          i32.const 3
+          local.get $gctmp.8
+          call $jn_gc_frame_set_root
+          local.get $gctmp.8
+          local.set $t8
+          local.get $__jn_frame
+          i32.const 12
+          local.get $t8
+          call $jn_gc_frame_set_root
+          local.get $t8
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t9
+          local.get $t9
+          if
+            i32.const 8
+            local.set $pc
+          else
+            i32.const 9
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $this__slot
+          local.set $t10
+          local.get $__jn_frame
+          i32.const 13
+          local.get $t10
+          call $jn_gc_frame_set_root
+          local.get $t10
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t11
+          local.get $t11
+          if
+            i32.const 10
+            local.set $pc
+          else
+            i32.const 11
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $t10
+          i32.const 12
+          i32.add
+          i32.load
+          local.set $t12
+          local.get $__jn_frame
+          i32.const 14
+          local.get $t12
+          call $jn_gc_frame_set_root
+          local.get $t12
+          local.set $gctmp.13
+          local.get $__jn_frame
+          i32.const 4
+          local.get $gctmp.13
+          call $jn_gc_frame_set_root
+          local.get $gctmp.13
+          local.set $t13
+          local.get $__jn_frame
+          i32.const 15
+          local.get $t13
+          call $jn_gc_frame_set_root
+          local.get $t8
+          local.get $t13
+          call $_JN_JnFuture_tryFail_CException
+          local.set $t14
+          call $jnative_exception_pending
+          local.set $t15
+          local.get $t15
+          if
+            i32.const 12
+            local.set $pc
+          else
+            i32.const 13
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          i32.const 4
+          local.set $pc
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $t16
+          i32.const 4
+          i32.add
+          i32.load
+          local.set $t18
+          local.get $__jn_frame
+          i32.const 17
+          local.get $t18
+          call $jn_gc_frame_set_root
+          local.get $t18
+          local.set $gctmp.19
+          local.get $__jn_frame
+          i32.const 5
+          local.get $gctmp.19
+          call $jn_gc_frame_set_root
+          local.get $gctmp.19
+          local.set $t19
+          local.get $__jn_frame
+          i32.const 18
+          local.get $t19
+          call $jn_gc_frame_set_root
+          local.get $t19
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t20
+          local.get $t20
+          if
+            i32.const 16
+            local.set $pc
+          else
+            i32.const 17
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $this__slot
+          local.set $t21
+          local.get $__jn_frame
+          i32.const 19
+          local.get $t21
+          call $jn_gc_frame_set_root
+          local.get $t21
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t22
+          local.get $t22
+          if
+            i32.const 18
+            local.set $pc
+          else
+            i32.const 19
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $t21
+          i32.const 8
+          i32.add
+          i32.load
+          local.set $t23
+          local.get $__jn_frame
+          i32.const 20
+          local.get $t23
+          call $jn_gc_frame_set_root
+          local.get $t23
+          local.set $gctmp.24
+          local.get $__jn_frame
+          i32.const 6
+          local.get $gctmp.24
+          call $jn_gc_frame_set_root
+          local.get $gctmp.24
+          local.set $t24
+          local.get $__jn_frame
+          i32.const 21
+          local.get $t24
+          call $jn_gc_frame_set_root
+          local.get $t19
+          local.get $t24
+          call $_JN_JnFuture_tryComplete_CObject
+          local.set $t25
+          call $jnative_exception_pending
+          local.set $t26
+          local.get $t26
+          if
+            i32.const 20
+            local.set $pc
+          else
+            i32.const 21
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          i32.const 4
+          local.set $pc
+          br $dispatch
+      )
+    )
+    call $jn_gc_frame_pop
+  )
+  (func $_JN_RunCallbackTask_run (param $this i32)
+    (local $pc i32)
+    (local $__jn_tid i32)
+    (local $__jn_asz i32)
+    (local $__jn_frame i32)
+    (local $this__slot i32)
+    (local $gctmp.3 i32)
+    (local $gctmp.8 i32)
+    (local $gctmp.13 i32)
+    (local $t0 i32)
+    (local $t1 i32)
+    (local $t2 i32)
+    (local $t3 i32)
+    (local $t4 i32)
+    (local $t5 i32)
+    (local $t6 i32)
+    (local $t7 i32)
+    (local $t8 i32)
+    (local $t9 i32)
+    (local $t10 i32)
+    (local $t11 i32)
+    (local $t12 i32)
+    (local $t13 i32)
+    (local $t14 i32)
+    i32.const 14
+    call $jn_gc_frame_push
+    local.set $__jn_frame
+    local.get $__jn_frame
+    i32.const 0
+    local.get $this
+    call $jn_gc_frame_set_root
+    i32.const 0
+    local.set $pc
+    (block $exit
+      (loop $dispatch
+        (block $bb12
+        (block $bb11
+        (block $bb10
+        (block $bb9
+        (block $bb8
+        (block $bb7
+        (block $bb6
+        (block $bb5
+        (block $bb4
+        (block $bb3
+        (block $bb2
+        (block $bb1
+        (block $bb0
+          local.get $pc
+          br_table $bb0 $bb1 $bb2 $bb3 $bb4 $bb5 $bb6 $bb7 $bb8 $bb9 $bb10 $bb11 $bb12 $exit
+        )
+          local.get $this
+          local.set $this__slot
+          local.get $__jn_frame
+          i32.const 1
+          local.get $this__slot
+          call $jn_gc_frame_set_root
+          local.get $this__slot
+          local.set $t0
+          local.get $__jn_frame
+          i32.const 5
+          local.get $t0
+          call $jn_gc_frame_set_root
+          local.get $t0
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t1
+          local.get $t1
+          if
+            i32.const 1
+            local.set $pc
+          else
+            i32.const 2
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $t0
+          i32.const 4
+          i32.add
+          i32.load
+          local.set $t2
+          local.get $__jn_frame
+          i32.const 6
+          local.get $t2
+          call $jn_gc_frame_set_root
+          local.get $t2
+          local.set $gctmp.3
+          local.get $__jn_frame
+          i32.const 2
+          local.get $gctmp.3
+          call $jn_gc_frame_set_root
+          local.get $gctmp.3
+          local.set $t3
+          local.get $__jn_frame
+          i32.const 7
+          local.get $t3
+          call $jn_gc_frame_set_root
+          local.get $t3
+          i32.const 0
+          i32.ne
+          local.set $t4
+          local.get $t4
+          if
+            i32.const 3
+            local.set $pc
+          else
+            i32.const 4
+            local.set $pc
+          end
+          br $dispatch
+        )
+          local.get $this__slot
+          local.set $t5
+          local.get $__jn_frame
+          i32.const 8
+          local.get $t5
+          call $jn_gc_frame_set_root
+          local.get $t5
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t6
+          local.get $t6
+          if
+            i32.const 5
+            local.set $pc
+          else
+            i32.const 6
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          br $exit
+        )
+          local.get $t5
+          i32.const 4
+          i32.add
+          i32.load
+          local.set $t7
+          local.get $__jn_frame
+          i32.const 9
+          local.get $t7
+          call $jn_gc_frame_set_root
+          local.get $t7
+          local.set $gctmp.8
+          local.get $__jn_frame
+          i32.const 3
+          local.get $gctmp.8
+          call $jn_gc_frame_set_root
+          local.get $gctmp.8
+          local.set $t8
+          local.get $__jn_frame
+          i32.const 10
+          local.get $t8
+          call $jn_gc_frame_set_root
+          local.get $t8
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t9
+          local.get $t9
+          if
+            i32.const 7
+            local.set $pc
+          else
+            i32.const 8
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $this__slot
+          local.set $t10
+          local.get $__jn_frame
+          i32.const 11
+          local.get $t10
+          call $jn_gc_frame_set_root
+          local.get $t10
+          i32.eqz
+          if
+            call $jnative_throw_npe
+          end
+          call $jnative_exception_pending
+          local.set $t11
+          local.get $t11
+          if
+            i32.const 9
+            local.set $pc
+          else
+            i32.const 10
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          local.get $t10
+          i32.const 8
+          i32.add
+          i32.load
+          local.set $t12
+          local.get $__jn_frame
+          i32.const 12
+          local.get $t12
+          call $jn_gc_frame_set_root
+          local.get $t12
+          local.set $gctmp.13
+          local.get $__jn_frame
+          i32.const 4
+          local.get $gctmp.13
+          call $jn_gc_frame_set_root
+          local.get $gctmp.13
+          local.set $t13
+          local.get $__jn_frame
+          i32.const 13
+          local.get $t13
+          call $jn_gc_frame_set_root
+          local.get $t8
+          i32.eqz
+          if
+            unreachable
+          end
+          local.get $t8
+          i32.const 16
+          i32.add
+          i32.load
+          local.get $t13
+          local.get $t8
+          i32.const 8
+          i32.add
+          i64.load
+          i32.wrap_i64
+          call_indirect $jn_funcref (type $jn_sig_0)
+          call $jnative_exception_pending
+          local.set $t14
+          local.get $t14
+          if
+            i32.const 11
+            local.set $pc
+          else
+            i32.const 12
+            local.set $pc
+          end
+          br $dispatch
+        )
+          br $exit
+        )
+          i32.const 4
+          local.set $pc
+          br $dispatch
+      )
+    )
+    call $jn_gc_frame_pop
+  )
+  (func $jn_super_of (param $tid i32) (result i32)
+    local.get $tid
+    i32.const 1
+    i32.eq
+    if
+      i32.const 71
+      return
+    end
+    local.get $tid
+    i32.const 2
+    i32.eq
+    if
+      i32.const 71
+      return
+    end
+    local.get $tid
+    i32.const 3
+    i32.eq
+    if
+      i32.const 71
+      return
+    end
+    local.get $tid
+    i32.const 4
+    i32.eq
+    if
+      i32.const 71
+      return
+    end
+    local.get $tid
+    i32.const 5
+    i32.eq
+    if
+      i32.const 71
+      return
+    end
+    local.get $tid
+    i32.const 6
+    i32.eq
+    if
+      i32.const 71
+      return
+    end
+    local.get $tid
+    i32.const 7
+    i32.eq
+    if
+      i32.const 71
+      return
+    end
+    local.get $tid
+    i32.const 8
+    i32.eq
+    if
+      i32.const 48
+      return
+    end
+    local.get $tid
+    i32.const 9
+    i32.eq
+    if
+      i32.const 71
+      return
+    end
+    local.get $tid
+    i32.const 10
+    i32.eq
+    if
+      i32.const 71
+      return
+    end
+    local.get $tid
+    i32.const 11
+    i32.eq
+    if
+      i32.const 71
+      return
+    end
+    local.get $tid
+    i32.const 12
+    i32.eq
+    if
+      i32.const 71
+      return
+    end
+    local.get $tid
+    i32.const 13
+    i32.eq
+    if
+      i32.const 71
+      return
+    end
+    local.get $tid
+    i32.const 14
+    i32.eq
+    if
+      i32.const 71
+      return
+    end
+    local.get $tid
+    i32.const 15
+    i32.eq
+    if
+      i32.const 73
+      return
+    end
+    local.get $tid
+    i32.const 16
+    i32.eq
+    if
+      i32.const 71
+      return
+    end
+    local.get $tid
+    i32.const 17
+    i32.eq
+    if
+      i32.const 71
+      return
+    end
+    local.get $tid
+    i32.const 18
+    i32.eq
+    if
+      i32.const 71
+      return
+    end
+    local.get $tid
+    i32.const 19
+    i32.eq
+    if
+      i32.const 71
+      return
+    end
+    local.get $tid
+    i32.const 20
+    i32.eq
+    if
+      i32.const 88
+      return
+    end
+    local.get $tid
+    i32.const 21
+    i32.eq
+    if
+      i32.const 48
+      return
+    end
+    local.get $tid
+    i32.const 22
+    i32.eq
+    if
+      i32.const 0
+      return
+    end
+    local.get $tid
+    i32.const 23
+    i32.eq
+    if
+      i32.const 71
+      return
+    end
+    local.get $tid
+    i32.const 24
+    i32.eq
+    if
+      i32.const 48
+      return
+    end
+    local.get $tid
+    i32.const 25
+    i32.eq
+    if
+      i32.const 71
+      return
+    end
+    local.get $tid
+    i32.const 26
+    i32.eq
+    if
+      i32.const 71
+      return
+    end
+    local.get $tid
+    i32.const 27
+    i32.eq
+    if
+      i32.const 48
+      return
+    end
+    local.get $tid
+    i32.const 28
+    i32.eq
+    if
+      i32.const 71
+      return
+    end
+    local.get $tid
+    i32.const 29
+    i32.eq
+    if
+      i32.const 71
+      return
+    end
+    local.get $tid
+    i32.const 30
+    i32.eq
+    if
+      i32.const 71
+      return
+    end
+    local.get $tid
+    i32.const 31
+    i32.eq
+    if
+      i32.const 71
+      return
+    end
+    local.get $tid
+    i32.const 32
+    i32.eq
+    if
+      i32.const 71
+      return
+    end
+    local.get $tid
+    i32.const 33
+    i32.eq
+    if
+      i32.const 71
+      return
+    end
+    local.get $tid
+    i32.const 34
+    i32.eq
+    if
+      i32.const 71
+      return
+    end
+    local.get $tid
+    i32.const 35
+    i32.eq
+    if
+      i32.const 48
+      return
+    end
+    local.get $tid
+    i32.const 36
+    i32.eq
+    if
+      i32.const 28
+      return
+    end
+    local.get $tid
+    i32.const 37
+    i32.eq
+    if
+      i32.const 0
+      return
+    end
+    local.get $tid
+    i32.const 38
+    i32.eq
+    if
+      i32.const 71
+      return
+    end
+    local.get $tid
+    i32.const 39
+    i32.eq
+    if
+      i32.const 71
+      return
+    end
+    local.get $tid
+    i32.const 40
+    i32.eq
+    if
+      i32.const 28
+      return
+    end
+    local.get $tid
+    i32.const 41
+    i32.eq
+    if
+      i32.const 71
+      return
+    end
+    local.get $tid
+    i32.const 42
+    i32.eq
+    if
+      i32.const 71
+      return
+    end
+    local.get $tid
+    i32.const 43
+    i32.eq
+    if
+      i32.const 71
+      return
+    end
+    local.get $tid
+    i32.const 44
+    i32.eq
+    if
+      i32.const 71
+      return
+    end
+    local.get $tid
+    i32.const 45
+    i32.eq
+    if
+      i32.const 71
+      return
+    end
+    local.get $tid
+    i32.const 46
+    i32.eq
+    if
+      i32.const 71
+      return
+    end
+    local.get $tid
+    i32.const 47
+    i32.eq
+    if
+      i32.const 71
+      return
+    end
+    local.get $tid
+    i32.const 48
+    i32.eq
+    if
+      i32.const 103
+      return
+    end
+    local.get $tid
+    i32.const 49
+    i32.eq
+    if
+      i32.const 71
+      return
+    end
+    local.get $tid
+    i32.const 50
+    i32.eq
+    if
+      i32.const 28
+      return
+    end
+    local.get $tid
+    i32.const 51
+    i32.eq
+    if
+      i32.const 0
+      return
+    end
+    local.get $tid
+    i32.const 52
+    i32.eq
+    if
+      i32.const 11
+      return
+    end
+    local.get $tid
+    i32.const 53
+    i32.eq
+    if
+      i32.const 71
+      return
+    end
+    local.get $tid
+    i32.const 54
+    i32.eq
+    if
+      i32.const 71
+      return
+    end
+    local.get $tid
+    i32.const 55
+    i32.eq
+    if
+      i32.const 71
+      return
+    end
+    local.get $tid
+    i32.const 56
+    i32.eq
+    if
+      i32.const 71
+      return
+    end
+    local.get $tid
+    i32.const 57
+    i32.eq
+    if
+      i32.const 71
+      return
+    end
+    local.get $tid
+    i32.const 58
+    i32.eq
+    if
+      i32.const 71
+      return
+    end
+    local.get $tid
+    i32.const 59
+    i32.eq
+    if
+      i32.const 71
+      return
+    end
+    local.get $tid
+    i32.const 60
+    i32.eq
+    if
+      i32.const 71
+      return
+    end
+    local.get $tid
+    i32.const 61
+    i32.eq
+    if
+      i32.const 0
+      return
+    end
+    local.get $tid
+    i32.const 62
+    i32.eq
+    if
+      i32.const 71
+      return
+    end
+    local.get $tid
+    i32.const 63
+    i32.eq
+    if
+      i32.const 71
+      return
+    end
+    local.get $tid
+    i32.const 64
+    i32.eq
+    if
+      i32.const 71
+      return
+    end
+    local.get $tid
+    i32.const 65
+    i32.eq
+    if
+      i32.const 71
+      return
+    end
+    local.get $tid
+    i32.const 66
+    i32.eq
+    if
+      i32.const 73
+      return
+    end
+    local.get $tid
+    i32.const 67
+    i32.eq
+    if
+      i32.const 123
+      return
+    end
+    local.get $tid
+    i32.const 68
+    i32.eq
+    if
+      i32.const 48
+      return
+    end
+    local.get $tid
+    i32.const 69
+    i32.eq
+    if
+      i32.const 71
+      return
+    end
+    local.get $tid
+    i32.const 70
+    i32.eq
+    if
+      i32.const 71
+      return
+    end
+    local.get $tid
+    i32.const 71
+    i32.eq
+    if
+      i32.const 0
+      return
+    end
+    local.get $tid
+    i32.const 72
+    i32.eq
+    if
+      i32.const 71
+      return
+    end
+    local.get $tid
+    i32.const 73
+    i32.eq
+    if
+      i32.const 28
+      return
+    end
+    local.get $tid
+    i32.const 74
+    i32.eq
+    if
+      i32.const 71
+      return
+    end
+    local.get $tid
+    i32.const 75
+    i32.eq
+    if
+      i32.const 123
+      return
+    end
+    local.get $tid
+    i32.const 76
+    i32.eq
+    if
+      i32.const 28
+      return
+    end
+    local.get $tid
+    i32.const 77
+    i32.eq
+    if
+      i32.const 71
+      return
+    end
+    local.get $tid
+    i32.const 78
+    i32.eq
+    if
+      i32.const 71
+      return
+    end
+    local.get $tid
+    i32.const 79
+    i32.eq
+    if
+      i32.const 71
+      return
+    end
+    local.get $tid
+    i32.const 80
+    i32.eq
+    if
+      i32.const 71
+      return
+    end
+    local.get $tid
+    i32.const 81
+    i32.eq
+    if
+      i32.const 71
+      return
+    end
+    local.get $tid
+    i32.const 82
+    i32.eq
+    if
+      i32.const 71
+      return
+    end
+    local.get $tid
+    i32.const 83
+    i32.eq
+    if
+      i32.const 71
+      return
+    end
+    local.get $tid
+    i32.const 84
+    i32.eq
+    if
+      i32.const 71
+      return
+    end
+    local.get $tid
+    i32.const 85
+    i32.eq
+    if
+      i32.const 71
+      return
+    end
+    local.get $tid
+    i32.const 86
+    i32.eq
+    if
+      i32.const 71
+      return
+    end
+    local.get $tid
+    i32.const 87
+    i32.eq
+    if
+      i32.const 48
+      return
+    end
+    local.get $tid
+    i32.const 88
+    i32.eq
+    if
+      i32.const 103
+      return
+    end
+    local.get $tid
+    i32.const 89
+    i32.eq
+    if
+      i32.const 71
+      return
+    end
+    local.get $tid
+    i32.const 90
+    i32.eq
+    if
+      i32.const 71
+      return
+    end
+    local.get $tid
+    i32.const 91
+    i32.eq
+    if
+      i32.const 0
+      return
+    end
+    local.get $tid
+    i32.const 92
+    i32.eq
+    if
+      i32.const 71
+      return
+    end
+    local.get $tid
+    i32.const 93
+    i32.eq
+    if
+      i32.const 71
+      return
+    end
+    local.get $tid
+    i32.const 94
+    i32.eq
+    if
+      i32.const 71
+      return
+    end
+    local.get $tid
+    i32.const 95
+    i32.eq
+    if
+      i32.const 71
+      return
+    end
+    local.get $tid
+    i32.const 96
+    i32.eq
+    if
+      i32.const 71
+      return
+    end
+    local.get $tid
+    i32.const 97
+    i32.eq
+    if
+      i32.const 71
+      return
+    end
+    local.get $tid
+    i32.const 98
+    i32.eq
+    if
+      i32.const 71
+      return
+    end
+    local.get $tid
+    i32.const 99
+    i32.eq
+    if
+      i32.const 48
+      return
+    end
+    local.get $tid
+    i32.const 100
+    i32.eq
+    if
+      i32.const 123
+      return
+    end
+    local.get $tid
+    i32.const 101
+    i32.eq
+    if
+      i32.const 28
+      return
+    end
+    local.get $tid
+    i32.const 102
+    i32.eq
+    if
+      i32.const 48
+      return
+    end
+    local.get $tid
+    i32.const 103
+    i32.eq
+    if
+      i32.const 63
+      return
+    end
+    local.get $tid
+    i32.const 104
+    i32.eq
+    if
+      i32.const 71
+      return
+    end
+    local.get $tid
+    i32.const 105
+    i32.eq
+    if
+      i32.const 71
+      return
+    end
+    local.get $tid
+    i32.const 106
+    i32.eq
+    if
+      i32.const 11
+      return
+    end
+    local.get $tid
+    i32.const 107
+    i32.eq
+    if
+      i32.const 71
+      return
+    end
+    local.get $tid
+    i32.const 108
+    i32.eq
+    if
+      i32.const 71
+      return
+    end
+    local.get $tid
+    i32.const 109
+    i32.eq
+    if
+      i32.const 71
+      return
+    end
+    local.get $tid
+    i32.const 110
+    i32.eq
+    if
+      i32.const 48
+      return
+    end
+    local.get $tid
+    i32.const 111
+    i32.eq
+    if
+      i32.const 48
+      return
+    end
+    local.get $tid
+    i32.const 112
+    i32.eq
+    if
+      i32.const 71
+      return
+    end
+    local.get $tid
+    i32.const 113
+    i32.eq
+    if
+      i32.const 71
+      return
+    end
+    local.get $tid
+    i32.const 114
+    i32.eq
+    if
+      i32.const 71
+      return
+    end
+    local.get $tid
+    i32.const 115
+    i32.eq
+    if
+      i32.const 71
+      return
+    end
+    local.get $tid
+    i32.const 116
+    i32.eq
+    if
+      i32.const 48
+      return
+    end
+    local.get $tid
+    i32.const 117
+    i32.eq
+    if
+      i32.const 48
+      return
+    end
+    local.get $tid
+    i32.const 118
+    i32.eq
+    if
+      i32.const 71
+      return
+    end
+    local.get $tid
+    i32.const 119
+    i32.eq
+    if
+      i32.const 71
+      return
+    end
+    local.get $tid
+    i32.const 120
+    i32.eq
+    if
+      i32.const 71
+      return
+    end
+    local.get $tid
+    i32.const 121
+    i32.eq
+    if
+      i32.const 71
+      return
+    end
+    local.get $tid
+    i32.const 122
+    i32.eq
+    if
+      i32.const 71
+      return
+    end
+    local.get $tid
+    i32.const 123
+    i32.eq
+    if
+      i32.const 88
+      return
+    end
+    local.get $tid
+    i32.const 124
+    i32.eq
+    if
+      i32.const 48
+      return
+    end
+    local.get $tid
+    i32.const 125
+    i32.eq
+    if
+      i32.const 71
+      return
+    end
+    local.get $tid
+    i32.const 126
+    i32.eq
+    if
+      i32.const 0
+      return
+    end
+    local.get $tid
+    i32.const 127
+    i32.eq
+    if
+      i32.const 0
+      return
+    end
+    local.get $tid
+    i32.const 128
+    i32.eq
+    if
+      i32.const 0
+      return
+    end
+    local.get $tid
+    i32.const 129
+    i32.eq
+    if
+      i32.const 0
+      return
+    end
+    local.get $tid
+    i32.const 130
+    i32.eq
+    if
+      i32.const 0
+      return
+    end
+    local.get $tid
+    i32.const 131
+    i32.eq
+    if
+      i32.const 0
+      return
+    end
+    local.get $tid
+    i32.const 132
+    i32.eq
+    if
+      i32.const 0
+      return
+    end
+    local.get $tid
+    i32.const 133
+    i32.eq
+    if
+      i32.const 0
+      return
+    end
+    local.get $tid
+    i32.const 134
+    i32.eq
+    if
+      i32.const 0
+      return
+    end
+    local.get $tid
+    i32.const 135
+    i32.eq
+    if
+      i32.const 0
+      return
+    end
+    local.get $tid
+    i32.const 136
+    i32.eq
+    if
+      i32.const 0
+      return
+    end
+    local.get $tid
+    i32.const 137
+    i32.eq
+    if
+      i32.const 0
+      return
+    end
+    local.get $tid
+    i32.const 138
+    i32.eq
+    if
+      i32.const 0
+      return
+    end
+    i32.const 0
+  )
+  (func $jn_instanceof (param $obj i32) (param $target i32) (result i32)
+    (local $tid i32)
+    local.get $obj
+    i32.eqz
+    if (result i32)
+      i32.const 0
+    else
+      local.get $obj
+      i32.load
+      local.set $tid
+      (block $done (result i32)
+        (loop $walk
+          local.get $tid
+          i32.eqz
+          if
+            i32.const 0
+            br $done
+          end
+          local.get $tid
+          local.get $target
+          i32.eq
+          if
+            i32.const 1
+            br $done
+          end
+          local.get $tid
+          call $jn_super_of
+          local.set $tid
+          br $walk
+        )
+        i32.const 0
+      )
+    end
+  )
+  (func $jn_instanceof_iface (param $obj i32) (param $iid i32) (result i32)
+    (local $tid i32)
+    local.get $obj
+    i32.eqz
+    if (result i32)
+      i32.const 0
+    else
+      local.get $obj
+      i32.load
+      local.set $tid
+      local.get $tid
+      i32.const 4
+      i32.eq
+      local.get $iid
+      i32.const 1
+      i32.eq
+      i32.and
+      if
+        i32.const 1
+        return
+      end
+      local.get $tid
+      i32.const 121
+      i32.eq
+      local.get $iid
+      i32.const 1
+      i32.eq
+      i32.and
+      if
+        i32.const 1
+        return
+      end
+      local.get $tid
+      i32.const 41
+      i32.eq
+      local.get $iid
+      i32.const 2
+      i32.eq
+      i32.and
+      if
+        i32.const 1
+        return
+      end
+      local.get $tid
+      i32.const 72
+      i32.eq
+      local.get $iid
+      i32.const 2
+      i32.eq
+      i32.and
+      if
+        i32.const 1
+        return
+      end
+      local.get $tid
+      i32.const 80
+      i32.eq
+      local.get $iid
+      i32.const 2
+      i32.eq
+      i32.and
+      if
+        i32.const 1
+        return
+      end
+      local.get $tid
+      i32.const 4
+      i32.eq
+      local.get $iid
+      i32.const 3
+      i32.eq
+      i32.and
+      if
+        i32.const 1
+        return
+      end
+      local.get $tid
+      i32.const 121
+      i32.eq
+      local.get $iid
+      i32.const 3
+      i32.eq
+      i32.and
+      if
+        i32.const 1
+        return
+      end
+      local.get $tid
+      i32.const 4
+      i32.eq
+      local.get $iid
+      i32.const 4
+      i32.eq
+      i32.and
+      if
+        i32.const 1
+        return
+      end
+      local.get $tid
+      i32.const 121
+      i32.eq
+      local.get $iid
+      i32.const 5
+      i32.eq
+      i32.and
+      if
+        i32.const 1
+        return
+      end
+      local.get $tid
+      i32.const 47
+      i32.eq
+      local.get $iid
+      i32.const 6
+      i32.eq
+      i32.and
+      if
+        i32.const 1
+        return
+      end
+      local.get $tid
+      i32.const 18
+      i32.eq
+      local.get $iid
+      i32.const 7
+      i32.eq
+      i32.and
+      if
+        i32.const 1
+        return
+      end
+      local.get $tid
+      i32.const 98
+      i32.eq
+      local.get $iid
+      i32.const 12
+      i32.eq
+      i32.and
+      if
+        i32.const 1
+        return
+      end
+      local.get $tid
+      i32.const 34
+      i32.eq
+      local.get $iid
+      i32.const 19
+      i32.eq
+      i32.and
+      if
+        i32.const 1
+        return
+      end
+      local.get $tid
+      i32.const 56
+      i32.eq
+      local.get $iid
+      i32.const 20
+      i32.eq
+      i32.and
+      if
+        i32.const 1
+        return
+      end
+      local.get $tid
+      i32.const 43
+      i32.eq
+      local.get $iid
+      i32.const 21
+      i32.eq
+      i32.and
+      if
+        i32.const 1
+        return
+      end
+      local.get $tid
+      i32.const 81
+      i32.eq
+      local.get $iid
+      i32.const 21
+      i32.eq
+      i32.and
+      if
+        i32.const 1
+        return
+      end
+      local.get $tid
+      i32.const 114
+      i32.eq
+      local.get $iid
+      i32.const 21
+      i32.eq
+      i32.and
+      if
+        i32.const 1
+        return
+      end
+      local.get $tid
+      i32.const 120
+      i32.eq
+      local.get $iid
+      i32.const 21
+      i32.eq
+      i32.and
+      if
+        i32.const 1
+        return
+      end
+      local.get $tid
+      i32.const 1
+      i32.eq
+      local.get $iid
+      i32.const 22
+      i32.eq
+      i32.and
+      if
+        i32.const 1
+        return
+      end
+      local.get $tid
+      i32.const 5
+      i32.eq
+      local.get $iid
+      i32.const 22
+      i32.eq
+      i32.and
+      if
+        i32.const 1
+        return
+      end
+      local.get $tid
+      i32.const 29
+      i32.eq
+      local.get $iid
+      i32.const 22
+      i32.eq
+      i32.and
+      if
+        i32.const 1
+        return
+      end
+      local.get $tid
+      i32.const 64
+      i32.eq
+      local.get $iid
+      i32.const 22
+      i32.eq
+      i32.and
+      if
+        i32.const 1
+        return
+      end
+      local.get $tid
+      i32.const 77
+      i32.eq
+      local.get $iid
+      i32.const 22
+      i32.eq
+      i32.and
+      if
+        i32.const 1
+        return
+      end
+      local.get $tid
+      i32.const 83
+      i32.eq
+      local.get $iid
+      i32.const 22
+      i32.eq
+      i32.and
+      if
+        i32.const 1
+        return
+      end
+      local.get $tid
+      i32.const 84
+      i32.eq
+      local.get $iid
+      i32.const 22
+      i32.eq
+      i32.and
+      if
+        i32.const 1
+        return
+      end
+      local.get $tid
+      i32.const 93
+      i32.eq
+      local.get $iid
+      i32.const 22
+      i32.eq
+      i32.and
+      if
+        i32.const 1
+        return
+      end
+      local.get $tid
+      i32.const 96
+      i32.eq
+      local.get $iid
+      i32.const 22
+      i32.eq
+      i32.and
+      if
+        i32.const 1
+        return
+      end
+      local.get $tid
+      i32.const 104
+      i32.eq
+      local.get $iid
+      i32.const 22
+      i32.eq
+      i32.and
+      if
+        i32.const 1
+        return
+      end
+      local.get $tid
+      i32.const 113
+      i32.eq
+      local.get $iid
+      i32.const 22
+      i32.eq
+      i32.and
+      if
+        i32.const 1
+        return
+      end
+      local.get $tid
+      i32.const 14
+      i32.eq
+      local.get $iid
+      i32.const 23
+      i32.eq
+      i32.and
+      if
+        i32.const 1
+        return
+      end
+      local.get $tid
+      i32.const 59
+      i32.eq
+      local.get $iid
+      i32.const 23
+      i32.eq
+      i32.and
+      if
+        i32.const 1
+        return
+      end
+      local.get $tid
+      i32.const 62
+      i32.eq
+      local.get $iid
+      i32.const 23
+      i32.eq
+      i32.and
+      if
+        i32.const 1
+        return
+      end
+      local.get $tid
+      i32.const 70
+      i32.eq
+      local.get $iid
+      i32.const 23
+      i32.eq
+      i32.and
+      if
+        i32.const 1
+        return
+      end
+      local.get $tid
+      i32.const 79
+      i32.eq
+      local.get $iid
+      i32.const 23
+      i32.eq
+      i32.and
+      if
+        i32.const 1
+        return
+      end
+      i32.const 0
+    end
+  )
+  (export "_JN_TimeoutFireTask_run" (func $_JN_TimeoutFireTask_run))
+  (export "_JN_TimerEntry_init" (func $_JN_TimerEntry_init))
+  (export "_JN_EventLoopRunner_run" (func $_JN_EventLoopRunner_run))
+  (export "_JN_EventLoopGroup_next" (func $_JN_EventLoopGroup_next))
+  (export "_JN_EventLoopGroup_runAllInBackground" (func $_JN_EventLoopGroup_runAllInBackground))
+  (export "_JN_EventLoopGroup_joinAll" (func $_JN_EventLoopGroup_joinAll))
+  (export "_JN_SleepCompleteTask_run" (func $_JN_SleepCompleteTask_run))
+  (export "_JN_BlockingRunTask_init" (func $_JN_BlockingRunTask_init))
+  (export "_JN_BlockingRunTask_run" (func $_JN_BlockingRunTask_run))
+  (export "_JN_BlockingRunTask_completeBlockingFuture_CObject_CException" (func $_JN_BlockingRunTask_completeBlockingFuture_CObject_CException))
+  (export "_JN_AsyncMutex_lock" (func $_JN_AsyncMutex_lock))
+  (export "_JN_AsyncMutex_unlock" (func $_JN_AsyncMutex_unlock))
+  (export "_JN_AsyncSemaphore_acquire" (func $_JN_AsyncSemaphore_acquire))
+  (export "_JN_AsyncSemaphore_release" (func $_JN_AsyncSemaphore_release))
+  (export "_JN_AsyncQueue_put_CObject" (func $_JN_AsyncQueue_put_CObject))
+  (export "_JN_AsyncQueue_take" (func $_JN_AsyncQueue_take))
+  (export "_JN_AsyncTcpConnectSupplier_get" (func $_JN_AsyncTcpConnectSupplier_get))
+  (export "_JN_AsyncTcpSocket_writeAll_Ai8" (func $_JN_AsyncTcpSocket_writeAll_Ai8))
+  (export "_JN_AsyncTcpSocket_writeAsync_Ai8" (func $_JN_AsyncTcpSocket_writeAsync_Ai8))
+  (export "_JN_AsyncTcpSocket_readAll" (func $_JN_AsyncTcpSocket_readAll))
+  (export "_JN_AsyncTcpSocket_readAsync" (func $_JN_AsyncTcpSocket_readAsync))
+  (export "_JN_AsyncTcpSocket_close" (func $_JN_AsyncTcpSocket_close))
+  (export "_JN_AsyncTcpWriteSupplier_get" (func $_JN_AsyncTcpWriteSupplier_get))
+  (export "_JN_AsyncTcpReadAllSupplier_get" (func $_JN_AsyncTcpReadAllSupplier_get))
+  (export "_JN_AsyncTcpAcceptSupplier_init_CEventLoop_CTcpServer" (func $_JN_AsyncTcpAcceptSupplier_init_CEventLoop_CTcpServer))
+  (export "_JN_AsyncTcpAcceptSupplier_get" (func $_JN_AsyncTcpAcceptSupplier_get))
+  (export "_JN_AsyncTcpServer_accept" (func $_JN_AsyncTcpServer_accept))
+  (export "_JN_AsyncTcpServer_close" (func $_JN_AsyncTcpServer_close))
+  (export "_JN_AsyncTcpListenSupplier_get" (func $_JN_AsyncTcpListenSupplier_get))
+  (export "_JN_JsHandle_init_i32" (func $_JN_JsHandle_init_i32))
+  (export "_JN_JsHandle_id" (func $_JN_JsHandle_id))
+  (export "_JN_JsObject_init_CJsHandle" (func $_JN_JsObject_init_CJsHandle))
+  (export "_JN_JsObject_handleId" (func $_JN_JsObject_handleId))
+  (export "_JN_Console_log_CString" (func $_JN_Console_log_CString))
+  (export "_JN_Console_warn_CString" (func $_JN_Console_warn_CString))
+  (export "_JN_Console_error_CString" (func $_JN_Console_error_CString))
+  (export "_JN_Document_init_CJsHandle" (func $_JN_Document_init_CJsHandle))
+  (export "_JN_Document_getElementById_CString" (func $_JN_Document_getElementById_CString))
+  (export "_JN_Document_createElement_CString" (func $_JN_Document_createElement_CString))
+  (export "_JN_Document_body" (func $_JN_Document_body))
+  (export "_JN_Element_init_CJsHandle" (func $_JN_Element_init_CJsHandle))
+  (export "_JN_Element_setText_CString" (func $_JN_Element_setText_CString))
+  (export "_JN_Element_getText" (func $_JN_Element_getText))
+  (export "_JN_Element_setAttribute_CString_CString" (func $_JN_Element_setAttribute_CString_CString))
+  (export "_JN_Element_appendChild_CElement" (func $_JN_Element_appendChild_CElement))
+  (export "_JN_Element_addEventListener_CString_IBrowserEventHandler" (func $_JN_Element_addEventListener_CString_IBrowserEventHandler))
+  (export "_JN_Element_asInput" (func $_JN_Element_asInput))
+  (export "_JN_Element_asButton" (func $_JN_Element_asButton))
+  (export "_JN_HtmlInputElement_init_CJsHandle" (func $_JN_HtmlInputElement_init_CJsHandle))
+  (export "_JN_HtmlInputElement_value" (func $_JN_HtmlInputElement_value))
+  (export "_JN_HtmlInputElement_setValue_CString" (func $_JN_HtmlInputElement_setValue_CString))
+  (export "_JN_HtmlButtonElement_init_CJsHandle" (func $_JN_HtmlButtonElement_init_CJsHandle))
+  (export "_JN_BrowserEvent_type" (func $_JN_BrowserEvent_type))
+  (export "_JN_Storage_init_CJsHandle" (func $_JN_Storage_init_CJsHandle))
+  (export "_JN_Storage_set_CString_CString" (func $_JN_Storage_set_CString_CString))
+  (export "_JN_Storage_get_CString" (func $_JN_Storage_get_CString))
+  (export "_JN_Window_document" (func $_JN_Window_document))
+  (export "_JN_Window_localStorage" (func $_JN_Window_localStorage))
+  (export "_JN_Browser_document" (func $_JN_Browser_document))
+  (export "_JN_Browser_localStorage" (func $_JN_Browser_localStorage))
+  (export "_JN_Node_init_i32" (func $_JN_Node_init_i32))
+  (export "_JN_GcStress_churn_i32" (func $_JN_GcStress_churn_i32))
+  (export "_JN_GcStress_makeCycle" (func $_JN_GcStress_makeCycle))
+  (export "_JN_GcStress_dropKeepAlive" (func $_JN_GcStress_dropKeepAlive))
+  (export "_JN_GcStress_bagChurn_i32" (func $_JN_GcStress_bagChurn_i32))
+  (export "_JN_GcStress_nestedSurvive_i32" (func $_JN_GcStress_nestedSurvive_i32))
+  (export "_JN_GcStress_holdAndChurn_CNode_i32" (func $_JN_GcStress_holdAndChurn_CNode_i32))
+  (export "_JN_GcStress_closureEscape_i32" (func $_JN_GcStress_closureEscape_i32))
+  (export "_JN___jn_IFaceAdapter_Consumer_accept_TT" (func $_JN___jn_IFaceAdapter_Consumer_accept_TT))
+  (export "_JN_AsyncTcpServer_init" (func $_JN_AsyncTcpServer_init))
+  (export "_JN_AsyncTcpWriteSupplier_init" (func $_JN_AsyncTcpWriteSupplier_init))
+  (export "_JN_AsyncTcpSocket_init" (func $_JN_AsyncTcpSocket_init))
+  (export "_JN_AsyncTcpReadAllSupplier_init" (func $_JN_AsyncTcpReadAllSupplier_init))
+  (export "_JN_IntBox_init" (func $_JN_IntBox_init))
+  (export "_JN_EventLoopRunner_init" (func $_JN_EventLoopRunner_init))
+  (export "_JN_IllegalStateException_init_CString" (func $_JN_IllegalStateException_init_CString))
+  (export "_JN_NullPointerException_init_CString" (func $_JN_NullPointerException_init_CString))
+  (export "_JN_IndexOutOfBoundsException_init_CString" (func $_JN_IndexOutOfBoundsException_init_CString))
+  (export "_JN_NoSuchElementException_init_CString" (func $_JN_NoSuchElementException_init_CString))
+  (export "_JN_ConcurrentModificationException_init_CString" (func $_JN_ConcurrentModificationException_init_CString))
+  (export "_JN_lambda_1" (func $_JN_lambda_1))
+  (export "_JN_Condition_init" (func $_JN_Condition_init))
+  (export "jn_main" (func $jn_main))
+  (elem (table $jn_funcref) (i32.const 0) $_JN_lambda_1)
+  (func (export "jnative_callback") (param $id i32) (param $ev i32)
+    (local $callable i32) (local $env i32) (local $idx i32)
+    (local $hobj i32) (local $eobj i32)
+    local.get $id
+    call $jn_lookup_dom_callback
+    local.set $callable
+    local.get $callable
+    i32.eqz
+    if
+      return
+    end
+    local.get $callable
+    i32.const 16
+    i32.add
+    i32.load
+    local.set $env
+    local.get $callable
+    i32.const 8
+    i32.add
+    i64.load
+    i32.wrap_i64
+    local.set $idx
+    i32.const 8
+    call $jn_alloc_zeroed
+    local.set $hobj
+    local.get $hobj
+    i32.const 97
+    i32.store
+    local.get $hobj
+    i32.const 4
+    i32.add
+    local.get $ev
+    i32.store
+    i32.const 8
+    call $jn_alloc_zeroed
+    local.set $eobj
+    local.get $eobj
+    i32.const 76
+    i32.store
+    local.get $eobj
+    i32.const 4
+    i32.add
+    local.get $hobj
+    i32.store
+    local.get $env
+    local.get $eobj
+    local.get $idx
+    call_indirect $jn_funcref (type $jn_sig_0)
+    call $jnative_exception_pending
+    if
+      call $jnative_exception_uncaught
+    end
+  )
+  (func (export "jnative_start")
+    call $jnative_clinit
+    call $jnative_exception_pending
+    if
+      call $jnative_exception_uncaught
+      return
+    end
+    i32.const 0
+    call $jn_main
+    call $jnative_exception_pending
+    if
+      call $jnative_exception_uncaught
+    end
+  )
+  (func (export "jn_bump") (param $n i32) (result i32)
+    local.get $n
+    call $jn_alloc_opaque
+  )
+  (func (export "jn_release_callback") (param $id i32)
+    local.get $id
+    call $jn_unregister_dom_callback
+  )
+  (export "jn_host_root_retain" (func $jn_host_root_retain))
+  (export "jn_host_root_release" (func $jn_host_root_release))
+  (export "jn_host_root_get" (func $jn_host_root_get))
+  (export "jn_gc_collect" (func $jn_gc_collect))
+  (func (export "jn_gc_stats") (result i32 i32 i32 i32 i32 i32 i32)
+    call $jn_gc_stats_alloc_bytes
+    call $jn_gc_stats_live_bytes
+    call $jn_gc_stats_free_bytes
+    call $jn_gc_stats_heap_cap
+    call $jn_gc_stats_gc_count
+    call $jn_gc_stats_host_roots
+    call $jn_gc_stats_alloc_fail
+  )
+)

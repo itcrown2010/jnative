@@ -8,7 +8,9 @@ import io.jnative.ir.IrValue;
 import java.util.HashMap;
 import java.util.Map;
 
-/** Fold constant binary/compare ops and simplify conditional branches. */
+/** Fold constant binary/compare ops and simplify conditional branches.
+ * @author 张晓达
+ */
 public final class ConstantPropagationPass implements OptimizationPass {
     @Override
     public String name() {

@@ -1,3 +1,6 @@
+/**
+ * @author 张晓达
+ */
 public class Loop {
     public static void main(String[] args) {
         int i = 0;

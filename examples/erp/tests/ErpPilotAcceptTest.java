@@ -3,6 +3,7 @@
  * 1 init company/wh/user 2 CSV import 3 opening stock 20 4 GR 10 5 DL 3 → 27
  * 6 reverse DL → 30 7 reverse again rejected 8 AR/AP opening 9 restart check
  * 10 migrate marker 11 backup script hint 12 demo isolation
+ * @author 张晓达
  */
 class ErpPilotAcceptTest {
     static long companyId = 0L;

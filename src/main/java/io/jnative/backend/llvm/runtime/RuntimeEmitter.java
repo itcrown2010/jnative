@@ -2,6 +2,7 @@ package io.jnative.backend.llvm.runtime;
 
 /**
  * Orchestrates emission of JNative runtime helpers into LLVM IR text.
+ * @author 张晓达
  */
 public final class RuntimeEmitter {
     private final StringBuilder sb;

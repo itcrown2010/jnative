@@ -1,3 +1,4 @@
+// Author: 张晓达
 import * as fs from 'fs';
 import * as path from 'path';
 

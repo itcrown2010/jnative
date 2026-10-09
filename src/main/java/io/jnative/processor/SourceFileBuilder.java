@@ -1,5 +1,8 @@
 package io.jnative.processor;
 
+/**
+ * @author 张晓达
+ */
 public final class SourceFileBuilder {
     private final CodeGenerator generator;
     private final String relativePath;

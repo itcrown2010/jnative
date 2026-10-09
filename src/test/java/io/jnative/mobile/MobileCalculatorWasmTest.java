@@ -16,6 +16,7 @@ import static org.junit.jupiter.api.Assertions.*;
 /**
  * Rebuilds the mobile calculator from source and executes the WASM module in Node.
  * Does not read stale dist artifacts as the sole oracle.
+ * @author 张晓达
  */
 public class MobileCalculatorWasmTest {
 

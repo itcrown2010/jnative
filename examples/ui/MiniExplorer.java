@@ -3,6 +3,7 @@ import jnative.ui.*;
 /**
  * Mini JNative Explorer — 0.18 IDE-shaped acceptance app.
  * Headless: compile with --headless --ui-backend headless
+ * @author 张晓达
  */
 class FileNode {
     String name;

@@ -7,6 +7,7 @@ import java.util.Optional;
 /**
  * ABI layout for a {@code @NativeStruct}. Sole source of native field offsets/sizes.
  * No GC header, ClassMetadata, or vtable.
+ * @author 张晓达
  */
 public final class NativeStructLayout {
     private final String name;

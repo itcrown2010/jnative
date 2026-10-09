@@ -1,5 +1,8 @@
 // JNative Clipboard (text) — lightweight include without full Editor/Graphics.
 
+/**
+ * @author 张晓达
+ */
 class ClipboardNative {
     @Native(symbol = "jnative_clipboard_set_text")
     static native int setText(String text);

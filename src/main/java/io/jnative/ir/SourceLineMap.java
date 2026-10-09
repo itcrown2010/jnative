@@ -19,6 +19,7 @@ import java.util.List;
  * 21 40 /abs/Main.java 1
  * </pre>
  * Ranges are inclusive, 1-based, relative to the user buffer (before stdlib prepend).
+ * @author 张晓达
  */
 public final class SourceLineMap {
     public record Segment(int bufferStart, int bufferEnd, String absPath, int fileStartLine) {

@@ -1,5 +1,7 @@
 # JNative Scheduler Validation Report
 
+作者：张晓达
+
 Date: 2026-10-07  
 Demo: `examples/scheduler`  
 Goal: Validate JNative as a full-stack Web platform (native server + shared contracts + browser WASM), not merely a calendar UI.

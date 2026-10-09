@@ -2,6 +2,7 @@ package io.jnative.semantic;
 
 /**
  * User-defined or builtin class type (e.g. Person, String).
+ * @author 张晓达
  */
 public record ClassType(ClassSymbol classSymbol) implements JType {
 

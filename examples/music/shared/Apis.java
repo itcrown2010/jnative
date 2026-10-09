@@ -1,6 +1,7 @@
 /**
  * Typed API contracts for JNative Music (documentation + shared surface).
  * Server mounts REST mirrors in MusicServer.
+ * @author 张晓达
  */
 interface MusicAuthApi {
     AuthSessionDto login(LoginRequest request);

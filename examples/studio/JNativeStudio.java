@@ -8,6 +8,7 @@ import jnative.studio.*;
  * jnative examples/studio/JNativeStudio.java -o JNativeStudio
  * ./JNativeStudio
  * </pre>
+ * @author 张晓达
  */
 public class JNativeStudio {
     public static void main(String[] args) {

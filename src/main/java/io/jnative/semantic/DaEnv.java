@@ -8,6 +8,7 @@ import java.util.Set;
 /**
  * Definite-assignment / definite-unassignment facts for local variables and parameters.
  * Intersection merge: a variable is DA (DU) after a join only if it is DA (DU) on every incoming path.
+ * @author 张晓达
  */
 final class DaEnv {
     private final IdentityHashMap<VariableSymbol, Facts> facts = new IdentityHashMap<>();

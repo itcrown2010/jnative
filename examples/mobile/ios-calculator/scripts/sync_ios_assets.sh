@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# Author: 张晓达
 # Copy freshly built dist/ into the Xcode www bundle. Refuses stale sync.
 set -euo pipefail
 

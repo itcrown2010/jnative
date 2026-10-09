@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# Author: 张晓达
 # 30-minute soak harness against a running Music server.
 set -euo pipefail
 BASE="${1:-http://127.0.0.1:18500}"

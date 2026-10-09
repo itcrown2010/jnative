@@ -12,7 +12,9 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
-/** Recursive type-variable substitution. */
+/** Recursive type-variable substitution.
+ * @author 张晓达
+ */
 public final class TypeSubstitution {
     private final Map<TypeParameterSymbol, JType> map;
 

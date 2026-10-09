@@ -1,3 +1,6 @@
+/**
+ * @author 张晓达
+ */
 class Type10 {
     int id;
     String name;

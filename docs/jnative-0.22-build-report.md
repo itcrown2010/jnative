@@ -1,5 +1,7 @@
 # JNative 0.22 Build Report — Web Stack & Examples
 
+作者：张晓达
+
 ## Summary
 
 - Product version **0.22**

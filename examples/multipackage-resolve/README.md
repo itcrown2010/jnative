@@ -1,5 +1,7 @@
 # 多包名称解析示例（`demo/greetkit`）
 
+作者：张晓达
+
 验证：**语言 package / import / 访问控制** + **第三方源码包**（包管理坐标 `demo/greetkit` ≠ 语言包 `com.demo.greet`）。
 
 ## 布局

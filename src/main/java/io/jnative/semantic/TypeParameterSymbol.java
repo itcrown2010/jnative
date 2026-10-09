@@ -7,6 +7,7 @@ import java.util.List;
 
 /**
  * Declared type parameter on a class, interface, or method.
+ * @author 张晓达
  */
 public final class TypeParameterSymbol {
     private final String name;

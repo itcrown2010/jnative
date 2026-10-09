@@ -1,5 +1,7 @@
 # Constructors
 
+作者：张晓达
+
 ## Model
 
 Constructors are first-class `ConstructorSymbol`s, not string-special methods.

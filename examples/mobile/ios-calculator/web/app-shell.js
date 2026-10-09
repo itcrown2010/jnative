@@ -1,3 +1,4 @@
+// Author: 张晓达
 /**
  * iPhone calculator shell — wires keys to WASM CalcEngine only.
  * Display formatting uses BigInt/i32 halves; no arithmetic reimplementation.

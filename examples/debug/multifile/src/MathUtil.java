@@ -1,3 +1,6 @@
+/**
+ * @author 张晓达
+ */
 class MathUtil {
     static int add(int a, int b) {
         int result = a + b;

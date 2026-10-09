@@ -2,6 +2,9 @@ package com.demo.app;
 
 import com.demo.greet.Greeter;
 
+/**
+ * @author 张晓达
+ */
 public class SoftGreeter implements Greeter {
     public int greet(int n) {
         return n;

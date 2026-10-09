@@ -2,7 +2,9 @@ package com.demo.app;
 
 import com.demo.greet.Texts;
 
-/** Negative: package-private Texts.hidden must not be callable across packages. */
+/** Negative: package-private Texts.hidden must not be callable across packages.
+ * @author 张晓达
+*/
 public class BadAccess {
     public static void main(String[] args) {
         System.out.println(Texts.hidden(1));

@@ -23,6 +23,7 @@ class BufferUnderflowException extends BufferException {
 /**
  * Heap ByteBuffer. position/limit/capacity invariants enforced;
  * invalid ops throw BufferException (no native corruption).
+ * @author 张晓达
  */
 class ByteBuffer {
     byte[] hb;

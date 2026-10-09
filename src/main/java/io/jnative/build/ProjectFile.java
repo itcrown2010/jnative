@@ -12,7 +12,8 @@ import java.util.regex.Pattern;
 /**
  * Minimal {@code jnative.project} loader.
  * Supports legacy Studio JSON and extended multi-module form.
- */
+ * @author 张晓达
+*/
 public final class ProjectFile {
     private static final Pattern NAME = Pattern.compile("\"name\"\\s*:\\s*\"([^\"]+)\"");
     private static final Pattern SOURCE = Pattern.compile("\"source\"\\s*:\\s*\\[([^\\]]*)\\]");

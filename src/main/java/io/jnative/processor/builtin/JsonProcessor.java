@@ -17,6 +17,7 @@ import java.util.Set;
 /**
  * ISOLATING: {@code @Json}/{@code @GenerateJson} → {@code XxxJsonCodec} implementing {@code JsonCodec}.
  * ZERO runtime reflection.
+ * @author 张晓达
  */
 public class JsonProcessor implements AnnotationProcessor {
     @Override

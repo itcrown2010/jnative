@@ -1,3 +1,4 @@
+/* Author: 张晓达 */
 /*
  * JNative 0.23 — Linux epoll poller.
  * PARTIAL: create/destroy/wakeup stub only; fd registration and wait return 0.

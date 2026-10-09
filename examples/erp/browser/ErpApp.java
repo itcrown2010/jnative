@@ -13,6 +13,7 @@ import jnative.browser.*;
  * execute this ErpApp view tree as a full SPA. Status: WASM UI = BLOCKED.
  *
  * This class remains a minimal WebUI mount probe for toolchain experiments.
+ * @author 张晓达
  */
 public class ErpApp {
     public static void main(String[] args) {

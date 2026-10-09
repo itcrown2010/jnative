@@ -1,3 +1,4 @@
+-- Author: 张晓达
 -- Manufacturing 1.3 (PostgreSQL). Quantities integer; money integer units; scrap_rate_bp = basis points (100=1%).
 
 CREATE TABLE IF NOT EXISTS bills_of_material (

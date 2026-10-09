@@ -1,5 +1,7 @@
 # Safepoints (0.9)
 
+作者：张晓达
+
 STW GC requires every **managed mutator** to stop at a safepoint.
 
 ## Poll sites

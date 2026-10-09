@@ -1,6 +1,7 @@
 /**
  * Pure JNative source library: ArrayList&lt;Integer&gt; + HashMap&lt;String, Integer&gt;.
  * Consumed via package manager (.jnpkg), not JVM collections.
+ * @author 张晓达
  */
 public class ItemStats {
     ArrayList<Integer> values;

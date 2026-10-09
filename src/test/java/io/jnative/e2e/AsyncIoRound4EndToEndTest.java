@@ -23,6 +23,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * over blocking TcpSocket. EventLoop PollNative/kqueue is NOT used for these fds
  * (EventLoop.registerFd has no production callers). Not event-driven async I/O.
  * Cancel-vs-completion is proven at JnFuture level (single terminal state).
+ * @author 张晓达
  */
 class AsyncIoRound4EndToEndTest {
 

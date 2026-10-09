@@ -1,3 +1,6 @@
+/**
+ * @author 张晓达
+ */
 class Type89 {
     int id;
     String name;

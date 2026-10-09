@@ -1,5 +1,7 @@
 # JNative Generics (0.15)
 
+作者：张晓达
+
 ## Strategy
 
 | Kind | Lowering |

@@ -1,5 +1,7 @@
 # JNative 0.26 WebAssembly Build Report
 
+作者：张晓达
+
 **Date:** 2026-10-07  
 **Version:** 0.26  
 **Constraint:** NO JVM / JRE / JNI / Java bytecode in the browser. Core logic executes in **WebAssembly**.

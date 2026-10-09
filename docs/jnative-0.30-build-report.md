@@ -1,5 +1,7 @@
 # JNative 0.30 Package Manager Build Report
 
+作者：张晓达
+
 **Version:** 0.30  
 **Theme:** Package Manager / Dependency Resolution / Lockfile / Registry  
 **Date:** 2026-10-07

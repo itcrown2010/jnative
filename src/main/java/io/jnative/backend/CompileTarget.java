@@ -3,7 +3,9 @@ package io.jnative.backend;
 import java.util.Locale;
 import java.util.Set;
 
-/** Named compile targets. */
+/** Named compile targets.
+ * @author 张晓达
+ */
 public enum CompileTarget {
     NATIVE_HOST("native", TargetCapability.forNative()),
     WASM32_BROWSER("wasm32-browser", TargetCapability.forWasmBrowser());

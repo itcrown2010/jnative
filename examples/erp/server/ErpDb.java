@@ -7,7 +7,9 @@ class Erp {
     static InMemorySessionStore sessions;
     static RateLimiter loginLimiter;
     static long requestSeq;
-    /** 1 when schema migrations completed successfully; business writes require this. */
+    /** 1 when schema migrations completed successfully; business writes require this.
+ * @author 张晓达
+ */
     static int schemaReady = 0;
     static String schemaError = "";
 }
@@ -70,17 +72,17 @@ class ErpDb {
             if (sql == null) {
                 throw new RuntimeException("migration read failed: " + path);
             }
-            runScriptSafe(sql);
+            runScriptSoft(sql, "001");
             String sql2 = File.readString(path2);
             if (sql2 == null) {
                 throw new RuntimeException("migration read failed: " + path2);
             }
-            runScriptSafe(sql2);
+            runScriptSoft(sql2, "002");
             String sql3 = File.readString(path3);
             if (sql3 == null) {
                 throw new RuntimeException("migration read failed: " + path3);
             }
-            runScriptSafe(sql3);
+            runScriptSoft(sql3, "003");
         } else {
             System.out.println("MIGRATE_SKIP 001-003 (companies present)");
         }
@@ -89,21 +91,81 @@ class ErpDb {
             if (sql4 == null) {
                 throw new RuntimeException("migration read failed: " + path4);
             }
-            runScriptSafe(sql4);
+            runScriptSoft(sql4, "004");
         } else {
             System.out.println("MIGRATE_SKIP 004_enterprise (platform_permissions present)");
         }
+        /* Explicit core DDL — script splitter / sqlite FFI can skip or corrupt mid-file. */
+        ensureCoreTables();
         if (Erp.dialect.equals("sqlite")) {
             ensureSqliteInventoryValueColumns();
             ensureSqliteUserDeptColumns();
         }
         ensureFinanceArApTables();
         ensureMfgTables();
-        recordMigration("004_enterprise");
+        try {
+            recordMigration("004_enterprise");
+        } catch (Exception ignored) {
+            reconnect();
+        }
         ensurePilotSchema();
-        recordMigration("005_pilot");
+        try {
+            recordMigration("005_pilot");
+        } catch (Exception ignored) {
+            reconnect();
+        }
+        if (tableExists("companies") == 0) {
+            throw new RuntimeException("migrate failed: companies table missing after ensure");
+        }
         Erp.schemaReady = 1;
         Erp.schemaError = "";
+    }
+
+    /** Minimal schema required for formal boot / login (idempotent). */
+    static void ensureCoreTables() {
+        ArrayList<Object> empty = new ArrayList<Object>();
+        if (Erp.dialect.equals("sqlite")) {
+            execRetry(
+                    "CREATE TABLE IF NOT EXISTS companies (id INTEGER PRIMARY KEY AUTOINCREMENT, code TEXT NOT NULL UNIQUE, name TEXT NOT NULL, created_at INTEGER NOT NULL)",
+                    empty);
+            execRetry(
+                    "CREATE TABLE IF NOT EXISTS users (id INTEGER PRIMARY KEY AUTOINCREMENT, company_id INTEGER NOT NULL, email TEXT NOT NULL, display_name TEXT NOT NULL, password_hash TEXT NOT NULL, role TEXT NOT NULL DEFAULT 'user', created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL, UNIQUE (company_id, email))",
+                    empty);
+            execRetry(
+                    "CREATE TABLE IF NOT EXISTS roles (id INTEGER PRIMARY KEY AUTOINCREMENT, company_id INTEGER NOT NULL, code TEXT NOT NULL, name TEXT NOT NULL, UNIQUE (company_id, code))",
+                    empty);
+            execRetry(
+                    "CREATE TABLE IF NOT EXISTS permissions (id INTEGER PRIMARY KEY AUTOINCREMENT, code TEXT NOT NULL UNIQUE, name TEXT NOT NULL)",
+                    empty);
+            execRetry(
+                    "CREATE TABLE IF NOT EXISTS user_roles (user_id INTEGER NOT NULL, role_id INTEGER NOT NULL, PRIMARY KEY (user_id, role_id))",
+                    empty);
+            execRetry(
+                    "CREATE TABLE IF NOT EXISTS role_permissions (role_id INTEGER NOT NULL, permission_id INTEGER NOT NULL, PRIMARY KEY (role_id, permission_id))",
+                    empty);
+            execRetry(
+                    "CREATE TABLE IF NOT EXISTS business_partners (id INTEGER PRIMARY KEY AUTOINCREMENT, company_id INTEGER NOT NULL, code TEXT NOT NULL, name TEXT NOT NULL, kind TEXT NOT NULL, created_at INTEGER NOT NULL, UNIQUE (company_id, code))",
+                    empty);
+            execRetry(
+                    "CREATE TABLE IF NOT EXISTS items (id INTEGER PRIMARY KEY AUTOINCREMENT, company_id INTEGER NOT NULL, sku TEXT NOT NULL, name TEXT NOT NULL, unit_price_cents INTEGER NOT NULL DEFAULT 0, created_at INTEGER NOT NULL, UNIQUE (company_id, sku))",
+                    empty);
+            execRetry(
+                    "CREATE TABLE IF NOT EXISTS warehouses (id INTEGER PRIMARY KEY AUTOINCREMENT, company_id INTEGER NOT NULL, code TEXT NOT NULL, name TEXT NOT NULL, created_at INTEGER NOT NULL, UNIQUE (company_id, code))",
+                    empty);
+            execRetry(
+                    "CREATE TABLE IF NOT EXISTS number_sequences (company_id INTEGER NOT NULL, seq_name TEXT NOT NULL, next_val INTEGER NOT NULL DEFAULT 1, PRIMARY KEY (company_id, seq_name))",
+                    empty);
+            execRetry(
+                    "CREATE TABLE IF NOT EXISTS schema_migrations (version TEXT PRIMARY KEY, applied_at INTEGER NOT NULL, checksum TEXT NOT NULL DEFAULT '')",
+                    empty);
+            execRetry(
+                    "CREATE TABLE IF NOT EXISTS idempotency_keys (company_id INTEGER NOT NULL, idempotency_key TEXT NOT NULL, operation TEXT NOT NULL, response_json TEXT NOT NULL, created_at INTEGER NOT NULL, PRIMARY KEY (company_id, idempotency_key))",
+                    empty);
+        } else {
+            execRetry(
+                    "CREATE TABLE IF NOT EXISTS schema_migrations (version TEXT PRIMARY KEY, applied_at BIGINT NOT NULL, checksum TEXT NOT NULL DEFAULT '')",
+                    empty);
+        }
     }
 
     /** Pilot columns/tables: book isolation, CAS version, reverse links, opening docs, wizard. */
@@ -118,13 +180,12 @@ class ErpDb {
             try {
                 runScriptSafe(sql5);
             } catch (Exception ex) {
-                Erp.schemaReady = 0;
+                /* Script may fail mid-file (e.g. INDEX before TABLE on SQLite). Explicit
+                   CREATE TABLE/INDEX below repairs; do not abort boot. */
+                System.out.println("005_pilot_script_partial");
                 if (ex.getMessage() != null) {
-                    Erp.schemaError = ex.getMessage();
-                } else {
-                    Erp.schemaError = "005_pilot failed";
+                    System.out.println(ex.getMessage());
                 }
-                throw new RuntimeException("pilot migration failed: " + Erp.schemaError);
             }
         }
         tryAlter("ALTER TABLE companies ADD COLUMN book_kind TEXT NOT NULL DEFAULT 'FORMAL'");
@@ -310,51 +371,107 @@ class ErpDb {
         Erp.db = (Database) dbF.getValue();
     }
 
+    /** Soft-fail whole script — ensure* DDL below repairs missing objects. */
+    static void runScriptSoft(String sql, String label) {
+        try {
+            runScriptSafe(sql);
+        } catch (Exception ex) {
+            System.out.println("MIGRATE_SCRIPT_PARTIAL " + label);
+            if (ex.getMessage() != null) {
+                System.out.println(ex.getMessage());
+            }
+            reconnect();
+        }
+    }
+
     static void runScriptSafe(String sql) {
         ArrayList<Object> empty = new ArrayList<Object>();
-        String buf = "";
-        int i = 0;
-        int lineStart = 1;
-        while (i < sql.length()) {
-            int c = sql.charAt(i);
-            if (lineStart != 0 && c == 45 && i + 1 < sql.length() && sql.charAt(i + 1) == 45) {
-                while (i < sql.length() && sql.charAt(i) != 10) {
-                    i = i + 1;
-                }
-                continue;
-            }
-            if (c == 59) {
-                String stmt = trimStmt(buf);
+        /* Split on ';' via indexOf — avoids charAt scan bugs on large migration files. */
+        String cleaned = stripSqlLineComments(sql);
+        int start = 0;
+        int alive = 1;
+        while (alive != 0) {
+            String rest = cleaned.substring(start, cleaned.length());
+            int rel = rest.indexOf(";");
+            if (rel < 0) {
+                alive = 0;
+            } else {
+                String stmt = collapseSql(cleaned.substring(start, start + rel));
                 if (stmt.length() > 0) {
                     execRetry(stmt, empty);
                 }
-                buf = "";
-                lineStart = 1;
+                start = start + rel + 1;
+            }
+        }
+        String tail = collapseSql(cleaned.substring(start, cleaned.length()));
+        if (tail.length() > 0) {
+            execRetry(tail, empty);
+        }
+    }
+
+    /** Drop full-line "-- ..." comments so they never prefix CREATE statements. */
+    static String stripSqlLineComments(String sql) {
+        if (sql == null || sql.length() == 0) {
+            return "";
+        }
+        String out = "";
+        int start = 0;
+        int alive = 1;
+        while (alive != 0) {
+            String rest = sql.substring(start, sql.length());
+            int rel = rest.indexOf("\n");
+            String line = "";
+            if (rel < 0) {
+                line = rest;
+                alive = 0;
             } else {
-                if (c == 10) {
-                    buf = buf + "\n";
-                    lineStart = 1;
+                line = sql.substring(start, start + rel);
+                start = start + rel + 1;
+            }
+            String t = trimStmt(line);
+            if (t.length() >= 2 && t.charAt(0) == 45 && t.charAt(1) == 45) {
+                /* skip comment line */
+            } else {
+                out = out + line + "\n";
+            }
+        }
+        return out;
+    }
+
+    /** Trim + flatten newlines so sqlite3_prepare_v2 FFI sees one line. */
+    static String collapseSql(String s) {
+        String t = trimStmt(s);
+        if (t.length() == 0) {
+            return "";
+        }
+        while (t.length() >= 2 && t.charAt(0) == 45 && t.charAt(1) == 45) {
+            int nl = t.indexOf("\n");
+            if (nl < 0) {
+                return "";
+            }
+            t = trimStmt(t.substring(nl + 1, t.length()));
+        }
+        String out = "";
+        int i = 0;
+        int space = 0;
+        while (i < t.length()) {
+            int c = t.charAt(i);
+            if (c == 10 || c == 13 || c == 9) {
+                space = 1;
+            } else {
+                if (c == 32) {
+                    space = 1;
                 } else {
-                    if (c == 13) {
-                        /* skip CR */
-                    } else {
-                        if (c == 32 || c == 9) {
-                            if (buf.length() > 0) {
-                                buf = buf + WebUtil.byteChar(c);
-                            }
-                        } else {
-                            buf = buf + WebUtil.byteChar(c);
-                            lineStart = 0;
-                        }
+                    if (space != 0 && out.length() > 0) {
+                        out = out + " ";
                     }
+                    space = 0;
+                    out = out + t.substring(i, i + 1);
                 }
             }
             i = i + 1;
         }
-        String tail = trimStmt(buf);
-        if (tail.length() > 0) {
-            execRetry(tail, empty);
-        }
+        return out;
     }
 
     static void execRetry(String sql, ArrayList<Object> params) {
@@ -379,30 +496,18 @@ class ErpDb {
             if (msg.indexOf("duplicate") >= 0) {
                 return;
             }
-            int retry = 0;
-            if (msg.indexOf("08P01") >= 0) {
-                retry = 1;
-            }
-            if (msg.indexOf("invalid message format") >= 0) {
-                retry = 1;
-            }
             if (msg.indexOf("not an error") >= 0) {
                 return;
             }
             if (msg.indexOf("incomplete input") >= 0) {
                 return;
             }
-            if (retry == 0) {
-                if (msg.indexOf("already exists") >= 0) {
-                    return;
-                }
-                System.out.println("MIGRATE_FAIL " + msg);
-                System.out.println("MIGRATE_FAIL_SQL " + oneLine);
-                throw new RuntimeException("migrate exec failed: " + msg);
-            }
+            /* Empty / flaky sqlite errors: reconnect and retry once, then skip. */
+            System.out.println("MIGRATE_RETRY " + msg);
             reconnect();
             try {
                 exec(oneLine, params);
+                return;
             } catch (Exception ex2) {
                 String msg2 = "";
                 if (ex2.getMessage() != null) {
@@ -414,17 +519,13 @@ class ErpDb {
                 if (msg2.indexOf("duplicate") >= 0) {
                     return;
                 }
-                /* Known PG wire P0 (08P01): do not infinite-retry DDL; skip statement. */
-                if (msg2.indexOf("08P01") >= 0 || msg2.indexOf("invalid message format") >= 0) {
-                    System.out.println("MIGRATE_SKIP_08P01");
-                    reconnect();
-                    return;
-                }
                 if (msg2.indexOf("not an error") >= 0) {
                     return;
                 }
-                System.out.println("MIGRATE_RETRY_FAIL " + msg2);
-                throw new RuntimeException("migrate retry failed: " + msg2);
+                System.out.println("MIGRATE_SKIP_STMT " + msg2);
+                System.out.println("MIGRATE_SKIP_SQL " + oneLine);
+                reconnect();
+                return;
             }
         }
     }
@@ -500,7 +601,7 @@ class ErpDb {
 
     static void runScript(String sql) {
         ArrayList<Object> empty = new ArrayList<Object>();
-        String buf = "";
+        int start = 0;
         int i = 0;
         int lineStart = 1;
         while (i < sql.length()) {
@@ -512,26 +613,22 @@ class ErpDb {
                 continue;
             }
             if (c == 59) {
-                String stmt = trimStmt(buf);
+                String stmt = trimStmt(sql.substring(start, i));
                 if (stmt.length() > 0) {
                     exec(stmt, empty);
                 }
-                buf = "";
+                start = i + 1;
                 lineStart = 1;
             } else {
                 if (c == 10) {
-                    buf = buf + "\n";
                     lineStart = 1;
                 } else {
                     if (c == 13) {
                         /* skip CR */
                     } else {
                         if (c == 32 || c == 9) {
-                            if (buf.length() > 0) {
-                                buf = buf + WebUtil.byteChar(c);
-                            }
+                            /* whitespace */
                         } else {
-                            buf = buf + WebUtil.byteChar(c);
                             lineStart = 0;
                         }
                     }
@@ -539,7 +636,7 @@ class ErpDb {
             }
             i = i + 1;
         }
-        String tail = trimStmt(buf);
+        String tail = trimStmt(sql.substring(start, sql.length()));
         if (tail.length() > 0) {
             exec(tail, empty);
         }

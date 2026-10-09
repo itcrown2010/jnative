@@ -2,6 +2,7 @@ package io.jnative.backend.llvm.runtime;
 
 /**
  * FFI helpers: CString bridge and unsafe native memory accessors.
+ * @author 张晓达
  */
 public final class FfiRuntimeEmitter {
     private final StringBuilder sb;

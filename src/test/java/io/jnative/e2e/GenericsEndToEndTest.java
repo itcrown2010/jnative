@@ -18,7 +18,9 @@ import java.util.concurrent.TimeUnit;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-/** JNative 0.15 generics e2e: erasure, specialization, diamond, inference. */
+/** JNative 0.15 generics e2e: erasure, specialization, diamond, inference.
+ * @author 张晓达
+ */
 class GenericsEndToEndTest {
 
     @TempDir

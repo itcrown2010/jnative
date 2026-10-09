@@ -3,7 +3,9 @@ package io.jnative.pkg;
 import java.util.Locale;
 import java.util.Objects;
 
-/** Stable package identity: namespace/name (+ optional source). */
+/** Stable package identity: namespace/name (+ optional source).
+ * @author 张晓达
+ */
 public final class PackageId implements Comparable<PackageId> {
     private final String namespace;
     private final String name;

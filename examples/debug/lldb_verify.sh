@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# Author: 张晓达
 # Batch-verify source-level debugging for DebugDemo (macOS arm64 MVP).
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"

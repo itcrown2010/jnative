@@ -3,6 +3,7 @@ package io.jnative.semantic;
 /**
  * Java-like member/type visibility for JNative language packages.
  * Distinct from package-manager coordinates ({@code namespace/name}).
+ * @author 张晓达
  */
 public enum Visibility {
     PUBLIC,

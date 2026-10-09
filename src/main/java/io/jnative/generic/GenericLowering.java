@@ -36,6 +36,7 @@ import java.util.Set;
 
 /**
  * Lowers generic types to erased reference instantiations or primitive-specialized classes.
+ * @author 张晓达
  */
 public final class GenericLowering {
 

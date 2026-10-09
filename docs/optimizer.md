@@ -1,5 +1,7 @@
 # JNative optimizer (0.12)
 
+作者：张晓达
+
 JNative IR is optimized after semantic analysis and before LLVM lowering.
 
 ## Usage

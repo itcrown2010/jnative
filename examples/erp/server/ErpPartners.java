@@ -1,3 +1,6 @@
+/**
+ * @author 张晓达
+ */
 class ErpPartners {
     static ArrayList<Object> list(long companyId, String kind) {
         ArrayList<Object> p = new ArrayList<Object>();

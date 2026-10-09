@@ -1,6 +1,8 @@
 package com.demo.util;
 
-/** Cross-file cycle with Link (types only; no inheritance cycle). */
+/** Cross-file cycle with Link (types only; no inheritance cycle).
+ * @author 张晓达
+*/
 public class Node {
     private int v;
     private Link link;

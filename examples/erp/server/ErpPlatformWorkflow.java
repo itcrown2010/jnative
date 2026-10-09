@@ -1,6 +1,7 @@
 /**
  * Sequential approval workflow. Running instances bind to workflow_versions snapshot.
  * Approval does NOT update business rows directly — caller invokes domain transition.
+ * @author 张晓达
  */
 class ErpPlatformWorkflow {
     static long defineWorkflow(long companyId, String code, String name, String entityType, String definitionJson) {

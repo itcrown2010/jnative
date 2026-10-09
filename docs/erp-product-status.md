@@ -1,5 +1,7 @@
 # JNative One ERP — Product Status Matrix (1.5)
 
+作者：张晓达
+
 **Audit date:** 2026-10-08  
 **Scope:** `examples/erp` only (no other ERP product tree found under `examples/`)  
 **Host evidence:** macOS arm64 (Darwin) — `erp-server` is Mach-O arm64  

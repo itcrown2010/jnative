@@ -1,6 +1,8 @@
 package io.jnative.ffi;
 
-/** AArch64 (Apple Silicon / Linux aarch64). */
+/** AArch64 (Apple Silicon / Linux aarch64).
+ * @author 张晓达
+ */
 public final class AArch64Abi implements TargetAbi {
     public static final AArch64Abi INSTANCE = new AArch64Abi();
 

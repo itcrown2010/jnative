@@ -18,6 +18,7 @@ import java.util.concurrent.Executors;
 /**
  * Serves browser assets and pushes reload/diagnostics over SSE.
  * Overlay JS is injected so broken WASM still shows build errors.
+ * @author 张晓达
  */
 public final class BrowserDevServer implements AutoCloseable {
     private final Path assetRoot;

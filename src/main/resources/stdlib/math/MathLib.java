@@ -4,6 +4,9 @@
 // float abs/min/max overloads are provided; other float Math.* remain double-only
 // (callers widen with (double) or use float literals + promotion).
 
+/**
+ * @author 张晓达
+ */
 class Math {
     static double PI = 3.141592653589793;
     static double E = 2.718281828459045;

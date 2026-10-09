@@ -7,7 +7,9 @@ import java.util.Locale;
 import java.util.Objects;
 import java.util.Set;
 
-/** One declared dependency edge. */
+/** One declared dependency edge.
+ * @author 张晓达
+ */
 public final class Dependency {
     public enum Kind {
         REGISTRY, PATH, GIT, LOCAL_ARCHIVE, WORKSPACE

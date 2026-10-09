@@ -1,5 +1,7 @@
 # Demo engine (UI 1.4)
 
+作者：张晓达
+
 Runtime lives in `examples/erp/public/js/demo/`:
 
 - `DemoStateStore` ← `store.js`

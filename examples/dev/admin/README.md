@@ -1,5 +1,7 @@
 # admin — JNative 0.29 incremental / `jnative dev` fixture
 
+作者：张晓达
+
 ```text
 shared  ←  server
    ↑    ←  browser

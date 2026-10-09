@@ -9,7 +9,9 @@ import java.util.HexFormat;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
-/** Records correspondence between source, web, and platform artifacts for a build. */
+/** Records correspondence between source, web, and platform artifacts for a build.
+ * @author 张晓达
+ */
 public final class MobileBuildRecord {
 
     private final Map<String, String> fields = new LinkedHashMap<>();

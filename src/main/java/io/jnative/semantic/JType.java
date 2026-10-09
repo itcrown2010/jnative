@@ -3,6 +3,7 @@ package io.jnative.semantic;
 /**
  * Resolved Java type used by semantic analysis and lowering.
  * Primitive/reference/null/void are first-class; never encode types as bare Strings.
+ * @author 张晓达
  */
 public sealed interface JType
         permits PrimitiveType, ClassType, InterfaceType, ArrayType, NullType, VoidType, ErrorType,

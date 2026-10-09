@@ -9,7 +9,9 @@ import java.util.HashSet;
 import java.util.Queue;
 import java.util.Set;
 
-/** Remove functions not reachable from entry points (conservative w.r.t. vtables). */
+/** Remove functions not reachable from entry points (conservative w.r.t. vtables).
+ * @author 张晓达
+ */
 public final class WholeProgramDcePass implements OptimizationPass {
     @Override
     public String name() {

@@ -6,6 +6,7 @@ import java.util.List;
 
 /**
  * Collects compiler diagnostics. Never throws for semantic/syntax errors.
+ * @author 张晓达
  */
 public final class DiagnosticReporter {
     private final List<Diagnostic> diagnostics = new ArrayList<>();

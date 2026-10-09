@@ -17,6 +17,7 @@
  *   3 = /
  *
  * Note: wasm32-browser only supports String.length / charAt — no substring.
+ * @author 张晓达
  */
 public class CalculatorApp {
     public static int lastError;

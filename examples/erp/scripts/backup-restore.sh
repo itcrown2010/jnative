@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# Author: 张晓达
 # Enterprise 1.4 — PostgreSQL backup/restore drill using pg_dump / pg_restore.
 # Does not invent a custom DB backup format.
 set -euo pipefail

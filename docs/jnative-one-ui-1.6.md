@@ -1,5 +1,7 @@
 # JNative One — UI 1.6 Full UI Acceptance & UX Hardening
 
+作者：张晓达
+
 **Date:** 2026-10-08  
 **Principles:** UI FIRST · No new ERP business modules · Honest measurement · DemoStateStore only  
 **Stamp:** `JNATIVE_ONE_UI_1_6_PASS`

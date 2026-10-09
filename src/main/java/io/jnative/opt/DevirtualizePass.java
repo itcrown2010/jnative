@@ -10,7 +10,9 @@ import io.jnative.vtable.VTable;
 
 import java.util.List;
 
-/** Devirtualize monomorphic virtual and interface calls. */
+/** Devirtualize monomorphic virtual and interface calls.
+ * @author 张晓达
+ */
 public final class DevirtualizePass implements OptimizationPass {
     @Override
     public String name() {

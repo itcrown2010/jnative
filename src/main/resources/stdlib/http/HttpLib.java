@@ -629,7 +629,9 @@ class HttpResponse {
     }
 }
 
-/** Connection pool key: scheme|host|port|alpn|insecure */
+/** Connection pool key: scheme|host|port|alpn|insecure
+ * @author 张晓达
+ */
 class HttpPoolKey {
     String scheme;
     String host;

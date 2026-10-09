@@ -1,3 +1,6 @@
+/**
+ * @author 张晓达
+ */
 class ErpPurchasing {
     static PurchaseOrderDto createDraft(long companyId, long supplierId, ArrayList<Object> lines) {
         PoCreateWork work = new PoCreateWork();

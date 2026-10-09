@@ -3,3 +3,7 @@
  * JNative 0.1 does not ship a managed runtime; println maps to C printf/puts.
  */
 package io.jnative.runtime;
+
+/**
+ * @author 张晓达
+ */

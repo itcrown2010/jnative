@@ -1,5 +1,7 @@
 # JNative Supported Language Profile (1.0 Audit)
 
+作者：张晓达
+
 **Profile ID:** `jnative-lang-1.0-candidate`  
 **Audit date:** 2026-10-09  
 **Maturity of profile as a whole:** **L2** (not L3 — missing optimizer identity, fuzz, multi-OS)  
@@ -77,7 +79,7 @@ Levels: L0–L4 per readiness audit.
 | multi-catch | **NOT SUPPORTED IN 1.0** | L0–L1 | Parse error |
 | checked `throws` enforcement | **NOT SUPPORTED IN 1.0** | L0 | `throws` not parsed |
 | TWR existing-variable form | **NOT SUPPORTED IN 1.0** | L0 | Decl form only |
-| WASM exceptions | **NOT SUPPORTED** | L0 | Stubs only; native backend required |
+| WASM exceptions | SUPPORTED | L2 | Same pending+CFG as native; see `wasm32-browser-exceptions.md` |
 | ternary `?:` (expression) | SUPPORTED | L2 | `PrimitiveOpsEndToEndTest`; unused branch not evaluated |
 | `async` / `await` | SUPPORTED | L2 | Thin e2e; dual Future debt |
 

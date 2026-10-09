@@ -11,6 +11,7 @@ import java.util.Set;
 /**
  * Backtracking + constraint propagation dependency resolver.
  * Does NOT use naive "highest version wins".
+ * @author 张晓达
  */
 public final class DependencyResolver {
     public static final String RESOLVER_VERSION = "1";

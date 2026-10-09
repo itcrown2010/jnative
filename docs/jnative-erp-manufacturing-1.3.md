@@ -1,5 +1,7 @@
 # JNative ERP Manufacturing 1.3
 
+作者：张晓达
+
 **Stamp: `JNATIVE_ERP_MANUFACTURING_1_3_PASS`**
 
 **Date:** 2026-10-08  

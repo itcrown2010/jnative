@@ -1,5 +1,7 @@
 # JNative GC Invariants
 
+作者：张晓达
+
 ## Managed pointers
 
 - Every managed object payload begins with a `ClassMetadata*` at offset 0.

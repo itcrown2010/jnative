@@ -1,6 +1,9 @@
 // JNative Net addressing / DNS / UDP (Core Completion Round 4).
 // TCP remains compiler builtins (TcpSocket/TcpServer). This unit is library + C ABI.
 
+/**
+ * @author 张晓达
+ */
 class NetNative {
     @Native(symbol = "jnative_plat_dns_resolve")
     static native NativePtr dnsResolve(String host, NativePtr errbuf, int errLen);

@@ -11,6 +11,7 @@ import java.util.Optional;
 
 /**
  * Builds per-interface ITables for a concrete class.
+ * @author 张晓达
  */
 public final class ITableBuilder {
 

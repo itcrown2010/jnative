@@ -1,5 +1,8 @@
 package io.jnative.ast;
 
+/**
+ * @author 张晓达
+ */
 public sealed interface Expression extends AstNode
         permits BinaryExpression, UnaryExpression, AssignmentExpression,
         LiteralExpression, VariableExpression, MethodCallExpression,

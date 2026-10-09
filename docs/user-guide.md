@@ -1,5 +1,7 @@
 # JNative One — User Guide
 
+作者：张晓达
+
 **Product version:** 1.5.0-productization  
 **Audience:** business users on a deployed demo/pilot instance  
 **Note:** Feature freeze — describes what exists today; WASM UI is a navigation shell.

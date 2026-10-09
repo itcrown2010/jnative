@@ -9,7 +9,9 @@ import io.jnative.ir.IrValue;
 import java.util.HashSet;
 import java.util.Set;
 
-/** Basic IR sanity checks after optimization. */
+/** Basic IR sanity checks after optimization.
+ * @author 张晓达
+ */
 public final class IrVerifier {
 
     private IrVerifier() {

@@ -5,6 +5,7 @@ import jnative.json.*;
  * JNative 0.24 database-api demo.
  * Default: sqlite:./build/web/database-api.db (deterministic local).
  * Override: DATABASE_URL=postgresql://user:pass@localhost:5432/jnative
+ * @author 张晓达
  */
 public class App {
     public static void main(String[] args) {

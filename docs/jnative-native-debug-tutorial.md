@@ -1,5 +1,7 @@
 # JNative 原生调试教程（VS Code + CodeLLDB）
 
+作者：张晓达
+
 面向 **macOS arm64**，使用 LLDB / [CodeLLDB](https://marketplace.visualstudio.com/items?itemName=vadimcn.vscode-lldb)。  
 本教程不覆盖 Web/WASM、移动容器或独立 JNative Studio。
 
@@ -12,16 +14,16 @@ mvn -q -DskipTests package
 cd tools/vscode-jnative
 npm install
 npm run compile
-npx vsce package --no-dependencies
+npm run package
 ```
 
 安装 VSIX（任选其一）：
 
-- VS Code：扩展视图 → `…` → Install from VSIX → 选择 `tools/vscode-jnative/jnative-0.2.0.vsix`
+- VS Code：扩展视图 → `…` → Install from VSIX → 选择 `tools/vscode-jnative/jnative-0.2.1.vsix`
 - 命令行（若本机有 `code`）：
 
 ```bash
-code --install-extension tools/vscode-jnative/jnative-0.2.0.vsix
+code --install-extension tools/vscode-jnative/jnative-0.2.1.vsix
 ```
 
 再安装 **CodeLLDB**（`vadimcn.vscode-lldb`）。JNative 扩展**不会**自动安装适配器；缺失时会提示打开市场。

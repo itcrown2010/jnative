@@ -1,6 +1,8 @@
 package io.jnative.incremental;
 
-/** Dependency edge kinds in the symbol/source graph. */
+/** Dependency edge kinds in the symbol/source graph.
+ * @author 张晓达
+ */
 public enum DependencyKind {
     TYPE_REFERENCE,
     METHOD_CALL,

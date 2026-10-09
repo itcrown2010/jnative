@@ -5,7 +5,9 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
-/** Simple backedge detection for loop headers. */
+/** Simple backedge detection for loop headers.
+ * @author 张晓达
+ */
 public final class LoopInfo {
     private final ControlFlowGraph cfg;
     private final List<Backedge> backedges = new ArrayList<>();

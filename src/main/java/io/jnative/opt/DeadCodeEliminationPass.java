@@ -8,7 +8,9 @@ import io.jnative.ir.IrValue;
 import java.util.HashSet;
 import java.util.Set;
 
-/** Remove unused pure computations and dead instructions. */
+/** Remove unused pure computations and dead instructions.
+ * @author 张晓达
+ */
 public final class DeadCodeEliminationPass implements OptimizationPass {
     @Override
     public String name() {

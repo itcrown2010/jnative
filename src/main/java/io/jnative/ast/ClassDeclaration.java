@@ -5,6 +5,9 @@ import io.jnative.semantic.Visibility;
 
 import java.util.List;
 
+/**
+ * @author 张晓达
+ */
 public record ClassDeclaration(
         String name,
         String packageName,

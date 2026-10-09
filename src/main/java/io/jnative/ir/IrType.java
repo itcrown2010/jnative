@@ -11,6 +11,9 @@ import io.jnative.semantic.NullType;
 import io.jnative.semantic.PrimitiveType;
 import io.jnative.semantic.VoidType;
 
+/**
+ * @author 张晓达
+ */
 public enum IrType {
     VOID,
     I1,

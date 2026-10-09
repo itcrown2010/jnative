@@ -1,5 +1,7 @@
 # async/await 状态机（可靠挂起/恢复）
 
+作者：张晓达
+
 **日期：** 2026-10-09  
 **前置：** 闭包里程碑、`JnFuture`/EventLoop 回调契约（`docs/jnative-functional-callbacks.md`）
 

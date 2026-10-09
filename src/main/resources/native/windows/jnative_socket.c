@@ -1,3 +1,4 @@
+/* Author: 张晓达 */
 /*
  * Windows Winsock foundation stub (0.8.2).
  * Architecture reserved: WSAStartup / WSACleanup / SOCKET / closesocket.

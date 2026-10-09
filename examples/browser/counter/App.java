@@ -1,5 +1,8 @@
 import jnative.browser.*;
 
+/**
+ * @author 张晓达
+ */
 public class App {
     static int count = 0;
 

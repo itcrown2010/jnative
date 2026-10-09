@@ -1,6 +1,7 @@
 /**
  * Headless acceptance: PO 100 → GR 60+40 → stock 100 → SO 30 → DL 10+20 → stock 70;
  * duplicate idempotency replay; over-receive / over-delivery rejected.
+ * @author 张晓达
  */
 class ErpLogicTest {
     static long companyId = 1L;

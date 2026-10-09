@@ -1,5 +1,7 @@
 # JNative 0.10 Build Report
 
+作者：张晓达
+
 ## 1. Architecture Audit
 
 Unified Callable model: Static/Instance/Virtual method, Lambda, Closure, Method Reference, Native Function, Native Callback — all map to managed `{codePtr, env}` SAM objects or typed native function pointers. Pipeline: Parser → Semantic (`CallableBinding`) → IR (`make_callable` / `invoke_callable`) → LLVM indirect call / C ABI trampoline.

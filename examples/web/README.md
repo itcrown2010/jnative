@@ -1,5 +1,7 @@
 # JNative Web Examples (0.22)
 
+作者：张晓达
+
 Small HTTP demos built on `stdlib/web/WebLib.java` (routing, middleware, static files, JSON helpers). Compile from the repo root after syncing stdlib sources into `target/classes`.
 
 ## Build

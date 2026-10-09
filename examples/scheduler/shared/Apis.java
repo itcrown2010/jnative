@@ -1,6 +1,7 @@
 /**
  * Typed RPC contracts (shared). Server mounts generated dispatchers when available;
  * SchedulerServer also exposes REST mirrors for browser fetch until WASM RPC client is complete.
+ * @author 张晓达
  */
 @Rpc("/api/auth")
 interface AuthApi {

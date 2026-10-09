@@ -1,5 +1,6 @@
 /**
  * Minimal JSON library (0.21) — pure JNative, no compiler intrinsics.
+ * @author 张晓达
  */
 
 class JsonValue {

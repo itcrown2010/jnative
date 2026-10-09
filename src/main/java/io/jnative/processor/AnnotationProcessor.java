@@ -7,6 +7,7 @@ import java.util.Set;
 /**
  * Compile-time annotation processor. Must not mutate AST/SymbolTable/LLVM.
  * Outputs: generated JNative source, resources, metadata.
+ * @author 张晓达
  */
 public interface AnnotationProcessor {
 

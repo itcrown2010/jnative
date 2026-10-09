@@ -13,6 +13,7 @@ import java.util.List;
 
 /**
  * Builds {@link NativeStructLayout} using {@link TargetAbi} sizes/alignments.
+ * @author 张晓达
  */
 public final class NativeStructLayoutBuilder {
 

@@ -7,6 +7,7 @@ import java.util.stream.Collectors;
 
 /**
  * Source-level type name. Supports {@code Box<String>}, wildcards, and {@code NativePtr<T>}.
+ * @author 张晓达
  */
 public record TypeName(
         Kind kind,

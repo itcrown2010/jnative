@@ -1,4 +1,5 @@
 <!doctype html>
+<!-- Author: 张晓达 -->
 <html lang="zh">
 <head>
   <meta charset="utf-8"/>
@@ -8,22 +9,23 @@
 </head>
 <body class="touch">
   <div id="app">
-    <h1 id="title">JNative 数独</h1>
-    <p class="meta">触屏布局 · 不依赖系统软键盘 · WASM 核心</p>
-    <div class="toolbar">
-      <button id="btnEasy" type="button">简单</button>
-      <button id="btnMedium" type="button">中等</button>
-      <button id="btnHard" type="button">困难</button>
+    <header class="topbar">
+      <div class="topbar-text">
+        <h1 id="title">JNative 数独</h1>
+        <p id="timer" class="meta timer">0:00</p>
+      </div>
+      <button id="btnMenu" type="button" class="menu-btn" aria-haspopup="dialog" aria-controls="menuSheet" aria-label="菜单">菜单</button>
+    </header>
+
+    <div class="quickbar" aria-label="常用操作">
       <button id="btnUndo" type="button">撤销</button>
-      <button id="btnRedo" type="button">重做</button>
-      <button id="btnHint" type="button">提示</button>
       <button id="notesBtn" type="button">笔记</button>
-      <button id="btnPause" type="button">暂停</button>
-      <button id="btnSave" type="button">存档</button>
-      <button id="btnLoad" type="button">读档</button>
-      <button id="btnLang" type="button">中/EN</button>
+      <button id="btnHint" type="button">提示</button>
+      <button id="btnClear" type="button">清除</button>
     </div>
+
     <div id="board" class="board" role="grid" aria-label="数独棋盘"></div>
+
     <div class="digits" aria-label="数字键盘">
       <button id="d1" type="button">1</button>
       <button id="d2" type="button">2</button>
@@ -34,13 +36,38 @@
       <button id="d7" type="button">7</button>
       <button id="d8" type="button">8</button>
       <button id="d9" type="button">9</button>
-      <button id="btnClear" type="button">清除</button>
     </div>
-    <div id="timer" class="meta">0:00</div>
+
     <div id="status" class="status"></div>
-    <div id="platform" class="meta"></div>
-    <div id="lifecycle" class="meta"></div>
+    <div id="platform" class="meta sr-only"></div>
+    <div id="lifecycle" class="meta sr-only"></div>
   </div>
+
+  <div id="menuBackdrop" class="menu-backdrop" hidden></div>
+  <div id="menuSheet" class="menu-sheet" role="dialog" aria-modal="true" aria-labelledby="menuTitle" hidden>
+    <div class="menu-handle" aria-hidden="true"></div>
+    <h2 id="menuTitle">菜单</h2>
+    <section class="menu-section">
+      <h3 id="lblNewGame">新游戏</h3>
+      <div class="menu-row">
+        <button id="btnEasy" type="button">简单</button>
+        <button id="btnMedium" type="button">中等</button>
+        <button id="btnHard" type="button">困难</button>
+      </div>
+    </section>
+    <section class="menu-section">
+      <h3 id="lblActions">操作</h3>
+      <div class="menu-list">
+        <button id="btnRedo" type="button">重做</button>
+        <button id="btnPause" type="button">暂停</button>
+        <button id="btnSave" type="button">存档</button>
+        <button id="btnLoad" type="button">读档</button>
+        <button id="btnLang" type="button">中 / EN</button>
+      </div>
+    </section>
+    <button id="btnMenuClose" type="button" class="menu-close">关闭</button>
+  </div>
+
   <script type="module" src="./app-shell.js"></script>
 </body>
 </html>

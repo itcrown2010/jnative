@@ -1,5 +1,7 @@
 # JNative FFI (0.7 / 0.8 / 0.9)
 
+作者：张晓达
+
 Blocking / long native calls should transition MANAGED→NATIVE (0.9). Short libc calls remain
 fine on multiple threads for JNative TLS state; third-party library thread-safety is separate.
 

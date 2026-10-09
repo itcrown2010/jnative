@@ -23,6 +23,7 @@ import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * Primitive cast, ternary, bitwise, and shift — native e2e vs javac/java reference.
+ * @author 张晓达
  */
 class PrimitiveOpsEndToEndTest {
 

@@ -1,6 +1,8 @@
 package io.jnative.build;
 
-/** A concrete build target (native executable, wasm browser, desktop). */
+/** A concrete build target (native executable, wasm browser, desktop).
+ * @author 张晓达
+*/
 public final class BuildTargetSpec {
     private final String name;
     private final String triple; // native | wasm32-browser | desktop-native

@@ -6,6 +6,7 @@
  *   bits 15..8  typeId
  *   bits 7..1   quantity
  *   bit  0      active flag
+ * @author 张晓达
  */
 public class BitFieldCodec {
     public static int pack(int typeId, int quantity, boolean active) {

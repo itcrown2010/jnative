@@ -1,5 +1,7 @@
 # JNative One — UI 1.5 Commercial UI Polish & Demo Center
 
+作者：张晓达
+
 **Date:** 2026-10-08  
 **Principles:** UI FIRST · EnterpriseDesignSystem · DemoStateStore only · No new formal ERP backend modules  
 **Stamp:** `JNATIVE_ONE_UI_1_5_PASS`

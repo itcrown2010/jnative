@@ -2,6 +2,7 @@ package io.jnative.backend.llvm.runtime;
 
 /**
  * General-purpose byte[] helpers (0.8.3). Used by stdlib (e.g. HTTP) — not HTTP-specific.
+ * @author 张晓达
  */
 public final class BytesRuntimeEmitter {
     private final StringBuilder sb;

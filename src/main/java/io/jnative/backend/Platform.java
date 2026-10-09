@@ -2,6 +2,7 @@ package io.jnative.backend;
 
 /**
  * Host platform abstraction. Avoid hardcoding OS-specific paths in the compiler core.
+ * @author 张晓达
  */
 public enum Platform {
     WINDOWS_X86_64,

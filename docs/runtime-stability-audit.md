@@ -1,5 +1,7 @@
 # JNative Runtime Stability Audit — Phase 0.8
 
+作者：张晓达
+
 **Date:** 2026-10-08  
 **Host audited:** macOS arm64 (darwin), clang `/usr/bin/clang`, lldb present, Homebrew `llvm-as` available  
 **Rule:** Code is authoritative; prior docs may be stale.

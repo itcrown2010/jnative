@@ -1,5 +1,7 @@
 # JNative One — Implementation Guide
 
+作者：张晓达
+
 **Purpose:** how an implementation partner would roll out a single-enterprise instance.  
 **Status:** process guide for productization 1.5 — **not** a claim that the product is pilot-ready.
 

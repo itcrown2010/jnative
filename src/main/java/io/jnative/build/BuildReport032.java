@@ -1,6 +1,8 @@
 package io.jnative.build;
 
-/** Build-report string constants for JNative 0.32 metaprogramming. */
+/** Build-report string constants for JNative 0.32 metaprogramming.
+ * @author 张晓达
+*/
 public final class BuildReport032 {
     public static final String META_LLVM_INTRINSICS = "Metaprogramming LLVM intrinsics: NONE";
     public static final String ANNOTATION_LLVM_INTRINSICS = "Annotation Processing LLVM intrinsics: NONE";

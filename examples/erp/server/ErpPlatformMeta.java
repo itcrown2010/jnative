@@ -1,5 +1,6 @@
 /**
  * Custom fields + form metadata. Typed validation; no dynamic SQL from user input.
+ * @author 张晓达
  */
 class ErpPlatformMeta {
     static long defineField(long companyId, String entityType, String code, String name, String type,

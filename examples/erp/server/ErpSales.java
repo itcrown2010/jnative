@@ -1,3 +1,6 @@
+/**
+ * @author 张晓达
+ */
 class ErpSales {
     static SalesOrderDto createDraft(long companyId, long customerId, ArrayList<Object> lines) {
         SoCreateWork work = new SoCreateWork();

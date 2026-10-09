@@ -20,6 +20,7 @@ import java.util.Locale;
  * jnative mobile run --target android|ios --device ID [--project DIR]
  * jnative mobile logs --target android|ios [--device ID] [--project DIR]
  * </pre>
+ * @author 张晓达
  */
 public final class MobileCli {
 

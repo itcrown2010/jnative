@@ -1,6 +1,8 @@
 package io.jnative.opt;
 
-/** Escape classification for allocated objects (intraprocedural). */
+/** Escape classification for allocated objects (intraprocedural).
+ * @author 张晓达
+ */
 public record EscapeState(EscapeKind kind, String exactClass) {
     public enum EscapeKind {
         NO_ESCAPE,

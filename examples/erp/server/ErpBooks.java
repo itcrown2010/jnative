@@ -1,5 +1,6 @@
 /**
  * Book isolation: DEMO vs FORMAL. Demo seed never writes into FORMAL books.
+ * @author 张晓达
  */
 class BookKind {
     static String DEMO = "DEMO";

@@ -1,3 +1,6 @@
+/**
+ * @author 张晓达
+ */
 public class User {
     public int id;
     public String name;

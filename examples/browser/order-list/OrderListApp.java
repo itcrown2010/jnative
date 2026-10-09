@@ -1,6 +1,9 @@
 // jnative.browser — order list demo for wasm32-browser
 // Business logic runs in WASM; JS only loads the module and hosts DOM nodes in index.html.
 
+/**
+ * @author 张晓达
+ */
 class OrderListApp {
     static ArrayList<OrderItem> items;
     static int nextId;
@@ -17,12 +20,12 @@ class OrderListApp {
         Element addBtn = doc.getElementById("addBtn");
         Element clearBtn = doc.getElementById("clearBtn");
         if (addBtn != null) {
-            addBtn.addEventListener("click", (BrowserEvent e) -> {
+            addBtn.addEventListener("click", e -> {
                 onAddClicked();
             });
         }
         if (clearBtn != null) {
-            clearBtn.addEventListener("click", (BrowserEvent e) -> {
+            clearBtn.addEventListener("click", e -> {
                 onClearClicked();
             });
         }
@@ -54,11 +57,11 @@ class OrderListApp {
         nextId = nextId + 1;
         // One collection op with lambda (forEach)
         IntBox lines = new IntBox();
-        items.forEach((OrderItem it) -> {
+        items.forEach(it -> {
             lines.value = lines.value + 1;
         });
         render();
-        Browser.console().log("已添加，行数=" + Integer.toString(lines.value));
+        Browser.console().log("已添加，行数=" + String.valueOf(lines.value));
     }
 
     static void onClearClicked() {
@@ -79,7 +82,7 @@ class OrderListApp {
         for (OrderItem it : items) {
             totalQty = totalQty + it.quantity;
             totalPrice = totalPrice + it.lineTotal();
-            body = body + it.name + " × " + Integer.toString(it.quantity)
+            body = body + it.name + " × " + String.valueOf(it.quantity)
                     + " @ " + formatMoney(it.unitPrice)
                     + " = " + formatMoney(it.lineTotal()) + "\n";
         }
@@ -87,7 +90,7 @@ class OrderListApp {
             list.setText(body);
         }
         if (totalQtyEl != null) {
-            totalQtyEl.setText(Integer.toString(totalQty));
+            totalQtyEl.setText(String.valueOf(totalQty));
         }
         if (totalPriceEl != null) {
             totalPriceEl.setText(formatMoney(totalPrice));
@@ -102,11 +105,11 @@ class OrderListApp {
         if (rem < 0) {
             rem = 0 - rem;
         }
-        String r = Integer.toString(rem);
+        String r = String.valueOf(rem);
         if (rem < 10) {
             r = "0" + r;
         }
-        return Integer.toString(yuan) + "." + r;
+        return String.valueOf(yuan) + "." + r;
     }
 
     static int parsePositiveInt(String s, int fallback) {
@@ -116,11 +119,11 @@ class OrderListApp {
         int n = 0;
         int i = 0;
         while (i < s.length()) {
-            char c = s.charAt(i);
-            if (c < '0' || c > '9') {
+            int c = s.charAt(i);
+            if (c < 48 || c > 57) {
                 return fallback;
             }
-            n = n * 10 + (c - '0');
+            n = n * 10 + (c - 48);
             i = i + 1;
         }
         if (n <= 0) {
@@ -136,24 +139,24 @@ class OrderListApp {
         // ASCII only; host may pre-validate
         int i = 0;
         int whole = 0;
-        while (i < s.length() && s.charAt(i) != '.') {
-            char c = s.charAt(i);
-            if (c < '0' || c > '9') {
+        while (i < s.length() && s.charAt(i) != 46) {
+            int c = s.charAt(i);
+            if (c < 48 || c > 57) {
                 return fallback;
             }
-            whole = whole * 10 + (c - '0');
+            whole = whole * 10 + (c - 48);
             i = i + 1;
         }
         double frac = 0.0;
         double place = 0.1;
-        if (i < s.length() && s.charAt(i) == '.') {
+        if (i < s.length() && s.charAt(i) == 46) {
             i = i + 1;
             while (i < s.length()) {
-                char c = s.charAt(i);
-                if (c < '0' || c > '9') {
+                int c = s.charAt(i);
+                if (c < 48 || c > 57) {
                     return fallback;
                 }
-                frac = frac + (double) (c - '0') * place;
+                frac = frac + (double) (c - 48) * place;
                 place = place * 0.1;
                 i = i + 1;
             }

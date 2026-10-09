@@ -1,3 +1,4 @@
+// Author: 张晓达
 /**
  * GlobalSearch - disabled until a real server search API is wired.
  */

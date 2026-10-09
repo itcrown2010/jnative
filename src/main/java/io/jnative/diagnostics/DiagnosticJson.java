@@ -7,6 +7,7 @@ import java.util.Locale;
 /**
  * Machine-readable diagnostic serialization for IDE / problem matchers.
  * Fields reflect only what {@link Diagnostic} actually carries.
+ * @author 张晓达
  */
 public final class DiagnosticJson {
     private DiagnosticJson() {

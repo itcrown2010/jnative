@@ -10,6 +10,7 @@ import java.util.List;
 
 /**
  * Extracts bundled native C/ObjC runtime sources for linking.
+ * @author 张晓达
  */
 public final class NativeRuntimeSources {
     private NativeRuntimeSources() {

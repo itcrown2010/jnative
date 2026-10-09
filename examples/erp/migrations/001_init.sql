@@ -1,3 +1,4 @@
+-- Author: 张晓达
 -- PostgreSQL schema for JNative ERP Phase-1
 CREATE TABLE IF NOT EXISTS companies (
     id BIGSERIAL PRIMARY KEY,

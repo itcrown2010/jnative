@@ -92,7 +92,9 @@ class Piece {
     }
 }
 
-/** Piece table: original buffer + add chunks; no full-document copy on edit. */
+/** Piece table: original buffer + add chunks; no full-document copy on edit.
+ * @author 张晓达
+ */
 class PieceTable {
     String original;
     ArrayList<String> addChunks;

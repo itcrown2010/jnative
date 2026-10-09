@@ -1,5 +1,7 @@
 # JNative GC — Current Design (code truth)
 
+作者：张晓达
+
 **Document role:** single source of truth for the **shipping** collector.  
 **Evidence:** `jnative_gc2.c` / `jnative_gc2.h` / `GcRuntimeEmitter.java` / `NativeRuntimeSources.java`.  
 **Not evidence:** roadmaps, historical “0.5 non-moving” blurbs, aspirational docs.

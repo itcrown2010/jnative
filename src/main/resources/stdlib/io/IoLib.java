@@ -74,7 +74,9 @@ class FsNative {
     static native NativePtr readlink(String path);
 }
 
-/** Standard open options for Files streams / write. */
+/** Standard open options for Files streams / write.
+ * @author 张晓达
+ */
 class StandardOpenOption {
     static int READ = 1;
     static int WRITE = 2;

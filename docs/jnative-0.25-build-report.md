@@ -1,5 +1,7 @@
 # JNative 0.25 Real-Time Web Build Report
 
+作者：张晓达
+
 **Date:** 2026-10-06  
 **Version:** 0.25  
 **Constraint:** NO JVM / JRE / JNI / Servlet / Spring Security at runtime for native binaries.

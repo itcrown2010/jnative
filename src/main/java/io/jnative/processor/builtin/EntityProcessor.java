@@ -11,7 +11,9 @@ import io.jnative.processor.SourceFileBuilder;
 
 import java.util.Set;
 
-/** Compile-time row mapper / SQL metadata (not Hibernate). */
+/** Compile-time row mapper / SQL metadata (not Hibernate).
+ * @author 张晓达
+ */
 public class EntityProcessor implements AnnotationProcessor {
     @Override
     public String name() {

@@ -1,5 +1,8 @@
 import jnative.json.*;
 
+/**
+ * @author 张晓达
+ */
 class SchJson {
     static String esc(String s) {
         if (s == null) {

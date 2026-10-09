@@ -3,7 +3,9 @@ package io.jnative.http2;
 import java.util.HashMap;
 import java.util.Map;
 
-/** Self-contained HTTP/2 frame + session helpers for 0.31 host-side tests. */
+/** Self-contained HTTP/2 frame + session helpers for 0.31 host-side tests.
+ * @author 张晓达
+ */
 final class Http2Frame031 {
     private Http2Frame031() {
     }

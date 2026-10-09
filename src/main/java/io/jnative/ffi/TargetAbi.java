@@ -3,6 +3,7 @@ package io.jnative.ffi;
 /**
  * Target ABI facade. Concrete layouts may differ by OS/arch later.
  * Native struct field sizes/alignments must go through this API — never hardcode 8.
+ * @author 张晓达
  */
 public interface TargetAbi {
     int pointerSize();

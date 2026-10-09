@@ -1,3 +1,4 @@
+// Author: 张晓达
 /**
  * DemoBusinessEvent bus - UI subscriptions only.
  * NOT a substitute for real database transactions.

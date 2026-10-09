@@ -3,6 +3,9 @@ package io.jnative.rpc;
 import java.util.ArrayList;
 import java.util.List;
 
+/**
+ * @author 张晓达
+ */
 public final class RpcMethodModel {
     private final String name;
     private final long methodId;

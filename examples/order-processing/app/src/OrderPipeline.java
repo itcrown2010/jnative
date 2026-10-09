@@ -5,6 +5,7 @@ import com.demo.catalog.Product;
 
 /**
  * Load → validate → aggregate → query. Fixed-seed friendly for tests.
+ * @author 张晓达
  */
 public class OrderPipeline {
     public OrderStore store;

@@ -12,6 +12,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 /**
  * DAG-aware parallel task runner. Avoids oversubscription by defaulting to
  * min(CPU, jobs) and marking LINK tasks for serial-ish execution when needed.
+ * @author 张晓达
  */
 public final class BuildScheduler {
     public enum ResourceHint { CPU, IO, MEMORY_HEAVY, LINK }

@@ -1,5 +1,7 @@
 # JNative One — UI Foundation 1.0
 
+作者：张晓达
+
 **Date:** 2026-10-08  
 **Product:** JNative One  
 **Code:** `examples/erp/public/` (product shell) · `examples/erp/browser/ErpApp.java` (WASM probe)  

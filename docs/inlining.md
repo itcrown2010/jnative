@@ -1,5 +1,7 @@
 # Inlining
 
+作者：张晓达
+
 `InlinePass` runs at `-O2`+.
 
 ## Constraints (0.12)

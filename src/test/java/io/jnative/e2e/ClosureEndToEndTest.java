@@ -23,6 +23,7 @@ import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * Closure reliability: escape, capture env, GC, nested, this, method refs, O0/opt, Java compare.
+ * @author 张晓达
  */
 class ClosureEndToEndTest {
 

@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# Author: 张晓达
 # JNative source → fresh WebUI/WASM dist (never packages a previous success on failure).
 set -euo pipefail
 

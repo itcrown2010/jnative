@@ -11,6 +11,9 @@ import io.jnative.semantic.SemanticAnalyzer;
 import io.jnative.semantic.TypedCompilationUnit;
 import io.jnative.compiler.CompilerOptions;
 
+/**
+ * @author 张晓达
+ */
 final class OptTestSupport {
 
     private OptTestSupport() {

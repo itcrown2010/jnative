@@ -3,6 +3,7 @@ package io.jnative.semantic;
 /**
  * Typed native function pointer wrapping a {@link FunctionType} (ABI params/return, domain NATIVE).
  * Distinct from {@link NativePtrType} — not a data pointer.
+ * @author 张晓达
  */
 public final class NativeFunctionPtrType implements JType {
     private final FunctionType functionType;

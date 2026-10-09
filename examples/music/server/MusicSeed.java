@@ -1,6 +1,7 @@
 /**
  * Seeds ~10 artists / 20 albums / 100 tracks + demo user + playlists.
  * Generates a few real WAV fixtures; remaining tracks share fixture files.
+ * @author 张晓达
  */
 class MusicSeed {
     static void ensure() {

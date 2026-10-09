@@ -1,5 +1,6 @@
 /**
  * Unhandled exception stop target. Break on jnative_debugger_on_uncaught.
+ * @author 张晓达
  */
 public class ExceptionDebugDemo {
     static void deep(int n) {

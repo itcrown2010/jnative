@@ -1,5 +1,7 @@
 # GC root audit (0.13)
 
+作者：张晓达
+
 | Root class | Updateable slot? | Notes |
 |------------|------------------|-------|
 | Local managed PTR alloca | YES | Shadow stack |

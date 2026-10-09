@@ -5,6 +5,7 @@ package io.jnative.backend.llvm.runtime;
  * { ptr vtable, ptr super, i64 size, i32 flags, ptr name, i32 refCount, ptr refOff,
  *   i32 ifaceCount, ptr ifaceEntries }
  * ifaceEntries: [{ i32 id, ptr itable }...]
+ * @author 张晓达
  */
 public final class TypeRuntimeEmitter {
     private final StringBuilder sb;

@@ -6,7 +6,9 @@ import java.util.Locale;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-/** Lists Android devices/emulators and iOS simulators. Never guesses a target. */
+/** Lists Android devices/emulators and iOS simulators. Never guesses a target.
+ * @author 张晓达
+ */
 public final class MobileDevices {
 
     public record Device(String id, String name, String platform, String state) {

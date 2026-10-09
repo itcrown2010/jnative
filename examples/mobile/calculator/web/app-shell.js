@@ -1,3 +1,4 @@
+// Author: 张晓达
 /**
  * UI shell: wires HTML controls to WASM CalculatorApp + platform bridge.
  * Calculation is never reimplemented here.

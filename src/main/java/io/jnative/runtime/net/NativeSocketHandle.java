@@ -6,6 +6,7 @@ package io.jnative.runtime.net;
  * <p>Not a public JNative language type. Runtime stores the platform value as
  * {@code i64} inside {@code TcpSocket}/{@code TcpServer}; the language API never
  * exposes the raw handle. Do not assume {@code handle == int} at the language layer.
+ * @author 张晓达
  */
 public final class NativeSocketHandle {
     private NativeSocketHandle() {

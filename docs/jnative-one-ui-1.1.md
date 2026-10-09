@@ -1,5 +1,7 @@
 # JNative One — UI 1.1
 
+作者：张晓达
+
 **Date:** 2026-10-08  
 **Principles:** UI FIRST · COMPONENT FIRST · DESIGN SYSTEM FIRST  
 **Scope:** Enterprise ERP Web UI only — no new ERP backend business logic  

@@ -1,5 +1,7 @@
 # JNative ERP (JNative One) Phase-1 Validation
 
+作者：张晓达
+
 **Stamp: `JNATIVE_ERP_PHASE1_PARTIAL`**
 
 **Date:** 2026-10-08  

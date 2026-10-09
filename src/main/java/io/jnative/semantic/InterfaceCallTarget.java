@@ -4,6 +4,7 @@ import java.util.List;
 
 /**
  * Resolved target of an interface method call (IR lowers to {@code InterfaceCall}).
+ * @author 张晓达
  */
 public record InterfaceCallTarget(
         InterfaceSymbol interfaceSymbol,

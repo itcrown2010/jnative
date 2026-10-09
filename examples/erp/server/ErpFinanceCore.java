@@ -1,6 +1,7 @@
 /**
  * Finance 1.2 — chart of accounts, fiscal periods, journal posting engine.
  * Money amounts are integer currency units (no float/double).
+ * @author 张晓达
  */
 class ErpFinanceCore {
     static void ensureSeed(long companyId) {

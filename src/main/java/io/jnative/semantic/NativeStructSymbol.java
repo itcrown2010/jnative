@@ -12,6 +12,7 @@ import java.util.Optional;
 /**
  * Semantic model for {@code @NativeStruct}. Distinct from {@link ClassSymbol}:
  * no Object header, ClassMetadata, vtable, GC header, inheritance, or virtual methods.
+ * @author 张晓达
  */
 public final class NativeStructSymbol {
     private final String name;

@@ -1,3 +1,4 @@
+// Author: 张晓达
 /**
  * DemoSeedService - initial DEMO company data (UI 1.4).
  * Assumptions documented for golden-path finance: no tax/freight/discount unless set on docs.

@@ -1,3 +1,6 @@
+/**
+ * @author 张晓达
+ */
 class Type17 {
     int id;
     String name;

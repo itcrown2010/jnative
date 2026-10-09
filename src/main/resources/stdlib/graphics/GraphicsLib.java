@@ -1,6 +1,9 @@
 // JNative Graphics stdlib (0.19) — library/runtime, NOT compiler intrinsics.
 // Public names match jnative.graphics.* (imports flattened).
 
+/**
+ * @author 张晓达
+ */
 class GraphicsException extends RuntimeException {
     GraphicsException(String message) {
         super(message);

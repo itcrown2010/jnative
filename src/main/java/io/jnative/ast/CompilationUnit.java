@@ -5,6 +5,9 @@ import io.jnative.diagnostics.SourceLocation;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * @author 张晓达
+ */
 public record CompilationUnit(
         String fileName,
         List<ClassDeclaration> classes,

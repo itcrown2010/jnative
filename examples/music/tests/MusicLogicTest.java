@@ -1,6 +1,7 @@
 /**
  * Native logic smoke for Music (compiled with jnative when tooling wires example tests).
  * Primary regression for Range lives in HttpRangeStreamingEndToEndTest.
+ * @author 张晓达
  */
 public class MusicLogicTest {
     public static void main(String[] args) {

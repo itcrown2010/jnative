@@ -15,6 +15,7 @@ import java.util.Set;
 /**
  * Programmatic package manager — used by CLI, Studio, and build system.
  * Compiler never talks to the registry; it receives a resolved graph only.
+ * @author 张晓达
  */
 public final class PackageManager {
     private final Path projectRoot;

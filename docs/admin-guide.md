@@ -1,5 +1,7 @@
 # JNative One — Administrator Guide
 
+作者：张晓达
+
 **Version:** 1.5.0-productization  
 **Deploy model:** single enterprise instance, multi-company books, Native Server + PostgreSQL + WASM assets.
 

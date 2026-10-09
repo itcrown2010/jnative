@@ -1,5 +1,7 @@
 # Arrays
 
+作者：张晓达
+
 ## Syntax
 
 ```java

@@ -2,6 +2,7 @@ package io.jnative.ffi;
 
 /**
  * Fixed-width ABI types. Never map Java {@code long} to C {@code long}.
+ * @author 张晓达
  */
 public enum AbiType {
     VOID("void", "void"),

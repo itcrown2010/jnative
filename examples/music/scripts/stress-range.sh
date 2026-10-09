@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# Author: 张晓达
 # Concurrent Range streaming stress (10 / 50 / 100).
 set -euo pipefail
 BASE="${1:-http://127.0.0.1:18500}"

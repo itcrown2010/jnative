@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# Author: 张晓达
 # Build web (shared WASM core) then overlay mobile touch shell into android/ios www.
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"

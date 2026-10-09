@@ -203,7 +203,9 @@ class Browser {
     }
 }
 
-/** Host stubs — wasm backend replaces with JS imports. */
+/** Host stubs — wasm backend replaces with JS imports.
+ * @author 张晓达
+ */
 class BrowserNative {
     static void consoleLog(String message) {
     }

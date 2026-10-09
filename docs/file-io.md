@@ -1,5 +1,7 @@
 # File I/O (0.8.1)
 
+作者：张晓达
+
 ## API
 
 Compiler builtin `File` (future: `jnative.io.File`):

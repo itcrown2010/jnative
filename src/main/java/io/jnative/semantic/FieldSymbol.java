@@ -5,6 +5,7 @@ import io.jnative.diagnostics.SourceLocation;
 
 /**
  * Field belonging to a class (instance or static).
+ * @author 张晓达
  */
 public final class FieldSymbol {
     private final ClassSymbol owner;

@@ -1,5 +1,7 @@
 # Resource Ownership (Round 2)
 
+作者：张晓达
+
 ## Categories
 
 | Kind | Meaning | Cleanup |

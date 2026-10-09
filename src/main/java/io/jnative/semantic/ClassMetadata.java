@@ -21,6 +21,7 @@ import java.util.List;
  *   8: ptr interfaceEntries ({i32 id, ptr itable}*)
  *
  * Object references point at ClassMetadata* (not the GC allocation header).
+ * @author 张晓达
  */
 public final class ClassMetadata {
     public static final int FLAG_ARRAY = 1;
