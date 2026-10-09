@@ -1,0 +1,110 @@
+jnative lsp: starting (stdio) version=0.32
+jnative lsp: completion items=0 at 2:14
+jnative lsp: completion items=4 at 7:10
+jnative lsp: exit
+jnative lsp: starting (stdio) version=0.32
+jnative lsp: completion items=1 at 4:0
+jnative lsp: completion items=4 at 7:10
+jnative lsp: exit
+jnative lsp: starting (stdio) version=0.32
+jnative lsp: completion items=1 at 3:10
+jnative lsp: completion items=4 at 7:10
+jnative lsp: exit
+jnative lsp: starting (stdio) version=0.32
+jnative lsp: completion items=1 at 3:10
+jnative lsp: completion items=4 at 7:10
+jnative lsp: exit
+jnative lsp: starting (stdio) version=0.32
+jnative lsp: analyzeUnits files=1 ms=44 scope=single
+jnative lsp: completion items=1 at 3:10
+jnative lsp: analyzeUnits files=1 ms=3 scope=single
+jnative lsp: completion items=4 at 7:10
+jnative lsp: analyzeUnits files=1 ms=4 scope=single
+jnative lsp: analyzeUnits files=1 ms=2 scope=single
+jnative lsp: analyzeUnits files=1 ms=2 scope=single
+jnative lsp: analyzeUnits files=1 ms=2 scope=single
+jnative lsp: analyzeUnits files=1 ms=1 scope=single
+jnative lsp: analyzeUnits files=8 ms=20 scope=app
+jnative lsp: exit
+jnative lsp: starting (stdio) version=0.32
+jnative lsp: analyzeUnits files=1 ms=41 scope=single
+jnative lsp: completion items=1 at 3:10
+jnative lsp: analyzeUnits files=1 ms=4 scope=single
+jnative lsp: completion items=4 at 7:10
+jnative lsp: analyzeUnits files=1 ms=2 scope=single
+jnative lsp: analyzeUnits files=1 ms=4 scope=single
+jnative lsp: analyzeUnits files=1 ms=2 scope=single
+jnative lsp: analyzeUnits files=1 ms=1 scope=single
+jnative lsp: analyzeUnits files=1 ms=1 scope=single
+jnative lsp: analyzeUnits files=8 ms=37 scope=app
+jnative lsp: exit
+jnative lsp: starting (stdio) version=0.32
+jnative lsp: analyzeUnits files=1 ms=70 scope=single
+jnative lsp: completion items=1 at 3:10
+jnative lsp: analyzeUnits files=1 ms=7 scope=single
+jnative lsp: completion items=4 at 7:10
+jnative lsp: analyzeUnits files=1 ms=4 scope=single
+jnative lsp: analyzeUnits files=1 ms=1 scope=single
+jnative lsp: analyzeUnits files=1 ms=4 scope=single
+jnative lsp: analyzeUnits files=1 ms=5 scope=single
+jnative lsp: analyzeUnits files=1 ms=4 scope=single
+jnative lsp: analyzeUnits files=8 ms=33 scope=app
+jnative lsp: exit
+jnative lsp: starting (stdio) version=0.32
+jnative lsp: analyzeUnits files=1 ms=45 scope=single
+jnative lsp: completion items=1 at 3:10
+jnative lsp: analyzeUnits files=1 ms=6 scope=single
+jnative lsp: completion items=4 at 7:10
+jnative lsp: analyzeUnits files=1 ms=3 scope=single
+jnative lsp: analyzeUnits files=1 ms=1 scope=single
+jnative lsp: analyzeUnits files=1 ms=2 scope=single
+jnative lsp: analyzeUnits files=1 ms=2 scope=single
+jnative lsp: analyzeUnits files=1 ms=2 scope=single
+jnative lsp: analyzeUnits files=8 ms=35 scope=app
+jnative lsp: exit
+jnative lsp: starting (stdio) version=0.32
+jnative lsp: analyzeUnits files=1 ms=35 scope=single
+jnative lsp: completion items=1 at 3:10
+jnative lsp: analyzeUnits files=1 ms=8 scope=single
+jnative lsp: completion items=4 at 7:10
+jnative lsp: analyzeUnits files=1 ms=5 scope=single
+jnative lsp: analyzeUnits files=1 ms=4 scope=single
+jnative lsp: analyzeUnits files=1 ms=3 scope=single
+jnative lsp: analyzeUnits files=1 ms=1 scope=single
+jnative lsp: analyzeUnits files=1 ms=1 scope=single
+jnative lsp: analyzeUnits files=8 ms=19 scope=app
+jnative lsp: analyzeUnits files=1 ms=1 scope=single
+jnative lsp: analyzeUnits files=1 ms=1 scope=single
+jnative lsp: exit
+jnative lsp: [info] starting (stdio) version=0.32 (extension expects matching jnative.jar)
+jnative lsp: [info] analyzeUnits files=1 ms=83 scope=Smoke.jn
+jnative lsp: completion items=1 at 3:10
+jnative lsp: [info] analyzeUnits files=1 ms=6 scope=Smoke.jn
+jnative lsp: completion items=4 at 7:10
+jnative lsp: [info] analyzeUnits files=1 ms=4 scope=Smoke.jn
+jnative lsp: [info] analyzeUnits files=1 ms=4 scope=Smoke.jn
+jnative lsp: [info] analyzeUnits files=1 ms=5 scope=Smoke.jn
+jnative lsp: [info] analyzeUnits files=1 ms=3 scope=Smoke.jn
+jnative lsp: [info] analyzeUnits files=1 ms=2 scope=Smoke.jn
+jnative lsp: [info] analyzeUnits files=7 ms=19 scope=app
+jnative lsp: [info] analyzeUnits files=1 ms=5 scope=Smoke.jn
+jnative lsp: [info] analyzeUnits files=1 ms=7 scope=Smoke.jn fresh
+jnative lsp: [info] analyzeUnits files=1 ms=2 scope=Smoke.jn fresh
+jnative lsp: [info] analyzeUnits files=1 ms=5 scope=Smoke.jn
+jnative lsp: exit
+jnative lsp: [info] starting (stdio) version=0.32 (extension expects matching jnative.jar)
+jnative lsp: [info] analyzeUnits files=1 ms=54 scope=Smoke.jn
+jnative lsp: completion items=1 at 3:10
+jnative lsp: [info] analyzeUnits files=1 ms=7 scope=Smoke.jn
+jnative lsp: completion items=4 at 7:10
+jnative lsp: [info] analyzeUnits files=1 ms=3 scope=Smoke.jn
+jnative lsp: [info] analyzeUnits files=1 ms=4 scope=Smoke.jn
+jnative lsp: [info] analyzeUnits files=1 ms=3 scope=Smoke.jn
+jnative lsp: [info] analyzeUnits files=1 ms=2 scope=Smoke.jn
+jnative lsp: [info] analyzeUnits files=1 ms=1 scope=Smoke.jn
+jnative lsp: [info] analyzeUnits files=7 ms=55 scope=app
+jnative lsp: [info] analyzeUnits files=1 ms=3 scope=Smoke.jn
+jnative lsp: [info] analyzeUnits files=1 ms=3 scope=Smoke.jn fresh
+jnative lsp: [info] analyzeUnits files=1 ms=1 scope=Smoke.jn fresh
+jnative lsp: [info] analyzeUnits files=1 ms=3 scope=Smoke.jn
+jnative lsp: exit

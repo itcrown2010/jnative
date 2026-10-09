@@ -1,0 +1,112 @@
+# Generated from stdlib/collections — 2026-10-09T05:08Z
+# Signatures only. Behavior notes are maintained in website/api/*.md
+
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/collections/BoxingLib.java:8:class Integer {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/collections/BoxingLib.java:49:    public boolean equals(Object other) {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/collections/BoxingLib.java:63:    public int hashCode() {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/collections/BoxingLib.java:68:class Long {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/collections/BoxingLib.java:109:    public boolean equals(Object other) {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/collections/BoxingLib.java:123:    public int hashCode() {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/collections/BoxingLib.java:128:class Boolean {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/collections/BoxingLib.java:148:    public boolean equals(Object other) {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/collections/BoxingLib.java:162:    public int hashCode() {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/collections/BoxingLib.java:170:class Float {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/collections/BoxingLib.java:189:    public boolean equals(Object other) {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/collections/BoxingLib.java:203:    public int hashCode() {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/collections/BoxingLib.java:209:class Double {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/collections/BoxingLib.java:228:    public boolean equals(Object other) {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/collections/BoxingLib.java:242:    public int hashCode() {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/collections/CollectionsLib.java:15:interface AutoCloseable {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/collections/CollectionsLib.java:23:class ResourceTracker {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/collections/CollectionsLib.java:117:interface Iterable<T> {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/collections/CollectionsLib.java:121:interface Iterator<T> {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/collections/CollectionsLib.java:126:interface Collection<T> extends Iterable<T> {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/collections/CollectionsLib.java:133:interface List<T> extends Collection<T> {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/collections/CollectionsLib.java:145:interface Set<T> extends Collection<T> {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/collections/CollectionsLib.java:150:interface Map<K, V> {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/collections/CollectionsLib.java:160:interface Entry<K, V> {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/collections/CollectionsLib.java:169:interface Queue<T> {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/collections/CollectionsLib.java:178:interface Deque<T> {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/collections/CollectionsLib.java:192:interface Comparator<T> {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/collections/CollectionsLib.java:196:interface Comparable<T> {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/collections/CollectionsLib.java:200:interface Consumer<T> {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/collections/CollectionsLib.java:204:interface Function<T, R> {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/collections/CollectionsLib.java:208:interface Predicate<T> {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/collections/CollectionsLib.java:212:interface Supplier<T> {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/collections/CollectionsLib.java:221:interface IntConsumer {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/collections/CollectionsLib.java:225:interface IntPredicate {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/collections/CollectionsLib.java:229:interface IntSupplier {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/collections/CollectionsLib.java:233:class ArrayListIterator<T> implements Iterator<T> {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/collections/CollectionsLib.java:244:    public boolean hasNext() {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/collections/CollectionsLib.java:248:    public T next() {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/collections/CollectionsLib.java:261:class ArrayList<T> implements List<T> {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/collections/CollectionsLib.java:328:    public int size() {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/collections/CollectionsLib.java:332:    public boolean isEmpty() {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/collections/CollectionsLib.java:336:    public T get(int index) {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/collections/CollectionsLib.java:341:    public T set(int index, T value) {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/collections/CollectionsLib.java:348:    public void add(T value) {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/collections/CollectionsLib.java:355:    public void addAt(int index, T value) {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/collections/CollectionsLib.java:370:    public T removeAt(int index) {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/collections/CollectionsLib.java:384:    public int indexOf(T value) {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/collections/CollectionsLib.java:414:    public boolean contains(T value) {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/collections/CollectionsLib.java:418:    public boolean removeValue(T value) {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/collections/CollectionsLib.java:427:    public void clear() {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/collections/CollectionsLib.java:437:    public Iterator<T> iterator() {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/collections/CollectionsLib.java:446:    public void forEach(Consumer<T> action) {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/collections/CollectionsLib.java:465:    public ArrayList<T> filter(Predicate<T> predicate) {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/collections/CollectionsLib.java:490:    public ArrayList<Object> mapValues(Function<T, Object> mapper) {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/collections/CollectionsLib.java:509:class HashMap<K, V> implements Map<K, V> {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/collections/CollectionsLib.java:660:    public int size() {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/collections/CollectionsLib.java:664:    public boolean isEmpty() {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/collections/CollectionsLib.java:668:    public V put(K key, V value) {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/collections/CollectionsLib.java:739:    public V get(K key) {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/collections/CollectionsLib.java:747:    public boolean containsKey(K key) {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/collections/CollectionsLib.java:751:    public V remove(K key) {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/collections/CollectionsLib.java:765:    public void clear() {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/collections/CollectionsLib.java:779:    public K[] keysArray() {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/collections/CollectionsLib.java:798:    public HashMapEntryIterator<K, V> entryIterator() {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/collections/CollectionsLib.java:803:class HashMapEntry<K, V> implements Entry<K, V> {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/collections/CollectionsLib.java:812:    public K getKey() {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/collections/CollectionsLib.java:816:    public V getValue() {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/collections/CollectionsLib.java:821:class HashMapEntryIterator<K, V> implements Iterator<HashMapEntry<K, V>> {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/collections/CollectionsLib.java:848:    public boolean hasNext() {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/collections/CollectionsLib.java:852:    public HashMapEntry<K, V> next() {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/collections/CollectionsLib.java:865:class PresentMarker {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/collections/CollectionsLib.java:868:class ArrayIterator<T> implements Iterator<T> {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/collections/CollectionsLib.java:883:    public boolean hasNext() {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/collections/CollectionsLib.java:887:    public T next() {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/collections/CollectionsLib.java:897:class HashSet<T> implements Set<T> {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/collections/CollectionsLib.java:906:    public int size() {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/collections/CollectionsLib.java:910:    public boolean isEmpty() {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/collections/CollectionsLib.java:914:    public boolean contains(T value) {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/collections/CollectionsLib.java:918:    public boolean add(T value) {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/collections/CollectionsLib.java:926:    public boolean remove(T value) {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/collections/CollectionsLib.java:934:    public void clear() {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/collections/CollectionsLib.java:938:    public Iterator<T> iterator() {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/collections/CollectionsLib.java:943:class ArrayDeque<T> {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/collections/CollectionsLib.java:974:    public int size() {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/collections/CollectionsLib.java:978:    public boolean isEmpty() {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/collections/CollectionsLib.java:982:    public void addLast(T value) {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/collections/CollectionsLib.java:994:    public void addFirst(T value) {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/collections/CollectionsLib.java:1006:    public T removeFirst() {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/collections/CollectionsLib.java:1020:    public T removeLast() {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/collections/CollectionsLib.java:1034:    public T peekFirst() {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/collections/CollectionsLib.java:1041:    public T peekLast() {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/collections/CollectionsLib.java:1053:    public boolean offer(T value) {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/collections/CollectionsLib.java:1064:class StringBuilder {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/collections/CollectionsLib.java:1073:    public StringBuilder append(String s) {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/collections/CollectionsLib.java:1082:    public StringBuilder appendInt(int v) {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/collections/CollectionsLib.java:1086:    public int length() {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/collections/CollectionsLib.java:1090:    public void setLength(int newLength) {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/collections/CollectionsLib.java:1108:    public StringBuilder reverse() {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/collections/CollectionsLib.java:1122:    public StringBuilder delete(int start, int end) {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/collections/CollectionsLib.java:1136:    public StringBuilder insert(int offset, String s) {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/collections/CollectionsLib.java:1154:    public String toString() {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/collections/CollectionsLib.java:1165:class Arrays {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/collections/CollectionsLib.java:1218:class Collections {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/collections/CollectionsLib.java:1242:interface PoolTask {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/collections/CollectionsLib.java:1246:interface Executor {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/collections/CollectionsLib.java:1250:class ThreadPoolExecutor implements Executor {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/collections/CollectionsLib.java:1285:    public void execute(PoolTask task) {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/collections/CollectionsLib.java:1334:class ThreadPoolWorker extends Thread {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/collections/CollectionsLib.java:1337:    public void run() {

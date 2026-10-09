@@ -69,6 +69,21 @@ java -jar target/jnative.jar examples/LambdaClosure.java -o LambdaClosure
 
 ## Documentation
 
+**开发者文档站（中文优先，VitePress）**：见 [`website/`](website/README.md)。
+
+**语言教程（循序渐进）**：[`docs/tutorial/`](docs/tutorial/index.md) · 示例 [`examples/tutorial/`](examples/tutorial/README.md)
+
+```bash
+cd website && npm install && npm run dev
+# 静态构建：npm run build
+# 语言教程验收：./scripts/docs/verify-tutorial.sh
+# 文档站分阶段验收：./scripts/docs/verify-phase1.sh …
+```
+
+事实清单与阶段覆盖：[`docs/developer/`](docs/developer/README.md)。
+
+内部/专题文档：
+
 - [Optimizer](docs/optimizer.md)
 - [Effects](docs/effects.md)
 - [@NoGC](docs/no-gc.md)

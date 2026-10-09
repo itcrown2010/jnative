@@ -1,0 +1,36 @@
+jnative lsp: starting (stdio) version=0.32
+PASS initialize.completionProvider {"triggerCharacters":["."],"resolveProvider":false}
+PASS initialize.signatureHelpProvider {"triggerCharacters":["(",","],"retriggerCharacters":[","]}
+PASS initialize.definitionProvider true
+PASS initialize.referencesProvider true
+PASS initialize.hoverProvider true
+PASS initialize.documentSymbolProvider true
+PASS initialize.workspaceSymbolProvider true
+PASS initialize.codeActionProvider {"codeActionKinds":["quickfix"]}
+jnative lsp: analyzeUnits files=1 ms=41 scope=single
+jnative lsp: completion items=1 at 3:10
+PASS completion.local answer
+jnative lsp: analyzeUnits files=1 ms=4 scope=single
+jnative lsp: completion items=4 at 7:10
+PASS completion.members value,bump,equals,hashCode
+jnative lsp: analyzeUnits files=1 ms=2 scope=single
+PASS signatureHelp add(int a, int b): int active=1
+jnative lsp: analyzeUnits files=1 ms=4 scope=single
+PASS publishDiagnostics 2:12 incompatible types: String cannot be converted to int
+jnative lsp: analyzeUnits files=1 ms=2 scope=single
+PASS definition.local {"start":{"line":3,"character":12},"end":{"line":3,"character":13}}
+PASS references.local count=2
+PASS hover.local ```jnative
+local int answer
+```
+PASS documentSymbol Main
+jnative lsp: analyzeUnits files=1 ms=1 scope=single
+jnative lsp: analyzeUnits files=1 ms=1 scope=single
+FAIL workspaceSymbol []
+jnative lsp: analyzeUnits files=8 ms=37 scope=app
+PASS definition.crossFile file:///Users/zhangxiaoda/jnative/examples/multi-cu-resolve/app/.jnative/pkg-cache/extracted/c8/c8acc28456a2b7ad873ef0a57b0e0a5042e3458ef53969fb7400f97208f70e3d/src/Util.jn
+PASS build.jsonDiagnostics default: /Users/zhangxiaoda/jnative/tools/vscode-jnative/verify-artifacts/build-smoke/src/Main.java:3:9 incompatible types: String cannot be converted to int
+jnative lsp: exit
+
+Summary: 18 passed, 1 failed
+Artifacts: /Users/zhangxiaoda/jnative/tools/vscode-jnative/verify-artifacts

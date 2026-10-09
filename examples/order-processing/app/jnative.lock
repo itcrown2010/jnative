@@ -2,7 +2,7 @@
 # It is not intended for manual editing.
 version = "1"
 resolver = "1"
-manifest = "d8b07022a7b5882341cb6acf57b277808d8562b33a609f57db085ef7d798d26d"
+manifest = "84614ac150731a57dc206e18dd88e69efe41ada1157bd3eb0a470e6156e85b3a"
 
 [[package]]
 name = "acme/moneykit"

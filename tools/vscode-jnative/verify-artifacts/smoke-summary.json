@@ -1,0 +1,128 @@
+{
+  "when": "2026-10-09T05:33:45.764Z",
+  "jar": "/Users/zhangxiaoda/jnative/target/jnative.jar",
+  "results": [
+    {
+      "name": "initialize.completionProvider",
+      "ok": true,
+      "detail": "{\"triggerCharacters\":[\".\"],\"resolveProvider\":false}"
+    },
+    {
+      "name": "initialize.signatureHelpProvider",
+      "ok": true,
+      "detail": "{\"triggerCharacters\":[\"(\",\",\"],\"retriggerCharacters\":[\",\"]}"
+    },
+    {
+      "name": "initialize.definitionProvider",
+      "ok": true,
+      "detail": "true"
+    },
+    {
+      "name": "initialize.referencesProvider",
+      "ok": true,
+      "detail": "true"
+    },
+    {
+      "name": "initialize.hoverProvider",
+      "ok": true,
+      "detail": "true"
+    },
+    {
+      "name": "initialize.documentSymbolProvider",
+      "ok": true,
+      "detail": "true"
+    },
+    {
+      "name": "initialize.workspaceSymbolProvider",
+      "ok": true,
+      "detail": "true"
+    },
+    {
+      "name": "initialize.documentFormattingProvider",
+      "ok": true,
+      "detail": "true"
+    },
+    {
+      "name": "initialize.codeActionProvider",
+      "ok": true,
+      "detail": "{\"codeActionKinds\":[\"quickfix\"]}"
+    },
+    {
+      "name": "initialize.renameProvider",
+      "ok": true,
+      "detail": "{\"prepareProvider\":true}"
+    },
+    {
+      "name": "completion.local",
+      "ok": true,
+      "detail": "answer"
+    },
+    {
+      "name": "completion.members",
+      "ok": true,
+      "detail": "value,bump,equals,hashCode"
+    },
+    {
+      "name": "signatureHelp",
+      "ok": true,
+      "detail": "add(int a, int b): int active=1"
+    },
+    {
+      "name": "publishDiagnostics",
+      "ok": true,
+      "detail": "2:12 incompatible types: String cannot be converted to int"
+    },
+    {
+      "name": "definition.local",
+      "ok": true,
+      "detail": "{\"start\":{\"line\":3,\"character\":12},\"end\":{\"line\":3,\"character\":13}}"
+    },
+    {
+      "name": "references.local",
+      "ok": true,
+      "detail": "count=2"
+    },
+    {
+      "name": "hover.local",
+      "ok": true,
+      "detail": "```jnative\nlocal int answer\n```"
+    },
+    {
+      "name": "documentSymbol",
+      "ok": true,
+      "detail": "Main"
+    },
+    {
+      "name": "workspaceSymbol",
+      "ok": true,
+      "detail": "add"
+    },
+    {
+      "name": "definition.crossFile",
+      "ok": true,
+      "detail": "file:///Users/zhangxiaoda/jnative/examples/multi-cu-resolve/app/.jnative/pkg-cache/extracted/c8/c8acc28456a2b7ad873ef0a57b0e0a5042e3458ef53969fb7400f97208f70e3d/src/Util.jn"
+    },
+    {
+      "name": "prepareRename",
+      "ok": true,
+      "detail": "{\"start\":{\"line\":3,\"character\":16},\"end\":{\"line\":3,\"character\":22}}"
+    },
+    {
+      "name": "rename.local",
+      "ok": true,
+      "detail": "edits=2"
+    },
+    {
+      "name": "formatting.document",
+      "ok": true,
+      "detail": "len=129"
+    },
+    {
+      "name": "build.jsonDiagnostics",
+      "ok": true,
+      "detail": "default: /Users/zhangxiaoda/jnative/tools/vscode-jnative/verify-artifacts/build-smoke/src/Main.java:3:9 incompatible types: String cannot be converted to int"
+    }
+  ],
+  "passed": 24,
+  "failed": 0
+}

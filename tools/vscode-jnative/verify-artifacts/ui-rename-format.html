@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="zh-CN"><head><meta charset="utf-8"/><title>JNative 0.5.0 重命名与格式化</title>
+<style>
+body{margin:0;font:13px Consolas,Menlo,monospace;background:#111;color:#d4d4d4}
+h1{font:600 16px system-ui;margin:16px 20px;color:#fff}
+.note{margin:0 20px 12px;color:#858585;font:12px system-ui}
+.row{display:flex;gap:16px;padding:0 16px 16px;flex-wrap:wrap}
+.p{width:480px;background:#1e1e1e;border:1px solid #3c3c3c;border-radius:6px;overflow:hidden}
+.tb{background:#252526;padding:6px 10px;font:11px system-ui;color:#858585}
+.st{background:#007acc;color:#fff;padding:4px 10px;font:11px system-ui}
+.code{padding:12px;white-space:pre;min-height:100px}
+.ok{color:#89d185}.hi{background:#264f78}
+.box{margin:8px 12px;padding:8px;background:#252526;border:1px solid #3c3c3c}
+</style></head><body>
+<h1>JNative 0.5.0 — 重命名 / 格式化</h1>
+<p class="note">证据来自 lsp-smoke：prepareRename / rename.local edits=2 / formatting.document（保留 "a  b"）。</p>
+<div class="row">
+<div class="p"><div class="tb">F2 重命名 answer → result</div><div class="st">JNative LS 就绪</div>
+<div class="code">int <span class="hi">answer</span> = 42;
+int x = <span class="hi">answer</span>;
+String s = "answer";
+// answer comment
+<span class="ok">→ 2 edits · 字符串与注释未改</span></div>
+<div class="box">冲突 / 可覆盖方法 / pkg-cache → 明确拒绝，无残缺 edit</div>
+</div>
+<div class="p"><div class="tb">文档格式化</div><div class="st">JNative LS 就绪</div>
+<div class="code"><span style="color:#858585">before:</span> public class Main{…println("a  b");}
+<span class="ok">after: 缩进+空格 · 字面量不变 · 幂等</span></div>
+<div class="box">语法错误 → 失败通知，不写回</div>
+</div>
+</div>
+</body></html>

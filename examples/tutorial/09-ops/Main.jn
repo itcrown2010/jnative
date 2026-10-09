@@ -1,0 +1,18 @@
+public class Main {
+    public static void main(String[] args) {
+        int a = 5;
+        int b = 2;
+        System.out.println(String.valueOf(a << 1));
+        System.out.println(String.valueOf(a & b));
+        boolean p = true;
+        boolean q = false;
+        if (p && !q) {
+            System.out.println("logic");
+        }
+        double d = 3.9;
+        int n = (int) d;
+        System.out.println(String.valueOf(n));
+        int pick = p ? 1 : 0;
+        System.out.println(String.valueOf(pick));
+    }
+}

@@ -1,0 +1,49 @@
+# Generated from stdlib/io — 2026-10-09T05:08Z
+# Signatures only. Behavior notes are maintained in website/api/*.md
+
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/io/IoLib.java:3:class FsNative {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/io/IoLib.java:80:class StandardOpenOption {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/io/IoLib.java:89:class ProcNative {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/io/IoLib.java:109:class FsPath {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/io/IoLib.java:254:class Files {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/io/IoLib.java:501:class FileInfo {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/io/IoLib.java:552:class FileTypes {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/io/IoLib.java:577:class FileSize {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/io/IoLib.java:598:class DriveInfo {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/io/IoLib.java:614:class FileSystem {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/io/IoLib.java:656:class SystemPaths {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/io/IoLib.java:689:class WatchKind {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/io/IoLib.java:697:class WatchService implements AutoCloseable {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/io/IoLib.java:735:class IoUtil {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/io/IoLib.java:797:class ProcessBuilder {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/io/IoLib.java:841:class Process {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/io/IoLib.java:922:class Desktop {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/io/IoLib.java:965:class EnvNative {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/io/IoLib.java:974:class Env {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/io/IoLib.java:1020:class CpuInfo {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/io/IoLib.java:1031:class HostPlatform {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/io/IoLib.java:1062:class UserPreferencesStore {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/io/IoLib.java:1190:class Logger {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/io/IoLib.java:1229:class Resources {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/io/IoLib.java:1239:class CancellationToken {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/io/IoLib.java:1262:class FileWatcher {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/io/StreamLib.java:5:class BufferException extends RuntimeException {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/io/StreamLib.java:11:class BufferOverflowException extends BufferException {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/io/StreamLib.java:17:class BufferUnderflowException extends BufferException {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/io/StreamLib.java:28:class ByteBuffer {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/io/StreamLib.java:244:class ByteBufferPool {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/io/StreamLib.java:290:class StreamNative {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/io/StreamLib.java:361:class InputStream implements AutoCloseable {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/io/StreamLib.java:434:class OutputStream implements AutoCloseable {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/io/StreamLib.java:476:class ByteArrayInputStream extends InputStream {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/io/StreamLib.java:534:class ByteArrayOutputStream extends OutputStream {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/io/StreamLib.java:596:class FileInputStream extends InputStream {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/io/StreamLib.java:661:class FileOutputStream extends OutputStream {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/io/StreamLib.java:730:class BufferedInputStream extends InputStream {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/io/StreamLib.java:812:class BufferedOutputStream extends OutputStream {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/io/StreamLib.java:873:class InputStreamReader extends Reader {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/io/StreamLib.java:943:class OutputStreamWriter extends Writer {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/io/StreamLib.java:1018:class Reader implements AutoCloseable {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/io/StreamLib.java:1053:class Writer implements AutoCloseable {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/io/StreamLib.java:1102:class BufferedReader extends Reader {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/io/StreamLib.java:1197:class BufferedWriter extends Writer {

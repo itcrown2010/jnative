@@ -1,0 +1,26 @@
+public class Main {
+    public static void main(String[] args) {
+        int a = 7;
+        int b = 3;
+        System.out.println(String.valueOf(a + b));
+        System.out.println(String.valueOf(a / b));
+        System.out.println(String.valueOf(a % b));
+        long big = 10000000000L;
+        long twice = big + big;
+        if (twice > big) {
+            System.out.println("long-ok");
+        }
+        double x = 0.1;
+        double y = 0.2;
+        double z = x + y;
+        /* 浮点不可精确表示 0.3；金额勿用 double */
+        if (z > 0.29) {
+            if (z < 0.31) {
+                System.out.println("near");
+            }
+        }
+        int wrap = 2147483647;
+        wrap = wrap + 1;
+        System.out.println(String.valueOf(wrap));
+    }
+}

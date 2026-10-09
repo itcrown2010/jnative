@@ -1,0 +1,17 @@
+{
+  "signatures": [
+    {
+      "label": "add(int a, int b): int",
+      "parameters": [
+        {
+          "label": "int a"
+        },
+        {
+          "label": "int b"
+        }
+      ]
+    }
+  ],
+  "activeSignature": 0,
+  "activeParameter": 1
+}

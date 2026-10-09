@@ -35,6 +35,55 @@ class ErpSales {
         return loadSo(companyId, soId);
     }
 
+    static ArrayList<Object> list(long companyId) {
+        ArrayList<Object> p = new ArrayList<Object>();
+        p.add(CryptoParse.longToString(companyId));
+        DbQueryResult r = ErpDb.query(
+                "SELECT id FROM sales_orders WHERE company_id=? ORDER BY id", p);
+        ArrayList<Object> out = new ArrayList<Object>();
+        int i = 0;
+        while (i < r.rows.size()) {
+            long id = r.rows.get(i).getLong(0);
+            SalesOrderDto so = loadSo(companyId, id);
+            if (so != null) {
+                out.add(so);
+            }
+            i = i + 1;
+        }
+        return out;
+    }
+
+    static long soTotalCents(SalesOrderDto so) {
+        long t = 0L;
+        int i = 0;
+        while (so.lines != null && i < so.lines.size()) {
+            OrderLineDto ln = (OrderLineDto) so.lines.get(i);
+            t = t + (ln.unitPriceCents * (long) ln.quantity);
+            i = i + 1;
+        }
+        return t;
+    }
+
+    static String soListJson(ArrayList<Object> list) {
+        String out = "[";
+        int i = 0;
+        while (i < list.size()) {
+            if (i > 0) {
+                out = out + ",";
+            }
+            SalesOrderDto so = (SalesOrderDto) list.get(i);
+            out = out + "{\"id\":" + ErpJson.num(so.id)
+                    + ",\"docNo\":" + ErpJson.str(so.docNo)
+                    + ",\"customerId\":" + ErpJson.num(so.customerId)
+                    + ",\"customerName\":" + ErpJson.str(so.customerName)
+                    + ",\"status\":" + ErpJson.str(so.status)
+                    + ",\"totalCents\":" + ErpJson.num(soTotalCents(so))
+                    + ",\"total\":" + ErpJson.num(soTotalCents(so)) + "}";
+            i = i + 1;
+        }
+        return out + "]";
+    }
+
     static SalesOrderDto loadSo(long companyId, long soId) {
         ArrayList<Object> p = new ArrayList<Object>();
         p.add(CryptoParse.longToString(soId));

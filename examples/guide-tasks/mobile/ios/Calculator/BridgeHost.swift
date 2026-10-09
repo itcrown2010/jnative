@@ -1,0 +1,156 @@
+// Author: 张晓达
+import Foundation
+import WebKit
+
+/// Structured bridge host for WKWebView.
+/// Ordinary UserDefaults KV — not a secure store for secrets.
+final class BridgeHost: NSObject, WKScriptMessageHandler {
+    static let version = 1
+    static let maxKey = 128
+    static let maxVal = 4096
+    static let caps = [
+        "platform.getName",
+        "storage.get",
+        "storage.set",
+        "storage.remove",
+        "lifecycle",
+    ]
+    static let allowed: Set<String> = Set(caps + ["bridge.hello"])
+
+    private weak var webView: WKWebView?
+    private let defaults = UserDefaults.standard
+    private let prefix = "jnative.sudoku."
+    private var alive = true
+
+    init(webView: WKWebView) {
+        self.webView = webView
+        super.init()
+    }
+
+    func destroy() {
+        alive = false
+        webView?.configuration.userContentController.removeScriptMessageHandler(forName: "jnativeBridge")
+        webView = nil
+    }
+
+    func emitLifecycle(_ name: String) {
+        guard alive else { return }
+        dispatch([
+            "type": "event",
+            "name": name,
+            "params": [:] as [String: Any],
+        ])
+    }
+
+    func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
+        guard alive, message.name == "jnativeBridge" else { return }
+        let body: [String: Any]
+        if let dict = message.body as? [String: Any] {
+            body = dict
+        } else if let text = message.body as? String,
+                  let data = text.data(using: .utf8),
+                  let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
+            body = obj
+        } else {
+            return
+        }
+        handle(body)
+    }
+
+    private func handle(_ req: [String: Any]) {
+        guard let id = req["id"] as? String, !id.isEmpty else { return }
+        let v = req["v"] as? Int ?? -1
+        if v != Self.version {
+            replyError(id: id, code: "PROTOCOL_MISMATCH", message: "unsupported bridge version")
+            return
+        }
+        let method = req["method"] as? String ?? ""
+        if !Self.allowed.contains(method) {
+            replyError(id: id, code: "METHOD_NOT_ALLOWED", message: "unknown method: \(method)")
+            return
+        }
+        let params = req["params"] as? [String: Any] ?? [:]
+        switch method {
+        case "bridge.hello":
+            replyOk(id: id, result: [
+                "version": Self.version,
+                "platform": "ios",
+                "capabilities": Self.caps,
+            ] as [String: Any])
+        case "platform.getName":
+            replyOk(id: id, result: "ios")
+        case "storage.get":
+            guard let key = params["key"] as? String, validateKey(key) == nil else {
+                let err = validateKey(params["key"] as? String) ?? ("BAD_KEY", "bad key")
+                replyError(id: id, code: err.0, message: err.1)
+                return
+            }
+            if let value = defaults.string(forKey: prefix + key) {
+                replyOk(id: id, result: value)
+            } else {
+                replyOkNull(id: id)
+            }
+        case "storage.set":
+            guard let key = params["key"] as? String, let value = params["value"] as? String else {
+                replyError(id: id, code: "BAD_PARAMS", message: "key/value required")
+                return
+            }
+            if let err = validateKey(key) ?? validateValue(value) {
+                replyError(id: id, code: err.0, message: err.1)
+                return
+            }
+            defaults.set(value, forKey: prefix + key)
+            replyOk(id: id, result: true)
+        case "storage.remove":
+            guard let key = params["key"] as? String, validateKey(key) == nil else {
+                let err = validateKey(params["key"] as? String) ?? ("BAD_KEY", "bad key")
+                replyError(id: id, code: err.0, message: err.1)
+                return
+            }
+            defaults.removeObject(forKey: prefix + key)
+            replyOk(id: id, result: true)
+        default:
+            replyError(id: id, code: "METHOD_NOT_ALLOWED", message: "unknown method")
+        }
+    }
+
+    private func validateKey(_ key: String?) -> (String, String)? {
+        guard let key, !key.isEmpty, key.count <= Self.maxKey else {
+            return ("BAD_KEY", "key must be string 1..\(Self.maxKey)")
+        }
+        return nil
+    }
+
+    private func validateValue(_ value: String?) -> (String, String)? {
+        guard let value, value.count <= Self.maxVal else {
+            return ("BAD_VALUE", "value must be string length 0..\(Self.maxVal)")
+        }
+        return nil
+    }
+
+    private func replyOk(id: String, result: Any) {
+        dispatch(["id": id, "ok": true, "result": result])
+    }
+
+    private func replyOkNull(id: String) {
+        dispatch(["id": id, "ok": true, "result": NSNull()])
+    }
+
+    private func replyError(id: String, code: String, message: String) {
+        dispatch([
+            "id": id,
+            "ok": false,
+            "error": ["code": code, "message": message],
+        ])
+    }
+
+    private func dispatch(_ payload: [String: Any]) {
+        guard alive, let webView else { return }
+        guard let data = try? JSONSerialization.data(withJSONObject: payload),
+              let json = String(data: data, encoding: .utf8) else { return }
+        let js = "(function(){try{var m=\(json);window.postMessage(m, window.location.origin||'*');}catch(e){}})();"
+        DispatchQueue.main.async {
+            webView.evaluateJavaScript(js, completionHandler: nil)
+        }
+    }
+}

@@ -1,0 +1,17 @@
+# Generated from stdlib/json — 2026-10-09T05:08Z
+# Signatures only. Behavior notes are maintained in website/api/*.md
+
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/json/JsonLib.java:6:class JsonValue {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/json/JsonLib.java:57:class JsonNull extends JsonValue {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/json/JsonLib.java:67:class JsonBoolean extends JsonValue {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/json/JsonLib.java:76:class JsonNumber extends JsonValue {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/json/JsonLib.java:98:class JsonString extends JsonValue {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/json/JsonLib.java:111:class JsonArray extends JsonValue {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/json/JsonLib.java:132:class JsonObject extends JsonValue {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/json/JsonLib.java:231:class JsonParser {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/json/JsonLib.java:426:class JsonUtil {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/json/JsonLib.java:489:class JsonWriter {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/json/JsonLib.java:546:class Json {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/json/JsonLib.java:559:interface JsonCodec<T> {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/json/JsonLib.java:566:class JsonParseInt {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/json/JsonLib.java:621:class JsonParseLong {

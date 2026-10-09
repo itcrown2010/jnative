@@ -1,0 +1,14 @@
+# Generated from stdlib/rpc — 2026-10-09T05:08Z
+# Signatures only. Behavior notes are maintained in website/api/*.md
+
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/rpc/RpcLib.java:8:class RpcException extends RuntimeException {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/rpc/RpcLib.java:27:class RpcUnauthorizedException extends RpcException {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/rpc/RpcLib.java:33:class RpcForbiddenException extends RpcException {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/rpc/RpcLib.java:39:class RpcRemoteException extends RpcException {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/rpc/RpcLib.java:45:class RpcTransportException extends RpcException {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/rpc/RpcLib.java:51:class RpcProtocolException extends RpcException {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/rpc/RpcLib.java:57:class RpcTimeoutException extends RpcException {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/rpc/RpcLib.java:63:class RpcContext {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/rpc/RpcLib.java:75:class RpcRuntime {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/rpc/RpcLib.java:110:class RpcEnvelope {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/rpc/RpcLib.java:264:class RpcHttp {

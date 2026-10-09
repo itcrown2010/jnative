@@ -52,6 +52,10 @@ public final class CompilerSession {
     private boolean initialBuildDone;
     /** Extra .java roots from resolved packages (never copied into project/src). */
     private final List<Path> packageSourceRoots = new ArrayList<>();
+    /** Resolved package nodes for per-target capability validation. */
+    private List<io.jnative.pkg.BuildGraphPackageIntegration.PackageBuildNode> packageNodes = List.of();
+    /** Fingerprint of jnative.lock (empty when absent). */
+    private String lockFingerprint = "";
 
     public CompilerSession(Path projectRoot) throws IOException {
         this.projectRoot = projectRoot.toAbsolutePath().normalize();
@@ -108,6 +112,14 @@ public final class CompilerSession {
      * Attach source roots from {@link io.jnative.pkg.BuildGraphPackageIntegration#sourceRoots}.
      * Package sources are concatenated ahead of project sources in the compile unit.
      */
+    public void setPackageNodes(List<io.jnative.pkg.BuildGraphPackageIntegration.PackageBuildNode> nodes) {
+        this.packageNodes = nodes == null ? List.of() : List.copyOf(nodes);
+    }
+
+    public void setLockFingerprint(String fp) {
+        this.lockFingerprint = fp == null ? "" : fp;
+    }
+
     public void setPackageSourceRoots(List<Path> roots) {
         packageSourceRoots.clear();
         if (roots == null) {
@@ -388,10 +400,33 @@ public final class CompilerSession {
         Path published = out;
         Path staging = out.resolveSibling(out.getFileName() + ".tmp." + gen);
 
+        String compileTriple = target.isBrowser() ? "wasm32-browser" : "native";
+        // Per-target package + source capability precheck (fail before link/run).
+        List<io.jnative.diagnostics.Diagnostic> pre = new ArrayList<>();
+        pre.addAll(io.jnative.target.TargetCapabilityChecker.checkPackages(packageNodes, compileTriple));
+        pre.addAll(io.jnative.target.TargetCapabilityChecker.checkSourceText(
+                main.toString(), sourceText, compileTriple));
+        if (!pre.isEmpty()) {
+            String msg = pre.stream().map(Object::toString).collect(Collectors.joining("\n"));
+            errors.add(target.name() + ": " + msg);
+            try {
+                BuildArtifactManifest.writeFailure(projectRoot, target.name(), compileTriple, msg);
+            } catch (IOException ignored) {
+            }
+            return;
+        }
+
         if (cache.contains(key) && Files.exists(published)) {
             lastGoodArtifacts.put(target.name(), published.toAbsolutePath().toString());
             result.reused().add("artifact:" + target.name());
             result.explain().add("Reused artifact " + target.name() + "\nReason:\nCACHE_HIT");
+            try {
+                BuildArtifactManifest.writeSuccess(
+                        projectRoot, target.name(), compileTriple,
+                        published.toAbsolutePath().normalize().toString(),
+                        key, optLevel, releaseMode, lockFingerprint);
+            } catch (IOException ignored) {
+            }
             return;
         }
 
@@ -401,7 +436,7 @@ public final class CompilerSession {
         options.setProgramSources(programSources);
         options.setOutputFile(staging);
         options.setOptLevel(optLevel);
-        options.setTarget(target.isBrowser() ? "wasm32-browser" : "native");
+        options.setTarget(compileTriple);
         if (emitSourceDebugInfo) {
             options.setEmitSourceDebugInfo(true);
             options.setDebugSymbols(true);
@@ -414,7 +449,11 @@ public final class CompilerSession {
                     .collect(Collectors.joining("\n"));
             errors.add(target.name() + ": " + msg);
             Files.deleteIfExists(staging);
-            // preserve last good
+            try {
+                BuildArtifactManifest.writeFailure(projectRoot, target.name(), compileTriple, msg);
+            } catch (IOException ignored) {
+            }
+            // preserve last good binary on disk, but manifest marks this generation failed
             return;
         }
         // Atomic publish
@@ -453,6 +492,13 @@ public final class CompilerSession {
         }
         lastGoodArtifacts.put(target.name(), published.toString());
         cache.putString(key, published.toString());
+        try {
+            BuildArtifactManifest.writeSuccess(
+                    projectRoot, target.name(), compileTriple,
+                    published.toAbsolutePath().normalize().toString(),
+                    key, optLevel, releaseMode, lockFingerprint);
+        } catch (IOException ignored) {
+        }
         result.linkedTargets().add(target.name());
         if (target.isBrowser()) {
             result.reloadedTargets().add(target.name());

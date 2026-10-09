@@ -1,0 +1,252 @@
+/**
+ * Stage 4: save/load via File + simple text format.
+ * Usage: add|list|done|delete|search|save <path>|load <path>
+ */
+public class Main {
+    static ArrayList<Task> tasks = new ArrayList<Task>();
+
+    public static void main(String[] args) {
+        if (args.length == 0) {
+            System.out.println("usage: add|list|done|delete|search|save|load");
+            return;
+        }
+        String cmd = args[0];
+        if (cmd.compareTo("demo") == 0) {
+            run3("add", "Buy", "milk");
+            run3("add", "Write", "docs");
+            run2("done", "0");
+            run2("save", "build/tutorial-tasks.txt");
+            /* clear by loading empty would fail; reload after fresh process is separate */
+            run2("load", "build/tutorial-tasks.txt");
+            run1("list");
+            return;
+        }
+        if (cmd.compareTo("add") == 0) {
+            if (args.length < 2) {
+                System.out.println("error: missing title");
+                return;
+            }
+            tasks.add(new Task(joinFrom(args, 1), false));
+            System.out.println("added " + String.valueOf(tasks.size() - 1));
+            return;
+        }
+        if (cmd.compareTo("list") == 0) {
+            listAll();
+            return;
+        }
+        if (cmd.compareTo("done") == 0) {
+            int id = parseId(args);
+            if (id < 0) {
+                return;
+            }
+            tasks.get(id).done = true;
+            System.out.println("done " + String.valueOf(id));
+            return;
+        }
+        if (cmd.compareTo("delete") == 0) {
+            int id = parseId(args);
+            if (id < 0) {
+                return;
+            }
+            tasks.removeAt(id);
+            System.out.println("deleted " + String.valueOf(id));
+            return;
+        }
+        if (cmd.compareTo("search") == 0) {
+            if (args.length < 2) {
+                System.out.println("error: missing keyword");
+                return;
+            }
+            String kw = joinFrom(args, 1);
+            int i = 0;
+            int hits = 0;
+            while (i < tasks.size()) {
+                Task t = tasks.get(i);
+                if (t.title.indexOf(kw) >= 0) {
+                    System.out.println(String.valueOf(i) + ": " + t.title);
+                    hits = hits + 1;
+                }
+                i = i + 1;
+            }
+            System.out.println("hits=" + String.valueOf(hits));
+            return;
+        }
+        if (cmd.compareTo("save") == 0) {
+            if (args.length < 2) {
+                System.out.println("error: missing path");
+                return;
+            }
+            try {
+                File.writeString(args[1], encode());
+                System.out.println("saved");
+            } catch (Exception e) {
+                System.out.println("error: save failed");
+            }
+            return;
+        }
+        if (cmd.compareTo("load") == 0) {
+            if (args.length < 2) {
+                System.out.println("error: missing path");
+                return;
+            }
+            try {
+                if (File.exists(args[1]) == false) {
+                    System.out.println("error: missing file");
+                    return;
+                }
+                String data = File.readString(args[1]);
+                if (decode(data) == false) {
+                    System.out.println("error: bad file");
+                    return;
+                }
+                System.out.println("loaded " + String.valueOf(tasks.size()));
+            } catch (Exception e) {
+                System.out.println("error: load failed");
+            }
+            return;
+        }
+        System.out.println("error: unknown command");
+    }
+
+    static void listAll() {
+        int i = 0;
+        while (i < tasks.size()) {
+            Task t = tasks.get(i);
+            String mark = "[ ]";
+            if (t.done) {
+                mark = "[x]";
+            }
+            System.out.println(String.valueOf(i) + " " + mark + " " + t.title);
+            i = i + 1;
+        }
+    }
+
+    static String encode() {
+        String out = "V1\n";
+        int i = 0;
+        while (i < tasks.size()) {
+            Task t = tasks.get(i);
+            String d = "0";
+            if (t.done) {
+                d = "1";
+            }
+            out = out + d + "|" + t.title + "\n";
+            i = i + 1;
+        }
+        return out;
+    }
+
+    static boolean decode(String data) {
+        ArrayList<Task> neu = new ArrayList<Task>();
+        if (data.length() < 3) {
+            return false;
+        }
+        if (data.substring(0, 2).compareTo("V1") != 0) {
+            return false;
+        }
+        int pos = 0;
+        /* skip header line */
+        while (pos < data.length() && data.charAt(pos) != 10) {
+            pos = pos + 1;
+        }
+        if (pos >= data.length()) {
+            return false;
+        }
+        pos = pos + 1;
+        while (pos < data.length()) {
+            int lineEnd = pos;
+            while (lineEnd < data.length() && data.charAt(lineEnd) != 10) {
+                lineEnd = lineEnd + 1;
+            }
+            if (lineEnd > pos) {
+                String line = data.substring(pos, lineEnd);
+                int bar = line.indexOf("|");
+                if (bar != 1) {
+                    return false;
+                }
+                boolean done = false;
+                if (line.charAt(0) == 49) {
+                    done = true;
+                } else if (line.charAt(0) != 48) {
+                    return false;
+                }
+                String title = line.substring(2, line.length());
+                neu.add(new Task(title, done));
+            }
+            pos = lineEnd + 1;
+        }
+        tasks = neu;
+        return true;
+    }
+
+    static void run1(String a) {
+        String[] x = new String[1];
+        x[0] = a;
+        main(x);
+    }
+
+    static void run2(String a, String b) {
+        String[] x = new String[2];
+        x[0] = a;
+        x[1] = b;
+        main(x);
+    }
+
+    static void run3(String a, String b, String c) {
+        String[] x = new String[3];
+        x[0] = a;
+        x[1] = b;
+        x[2] = c;
+        main(x);
+    }
+
+    static int parseId(String[] args) {
+        if (args.length < 2) {
+            System.out.println("error: missing id");
+            return -1;
+        }
+        int id = parseInt(args[1]);
+        if (id < 0 || id >= tasks.size()) {
+            System.out.println("error: bad id");
+            return -1;
+        }
+        return id;
+    }
+
+    static int parseInt(String s) {
+        int v = 0;
+        int i = 0;
+        if (s.length() == 0) {
+            return -1;
+        }
+        while (i < s.length()) {
+            int c = s.charAt(i);
+            if (c < 48 || c > 57) {
+                return -1;
+            }
+            v = v * 10 + (c - 48);
+            i = i + 1;
+        }
+        return v;
+    }
+
+    static String joinFrom(String[] args, int start) {
+        String s = args[start];
+        int i = start + 1;
+        while (i < args.length) {
+            s = s + " " + args[i];
+            i = i + 1;
+        }
+        return s;
+    }
+}
+
+class Task {
+    String title;
+    boolean done;
+
+    Task(String title, boolean done) {
+        this.title = title;
+        this.done = done;
+    }
+}

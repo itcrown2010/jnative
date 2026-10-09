@@ -142,17 +142,15 @@
     byRoute[p.route] = p;
   });
 
+  /* Menu only lists pages backed by real server APIs / seed. Unimplemented modules hidden. */
   var menuGroups = [
-    { title: "Workbench", titleKey: "nav.workbench", ids: ["dash.executive","dash.sales","dash.purchasing","dash.inventory","dash.finance","dash.manufacturing"] },
-    { title: "Master Data", titleKey: "nav.master", ids: ["md.customers","md.suppliers","md.items","md.categories","md.warehouses","md.units","md.pricelists","md.currencies","md.employees","md.departments"] },
-    { title: "Sales", titleKey: "nav.sales", ids: ["sales.quotations","sales.orders","sales.deliveries","sales.returns","sales.ar","sales.analysis"] },
-    { title: "Purchasing", titleKey: "nav.purchasing", ids: ["pur.requests","pur.quotations","pur.orders","pur.gr","pur.returns","pur.ap","pur.analysis"] },
-    { title: "Inventory", titleKey: "nav.inventory", ids: ["inv.balance","inv.opening","inv.txns","inv.transfers","inv.counting","inv.adjustments","inv.batches","inv.serials","inv.alerts","inv.valuation"] },
-    { title: "Finance", titleKey: "nav.finance", ids: ["fin.coa","fin.journals","fin.gl","fin.tb","fin.ar","fin.ap","fin.ip","fin.op","fin.banks","fin.periods","fin.bs","fin.is","fin.cf"] },
-    { title: "Manufacturing", titleKey: "nav.manufacturing", ids: ["mfg.bom","mfg.bomEditor","mfg.orders","mfg.issues","mfg.returns","mfg.receipts","mfg.mrp","mfg.cost","mfg.progress"] },
-    { title: "CRM", titleKey: "nav.crm", ids: ["crm.leads","crm.opps","crm.activities","crm.visits","crm.pipeline","crm.forecast"] },
-    { title: "Reports", titleKey: "nav.reports", ids: ["rpt.sales","rpt.purchasing","rpt.inventory","rpt.finance","rpt.mfg","rpt.customer","rpt.exec"] },
-    { title: "Administration", titleKey: "nav.admin", ids: ["sys.wizard","sys.help","sys.users","sys.roles","sys.permissions","sys.companies","sys.departments","sys.workflows","sys.customFields","sys.forms","sys.numbering","sys.settings","sys.audit","sys.importExport"] }
+    { title: "Workbench", titleKey: "nav.workbench", ids: ["dash.executive","dash.sales","dash.purchasing","dash.inventory","dash.finance"] },
+    { title: "Master Data", titleKey: "nav.master", ids: ["md.customers","md.suppliers","md.items","md.categories","md.warehouses","md.units","md.employees","md.departments"] },
+    { title: "Sales", titleKey: "nav.sales", ids: ["sales.orders","sales.deliveries","sales.ar"] },
+    { title: "Purchasing", titleKey: "nav.purchasing", ids: ["pur.requests","pur.orders","pur.gr","pur.ap"] },
+    { title: "Inventory", titleKey: "nav.inventory", ids: ["inv.balance","inv.opening","inv.txns"] },
+    { title: "Finance", titleKey: "nav.finance", ids: ["fin.coa","fin.journals","fin.gl","fin.tb","fin.ar","fin.ap","fin.ip","fin.op","fin.banks","fin.periods"] },
+    { title: "Administration", titleKey: "nav.admin", ids: ["sys.wizard","sys.help","sys.users","sys.roles","sys.settings","sys.audit","sys.importExport"] }
   ];
 
   function localizePage(p) {

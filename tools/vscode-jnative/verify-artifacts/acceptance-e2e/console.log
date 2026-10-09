@@ -1,0 +1,9 @@
+== 01-minimal /tmp/jnative-acceptance-20261009-132524/01-minimal
+01-minimal OK coldInitialize:pass(98ms) completion.unsaved:pass(120ms) diagnostics.publish:pass(0ms) definition:pass(0ms) rename:pass(22ms) format:pass(5ms) build:pass(197ms) run:pass(0ms) debug:pass(0ms)
+== 02-multicu /tmp/jnative-acceptance-20261009-132524/02-multicu
+02-multicu OK coldInitialize:pass(135ms) completion.unsaved:pass(432ms) diagnostics.publish:pass(0ms) definition:pass(75ms) rename:pass(62ms) format:pass(4ms) build:pass(373ms) run:pass(0ms) debug:pass(0ms)
+== 03-order /tmp/jnative-acceptance-20261009-132524/03-order
+03-order OK coldInitialize:pass(171ms) completion.unsaved:pass(367ms) diagnostics.publish:pass(0ms) definition:pass(0ms) rename:pass(197ms) format:pass(5ms) build:pass(384ms) run:pass(0ms) debug:pass(0ms)
+
+Summary 3 passed, 0 failed
+Report /Users/zhangxiaoda/jnative/tools/vscode-jnative/verify-artifacts/acceptance-e2e/report.json

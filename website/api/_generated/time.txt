@@ -1,0 +1,17 @@
+# Generated from stdlib/time — 2026-10-09T05:08Z
+# Signatures only. Behavior notes are maintained in website/api/*.md
+
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/time/TimeLib.java:5:class TimeClockNative {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/time/TimeLib.java:22:class TimeFmt {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/time/TimeLib.java:91:class Instant {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/time/TimeLib.java:156:class Duration {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/time/TimeLib.java:219:class ZoneOffset {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/time/TimeLib.java:284:class ZoneId {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/time/TimeLib.java:357:class Clock {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/time/TimeLib.java:402:class CivilDate {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/time/TimeLib.java:497:class LocalDate {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/time/TimeLib.java:599:class LocalTime {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/time/TimeLib.java:678:class LocalDateTime {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/time/TimeLib.java:730:class ZonedDateTime {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/time/TimeLib.java:776:class DateTimeFormatter {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/time/TimeLib.java:801:class UUID {

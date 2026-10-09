@@ -187,6 +187,7 @@
     "page.pur.returns": "\u91c7\u8d2d\u9000\u8d27",
     "page.pur.ap": "\u5e94\u4ed8\u53d1\u7968",
     "page.pur.analysis": "\u91c7\u8d2d\u5206\u6790",
+    "page.inv.opening": "\u671f\u521d\u5e93\u5b58",
     "page.inv.balance": "\u5e93\u5b58\u4f59\u989d",
     "page.inv.txns": "\u5e93\u5b58\u6d41\u6c34",
     "page.inv.transfers": "\u5e93\u5b58\u8c03\u62e8",

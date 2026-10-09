@@ -1,0 +1,13 @@
+{
+  "success": false,
+  "artifact": null,
+  "diagnostics": [
+    {
+      "file": "default: /Users/zhangxiaoda/jnative/tools/vscode-jnative/verify-artifacts/build-smoke/src/Main.java",
+      "line": 3,
+      "column": 9,
+      "severity": "error",
+      "message": "incompatible types: String cannot be converted to int"
+    }
+  ]
+}

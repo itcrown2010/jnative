@@ -1,0 +1,22 @@
+public class Main {
+    static int add(int x, int y) {
+        return x + y;
+    }
+
+    static int fact(int n) {
+        if (n <= 1) {
+            return 1;
+        }
+        return n * fact(n - 1);
+    }
+
+    public static void main(String[] args) {
+        System.out.println(String.valueOf(add(2, 3)));
+        System.out.println(String.valueOf(fact(5)));
+        greet("Reader");
+    }
+
+    static void greet(String name) {
+        System.out.println("hi " + name);
+    }
+}

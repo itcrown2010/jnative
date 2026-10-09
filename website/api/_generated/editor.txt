@@ -1,0 +1,45 @@
+# Generated from stdlib/editor — 2026-10-09T05:08Z
+# Signatures only. Behavior notes are maintained in website/api/*.md
+
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/editor/ClipboardLib.java:6:class ClipboardNative {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/editor/ClipboardLib.java:17:class Clipboard {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/editor/EditorLib.java:4:interface DocumentChangeListener {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/editor/EditorLib.java:8:interface CaretListener {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/editor/EditorLib.java:12:interface SelectionListener {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/editor/EditorLib.java:16:class TextPosition {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/editor/EditorLib.java:34:class TextRange {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/editor/EditorLib.java:65:class DocumentChange {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/editor/EditorLib.java:83:class Piece {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/editor/EditorLib.java:98:class PieceTable {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/editor/EditorLib.java:435:interface ChunkConsumer {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/editor/EditorLib.java:439:class TextUtil {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/editor/EditorLib.java:520:class TextSnapshot {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/editor/EditorLib.java:544:class TextDocument {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/editor/EditorLib.java:737:class TextEdit {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/editor/EditorLib.java:757:class UndoGroup {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/editor/EditorLib.java:780:class UndoManager {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/editor/EditorLib.java:888:class TextSearch {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/editor/EditorLib.java:966:class TokenType {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/editor/EditorLib.java:978:class Token {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/editor/EditorLib.java:990:class TextStyle {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/editor/EditorLib.java:1004:class StyledSpan {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/editor/EditorLib.java:1016:class EditorTheme {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/editor/EditorLib.java:1081:class JNativeSyntaxTokenizer {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/editor/EditorLib.java:1269:class EditorDiagnostic {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/editor/EditorLib.java:1311:class TextSelection {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/editor/EditorLib.java:1343:class Caret {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/editor/EditorLib.java:1357:class EditorViewport {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/editor/EditorLib.java:1384:class ClipboardNative {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/editor/EditorLib.java:1395:class ProcessNative {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/editor/EditorLib.java:1404:class ProcessRunner {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/editor/EditorLib.java:1413:class EditorClock {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/editor/EditorLib.java:1419:class Clipboard {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/editor/EditorLib.java:1441:class EditorMetrics {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/editor/EditorLib.java:1449:class EditorCommand {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/editor/EditorLib.java:1472:class WordBoundary {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/editor/EditorLib.java:1510:class FoldRegion {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/editor/EditorLib.java:1523:class KeyBinding {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/editor/EditorLib.java:1543:class TextLayout {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/editor/EditorLib.java:1617:class TextLineLayout {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/editor/EditorLib.java:1631:class CodeEditor extends Canvas {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/editor/EditorLib.java:2454:class EditorTest {

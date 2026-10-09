@@ -18,6 +18,7 @@
   (import "jnative" "input_value" (func $js_input_value (param i32) (result i32)))
   (import "jnative" "input_set_value" (func $js_input_set_value (param i32 i32 i32)))
   (import "jnative" "memory_grew" (func $js_memory_grew))
+  (import "jnative" "report_uncaught" (func $js_report_uncaught (param i32 i32)))
   (memory (export "memory") 256 1024)
   (table $jn_funcref 1 funcref)
   (global $heap (mut i32) (i32.const 90112))
@@ -38,6 +39,10 @@
   (global $jn_since_gc (mut i32) (i32.const 0))
   (global $jn_gc_threshold (mut i32) (i32.const 262144))
   (global $jn_gc_collecting (mut i32) (i32.const 0))
+  (global $jn_comp_kind (mut i32) (i32.const 0))
+  (global $jn_comp_target (mut i32) (i32.const 0))
+  (global $jn_comp_ret_i64 (mut i64) (i64.const 0))
+  (global $jn_comp_ret_ptr (mut i32) (i32.const 0))
   (global $g_jn_static_SudokuCore_SAVE_VERSION (mut i32) (i32.const 0))
   (global $g_jn_static_SudokuCore_MAX_SAVE_CHARS (mut i32) (i32.const 0))
   (global $g_jn_static_SudokuCore_MAX_HISTORY (mut i32) (i32.const 0))
@@ -120,6 +125,17 @@
     i32.eq
     if
       local.get $obj
+      i32.const 16
+      i32.add
+      i32.load
+      call $jn_gc_mark_obj
+      return
+    end
+    local.get $tid
+    i32.const 6
+    i32.eq
+    if
+      local.get $obj
       i32.const 4
       i32.add
       i32.load
@@ -137,18 +153,28 @@
       return
     end
     local.get $tid
-    i32.const 4
+    i32.const 7
     i32.eq
     if
       local.get $obj
-      i32.const 16
+      i32.const 4
+      i32.add
+      i32.load
+      call $jn_gc_mark_obj
+      local.get $obj
+      i32.const 8
+      i32.add
+      i32.load
+      call $jn_gc_mark_obj
+      local.get $obj
+      i32.const 12
       i32.add
       i32.load
       call $jn_gc_mark_obj
       return
     end
     local.get $tid
-    i32.const 8
+    i32.const 9
     i32.eq
     if
       local.get $obj
@@ -180,7 +206,7 @@
       return
     end
     local.get $tid
-    i32.const 11
+    i32.const 13
     i32.eq
     if
       local.get $obj
@@ -195,17 +221,6 @@
       call $jn_gc_mark_obj
       local.get $obj
       i32.const 12
-      i32.add
-      i32.load
-      call $jn_gc_mark_obj
-      return
-    end
-    local.get $tid
-    i32.const 12
-    i32.eq
-    if
-      local.get $obj
-      i32.const 8
       i32.add
       i32.load
       call $jn_gc_mark_obj
@@ -216,6 +231,17 @@
     i32.eq
     if
       local.get $obj
+      i32.const 16
+      i32.add
+      i32.load
+      call $jn_gc_mark_obj
+      return
+    end
+    local.get $tid
+    i32.const 16
+    i32.eq
+    if
+      local.get $obj
       i32.const 4
       i32.add
       i32.load
@@ -233,11 +259,21 @@
       return
     end
     local.get $tid
-    i32.const 15
+    i32.const 17
     i32.eq
     if
       local.get $obj
-      i32.const 16
+      i32.const 4
+      i32.add
+      i32.load
+      call $jn_gc_mark_obj
+      local.get $obj
+      i32.const 8
+      i32.add
+      i32.load
+      call $jn_gc_mark_obj
+      local.get $obj
+      i32.const 12
       i32.add
       i32.load
       call $jn_gc_mark_obj
@@ -265,32 +301,11 @@
       return
     end
     local.get $tid
-    i32.const 19
-    i32.eq
-    if
-      local.get $obj
-      i32.const 16
-      i32.add
-      i32.load
-      call $jn_gc_mark_obj
-      return
-    end
-    local.get $tid
     i32.const 20
     i32.eq
     if
       local.get $obj
-      i32.const 4
-      i32.add
-      i32.load
-      call $jn_gc_mark_obj
-      local.get $obj
-      i32.const 8
-      i32.add
-      i32.load
-      call $jn_gc_mark_obj
-      local.get $obj
-      i32.const 12
+      i32.const 16
       i32.add
       i32.load
       call $jn_gc_mark_obj
@@ -343,45 +358,14 @@
     i32.eq
     if
       local.get $obj
-      i32.const 4
-      i32.add
-      i32.load
-      call $jn_gc_mark_obj
-      local.get $obj
-      i32.const 8
-      i32.add
-      i32.load
-      call $jn_gc_mark_obj
-      local.get $obj
-      i32.const 12
+      i32.const 16
       i32.add
       i32.load
       call $jn_gc_mark_obj
       return
     end
     local.get $tid
-    i32.const 24
-    i32.eq
-    if
-      local.get $obj
-      i32.const 4
-      i32.add
-      i32.load
-      call $jn_gc_mark_obj
-      local.get $obj
-      i32.const 8
-      i32.add
-      i32.load
-      call $jn_gc_mark_obj
-      local.get $obj
-      i32.const 12
-      i32.add
-      i32.load
-      call $jn_gc_mark_obj
-      return
-    end
-    local.get $tid
-    i32.const 26
+    i32.const 25
     i32.eq
     if
       local.get $obj
@@ -427,7 +411,38 @@
     i32.eq
     if
       local.get $obj
-      i32.const 16
+      i32.const 4
+      i32.add
+      i32.load
+      call $jn_gc_mark_obj
+      local.get $obj
+      i32.const 8
+      i32.add
+      i32.load
+      call $jn_gc_mark_obj
+      local.get $obj
+      i32.const 12
+      i32.add
+      i32.load
+      call $jn_gc_mark_obj
+      return
+    end
+    local.get $tid
+    i32.const 29
+    i32.eq
+    if
+      local.get $obj
+      i32.const 4
+      i32.add
+      i32.load
+      call $jn_gc_mark_obj
+      local.get $obj
+      i32.const 8
+      i32.add
+      i32.load
+      call $jn_gc_mark_obj
+      local.get $obj
+      i32.const 12
       i32.add
       i32.load
       call $jn_gc_mark_obj
@@ -480,7 +495,17 @@
     i32.eq
     if
       local.get $obj
-      i32.const 16
+      i32.const 4
+      i32.add
+      i32.load
+      call $jn_gc_mark_obj
+      local.get $obj
+      i32.const 8
+      i32.add
+      i32.load
+      call $jn_gc_mark_obj
+      local.get $obj
+      i32.const 12
       i32.add
       i32.load
       call $jn_gc_mark_obj
@@ -491,59 +516,7 @@
     i32.eq
     if
       local.get $obj
-      i32.const 4
-      i32.add
-      i32.load
-      call $jn_gc_mark_obj
-      local.get $obj
-      i32.const 8
-      i32.add
-      i32.load
-      call $jn_gc_mark_obj
-      local.get $obj
-      i32.const 12
-      i32.add
-      i32.load
-      call $jn_gc_mark_obj
-      return
-    end
-    local.get $tid
-    i32.const 34
-    i32.eq
-    if
-      local.get $obj
-      i32.const 4
-      i32.add
-      i32.load
-      call $jn_gc_mark_obj
-      local.get $obj
-      i32.const 8
-      i32.add
-      i32.load
-      call $jn_gc_mark_obj
-      local.get $obj
-      i32.const 12
-      i32.add
-      i32.load
-      call $jn_gc_mark_obj
-      return
-    end
-    local.get $tid
-    i32.const 35
-    i32.eq
-    if
-      local.get $obj
-      i32.const 4
-      i32.add
-      i32.load
-      call $jn_gc_mark_obj
-      local.get $obj
-      i32.const 8
-      i32.add
-      i32.load
-      call $jn_gc_mark_obj
-      local.get $obj
-      i32.const 12
+      i32.const 16
       i32.add
       i32.load
       call $jn_gc_mark_obj
@@ -561,7 +534,39 @@
       return
     end
     local.get $tid
+    i32.const 37
+    i32.eq
+    if
+      local.get $obj
+      i32.const 4
+      i32.add
+      i32.load
+      call $jn_gc_mark_obj
+      local.get $obj
+      i32.const 8
+      i32.add
+      i32.load
+      call $jn_gc_mark_obj
+      local.get $obj
+      i32.const 12
+      i32.add
+      i32.load
+      call $jn_gc_mark_obj
+      return
+    end
+    local.get $tid
     i32.const 39
+    i32.eq
+    if
+      local.get $obj
+      i32.const 8
+      i32.add
+      i32.load
+      call $jn_gc_mark_obj
+      return
+    end
+    local.get $tid
+    i32.const 40
     i32.eq
     if
       local.get $obj
@@ -593,7 +598,7 @@
       return
     end
     local.get $tid
-    i32.const 43
+    i32.const 42
     i32.eq
     if
       local.get $obj
@@ -1957,6 +1962,454 @@
     )
     local.get $p
   )
+  ;; ---- wasm32 explicit exception / completion (no WASM EH) ----
+  (func $jn_ex_alloc (param $tid i32) (param $msg i32) (result i32)
+    (local $p i32)
+    i32.const 16
+    call $jn_alloc_zeroed
+    local.set $p
+    local.get $p
+    i32.eqz
+    if (result i32)
+      i32.const 0
+    else
+      local.get $p
+      local.get $tid
+      i32.store
+      local.get $p
+      i32.const 4
+      i32.add
+      local.get $msg
+      i32.store
+      local.get $p
+    end
+  )
+  (func $jnative_exception_throw (param $ex i32)
+    local.get $ex
+    i32.eqz
+    if
+      call $jnative_throw_npe
+      return
+    end
+    local.get $ex
+    global.set $jn_pending_exc
+    i32.const 0
+    global.set $jn_comp_kind
+  )
+  (func $jnative_exception_pending (result i32)
+    global.get $jn_pending_exc
+    i32.const 0
+    i32.ne
+  )
+  (func $jnative_exception_peek (result i32)
+    global.get $jn_pending_exc
+  )
+  (func $jnative_exception_take (result i32)
+    (local $ex i32)
+    global.get $jn_pending_exc
+    local.set $ex
+    i32.const 0
+    global.set $jn_pending_exc
+    local.get $ex
+  )
+  (func $jnative_exception_clear
+    i32.const 0
+    global.set $jn_pending_exc
+  )
+  (func $jnative_throw_npe
+    i32.const 6
+    i32.const 0
+    call $jn_ex_alloc
+    global.set $jn_pending_exc
+  )
+  (func $jnative_throw_illegal_argument
+    i32.const 2
+    i32.const 0
+    call $jn_ex_alloc
+    global.set $jn_pending_exc
+  )
+  (func $jnative_throw_aioobe
+    call $jnative_throw_npe
+  )
+  (func $jnative_throw_negative_array_size
+    call $jnative_throw_npe
+  )
+  (func $jnative_throw_class_cast
+    call $jnative_throw_npe
+  )
+  (func $jnative_throw_arithmetic
+    call $jnative_throw_npe
+  )
+  (func $jnative_throw_illegal_monitor
+    call $jnative_throw_npe
+  )
+  (func $jnative_throw_illegal_state
+    call $jnative_throw_npe
+  )
+  (func $jnative_throwable_add_suppressed (param $primary i32) (param $sup i32)
+    (local $old i32) (local $len i32) (local $narr i32) (local $i i32)
+    local.get $primary
+    i32.eqz
+    if
+      return
+    end
+    local.get $sup
+    i32.eqz
+    if
+      call $jnative_throw_npe
+      return
+    end
+    local.get $primary
+    local.get $sup
+    i32.eq
+    if
+      call $jnative_throw_illegal_argument
+      return
+    end
+    local.get $primary
+    i32.const 12
+    i32.add
+    i32.load
+    local.set $old
+    local.get $old
+    i32.eqz
+    if
+      i32.const 20
+      i32.const 1
+      call $jn_gc_alloc_array
+      local.set $narr
+      local.get $narr
+      i32.eqz
+      if
+        return
+      end
+      local.get $narr
+      i32.const 48
+      i32.store
+      local.get $narr
+      i32.const 8
+      i32.add
+      i32.const 1
+      i32.store
+      local.get $narr
+      i32.const 16
+      i32.add
+      local.get $sup
+      i32.store
+      local.get $primary
+      i32.const 12
+      i32.add
+      local.get $narr
+      i32.store
+      return
+    end
+    local.get $old
+    i32.const 8
+    i32.add
+    i32.load
+    local.set $len
+    local.get $len
+    i32.const 1
+    i32.add
+    i32.const 2
+    i32.shl
+    i32.const 16
+    i32.add
+    i32.const 1
+    call $jn_gc_alloc_array
+    local.set $narr
+    local.get $narr
+    i32.eqz
+    if
+      return
+    end
+    local.get $narr
+    i32.const 48
+    i32.store
+    local.get $narr
+    i32.const 8
+    i32.add
+    local.get $len
+    i32.const 1
+    i32.add
+    i32.store
+    i32.const 0
+    local.set $i
+    (block $cdone
+      (loop $c
+        local.get $i
+        local.get $len
+        i32.ge_s
+        br_if $cdone
+        local.get $narr
+        i32.const 16
+        i32.add
+        local.get $i
+        i32.const 2
+        i32.shl
+        i32.add
+        local.get $old
+        i32.const 16
+        i32.add
+        local.get $i
+        i32.const 2
+        i32.shl
+        i32.add
+        i32.load
+        i32.store
+        local.get $i
+        i32.const 1
+        i32.add
+        local.set $i
+        br $c
+      )
+    )
+    local.get $narr
+    i32.const 16
+    i32.add
+    local.get $len
+    i32.const 2
+    i32.shl
+    i32.add
+    local.get $sup
+    i32.store
+    local.get $primary
+    i32.const 12
+    i32.add
+    local.get $narr
+    i32.store
+  )
+  (func $jnative_throwable_get_suppressed (param $ex i32) (result i32)
+    (local $old i32) (local $len i32) (local $out i32) (local $i i32)
+    local.get $ex
+    i32.eqz
+    if (result i32)
+      call $jnative_throw_npe
+      i32.const 0
+    else
+      local.get $ex
+      i32.const 12
+      i32.add
+      i32.load
+      local.set $old
+      local.get $old
+      i32.eqz
+      if (result i32)
+        i32.const 16
+        i32.const 1
+        call $jn_gc_alloc_array
+        local.set $out
+        local.get $out
+        i32.eqz
+        if (result i32)
+          i32.const 0
+        else
+          local.get $out
+          i32.const 48
+          i32.store
+          local.get $out
+          i32.const 8
+          i32.add
+          i32.const 0
+          i32.store
+          local.get $out
+        end
+      else
+        local.get $old
+        i32.const 8
+        i32.add
+        i32.load
+        local.set $len
+        local.get $len
+        i32.const 2
+        i32.shl
+        i32.const 16
+        i32.add
+        i32.const 1
+        call $jn_gc_alloc_array
+        local.set $out
+        local.get $out
+        i32.eqz
+        if (result i32)
+          i32.const 0
+        else
+          local.get $out
+          i32.const 48
+          i32.store
+          local.get $out
+          i32.const 8
+          i32.add
+          local.get $len
+          i32.store
+          i32.const 0
+          local.set $i
+          (block $gd
+            (loop $gl
+              local.get $i
+              local.get $len
+              i32.ge_s
+              br_if $gd
+              local.get $out
+              i32.const 16
+              i32.add
+              local.get $i
+              i32.const 2
+              i32.shl
+              i32.add
+              local.get $old
+              i32.const 16
+              i32.add
+              local.get $i
+              i32.const 2
+              i32.shl
+              i32.add
+              i32.load
+              i32.store
+              local.get $i
+              i32.const 1
+              i32.add
+              local.set $i
+              br $gl
+            )
+          )
+          local.get $out
+        end
+      end
+    end
+  )
+  (func $jnative_completion_clear
+    i32.const 0
+    global.set $jn_comp_kind
+    i32.const 0
+    global.set $jn_comp_target
+    i64.const 0
+    global.set $jn_comp_ret_i64
+    i32.const 0
+    global.set $jn_comp_ret_ptr
+  )
+  (func $jnative_completion_set_return_i64 (param $v i64)
+    i32.const 1
+    global.set $jn_comp_kind
+    local.get $v
+    global.set $jn_comp_ret_i64
+    i32.const 0
+    global.set $jn_comp_ret_ptr
+  )
+  (func $jnative_completion_set_return_ptr (param $v i32)
+    i32.const 1
+    global.set $jn_comp_kind
+    local.get $v
+    global.set $jn_comp_ret_ptr
+    i64.const 0
+    global.set $jn_comp_ret_i64
+  )
+  (func $jnative_completion_set_break (param $t i32)
+    i32.const 2
+    global.set $jn_comp_kind
+    local.get $t
+    global.set $jn_comp_target
+  )
+  (func $jnative_completion_set_continue (param $t i32)
+    i32.const 3
+    global.set $jn_comp_kind
+    local.get $t
+    global.set $jn_comp_target
+  )
+  (func $jnative_completion_has_return (result i32)
+    global.get $jn_comp_kind
+    i32.const 1
+    i32.eq
+  )
+  (func $jnative_completion_has_break (result i32)
+    global.get $jn_comp_kind
+    i32.const 2
+    i32.eq
+  )
+  (func $jnative_completion_has_continue (result i32)
+    global.get $jn_comp_kind
+    i32.const 3
+    i32.eq
+  )
+  (func $jnative_completion_take_return_i64 (result i64)
+    (local $v i64)
+    global.get $jn_comp_ret_i64
+    local.set $v
+    call $jnative_completion_clear
+    local.get $v
+  )
+  (func $jnative_completion_take_return_ptr (result i32)
+    (local $v i32)
+    global.get $jn_comp_ret_ptr
+    local.set $v
+    call $jnative_completion_clear
+    local.get $v
+  )
+  (func $jnative_completion_take_target (result i32)
+    (local $v i32)
+    global.get $jn_comp_target
+    local.set $v
+    call $jnative_completion_clear
+    local.get $v
+  )
+  (func $jnative_exception_uncaught
+    (local $ex i32) (local $msg i32) (local $ptr i32) (local $len i32)
+    global.get $jn_pending_exc
+    local.set $ex
+    local.get $ex
+    i32.eqz
+    if
+      return
+    end
+    i32.const 0
+    global.set $jn_pending_exc
+    local.get $ex
+    i32.const 4
+    i32.add
+    i32.load
+    local.set $msg
+    local.get $msg
+    i32.eqz
+    if
+      i32.const 0
+      i32.const 0
+      call $js_report_uncaught
+    else
+      local.get $msg
+      call $jn_str_data
+      local.set $ptr
+      local.get $msg
+      call $jn_str_len
+      local.set $len
+      local.get $ptr
+      local.get $len
+      call $js_report_uncaught
+    end
+  )
+  (func $jn_raise_host_error (param $msg i32)
+    i32.const 29
+    local.get $msg
+    call $jn_ex_alloc
+    call $jnative_exception_throw
+  )
+  (func (export "jn_raise_host_error") (param $msg i32)
+    local.get $msg
+    call $jn_raise_host_error
+  )
+  (func (export "jn_exception_pending") (result i32)
+    call $jnative_exception_pending
+  )
+  (func (export "jn_exception_peek") (result i32)
+    call $jnative_exception_peek
+  )
+  (func (export "jn_exception_take") (result i32)
+    call $jnative_exception_take
+  )
+  (func (export "jn_exception_clear")
+    call $jnative_exception_clear
+  )
+  (func (export "jn_exception_uncaught")
+    call $jnative_exception_uncaught
+  )
   (func $jnative_clinit
     (local $pc i32)
     (local $__jn_tid i32)
@@ -3129,7 +3582,7 @@
     (local $ret i32)
     (local $diff__slot i32)
     (local $index__slot i32)
-    (local $sc.tmp1320677379 i32)
+    (local $sc.tmp249155636 i32)
     (local $idx i32)
     (local $base i32)
     (local $t0 i32)
@@ -3201,7 +3654,7 @@
           i32.lt_s
           local.set $t2
           local.get $t2
-          local.set $sc.tmp1320677379
+          local.set $sc.tmp249155636
           local.get $t2
           if
             i32.const 4
@@ -3219,12 +3672,12 @@
           i32.gt_s
           local.set $t4
           local.get $t4
-          local.set $sc.tmp1320677379
+          local.set $sc.tmp249155636
           i32.const 4
           local.set $pc
           br $dispatch
         )
-          local.get $sc.tmp1320677379
+          local.get $sc.tmp249155636
           local.set $t5
           local.get $t5
           if
@@ -3348,9 +3801,9 @@
     (local $ret i32)
     (local $row__slot i32)
     (local $col__slot i32)
-    (local $sc.tmp246399377 i32)
-    (local $sc.tmp1630521067 i32)
-    (local $sc.tmp274773041 i32)
+    (local $sc.tmp1629604310 i32)
+    (local $sc.tmp142555199 i32)
+    (local $sc.tmp1320677379 i32)
     (local $t0 i32)
     (local $t1 i32)
     (local $t2 i32)
@@ -3442,7 +3895,7 @@
           i32.lt_s
           local.set $t5
           local.get $t5
-          local.set $sc.tmp274773041
+          local.set $sc.tmp1320677379
           local.get $t5
           if
             i32.const 10
@@ -3460,12 +3913,12 @@
           i32.gt_s
           local.set $t13
           local.get $t13
-          local.set $sc.tmp246399377
+          local.set $sc.tmp1629604310
           i32.const 6
           local.set $pc
           br $dispatch
         )
-          local.get $sc.tmp246399377
+          local.get $sc.tmp1629604310
           local.set $t14
           local.get $t14
           if
@@ -3484,15 +3937,15 @@
           i32.lt_s
           local.set $t10
           local.get $t10
-          local.set $sc.tmp1630521067
+          local.set $sc.tmp142555199
           i32.const 8
           local.set $pc
           br $dispatch
         )
-          local.get $sc.tmp1630521067
+          local.get $sc.tmp142555199
           local.set $t11
           local.get $t11
-          local.set $sc.tmp246399377
+          local.set $sc.tmp1629604310
           local.get $t11
           if
             i32.const 6
@@ -3510,15 +3963,15 @@
           i32.gt_s
           local.set $t7
           local.get $t7
-          local.set $sc.tmp274773041
+          local.set $sc.tmp1320677379
           i32.const 10
           local.set $pc
           br $dispatch
         )
-          local.get $sc.tmp274773041
+          local.get $sc.tmp1320677379
           local.set $t8
           local.get $t8
-          local.set $sc.tmp1630521067
+          local.set $sc.tmp142555199
           local.get $t8
           if
             i32.const 8
@@ -3851,8 +4304,8 @@
     (local $__jn_frame i32)
     (local $ret i32)
     (local $d__slot i32)
-    (local $sc.tmp2011986105 i32)
-    (local $sc.tmp439904756 i32)
+    (local $sc.tmp84739718 i32)
+    (local $sc.tmp2050835901 i32)
     (local $idx i32)
     (local $gctmp.15 i32)
     (local $prevV i32)
@@ -3861,7 +4314,7 @@
     (local $gctmp.32 i32)
     (local $newV i32)
     (local $newN i32)
-    (local $sc.tmp171497379 i32)
+    (local $sc.tmp511473681 i32)
     (local $gctmp.52 i32)
     (local $gctmp.57 i32)
     (local $t0 i32)
@@ -4001,7 +4454,7 @@
           i32.eq
           local.set $t3
           local.get $t3
-          local.set $sc.tmp2011986105
+          local.set $sc.tmp84739718
           local.get $t3
           if
             i32.const 4
@@ -4021,12 +4474,12 @@
           i32.eq
           local.set $t6
           local.get $t6
-          local.set $sc.tmp2011986105
+          local.set $sc.tmp84739718
           i32.const 4
           local.set $pc
           br $dispatch
         )
-          local.get $sc.tmp2011986105
+          local.get $sc.tmp84739718
           local.set $t7
           local.get $t7
           if
@@ -4051,7 +4504,7 @@
           i32.lt_s
           local.set $t9
           local.get $t9
-          local.set $sc.tmp439904756
+          local.set $sc.tmp2050835901
           local.get $t9
           if
             i32.const 8
@@ -4069,12 +4522,12 @@
           i32.gt_s
           local.set $t11
           local.get $t11
-          local.set $sc.tmp439904756
+          local.set $sc.tmp2050835901
           i32.const 8
           local.set $pc
           br $dispatch
         )
-          local.get $sc.tmp439904756
+          local.get $sc.tmp2050835901
           local.set $t12
           local.get $t12
           if
@@ -4368,7 +4821,7 @@
           i32.eq
           local.set $t39
           local.get $t39
-          local.set $sc.tmp171497379
+          local.set $sc.tmp511473681
           local.get $t39
           if
             i32.const 23
@@ -4388,12 +4841,12 @@
           i32.eq
           local.set $t42
           local.get $t42
-          local.set $sc.tmp171497379
+          local.set $sc.tmp511473681
           i32.const 24
           local.set $pc
           br $dispatch
         )
-          local.get $sc.tmp171497379
+          local.get $sc.tmp511473681
           local.set $t43
           local.get $t43
           if
@@ -4623,14 +5076,14 @@
     (local $__jn_asz i32)
     (local $__jn_frame i32)
     (local $ret i32)
-    (local $sc.tmp1665404403 i32)
+    (local $sc.tmp439904756 i32)
     (local $idx i32)
     (local $gctmp.10 i32)
     (local $prevV i32)
     (local $gctmp.16 i32)
     (local $prevN i32)
     (local $gctmp.21 i32)
-    (local $sc.tmp988458918 i32)
+    (local $sc.tmp171497379 i32)
     (local $gctmp.35 i32)
     (local $gctmp.39 i32)
     (local $t0 i32)
@@ -4739,7 +5192,7 @@
           i32.eq
           local.set $t3
           local.get $t3
-          local.set $sc.tmp1665404403
+          local.set $sc.tmp439904756
           local.get $t3
           if
             i32.const 4
@@ -4759,12 +5212,12 @@
           i32.eq
           local.set $t6
           local.get $t6
-          local.set $sc.tmp1665404403
+          local.set $sc.tmp439904756
           i32.const 4
           local.set $pc
           br $dispatch
         )
-          local.get $sc.tmp1665404403
+          local.get $sc.tmp439904756
           local.set $t7
           local.get $t7
           if
@@ -5006,7 +5459,7 @@
           i32.eq
           local.set $t26
           local.get $t26
-          local.set $sc.tmp988458918
+          local.set $sc.tmp171497379
           local.get $t26
           if
             i32.const 15
@@ -5024,12 +5477,12 @@
           i32.eq
           local.set $t28
           local.get $t28
-          local.set $sc.tmp988458918
+          local.set $sc.tmp171497379
           i32.const 16
           local.set $pc
           br $dispatch
         )
-          local.get $sc.tmp988458918
+          local.get $sc.tmp171497379
           local.set $t29
           local.get $t29
           if
@@ -6484,9 +6937,9 @@
     (local $__jn_asz i32)
     (local $__jn_frame i32)
     (local $ret i32)
-    (local $sc.tmp926370398 i32)
+    (local $sc.tmp1250391581 i32)
     (local $i i32)
-    (local $sc.tmp1181869371 i32)
+    (local $sc.tmp1725017993 i32)
     (local $gctmp.11 i32)
     (local $gctmp.17 i32)
     (local $gctmp.22 i32)
@@ -6632,7 +7085,7 @@
           i32.eq
           local.set $t3
           local.get $t3
-          local.set $sc.tmp926370398
+          local.set $sc.tmp1250391581
           local.get $t3
           if
             i32.const 4
@@ -6652,12 +7105,12 @@
           i32.eq
           local.set $t6
           local.get $t6
-          local.set $sc.tmp926370398
+          local.set $sc.tmp1250391581
           i32.const 4
           local.set $pc
           br $dispatch
         )
-          local.get $sc.tmp926370398
+          local.get $sc.tmp1250391581
           local.set $t7
           local.get $t7
           if
@@ -6821,7 +7274,7 @@
           end
           br $dispatch
         )
-          local.get $sc.tmp1181869371
+          local.get $sc.tmp1725017993
           local.set $t27
           local.get $t27
           if
@@ -6842,7 +7295,7 @@
           i32.eq
           local.set $t15
           local.get $t15
-          local.set $sc.tmp1181869371
+          local.set $sc.tmp1725017993
           local.get $t15
           if
             i32.const 10
@@ -6925,7 +7378,7 @@
           i32.ne
           local.set $t26
           local.get $t26
-          local.set $sc.tmp1181869371
+          local.set $sc.tmp1725017993
           i32.const 11
           local.set $pc
           br $dispatch
@@ -7509,9 +7962,9 @@
     (local $__jn_frame i32)
     (local $ret i32)
     (local $nowMs__slot i32)
-    (local $sc.tmp1154002927 i32)
+    (local $sc.tmp2619171 i32)
     (local $delta i32)
-    (local $sc.tmp2070529722 i32)
+    (local $sc.tmp1728790703 i32)
     (local $t0 i32)
     (local $t1 i32)
     (local $t2 i32)
@@ -7607,7 +8060,7 @@
           i32.eq
           local.set $t6
           local.get $t6
-          local.set $sc.tmp1154002927
+          local.set $sc.tmp2619171
           local.get $t6
           if
             i32.const 5
@@ -7625,12 +8078,12 @@
           i32.ne
           local.set $t8
           local.get $t8
-          local.set $sc.tmp1154002927
+          local.set $sc.tmp2619171
           i32.const 6
           local.set $pc
           br $dispatch
         )
-          local.get $sc.tmp1154002927
+          local.get $sc.tmp2619171
           local.set $t9
           local.get $t9
           if
@@ -7659,7 +8112,7 @@
           i32.gt_s
           local.set $t14
           local.get $t14
-          local.set $sc.tmp2070529722
+          local.set $sc.tmp1728790703
           local.get $t14
           if
             i32.const 9
@@ -7691,12 +8144,12 @@
           i32.lt_s
           local.set $t16
           local.get $t16
-          local.set $sc.tmp2070529722
+          local.set $sc.tmp1728790703
           i32.const 10
           local.set $pc
           br $dispatch
         )
-          local.get $sc.tmp2070529722
+          local.get $sc.tmp1728790703
           local.set $t17
           local.get $t17
           if
@@ -8000,7 +8453,7 @@
     (local $__jn_frame i32)
     (local $ret i32)
     (local $idx__slot i32)
-    (local $sc.tmp140799417 i32)
+    (local $sc.tmp1970881185 i32)
     (local $gctmp.7 i32)
     (local $t0 i32)
     (local $t1 i32)
@@ -8058,7 +8511,7 @@
           i32.lt_s
           local.set $t2
           local.get $t2
-          local.set $sc.tmp140799417
+          local.set $sc.tmp1970881185
           local.get $t2
           if
             i32.const 4
@@ -8076,12 +8529,12 @@
           i32.gt_s
           local.set $t4
           local.get $t4
-          local.set $sc.tmp140799417
+          local.set $sc.tmp1970881185
           i32.const 4
           local.set $pc
           br $dispatch
         )
-          local.get $sc.tmp140799417
+          local.get $sc.tmp1970881185
           local.set $t5
           local.get $t5
           if
@@ -8179,7 +8632,7 @@
     (local $__jn_frame i32)
     (local $ret i32)
     (local $idx__slot i32)
-    (local $sc.tmp1295083508 i32)
+    (local $sc.tmp1665404403 i32)
     (local $gctmp.7 i32)
     (local $t0 i32)
     (local $t1 i32)
@@ -8237,7 +8690,7 @@
           i32.lt_s
           local.set $t2
           local.get $t2
-          local.set $sc.tmp1295083508
+          local.set $sc.tmp1665404403
           local.get $t2
           if
             i32.const 4
@@ -8255,12 +8708,12 @@
           i32.gt_s
           local.set $t4
           local.get $t4
-          local.set $sc.tmp1295083508
+          local.set $sc.tmp1665404403
           i32.const 4
           local.set $pc
           br $dispatch
         )
-          local.get $sc.tmp1295083508
+          local.get $sc.tmp1665404403
           local.set $t5
           local.get $t5
           if
@@ -8358,7 +8811,7 @@
     (local $__jn_frame i32)
     (local $ret i32)
     (local $idx__slot i32)
-    (local $sc.tmp1725017993 i32)
+    (local $sc.tmp1773206895 i32)
     (local $gctmp.7 i32)
     (local $t0 i32)
     (local $t1 i32)
@@ -8416,7 +8869,7 @@
           i32.lt_s
           local.set $t2
           local.get $t2
-          local.set $sc.tmp1725017993
+          local.set $sc.tmp1773206895
           local.get $t2
           if
             i32.const 4
@@ -8434,12 +8887,12 @@
           i32.gt_s
           local.set $t4
           local.get $t4
-          local.set $sc.tmp1725017993
+          local.set $sc.tmp1773206895
           i32.const 4
           local.set $pc
           br $dispatch
         )
-          local.get $sc.tmp1725017993
+          local.get $sc.tmp1773206895
           local.set $t5
           local.get $t5
           if
@@ -8537,7 +8990,7 @@
     (local $__jn_frame i32)
     (local $ret i32)
     (local $idx__slot i32)
-    (local $sc.tmp1990451863 i32)
+    (local $sc.tmp2012846597 i32)
     (local $gctmp.7 i32)
     (local $t0 i32)
     (local $t1 i32)
@@ -8595,7 +9048,7 @@
           i32.lt_s
           local.set $t2
           local.get $t2
-          local.set $sc.tmp1990451863
+          local.set $sc.tmp2012846597
           local.get $t2
           if
             i32.const 4
@@ -8613,12 +9066,12 @@
           i32.gt_s
           local.set $t4
           local.get $t4
-          local.set $sc.tmp1990451863
+          local.set $sc.tmp2012846597
           i32.const 4
           local.set $pc
           br $dispatch
         )
-          local.get $sc.tmp1990451863
+          local.get $sc.tmp2012846597
           local.set $t5
           local.get $t5
           if
@@ -8716,7 +9169,7 @@
     (local $__jn_frame i32)
     (local $ret i32)
     (local $idx__slot i32)
-    (local $sc.tmp738433734 i32)
+    (local $sc.tmp495792375 i32)
     (local $gctmp.7 i32)
     (local $t0 i32)
     (local $t1 i32)
@@ -8774,7 +9227,7 @@
           i32.lt_s
           local.set $t2
           local.get $t2
-          local.set $sc.tmp738433734
+          local.set $sc.tmp495792375
           local.get $t2
           if
             i32.const 4
@@ -8792,12 +9245,12 @@
           i32.gt_s
           local.set $t4
           local.get $t4
-          local.set $sc.tmp738433734
+          local.set $sc.tmp495792375
           i32.const 4
           local.set $pc
           br $dispatch
         )
-          local.get $sc.tmp738433734
+          local.get $sc.tmp495792375
           local.set $t5
           local.get $t5
           if
@@ -9460,7 +9913,7 @@
     (local $sc i32)
     (local $r i32)
     (local $c i32)
-    (local $sc.tmp1773206895 i32)
+    (local $sc.tmp1957502751 i32)
     (local $t0 i32)
     (local $t1 i32)
     (local $t2 i32)
@@ -9670,7 +10123,7 @@
           end
           br $dispatch
         )
-          local.get $sc.tmp1773206895
+          local.get $sc.tmp1957502751
           local.set $t27
           local.get $t27
           if
@@ -9713,7 +10166,7 @@
           i32.eq
           local.set $t19
           local.get $t19
-          local.set $sc.tmp1773206895
+          local.set $sc.tmp1957502751
           local.get $t19
           if
             i32.const 11
@@ -9755,7 +10208,7 @@
           i32.eq
           local.set $t26
           local.get $t26
-          local.set $sc.tmp1773206895
+          local.set $sc.tmp1957502751
           i32.const 12
           local.set $pc
           br $dispatch
@@ -11451,7 +11904,7 @@
     (local $__jn_frame i32)
     (local $ret i32)
     (local $i__slot i32)
-    (local $sc.tmp1250391581 i32)
+    (local $sc.tmp1177377518 i32)
     (local $gctmp.8 i32)
     (local $t0 i32)
     (local $t1 i32)
@@ -11510,7 +11963,7 @@
           i32.lt_s
           local.set $t2
           local.get $t2
-          local.set $sc.tmp1250391581
+          local.set $sc.tmp1177377518
           local.get $t2
           if
             i32.const 4
@@ -11530,12 +11983,12 @@
           i32.ge_s
           local.set $t5
           local.get $t5
-          local.set $sc.tmp1250391581
+          local.set $sc.tmp1177377518
           i32.const 4
           local.set $pc
           br $dispatch
         )
-          local.get $sc.tmp1250391581
+          local.get $sc.tmp1177377518
           local.set $t6
           local.get $t6
           if
@@ -11634,7 +12087,7 @@
     (local $ret i32)
     (local $data__slot i32)
     (local $n i32)
-    (local $sc.tmp951880373 i32)
+    (local $sc.tmp1800890735 i32)
     (local $pos i32)
     (local $gctmp.15 i32)
     (local $gctmp.21 i32)
@@ -11647,14 +12100,14 @@
     (local $sel i32)
     (local $hp i32)
     (local $hl i32)
+    (local $sc.tmp352359770 i32)
+    (local $sc.tmp243745864 i32)
+    (local $sc.tmp699780352 i32)
     (local $sc.tmp1613255205 i32)
     (local $sc.tmp1897115967 i32)
     (local $sc.tmp1166151249 i32)
     (local $sc.tmp1121453612 i32)
     (local $sc.tmp1615056168 i32)
-    (local $sc.tmp213193302 i32)
-    (local $sc.tmp1502635287 i32)
-    (local $sc.tmp1543237999 i32)
     (local $gTmp i32)
     (local $gctmp.105 i32)
     (local $vTmp i32)
@@ -11662,10 +12115,10 @@
     (local $nTmp i32)
     (local $gctmp.111 i32)
     (local $i i32)
+    (local $sc.tmp213193302 i32)
+    (local $sc.tmp1502635287 i32)
+    (local $sc.tmp1543237999 i32)
     (local $sc.tmp632249781 i32)
-    (local $sc.tmp19717364 i32)
-    (local $sc.tmp1540270363 i32)
-    (local $sc.tmp1597655940 i32)
     (local $hc i32)
     (local $gctmp.181 i32)
     (local $hpv i32)
@@ -12312,7 +12765,7 @@
           local.get $t3
           i32.eqz
           if
-            unreachable
+            call $jnative_throw_npe
           end
           call $jnative_exception_pending
           local.set $t4
@@ -12358,7 +12811,7 @@
           i32.lt_s
           local.set $t8
           local.get $t8
-          local.set $sc.tmp951880373
+          local.set $sc.tmp1800890735
           local.get $t8
           if
             i32.const 10
@@ -12378,12 +12831,12 @@
           i32.gt_s
           local.set $t11
           local.get $t11
-          local.set $sc.tmp951880373
+          local.set $sc.tmp1800890735
           i32.const 10
           local.set $pc
           br $dispatch
         )
-          local.get $sc.tmp951880373
+          local.get $sc.tmp1800890735
           local.set $t12
           local.get $t12
           if
@@ -12431,7 +12884,7 @@
             unreachable
           end
           local.get $t13
-          i32.const 46
+          i32.const 47
           i32.store
           local.get $t13
           i32.const 8
@@ -12957,7 +13410,7 @@
           i32.lt_s
           local.set $t67
           local.get $t67
-          local.set $sc.tmp1166151249
+          local.set $sc.tmp699780352
           local.get $t67
           if
             i32.const 48
@@ -12977,12 +13430,12 @@
           i32.gt_s
           local.set $t77
           local.get $t77
-          local.set $sc.tmp1613255205
+          local.set $sc.tmp352359770
           i32.const 44
           local.set $pc
           br $dispatch
         )
-          local.get $sc.tmp1613255205
+          local.get $sc.tmp352359770
           local.set $t78
           local.get $t78
           if
@@ -13001,15 +13454,15 @@
           i32.lt_s
           local.set $t73
           local.get $t73
-          local.set $sc.tmp1897115967
+          local.set $sc.tmp243745864
           i32.const 46
           local.set $pc
           br $dispatch
         )
-          local.get $sc.tmp1897115967
+          local.get $sc.tmp243745864
           local.set $t74
           local.get $t74
-          local.set $sc.tmp1613255205
+          local.set $sc.tmp352359770
           local.get $t74
           if
             i32.const 44
@@ -13029,15 +13482,15 @@
           i32.gt_s
           local.set $t70
           local.get $t70
-          local.set $sc.tmp1166151249
+          local.set $sc.tmp699780352
           i32.const 48
           local.set $pc
           br $dispatch
         )
-          local.get $sc.tmp1166151249
+          local.get $sc.tmp699780352
           local.set $t71
           local.get $t71
-          local.set $sc.tmp1897115967
+          local.set $sc.tmp243745864
           local.get $t71
           if
             i32.const 46
@@ -13061,7 +13514,7 @@
           i32.lt_s
           local.set $t80
           local.get $t80
-          local.set $sc.tmp213193302
+          local.set $sc.tmp1166151249
           local.get $t80
           if
             i32.const 56
@@ -13079,12 +13532,12 @@
           i32.gt_s
           local.set $t88
           local.get $t88
-          local.set $sc.tmp1121453612
+          local.set $sc.tmp1613255205
           i32.const 52
           local.set $pc
           br $dispatch
         )
-          local.get $sc.tmp1121453612
+          local.get $sc.tmp1613255205
           local.set $t89
           local.get $t89
           if
@@ -13103,15 +13556,15 @@
           i32.lt_s
           local.set $t85
           local.get $t85
-          local.set $sc.tmp1615056168
+          local.set $sc.tmp1897115967
           i32.const 54
           local.set $pc
           br $dispatch
         )
-          local.get $sc.tmp1615056168
+          local.get $sc.tmp1897115967
           local.set $t86
           local.get $t86
-          local.set $sc.tmp1121453612
+          local.set $sc.tmp1613255205
           local.get $t86
           if
             i32.const 52
@@ -13129,15 +13582,15 @@
           i32.gt_s
           local.set $t82
           local.get $t82
-          local.set $sc.tmp213193302
+          local.set $sc.tmp1166151249
           i32.const 56
           local.set $pc
           br $dispatch
         )
-          local.get $sc.tmp213193302
+          local.get $sc.tmp1166151249
           local.set $t83
           local.get $t83
-          local.set $sc.tmp1615056168
+          local.set $sc.tmp1897115967
           local.get $t83
           if
             i32.const 54
@@ -13163,7 +13616,7 @@
           i32.ne
           local.set $t92
           local.get $t92
-          local.set $sc.tmp1543237999
+          local.set $sc.tmp1615056168
           local.get $t92
           if
             i32.const 61
@@ -13183,12 +13636,12 @@
           i32.ne
           local.set $t99
           local.get $t99
-          local.set $sc.tmp1502635287
+          local.set $sc.tmp1121453612
           i32.const 60
           local.set $pc
           br $dispatch
         )
-          local.get $sc.tmp1502635287
+          local.get $sc.tmp1121453612
           local.set $t100
           local.get $t100
           if
@@ -13209,15 +13662,15 @@
           i32.ne
           local.set $t95
           local.get $t95
-          local.set $sc.tmp1543237999
+          local.set $sc.tmp1615056168
           i32.const 62
           local.set $pc
           br $dispatch
         )
-          local.get $sc.tmp1543237999
+          local.get $sc.tmp1615056168
           local.set $t96
           local.get $t96
-          local.set $sc.tmp1502635287
+          local.set $sc.tmp1121453612
           local.get $t96
           if
             i32.const 59
@@ -13286,7 +13739,7 @@
             unreachable
           end
           local.get $t103
-          i32.const 46
+          i32.const 47
           i32.store
           local.get $t103
           i32.const 8
@@ -13361,7 +13814,7 @@
             unreachable
           end
           local.get $t106
-          i32.const 46
+          i32.const 47
           i32.store
           local.get $t106
           i32.const 8
@@ -13436,7 +13889,7 @@
             unreachable
           end
           local.get $t109
-          i32.const 46
+          i32.const 47
           i32.store
           local.get $t109
           i32.const 8
@@ -13759,7 +14212,7 @@
             unreachable
           end
           local.get $t179
-          i32.const 46
+          i32.const 47
           i32.store
           local.get $t179
           i32.const 8
@@ -13829,7 +14282,7 @@
           end
           br $dispatch
         )
-          local.get $sc.tmp632249781
+          local.get $sc.tmp213193302
           local.set $t142
           local.get $t142
           if
@@ -13850,7 +14303,7 @@
           i32.ne
           local.set $t136
           local.get $t136
-          local.set $sc.tmp632249781
+          local.set $sc.tmp213193302
           local.get $t136
           if
             i32.const 88
@@ -13870,7 +14323,7 @@
           i32.ne
           local.set $t141
           local.get $t141
-          local.set $sc.tmp632249781
+          local.set $sc.tmp213193302
           i32.const 89
           local.set $pc
           br $dispatch
@@ -13975,7 +14428,7 @@
           end
           br $dispatch
         )
-          local.get $sc.tmp19717364
+          local.get $sc.tmp1502635287
           local.set $t153
           local.get $t153
           if
@@ -13996,7 +14449,7 @@
           i32.lt_s
           local.set $t147
           local.get $t147
-          local.set $sc.tmp19717364
+          local.set $sc.tmp1502635287
           local.get $t147
           if
             i32.const 97
@@ -14016,7 +14469,7 @@
           i32.gt_s
           local.set $t152
           local.get $t152
-          local.set $sc.tmp19717364
+          local.set $sc.tmp1502635287
           i32.const 97
           local.set $pc
           br $dispatch
@@ -14121,7 +14574,7 @@
           end
           br $dispatch
         )
-          local.get $sc.tmp1540270363
+          local.get $sc.tmp1543237999
           local.set $t164
           local.get $t164
           if
@@ -14142,7 +14595,7 @@
           i32.lt_s
           local.set $t158
           local.get $t158
-          local.set $sc.tmp1540270363
+          local.set $sc.tmp1543237999
           local.get $t158
           if
             i32.const 105
@@ -14162,7 +14615,7 @@
           i32.gt_s
           local.set $t163
           local.get $t163
-          local.set $sc.tmp1540270363
+          local.set $sc.tmp1543237999
           i32.const 105
           local.set $pc
           br $dispatch
@@ -14267,7 +14720,7 @@
           end
           br $dispatch
         )
-          local.get $sc.tmp1597655940
+          local.get $sc.tmp632249781
           local.set $t175
           local.get $t175
           if
@@ -14288,7 +14741,7 @@
           i32.ne
           local.set $t169
           local.get $t169
-          local.set $sc.tmp1597655940
+          local.set $sc.tmp632249781
           local.get $t169
           if
             i32.const 112
@@ -14308,7 +14761,7 @@
           i32.eq
           local.set $t174
           local.get $t174
-          local.set $sc.tmp1597655940
+          local.set $sc.tmp632249781
           i32.const 113
           local.set $pc
           br $dispatch
@@ -14386,7 +14839,7 @@
             unreachable
           end
           local.get $t183
-          i32.const 46
+          i32.const 47
           i32.store
           local.get $t183
           i32.const 8
@@ -14463,7 +14916,7 @@
             unreachable
           end
           local.get $t187
-          i32.const 46
+          i32.const 47
           i32.store
           local.get $t187
           i32.const 8
@@ -14540,7 +14993,7 @@
             unreachable
           end
           local.get $t191
-          i32.const 46
+          i32.const 47
           i32.store
           local.get $t191
           i32.const 8
@@ -14617,7 +15070,7 @@
             unreachable
           end
           local.get $t195
-          i32.const 46
+          i32.const 47
           i32.store
           local.get $t195
           i32.const 8
@@ -16428,12 +16881,12 @@
     (local $__jn_frame i32)
     (local $ret i32)
     (local $p__slot i32)
-    (local $sc.tmp2619171 i32)
+    (local $sc.tmp19717364 i32)
     (local $i i32)
     (local $c i32)
-    (local $sc.tmp1728790703 i32)
+    (local $sc.tmp1540270363 i32)
     (local $gctmp.25 i32)
-    (local $sc.tmp1227074340 i32)
+    (local $sc.tmp1597655940 i32)
     (local $gctmp.34 i32)
     (local $gctmp.40 i32)
     (local $t0 i32)
@@ -16561,7 +17014,7 @@
           i32.eq
           local.set $t2
           local.get $t2
-          local.set $sc.tmp2619171
+          local.set $sc.tmp19717364
           local.get $t2
           if
             i32.const 4
@@ -16581,7 +17034,7 @@
           local.get $t3
           i32.eqz
           if
-            unreachable
+            call $jnative_throw_npe
           end
           call $jnative_exception_pending
           local.set $t4
@@ -16595,7 +17048,7 @@
           end
           br $dispatch
         )
-          local.get $sc.tmp2619171
+          local.get $sc.tmp19717364
           local.set $t8
           local.get $t8
           if
@@ -16635,7 +17088,7 @@
           i32.ne
           local.set $t7
           local.get $t7
-          local.set $sc.tmp2619171
+          local.set $sc.tmp19717364
           i32.const 4
           local.set $pc
           br $dispatch
@@ -16677,7 +17130,7 @@
           local.get $t11
           i32.eqz
           if
-            unreachable
+            call $jnative_throw_npe
           end
           call $jnative_exception_pending
           local.set $t12
@@ -16764,7 +17217,7 @@
           i32.ge_s
           local.set $t18
           local.get $t18
-          local.set $sc.tmp1728790703
+          local.set $sc.tmp1540270363
           local.get $t18
           if
             i32.const 18
@@ -16782,12 +17235,12 @@
           i32.le_s
           local.set $t20
           local.get $t20
-          local.set $sc.tmp1728790703
+          local.set $sc.tmp1540270363
           i32.const 19
           local.set $pc
           br $dispatch
         )
-          local.get $sc.tmp1728790703
+          local.get $sc.tmp1540270363
           local.set $t21
           local.get $t21
           if
@@ -16884,7 +17337,7 @@
           i32.eq
           local.set $t29
           local.get $t29
-          local.set $sc.tmp1227074340
+          local.set $sc.tmp1597655940
           local.get $t29
           if
             i32.const 26
@@ -16910,12 +17363,12 @@
           i32.eq
           local.set $t31
           local.get $t31
-          local.set $sc.tmp1227074340
+          local.set $sc.tmp1597655940
           i32.const 26
           local.set $pc
           br $dispatch
         )
-          local.get $sc.tmp1227074340
+          local.get $sc.tmp1597655940
           local.set $t32
           local.get $t32
           if
@@ -17024,7 +17477,7 @@
     (local $ret i32)
     (local $seed__slot i32)
     (local $diff__slot i32)
-    (local $sc.tmp1629911510 i32)
+    (local $sc.tmp246399377 i32)
     (local $attempt i32)
     (local $targetGivens i32)
     (local $gctmp.22 i32)
@@ -17244,7 +17697,7 @@
           i32.lt_s
           local.set $t2
           local.get $t2
-          local.set $sc.tmp1629911510
+          local.set $sc.tmp246399377
           local.get $t2
           if
             i32.const 4
@@ -17262,12 +17715,12 @@
           i32.gt_s
           local.set $t4
           local.get $t4
-          local.set $sc.tmp1629911510
+          local.set $sc.tmp246399377
           i32.const 4
           local.set $pc
           br $dispatch
         )
-          local.get $sc.tmp1629911510
+          local.get $sc.tmp246399377
           local.set $t5
           local.get $t5
           if
@@ -18346,7 +18799,7 @@
     (local $__jn_frame i32)
     (local $ret i32)
     (local $diff__slot i32)
-    (local $sc.tmp2012846597 i32)
+    (local $sc.tmp2011986105 i32)
     (local $t0 i32)
     (local $t1 i32)
     (local $t2 i32)
@@ -18393,7 +18846,7 @@
           i32.lt_s
           local.set $t2
           local.get $t2
-          local.set $sc.tmp2012846597
+          local.set $sc.tmp2011986105
           local.get $t2
           if
             i32.const 4
@@ -18411,12 +18864,12 @@
           i32.gt_s
           local.set $t4
           local.get $t4
-          local.set $sc.tmp2012846597
+          local.set $sc.tmp2011986105
           i32.const 4
           local.set $pc
           br $dispatch
         )
-          local.get $sc.tmp2012846597
+          local.get $sc.tmp2011986105
           local.set $t5
           local.get $t5
           if
@@ -18687,7 +19140,7 @@
     (local $ret i32)
     (local $b__slot i32)
     (local $i i32)
-    (local $sc.tmp1226622409 i32)
+    (local $sc.tmp292917034 i32)
     (local $n i32)
     (local $rowMask i32)
     (local $colMask i32)
@@ -18701,8 +19154,8 @@
     (local $rb i32)
     (local $cb i32)
     (local $bb i32)
-    (local $sc.tmp1957502751 i32)
-    (local $sc.tmp1780132728 i32)
+    (local $sc.tmp242355057 i32)
+    (local $sc.tmp455538610 i32)
     (local $t0 i32)
     (local $t1 i32)
     (local $t2 i32)
@@ -18995,7 +19448,7 @@
           end
           br $dispatch
         )
-          local.get $sc.tmp1226622409
+          local.get $sc.tmp292917034
           local.set $t13
           local.get $t13
           if
@@ -19016,7 +19469,7 @@
           i32.lt_s
           local.set $t7
           local.get $t7
-          local.set $sc.tmp1226622409
+          local.set $sc.tmp292917034
           local.get $t7
           if
             i32.const 7
@@ -19036,7 +19489,7 @@
           i32.gt_s
           local.set $t12
           local.get $t12
-          local.set $sc.tmp1226622409
+          local.set $sc.tmp292917034
           i32.const 7
           local.set $pc
           br $dispatch
@@ -19465,7 +19918,7 @@
           i32.ne
           local.set $t69
           local.get $t69
-          local.set $sc.tmp1780132728
+          local.set $sc.tmp455538610
           local.get $t69
           if
             i32.const 37
@@ -19489,12 +19942,12 @@
           i32.ne
           local.set $t78
           local.get $t78
-          local.set $sc.tmp1957502751
+          local.set $sc.tmp242355057
           i32.const 35
           local.set $pc
           br $dispatch
         )
-          local.get $sc.tmp1957502751
+          local.get $sc.tmp242355057
           local.set $t79
           local.get $t79
           if
@@ -19519,15 +19972,15 @@
           i32.ne
           local.set $t73
           local.get $t73
-          local.set $sc.tmp1780132728
+          local.set $sc.tmp455538610
           i32.const 37
           local.set $pc
           br $dispatch
         )
-          local.get $sc.tmp1780132728
+          local.get $sc.tmp455538610
           local.set $t74
           local.get $t74
-          local.set $sc.tmp1957502751
+          local.set $sc.tmp242355057
           local.get $t74
           if
             i32.const 35
@@ -19598,12 +20051,12 @@
     (local $p__slot i32)
     (local $diff__slot i32)
     (local $id__slot i32)
-    (local $sc.tmp292917034 i32)
+    (local $sc.tmp1630521067 i32)
     (local $i i32)
     (local $c i32)
     (local $d i32)
-    (local $sc.tmp242355057 i32)
-    (local $sc.tmp455538610 i32)
+    (local $sc.tmp274773041 i32)
+    (local $sc.tmp1629911510 i32)
     (local $gctmp.32 i32)
     (local $gctmp.38 i32)
     (local $gctmp.42 i32)
@@ -19831,7 +20284,7 @@
           i32.eq
           local.set $t3
           local.get $t3
-          local.set $sc.tmp292917034
+          local.set $sc.tmp1630521067
           local.get $t3
           if
             i32.const 6
@@ -19851,7 +20304,7 @@
           local.get $t4
           i32.eqz
           if
-            unreachable
+            call $jnative_throw_npe
           end
           call $jnative_exception_pending
           local.set $t5
@@ -19865,7 +20318,7 @@
           end
           br $dispatch
         )
-          local.get $sc.tmp292917034
+          local.get $sc.tmp1630521067
           local.set $t9
           local.get $t9
           if
@@ -19905,7 +20358,7 @@
           i32.ne
           local.set $t8
           local.get $t8
-          local.set $sc.tmp292917034
+          local.set $sc.tmp1630521067
           i32.const 6
           local.set $pc
           br $dispatch
@@ -19947,7 +20400,7 @@
           local.get $t12
           i32.eqz
           if
-            unreachable
+            call $jnative_throw_npe
           end
           call $jnative_exception_pending
           local.set $t13
@@ -20051,7 +20504,7 @@
           i32.ge_s
           local.set $t19
           local.get $t19
-          local.set $sc.tmp242355057
+          local.set $sc.tmp274773041
           local.get $t19
           if
             i32.const 20
@@ -20069,12 +20522,12 @@
           i32.le_s
           local.set $t21
           local.get $t21
-          local.set $sc.tmp242355057
+          local.set $sc.tmp274773041
           i32.const 21
           local.set $pc
           br $dispatch
         )
-          local.get $sc.tmp242355057
+          local.get $sc.tmp274773041
           local.set $t22
           local.get $t22
           if
@@ -20166,7 +20619,7 @@
           i32.eq
           local.set $t26
           local.get $t26
-          local.set $sc.tmp455538610
+          local.set $sc.tmp1629911510
           local.get $t26
           if
             i32.const 26
@@ -20184,12 +20637,12 @@
           i32.eq
           local.set $t28
           local.get $t28
-          local.set $sc.tmp455538610
+          local.set $sc.tmp1629911510
           i32.const 26
           local.set $pc
           br $dispatch
         )
-          local.get $sc.tmp455538610
+          local.get $sc.tmp1629911510
           local.set $t29
           local.get $t29
           if
@@ -20958,7 +21411,7 @@
             unreachable
           end
           local.get $t2
-          i32.const 46
+          i32.const 47
           i32.store
           local.get $t2
           i32.const 8
@@ -21027,7 +21480,7 @@
             unreachable
           end
           local.get $t5
-          i32.const 46
+          i32.const 47
           i32.store
           local.get $t5
           i32.const 8
@@ -21096,7 +21549,7 @@
             unreachable
           end
           local.get $t8
-          i32.const 46
+          i32.const 47
           i32.store
           local.get $t8
           i32.const 8
@@ -21165,7 +21618,7 @@
             unreachable
           end
           local.get $t11
-          i32.const 46
+          i32.const 47
           i32.store
           local.get $t11
           i32.const 8
@@ -21234,7 +21687,7 @@
             unreachable
           end
           local.get $t14
-          i32.const 46
+          i32.const 47
           i32.store
           local.get $t14
           i32.const 8
@@ -21305,7 +21758,7 @@
             unreachable
           end
           local.get $t18
-          i32.const 46
+          i32.const 47
           i32.store
           local.get $t18
           i32.const 8
@@ -21376,7 +21829,7 @@
             unreachable
           end
           local.get $t22
-          i32.const 46
+          i32.const 47
           i32.store
           local.get $t22
           i32.const 8
@@ -21447,7 +21900,7 @@
             unreachable
           end
           local.get $t26
-          i32.const 46
+          i32.const 47
           i32.store
           local.get $t26
           i32.const 8
@@ -21518,7 +21971,7 @@
             unreachable
           end
           local.get $t30
-          i32.const 46
+          i32.const 47
           i32.store
           local.get $t30
           i32.const 8
@@ -21589,7 +22042,7 @@
             unreachable
           end
           local.get $t34
-          i32.const 46
+          i32.const 47
           i32.store
           local.get $t34
           i32.const 8
@@ -21660,7 +22113,7 @@
             unreachable
           end
           local.get $t38
-          i32.const 46
+          i32.const 47
           i32.store
           local.get $t38
           i32.const 8
@@ -21729,7 +22182,7 @@
             unreachable
           end
           local.get $t41
-          i32.const 46
+          i32.const 47
           i32.store
           local.get $t41
           i32.const 8
@@ -21798,7 +22251,7 @@
             unreachable
           end
           local.get $t44
-          i32.const 46
+          i32.const 47
           i32.store
           local.get $t44
           i32.const 8
@@ -21867,7 +22320,7 @@
             unreachable
           end
           local.get $t47
-          i32.const 46
+          i32.const 47
           i32.store
           local.get $t47
           i32.const 8
@@ -21936,7 +22389,7 @@
             unreachable
           end
           local.get $t50
-          i32.const 46
+          i32.const 47
           i32.store
           local.get $t50
           i32.const 8
@@ -21993,12 +22446,12 @@
     (local $id__slot i32)
     (local $cat i32)
     (local $gctmp.4 i32)
-    (local $sc.tmp1800890735 i32)
+    (local $sc.tmp738433734 i32)
     (local $i i32)
     (local $c i32)
     (local $d i32)
-    (local $sc.tmp1538399081 i32)
-    (local $sc.tmp1805013491 i32)
+    (local $sc.tmp1484594489 i32)
+    (local $sc.tmp1489069835 i32)
     (local $gctmp.35 i32)
     (local $gctmp.41 i32)
     (local $gctmp.45 i32)
@@ -22247,7 +22700,7 @@
           i32.eq
           local.set $t6
           local.get $t6
-          local.set $sc.tmp1800890735
+          local.set $sc.tmp738433734
           local.get $t6
           if
             i32.const 6
@@ -22267,7 +22720,7 @@
           local.get $t7
           i32.eqz
           if
-            unreachable
+            call $jnative_throw_npe
           end
           call $jnative_exception_pending
           local.set $t8
@@ -22281,7 +22734,7 @@
           end
           br $dispatch
         )
-          local.get $sc.tmp1800890735
+          local.get $sc.tmp738433734
           local.set $t12
           local.get $t12
           if
@@ -22321,7 +22774,7 @@
           i32.ne
           local.set $t11
           local.get $t11
-          local.set $sc.tmp1800890735
+          local.set $sc.tmp738433734
           i32.const 6
           local.set $pc
           br $dispatch
@@ -22363,7 +22816,7 @@
           local.get $t15
           i32.eqz
           if
-            unreachable
+            call $jnative_throw_npe
           end
           call $jnative_exception_pending
           local.set $t16
@@ -22467,7 +22920,7 @@
           i32.ge_s
           local.set $t22
           local.get $t22
-          local.set $sc.tmp1538399081
+          local.set $sc.tmp1484594489
           local.get $t22
           if
             i32.const 20
@@ -22485,12 +22938,12 @@
           i32.le_s
           local.set $t24
           local.get $t24
-          local.set $sc.tmp1538399081
+          local.set $sc.tmp1484594489
           i32.const 21
           local.set $pc
           br $dispatch
         )
-          local.get $sc.tmp1538399081
+          local.get $sc.tmp1484594489
           local.set $t25
           local.get $t25
           if
@@ -22582,7 +23035,7 @@
           i32.eq
           local.set $t29
           local.get $t29
-          local.set $sc.tmp1805013491
+          local.set $sc.tmp1489069835
           local.get $t29
           if
             i32.const 26
@@ -22600,12 +23053,12 @@
           i32.eq
           local.set $t31
           local.get $t31
-          local.set $sc.tmp1805013491
+          local.set $sc.tmp1489069835
           i32.const 26
           local.set $pc
           br $dispatch
         )
-          local.get $sc.tmp1805013491
+          local.get $sc.tmp1489069835
           local.set $t32
           local.get $t32
           if
@@ -23225,7 +23678,7 @@
     (local $bit i32)
     (local $newN i32)
     (local $newV i32)
-    (local $sc.tmp1489069835 i32)
+    (local $sc.tmp161960012 i32)
     (local $gctmp.40 i32)
     (local $gctmp.45 i32)
     (local $t0 i32)
@@ -23508,7 +23961,7 @@
           i32.eq
           local.set $t27
           local.get $t27
-          local.set $sc.tmp1489069835
+          local.set $sc.tmp161960012
           local.get $t27
           if
             i32.const 8
@@ -23542,12 +23995,12 @@
           i32.eq
           local.set $t30
           local.get $t30
-          local.set $sc.tmp1489069835
+          local.set $sc.tmp161960012
           i32.const 9
           local.set $pc
           br $dispatch
         )
-          local.get $sc.tmp1489069835
+          local.get $sc.tmp161960012
           local.set $t31
           local.get $t31
           if
@@ -25008,12 +25461,12 @@
     (local $c i32)
     (local $j i32)
     (local $ri i32)
-    (local $sc.tmp767010715 i32)
+    (local $sc.tmp140799417 i32)
     (local $gctmp.35 i32)
     (local $gctmp.43 i32)
     (local $gctmp.47 i32)
     (local $ci i32)
-    (local $sc.tmp110431793 i32)
+    (local $sc.tmp926370398 i32)
     (local $gctmp.58 i32)
     (local $gctmp.66 i32)
     (local $gctmp.70 i32)
@@ -25022,7 +25475,7 @@
     (local $dr i32)
     (local $dc i32)
     (local $bi i32)
-    (local $sc.tmp192794887 i32)
+    (local $sc.tmp1181869371 i32)
     (local $gctmp.99 i32)
     (local $gctmp.107 i32)
     (local $gctmp.111 i32)
@@ -25516,7 +25969,7 @@
           i32.ne
           local.set $t33
           local.get $t33
-          local.set $sc.tmp767010715
+          local.set $sc.tmp140799417
           local.get $t33
           if
             i32.const 20
@@ -25604,7 +26057,7 @@
           end
           br $dispatch
         )
-          local.get $sc.tmp767010715
+          local.get $sc.tmp140799417
           local.set $t41
           local.get $t41
           if
@@ -25625,7 +26078,7 @@
           i32.eq
           local.set $t40
           local.get $t40
-          local.set $sc.tmp767010715
+          local.set $sc.tmp140799417
           i32.const 21
           local.set $pc
           br $dispatch
@@ -25712,7 +26165,7 @@
           i32.ne
           local.set $t56
           local.get $t56
-          local.set $sc.tmp110431793
+          local.set $sc.tmp926370398
           local.get $t56
           if
             i32.const 30
@@ -25849,7 +26302,7 @@
           end
           br $dispatch
         )
-          local.get $sc.tmp110431793
+          local.get $sc.tmp926370398
           local.set $t64
           local.get $t64
           if
@@ -25870,7 +26323,7 @@
           i32.eq
           local.set $t63
           local.get $t63
-          local.set $sc.tmp110431793
+          local.set $sc.tmp926370398
           i32.const 31
           local.set $pc
           br $dispatch
@@ -26140,7 +26593,7 @@
           i32.ne
           local.set $t97
           local.get $t97
-          local.set $sc.tmp192794887
+          local.set $sc.tmp1181869371
           local.get $t97
           if
             i32.const 50
@@ -26223,7 +26676,7 @@
           end
           br $dispatch
         )
-          local.get $sc.tmp192794887
+          local.get $sc.tmp1181869371
           local.set $t105
           local.get $t105
           if
@@ -26244,7 +26697,7 @@
           i32.eq
           local.set $t104
           local.get $t104
-          local.set $sc.tmp192794887
+          local.set $sc.tmp1181869371
           i32.const 51
           local.set $pc
           br $dispatch
@@ -26774,7 +27227,7 @@
           local.get $t1
           i32.eqz
           if
-            unreachable
+            call $jnative_throw_npe
           end
           call $jnative_exception_pending
           local.set $t2
@@ -26797,7 +27250,7 @@
           local.get $t6
           i32.eqz
           if
-            unreachable
+            call $jnative_throw_npe
           end
           call $jnative_exception_pending
           local.set $t7
@@ -27088,7 +27541,7 @@
             unreachable
           end
           local.get $t8
-          i32.const 46
+          i32.const 47
           i32.store
           local.get $t8
           i32.const 8
@@ -27510,7 +27963,7 @@
     (local $pos__slot i32)
     (local $lit__slot i32)
     (local $i i32)
-    (local $sc.tmp1970881185 i32)
+    (local $sc.tmp1780132728 i32)
     (local $t0 i32)
     (local $t1 i32)
     (local $t2 i32)
@@ -27638,7 +28091,7 @@
           local.get $t1
           i32.eqz
           if
-            unreachable
+            call $jnative_throw_npe
           end
           call $jnative_exception_pending
           local.set $t2
@@ -27747,7 +28200,7 @@
           local.get $t14
           i32.eqz
           if
-            unreachable
+            call $jnative_throw_npe
           end
           call $jnative_exception_pending
           local.set $t15
@@ -27761,7 +28214,7 @@
           end
           br $dispatch
         )
-          local.get $sc.tmp1970881185
+          local.get $sc.tmp1780132728
           local.set $t29
           local.get $t29
           if
@@ -27786,7 +28239,7 @@
           local.get $t9
           i32.eqz
           if
-            unreachable
+            call $jnative_throw_npe
           end
           call $jnative_exception_pending
           local.set $t10
@@ -27828,7 +28281,7 @@
           i32.ge_s
           local.set $t13
           local.get $t13
-          local.set $sc.tmp1970881185
+          local.set $sc.tmp1780132728
           local.get $t13
           if
             i32.const 9
@@ -27921,7 +28374,7 @@
           local.get $t21
           i32.eqz
           if
-            unreachable
+            call $jnative_throw_npe
           end
           call $jnative_exception_pending
           local.set $t22
@@ -27974,7 +28427,7 @@
           i32.ne
           local.set $t28
           local.get $t28
-          local.set $sc.tmp1970881185
+          local.set $sc.tmp1780132728
           i32.const 9
           local.set $pc
           br $dispatch
@@ -28111,11 +28564,11 @@
     (local $data__slot i32)
     (local $pos__slot i32)
     (local $sign i32)
-    (local $sc.tmp2050835901 i32)
+    (local $sc.tmp924477420 i32)
     (local $acc i32)
     (local $digits i32)
     (local $c i32)
-    (local $sc.tmp511473681 i32)
+    (local $sc.tmp99451533 i32)
     (local $t0 i32)
     (local $t1 i32)
     (local $t2 i32)
@@ -28327,7 +28780,7 @@
           local.get $t8
           i32.eqz
           if
-            unreachable
+            call $jnative_throw_npe
           end
           call $jnative_exception_pending
           local.set $t9
@@ -28341,7 +28794,7 @@
           end
           br $dispatch
         )
-          local.get $sc.tmp2050835901
+          local.get $sc.tmp924477420
           local.set $t17
           local.get $t17
           if
@@ -28366,7 +28819,7 @@
           local.get $t3
           i32.eqz
           if
-            unreachable
+            call $jnative_throw_npe
           end
           call $jnative_exception_pending
           local.set $t4
@@ -28408,7 +28861,7 @@
           i32.lt_s
           local.set $t7
           local.get $t7
-          local.set $sc.tmp2050835901
+          local.set $sc.tmp924477420
           local.get $t7
           if
             i32.const 1
@@ -28501,7 +28954,7 @@
           i32.eq
           local.set $t16
           local.get $t16
-          local.set $sc.tmp2050835901
+          local.set $sc.tmp924477420
           i32.const 2
           local.set $pc
           br $dispatch
@@ -28676,7 +29129,7 @@
           local.get $t33
           i32.eqz
           if
-            unreachable
+            call $jnative_throw_npe
           end
           call $jnative_exception_pending
           local.set $t34
@@ -28719,7 +29172,7 @@
           local.get $t28
           i32.eqz
           if
-            unreachable
+            call $jnative_throw_npe
           end
           call $jnative_exception_pending
           local.set $t29
@@ -28915,7 +29368,7 @@
           i32.lt_s
           local.set $t50
           local.get $t50
-          local.set $sc.tmp511473681
+          local.set $sc.tmp99451533
           local.get $t50
           if
             i32.const 43
@@ -28994,12 +29447,12 @@
           i32.gt_s
           local.set $t52
           local.get $t52
-          local.set $sc.tmp511473681
+          local.set $sc.tmp99451533
           i32.const 43
           local.set $pc
           br $dispatch
         )
-          local.get $sc.tmp511473681
+          local.get $sc.tmp99451533
           local.set $t53
           local.get $t53
           if
@@ -29183,8 +29636,8 @@
     (local $out__slot i32)
     (local $i i32)
     (local $c i32)
-    (local $sc.tmp2048425748 i32)
-    (local $sc.tmp936580213 i32)
+    (local $sc.tmp2116908859 i32)
+    (local $sc.tmp917819120 i32)
     (local $t0 i32)
     (local $t1 i32)
     (local $t2 i32)
@@ -29458,7 +29911,7 @@
           local.get $t5
           i32.eqz
           if
-            unreachable
+            call $jnative_throw_npe
           end
           call $jnative_exception_pending
           local.set $t6
@@ -29522,7 +29975,7 @@
           local.get $t10
           i32.eqz
           if
-            unreachable
+            call $jnative_throw_npe
           end
           call $jnative_exception_pending
           local.set $t11
@@ -29620,7 +30073,7 @@
           i32.lt_s
           local.set $t19
           local.get $t19
-          local.set $sc.tmp2048425748
+          local.set $sc.tmp2116908859
           local.get $t19
           if
             i32.const 19
@@ -29638,12 +30091,12 @@
           i32.gt_s
           local.set $t21
           local.get $t21
-          local.set $sc.tmp2048425748
+          local.set $sc.tmp2116908859
           i32.const 19
           local.set $pc
           br $dispatch
         )
-          local.get $sc.tmp2048425748
+          local.get $sc.tmp2116908859
           local.set $t22
           local.get $t22
           if
@@ -29840,7 +30293,7 @@
           local.get $t44
           i32.eqz
           if
-            unreachable
+            call $jnative_throw_npe
           end
           call $jnative_exception_pending
           local.set $t45
@@ -29854,7 +30307,7 @@
           end
           br $dispatch
         )
-          local.get $sc.tmp936580213
+          local.get $sc.tmp917819120
           local.set $t53
           local.get $t53
           if
@@ -29879,7 +30332,7 @@
           local.get $t39
           i32.eqz
           if
-            unreachable
+            call $jnative_throw_npe
           end
           call $jnative_exception_pending
           local.set $t40
@@ -29921,7 +30374,7 @@
           i32.lt_s
           local.set $t43
           local.get $t43
-          local.set $sc.tmp936580213
+          local.set $sc.tmp917819120
           local.get $t43
           if
             i32.const 28
@@ -30014,7 +30467,7 @@
           i32.eq
           local.set $t52
           local.get $t52
-          local.set $sc.tmp936580213
+          local.set $sc.tmp917819120
           i32.const 29
           local.set $pc
           br $dispatch
@@ -30146,10 +30599,10 @@
     (local $acc i32)
     (local $digits i32)
     (local $c i32)
+    (local $sc.tmp1188753216 i32)
+    (local $sc.tmp317986356 i32)
+    (local $sc.tmp331510866 i32)
     (local $sc.tmp640363654 i32)
-    (local $sc.tmp924477420 i32)
-    (local $sc.tmp99451533 i32)
-    (local $sc.tmp84739718 i32)
     (local $t0 i32)
     (local $t1 i32)
     (local $t2 i32)
@@ -30491,7 +30944,7 @@
           local.get $t10
           i32.eqz
           if
-            unreachable
+            call $jnative_throw_npe
           end
           call $jnative_exception_pending
           local.set $t11
@@ -30534,7 +30987,7 @@
           local.get $t5
           i32.eqz
           if
-            unreachable
+            call $jnative_throw_npe
           end
           call $jnative_exception_pending
           local.set $t6
@@ -30669,7 +31122,7 @@
           i32.eq
           local.set $t19
           local.get $t19
-          local.set $sc.tmp640363654
+          local.set $sc.tmp1188753216
           local.get $t19
           if
             i32.const 20
@@ -30687,12 +31140,12 @@
           i32.eq
           local.set $t21
           local.get $t21
-          local.set $sc.tmp640363654
+          local.set $sc.tmp1188753216
           i32.const 20
           local.set $pc
           br $dispatch
         )
-          local.get $sc.tmp640363654
+          local.get $sc.tmp1188753216
           local.set $t22
           local.get $t22
           if
@@ -30715,7 +31168,7 @@
           i32.lt_s
           local.set $t24
           local.get $t24
-          local.set $sc.tmp924477420
+          local.set $sc.tmp317986356
           local.get $t24
           if
             i32.const 24
@@ -30733,12 +31186,12 @@
           i32.gt_s
           local.set $t26
           local.get $t26
-          local.set $sc.tmp924477420
+          local.set $sc.tmp317986356
           i32.const 24
           local.set $pc
           br $dispatch
         )
-          local.get $sc.tmp924477420
+          local.get $sc.tmp317986356
           local.set $t27
           local.get $t27
           if
@@ -30998,7 +31451,7 @@
           local.get $t55
           i32.eqz
           if
-            unreachable
+            call $jnative_throw_npe
           end
           call $jnative_exception_pending
           local.set $t56
@@ -31012,7 +31465,7 @@
           end
           br $dispatch
         )
-          local.get $sc.tmp99451533
+          local.get $sc.tmp331510866
           local.set $t64
           local.get $t64
           if
@@ -31037,7 +31490,7 @@
           local.get $t50
           i32.eqz
           if
-            unreachable
+            call $jnative_throw_npe
           end
           call $jnative_exception_pending
           local.set $t51
@@ -31079,7 +31532,7 @@
           i32.lt_s
           local.set $t54
           local.get $t54
-          local.set $sc.tmp99451533
+          local.set $sc.tmp331510866
           local.get $t54
           if
             i32.const 35
@@ -31172,7 +31625,7 @@
           i32.eq
           local.set $t63
           local.get $t63
-          local.set $sc.tmp99451533
+          local.set $sc.tmp331510866
           i32.const 36
           local.set $pc
           br $dispatch
@@ -31305,7 +31758,7 @@
           local.get $t81
           i32.eqz
           if
-            unreachable
+            call $jnative_throw_npe
           end
           call $jnative_exception_pending
           local.set $t82
@@ -31319,7 +31772,7 @@
           end
           br $dispatch
         )
-          local.get $sc.tmp84739718
+          local.get $sc.tmp640363654
           local.set $t90
           local.get $t90
           if
@@ -31344,7 +31797,7 @@
           local.get $t76
           i32.eqz
           if
-            unreachable
+            call $jnative_throw_npe
           end
           call $jnative_exception_pending
           local.set $t77
@@ -31386,7 +31839,7 @@
           i32.lt_s
           local.set $t80
           local.get $t80
-          local.set $sc.tmp84739718
+          local.set $sc.tmp640363654
           local.get $t80
           if
             i32.const 55
@@ -31479,7 +31932,7 @@
           i32.eq
           local.set $t89
           local.get $t89
-          local.set $sc.tmp84739718
+          local.set $sc.tmp640363654
           i32.const 56
           local.set $pc
           br $dispatch
@@ -31612,10 +32065,10 @@
     (local $hnv__slot i32)
     (local $hpn__slot i32)
     (local $hnn__slot i32)
-    (local $sc.tmp249155636 i32)
+    (local $sc.tmp988458918 i32)
     (local $i i32)
-    (local $sc.tmp1629604310 i32)
-    (local $sc.tmp142555199 i32)
+    (local $sc.tmp1990451863 i32)
+    (local $sc.tmp1295083508 i32)
     (local $t0 i32)
     (local $t1 i32)
     (local $t2 i32)
@@ -31969,7 +32422,7 @@
           local.get $t10
           i32.eqz
           if
-            unreachable
+            call $jnative_throw_npe
           end
           call $jnative_exception_pending
           local.set $t11
@@ -31983,7 +32436,7 @@
           end
           br $dispatch
         )
-          local.get $sc.tmp249155636
+          local.get $sc.tmp988458918
           local.set $t19
           local.get $t19
           if
@@ -32008,7 +32461,7 @@
           local.get $t5
           i32.eqz
           if
-            unreachable
+            call $jnative_throw_npe
           end
           call $jnative_exception_pending
           local.set $t6
@@ -32050,7 +32503,7 @@
           i32.lt_s
           local.set $t9
           local.get $t9
-          local.set $sc.tmp249155636
+          local.set $sc.tmp988458918
           local.get $t9
           if
             i32.const 3
@@ -32143,7 +32596,7 @@
           i32.eq
           local.set $t18
           local.get $t18
-          local.set $sc.tmp249155636
+          local.set $sc.tmp988458918
           i32.const 4
           local.set $pc
           br $dispatch
@@ -32935,7 +33388,7 @@
           end
           br $dispatch
         )
-          local.get $sc.tmp1629604310
+          local.get $sc.tmp1990451863
           local.set $t84
           local.get $t84
           if
@@ -32956,7 +33409,7 @@
           i32.lt_s
           local.set $t78
           local.get $t78
-          local.set $sc.tmp1629604310
+          local.set $sc.tmp1990451863
           local.get $t78
           if
             i32.const 57
@@ -32976,7 +33429,7 @@
           i32.gt_s
           local.set $t83
           local.get $t83
-          local.set $sc.tmp1629604310
+          local.set $sc.tmp1990451863
           i32.const 57
           local.set $pc
           br $dispatch
@@ -33007,7 +33460,7 @@
           local.get $t95
           i32.eqz
           if
-            unreachable
+            call $jnative_throw_npe
           end
           call $jnative_exception_pending
           local.set $t96
@@ -33021,7 +33474,7 @@
           end
           br $dispatch
         )
-          local.get $sc.tmp142555199
+          local.get $sc.tmp1295083508
           local.set $t104
           local.get $t104
           if
@@ -33046,7 +33499,7 @@
           local.get $t90
           i32.eqz
           if
-            unreachable
+            call $jnative_throw_npe
           end
           call $jnative_exception_pending
           local.set $t91
@@ -33088,7 +33541,7 @@
           i32.lt_s
           local.set $t94
           local.get $t94
-          local.set $sc.tmp142555199
+          local.set $sc.tmp1295083508
           local.get $t94
           if
             i32.const 64
@@ -33181,7 +33634,7 @@
           i32.eq
           local.set $t103
           local.get $t103
-          local.set $sc.tmp142555199
+          local.set $sc.tmp1295083508
           i32.const 65
           local.set $pc
           br $dispatch
@@ -33313,7 +33766,7 @@
     (local $gctmp.4 i32)
     (local $gctmp.7 i32)
     (local $gctmp.10 i32)
-    (local $sc.tmp1484594489 i32)
+    (local $sc.tmp1045941616 i32)
     (local $idx i32)
     (local $gctmp.26 i32)
     (local $d i32)
@@ -33753,7 +34206,7 @@
           i32.gt_s
           local.set $t19
           local.get $t19
-          local.set $sc.tmp1484594489
+          local.set $sc.tmp1045941616
           local.get $t19
           if
             i32.const 15
@@ -33779,12 +34232,12 @@
           i32.ge_s
           local.set $t22
           local.get $t22
-          local.set $sc.tmp1484594489
+          local.set $sc.tmp1045941616
           i32.const 15
           local.set $pc
           br $dispatch
         )
-          local.get $sc.tmp1484594489
+          local.get $sc.tmp1045941616
           local.set $t23
           local.get $t23
           if
@@ -36048,7 +36501,7 @@
     (local $j i32)
     (local $tmp i32)
     (local $filled i32)
-    (local $sc.tmp1177377518 i32)
+    (local $sc.tmp1226622409 i32)
     (local $idx i32)
     (local $bak i32)
     (local $gctmp.57 i32)
@@ -36224,7 +36677,7 @@
             unreachable
           end
           local.get $t0
-          i32.const 46
+          i32.const 47
           i32.store
           local.get $t0
           i32.const 8
@@ -36645,7 +37098,7 @@
           i32.lt_s
           local.set $t37
           local.get $t37
-          local.set $sc.tmp1177377518
+          local.set $sc.tmp1226622409
           local.get $t37
           if
             i32.const 26
@@ -36714,12 +37167,12 @@
           i32.gt_s
           local.set $t40
           local.get $t40
-          local.set $sc.tmp1177377518
+          local.set $sc.tmp1226622409
           i32.const 27
           local.set $pc
           br $dispatch
         )
-          local.get $sc.tmp1177377518
+          local.get $sc.tmp1226622409
           local.set $t41
           local.get $t41
           if
@@ -37496,9 +37949,9 @@
     (local $acc i32)
     (local $digits i32)
     (local $c i32)
-    (local $sc.tmp1188753216 i32)
-    (local $sc.tmp317986356 i32)
-    (local $sc.tmp331510866 i32)
+    (local $sc.tmp1227074340 i32)
+    (local $sc.tmp1154002927 i32)
+    (local $sc.tmp2070529722 i32)
     (local $t0 i32)
     (local $t1 i32)
     (local $t2 i32)
@@ -37713,7 +38166,7 @@
           local.get $t8
           i32.eqz
           if
-            unreachable
+            call $jnative_throw_npe
           end
           call $jnative_exception_pending
           local.set $t9
@@ -37756,7 +38209,7 @@
           local.get $t3
           i32.eqz
           if
-            unreachable
+            call $jnative_throw_npe
           end
           call $jnative_exception_pending
           local.set $t4
@@ -37893,7 +38346,7 @@
           i32.eq
           local.set $t18
           local.get $t18
-          local.set $sc.tmp1188753216
+          local.set $sc.tmp1227074340
           local.get $t18
           if
             i32.const 17
@@ -37911,12 +38364,12 @@
           i32.eq
           local.set $t20
           local.get $t20
-          local.set $sc.tmp1188753216
+          local.set $sc.tmp1227074340
           i32.const 17
           local.set $pc
           br $dispatch
         )
-          local.get $sc.tmp1188753216
+          local.get $sc.tmp1227074340
           local.set $t21
           local.get $t21
           if
@@ -37939,7 +38392,7 @@
           i32.lt_s
           local.set $t23
           local.get $t23
-          local.set $sc.tmp317986356
+          local.set $sc.tmp1154002927
           local.get $t23
           if
             i32.const 21
@@ -37957,12 +38410,12 @@
           i32.gt_s
           local.set $t25
           local.get $t25
-          local.set $sc.tmp317986356
+          local.set $sc.tmp1154002927
           i32.const 21
           local.set $pc
           br $dispatch
         )
-          local.get $sc.tmp317986356
+          local.get $sc.tmp1154002927
           local.set $t26
           local.get $t26
           if
@@ -38173,7 +38626,7 @@
           local.get $t50
           i32.eqz
           if
-            unreachable
+            call $jnative_throw_npe
           end
           call $jnative_exception_pending
           local.set $t51
@@ -38187,7 +38640,7 @@
           end
           br $dispatch
         )
-          local.get $sc.tmp331510866
+          local.get $sc.tmp2070529722
           local.set $t60
           local.get $t60
           if
@@ -38212,7 +38665,7 @@
           local.get $t45
           i32.eqz
           if
-            unreachable
+            call $jnative_throw_npe
           end
           call $jnative_exception_pending
           local.set $t46
@@ -38254,7 +38707,7 @@
           i32.lt_s
           local.set $t49
           local.get $t49
-          local.set $sc.tmp331510866
+          local.set $sc.tmp2070529722
           local.get $t49
           if
             i32.const 30
@@ -38349,7 +38802,7 @@
           i32.eq
           local.set $t59
           local.get $t59
-          local.set $sc.tmp331510866
+          local.set $sc.tmp2070529722
           i32.const 31
           local.set $pc
           br $dispatch
@@ -39488,7 +39941,7 @@
             unreachable
           end
           local.get $t10
-          i32.const 46
+          i32.const 47
           i32.store
           local.get $t10
           i32.const 8
@@ -40279,318 +40732,313 @@
     )
     local.get $ret
   )
-  (func $jnative_exception_pending (result i32)
-    global.get $jn_pending_exc
-    i32.const 0
-    i32.ne
-  )
   (func $jn_super_of (param $tid i32) (result i32)
     local.get $tid
     i32.const 1
     i32.eq
     if
-      i32.const 13
+      i32.const 38
       return
     end
     local.get $tid
     i32.const 2
     i32.eq
     if
-      i32.const 21
+      i32.const 29
       return
     end
     local.get $tid
     i32.const 3
     i32.eq
     if
-      i32.const 21
+      i32.const 38
       return
     end
     local.get $tid
     i32.const 4
     i32.eq
     if
-      i32.const 13
+      i32.const 0
       return
     end
     local.get $tid
     i32.const 5
     i32.eq
     if
-      i32.const 0
+      i32.const 38
       return
     end
     local.get $tid
     i32.const 6
     i32.eq
     if
-      i32.const 13
+      i32.const 29
       return
     end
     local.get $tid
     i32.const 7
     i32.eq
     if
-      i32.const 13
+      i32.const 32
       return
     end
     local.get $tid
     i32.const 8
     i32.eq
     if
-      i32.const 20
+      i32.const 0
       return
     end
     local.get $tid
     i32.const 9
     i32.eq
     if
-      i32.const 13
+      i32.const 29
       return
     end
     local.get $tid
     i32.const 10
     i32.eq
     if
-      i32.const 13
+      i32.const 38
       return
     end
     local.get $tid
     i32.const 11
     i32.eq
     if
-      i32.const 21
+      i32.const 38
       return
     end
     local.get $tid
     i32.const 12
     i32.eq
     if
-      i32.const 13
+      i32.const 38
       return
     end
     local.get $tid
     i32.const 13
     i32.eq
     if
-      i32.const 0
+      i32.const 29
       return
     end
     local.get $tid
     i32.const 14
     i32.eq
     if
-      i32.const 21
+      i32.const 38
       return
     end
     local.get $tid
     i32.const 15
     i32.eq
     if
-      i32.const 13
+      i32.const 38
       return
     end
     local.get $tid
     i32.const 16
     i32.eq
     if
-      i32.const 0
+      i32.const 31
       return
     end
     local.get $tid
     i32.const 17
     i32.eq
     if
-      i32.const 0
+      i32.const 29
       return
     end
     local.get $tid
     i32.const 18
     i32.eq
     if
-      i32.const 13
+      i32.const 29
       return
     end
     local.get $tid
     i32.const 19
     i32.eq
     if
-      i32.const 13
+      i32.const 0
       return
     end
     local.get $tid
     i32.const 20
     i32.eq
     if
-      i32.const 26
+      i32.const 38
       return
     end
     local.get $tid
     i32.const 21
     i32.eq
     if
-      i32.const 43
+      i32.const 31
       return
     end
     local.get $tid
     i32.const 22
     i32.eq
     if
-      i32.const 21
+      i32.const 29
       return
     end
     local.get $tid
     i32.const 23
     i32.eq
     if
-      i32.const 26
+      i32.const 38
       return
     end
     local.get $tid
     i32.const 24
     i32.eq
     if
-      i32.const 21
+      i32.const 38
       return
     end
     local.get $tid
     i32.const 25
     i32.eq
     if
-      i32.const 13
+      i32.const 7
       return
     end
     local.get $tid
     i32.const 26
     i32.eq
     if
-      i32.const 43
+      i32.const 38
       return
     end
     local.get $tid
     i32.const 27
     i32.eq
     if
-      i32.const 21
+      i32.const 25
       return
     end
     local.get $tid
     i32.const 28
     i32.eq
     if
-      i32.const 13
+      i32.const 29
       return
     end
     local.get $tid
     i32.const 29
     i32.eq
     if
-      i32.const 13
+      i32.const 7
       return
     end
     local.get $tid
     i32.const 30
     i32.eq
     if
-      i32.const 20
+      i32.const 29
       return
     end
     local.get $tid
     i32.const 31
     i32.eq
     if
-      i32.const 21
+      i32.const 25
       return
     end
     local.get $tid
     i32.const 32
     i32.eq
     if
-      i32.const 13
+      i32.const 38
       return
     end
     local.get $tid
     i32.const 33
     i32.eq
     if
-      i32.const 21
+      i32.const 38
       return
     end
     local.get $tid
     i32.const 34
     i32.eq
     if
-      i32.const 20
+      i32.const 0
       return
     end
     local.get $tid
     i32.const 35
     i32.eq
     if
-      i32.const 21
+      i32.const 0
       return
     end
     local.get $tid
     i32.const 36
     i32.eq
     if
-      i32.const 13
+      i32.const 38
       return
     end
     local.get $tid
     i32.const 37
     i32.eq
     if
-      i32.const 0
+      i32.const 29
       return
     end
     local.get $tid
     i32.const 38
     i32.eq
     if
-      i32.const 13
+      i32.const 0
       return
     end
     local.get $tid
     i32.const 39
     i32.eq
     if
-      i32.const 21
+      i32.const 38
       return
     end
     local.get $tid
     i32.const 40
     i32.eq
     if
-      i32.const 13
+      i32.const 29
       return
     end
     local.get $tid
     i32.const 41
     i32.eq
     if
-      i32.const 13
+      i32.const 38
       return
     end
     local.get $tid
     i32.const 42
     i32.eq
     if
-      i32.const 13
+      i32.const 31
       return
     end
     local.get $tid
     i32.const 43
     i32.eq
     if
-      i32.const 18
+      i32.const 38
       return
     end
     local.get $tid
     i32.const 44
     i32.eq
     if
-      i32.const 0
+      i32.const 38
       return
     end
     local.get $tid
@@ -40786,11 +41234,24 @@
     local.get $eobj
     local.get $idx
     call_indirect $jn_funcref (type $jn_sig_0)
+    call $jnative_exception_pending
+    if
+      call $jnative_exception_uncaught
+    end
   )
   (func (export "jnative_start")
     call $jnative_clinit
+    call $jnative_exception_pending
+    if
+      call $jnative_exception_uncaught
+      return
+    end
     i32.const 0
     call $jn_main
+    call $jnative_exception_pending
+    if
+      call $jnative_exception_uncaught
+    end
   )
   (func (export "jn_bump") (param $n i32) (result i32)
     local.get $n

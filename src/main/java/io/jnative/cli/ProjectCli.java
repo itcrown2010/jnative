@@ -392,11 +392,25 @@ public final class ProjectCli {
             List<Path> extraRegistries,
             boolean debug
     ) throws Exception {
+        return buildQuiet(root, release, optLevel, printOutput, offline, extraRegistries, debug, null);
+    }
+
+    public static BuildOutcome buildQuiet(
+            Path root,
+            boolean release,
+            int optLevel,
+            boolean printOutput,
+            boolean offline,
+            List<Path> extraRegistries,
+            boolean debug,
+            String preferredTriple
+    ) throws Exception {
         CompilerSession session = new CompilerSession(root);
         session.setOptLevel(release ? 3 : optLevel);
         session.setReleaseMode(release);
         session.setEmitSourceDebugInfo(debug);
-        attachPackageSources(session, root, offline, extraRegistries);
+        String pkgTriple = preferredTriple == null || preferredTriple.isBlank() ? "native" : preferredTriple;
+        attachPackageSources(session, root, offline, extraRegistries, pkgTriple);
         long t0 = System.currentTimeMillis();
         BuildResult result = session.build();
         long ms = result.wallTimeMs() > 0 ? result.wallTimeMs() : (System.currentTimeMillis() - t0);
@@ -451,6 +465,16 @@ public final class ProjectCli {
             boolean offline,
             List<Path> extraRegistries
     ) throws Exception {
+        attachPackageSources(session, root, offline, extraRegistries, "native");
+    }
+
+    public static void attachPackageSources(
+            CompilerSession session,
+            Path root,
+            boolean offline,
+            List<Path> extraRegistries,
+            String triple
+    ) throws Exception {
         boolean hasManifest = Files.isRegularFile(root.resolve("jnative.toml"));
         boolean hasLock = Files.isRegularFile(root.resolve("jnative.lock"));
         if (!hasManifest && !hasLock) {
@@ -465,12 +489,21 @@ public final class ProjectCli {
                 }
             }
         }
-        var graph = pm.resolve("native", false, false);
+        String t = triple == null || triple.isBlank() ? "native" : triple;
+        var graph = pm.resolve(t, false, false);
         var nodes = BuildGraphPackageIntegration.materialize(graph, pm.cache());
-        BuildGraphPackageIntegration.validateCapabilities(nodes, "native");
+        // Capability mismatches are reported per BuildTargetSpec in CompilerSession
+        // (a project may mix native and wasm32-browser targets).
+        session.setPackageNodes(nodes);
         session.setPackageSourceRoots(BuildGraphPackageIntegration.sourceRoots(nodes));
+        Path lock = root.resolve("jnative.lock");
+        if (Files.isRegularFile(lock)) {
+            session.setLockFingerprint(io.jnative.incremental.ContentHasher.sha256(
+                    Files.readString(lock)));
+        }
         System.out.println("[pkg] resolved " + graph.packages().size()
-                + " packages, source roots=" + session.packageSourceRoots().size());
+                + " packages for target " + t
+                + ", source roots=" + session.packageSourceRoots().size());
     }
 
     private static void writeTest(Path root, String className, String source) throws Exception {

@@ -62,12 +62,13 @@ public final class JNativeCompiler {
             reporter.error(SourceLocation.UNKNOWN, "failed to load stdlib: " + e.getMessage());
             return new Compilation(version, null, null, null, reporter.diagnostics(), false, 0, 0);
         }
-        MultiUnitFrontend.Result fe = MultiUnitFrontend.analyzeProgram(program, reporter);
+        // Lenient: IDE completion needs a typed model even when the buffer has errors.
+        MultiUnitFrontend.Result fe = MultiUnitFrontend.analyzeProgram(program, reporter, true);
         long parseMs = (System.nanoTime() - t0) / 1_000_000L;
         CompilationUnit ast = fe == null ? null : fe.flattened();
         // Multi-CU keeps real paths; no stdlib line-offset remap needed.
         List<io.jnative.diagnostics.Diagnostic> diags = reporter.diagnostics();
-        if (reporter.hasErrors() || fe == null || fe.typed() == null) {
+        if (fe == null || fe.typed() == null) {
             SyntaxTree tree = new SyntaxTree(fileName, unit.sourceText(), ast, diags, version);
             return new Compilation(version, tree, null, null, diags, false, parseMs, 0);
         }
@@ -89,6 +90,41 @@ public final class JNativeCompiler {
             reporter.error(SourceLocation.UNKNOWN, "failed to read: " + e.getMessage());
             return new Compilation(version, null, null, null, reporter.diagnostics(), false, 0, 0);
         }
+    }
+
+    /**
+     * Frontend-only multi-unit analyze for IDE navigation (project + deps + overlays).
+     * Never links or builds native artifacts.
+     */
+    public Compilation analyzeUnits(List<SourceUnit> units, long version) {
+        DiagnosticReporter reporter = new DiagnosticReporter();
+        if (units == null || units.isEmpty()) {
+            return new Compilation(version, null, null, null, reporter.diagnostics(), false, 0, 0);
+        }
+        long t0 = System.nanoTime();
+        ProgramSources program;
+        try {
+            program = MultiUnitFrontend.withStdlib(ProgramSources.of(units));
+        } catch (IOException e) {
+            reporter.error(SourceLocation.UNKNOWN, "failed to load stdlib: " + e.getMessage());
+            return new Compilation(version, null, null, null, reporter.diagnostics(), false, 0, 0);
+        }
+        MultiUnitFrontend.Result fe = MultiUnitFrontend.analyzeProgram(program, reporter, true);
+        long parseMs = (System.nanoTime() - t0) / 1_000_000L;
+        List<io.jnative.diagnostics.Diagnostic> diags = reporter.diagnostics();
+        if (fe == null || fe.typed() == null) {
+            SourceUnit primary = units.get(0);
+            String fileName = primary.path() == null ? "Memory.java" : Path.of(primary.path()).getFileName().toString();
+            SyntaxTree tree = new SyntaxTree(fileName, primary.sourceText(),
+                    fe == null ? null : fe.flattened(), diags, version);
+            return new Compilation(version, tree, null, null, diags, false, parseMs, 0);
+        }
+        SemanticModel model = new SemanticModel(fe.typed(), version);
+        boolean ok = diags.stream().noneMatch(d -> d.severity() == io.jnative.diagnostics.Diagnostic.Severity.ERROR);
+        SourceUnit primary = units.get(0);
+        String fileName = primary.path() == null ? "Memory.java" : Path.of(primary.path()).getFileName().toString();
+        SyntaxTree tree = new SyntaxTree(fileName, primary.sourceText(), fe.flattened(), diags, version);
+        return new Compilation(version, tree, fe.typed(), model, diags, ok, parseMs, 0);
     }
 
     /**
@@ -168,6 +204,27 @@ public final class JNativeCompiler {
                             : new SourceLocation(source.toString(), 0, 0),
                     "failed to read source: " + e.getMessage());
             return fail(reporter);
+        }
+
+        // Target capability precheck on user units (fail before IR/link).
+        String triple = options.target() == null || options.target().isBlank()
+                ? "native" : options.target();
+        for (SourceUnit u : userSources.units()) {
+            if (u == null || u.sourceText() == null) {
+                continue;
+            }
+            String path = u.path() == null ? "<source>" : u.path();
+            // Skip stdlib / generated noise in multi-unit lists when path marks them.
+            if (path.contains("/stdlib/") || path.contains("stdlib" + java.io.File.separator)) {
+                continue;
+            }
+            for (var d : io.jnative.target.TargetCapabilityChecker.checkSourceText(
+                    path, u.sourceText(), triple)) {
+                reporter.report(d);
+            }
+        }
+        if (reporter.hasErrors()) {
+            return new CompileResult(false, null, null, null, null, reporter.diagnostics());
         }
 
         if (options.emitSourceDebugInfo() && options.optLevel() > 0) {
@@ -409,9 +466,11 @@ public final class JNativeCompiler {
         // Native link
         Optional<Toolchain> toolchain = Toolchain.detect();
         if (toolchain.isEmpty()) {
-            reporter.error(SourceLocation.UNKNOWN,
-                    "LLVM/clang toolchain not found.\n"
-                            + "Install LLVM and ensure clang is available in PATH.");
+            reporter.report(io.jnative.diagnostics.Diagnostic.error(
+                    io.jnative.diagnostics.DiagnosticCodes.TOOL_MISSING,
+                    SourceLocation.UNKNOWN,
+                    "LLVM/clang toolchain not found",
+                    "Install LLVM and ensure clang is available in PATH, then re-run the build."));
             return new CompileResult(false, ast, ir, llvmIr, null, reporter.diagnostics());
         }
 

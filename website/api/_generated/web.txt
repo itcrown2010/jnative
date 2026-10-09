@@ -1,0 +1,114 @@
+# Generated from stdlib/web — 2026-10-09T05:08Z
+# Signatures only. Behavior notes are maintained in website/api/*.md
+
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/web/WebLib.java:3:interface WebHandler {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/web/WebLib.java:7:interface Middleware {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/web/WebLib.java:11:interface Next {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/web/WebLib.java:15:interface ErrorHandler {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/web/WebLib.java:19:class WebConfig {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/web/WebLib.java:81:class ServerConfig {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/web/WebLib.java:141:class TraceContext {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/web/WebLib.java:171:class RequestLog {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/web/WebLib.java:194:class TlsMetrics {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/web/WebLib.java:212:class TransportSecurity {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/web/WebLib.java:222:class TransportSecurityMiddleware implements Middleware {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/web/WebLib.java:231:    public void handle(WebContext ctx, Next next) {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/web/WebLib.java:242:class HttpsRedirectMiddleware implements Middleware {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/web/WebLib.java:243:    public void handle(WebContext ctx, Next next) {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/web/WebLib.java:256:class HealthOkHandler implements WebHandler {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/web/WebLib.java:257:    public void handle(WebContext ctx) {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/web/WebLib.java:262:class HealthReadyHandler implements WebHandler {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/web/WebLib.java:269:    public void handle(WebContext ctx) {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/web/WebLib.java:278:class HealthEndpoints {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/web/WebLib.java:285:class HttpMethod {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/web/WebLib.java:295:class WebException extends RuntimeException {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/web/WebLib.java:304:class BadRequestException extends WebException {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/web/WebLib.java:310:class NotFoundException extends WebException {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/web/WebLib.java:316:class MethodNotAllowedException extends WebException {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/web/WebLib.java:325:class PayloadTooLargeException extends WebException {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/web/WebLib.java:331:class IllegalResponseStateException extends RuntimeException {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/web/WebLib.java:337:class UrlCodec {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/web/WebLib.java:391:class QueryMap {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/web/WebLib.java:454:class WebClockNative {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/web/WebLib.java:459:class WebUtil {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/web/WebLib.java:588:class ResponseBody {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/web/WebLib.java:677:class WebResponse {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/web/WebLib.java:787:class WebRequest {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/web/WebLib.java:818:class WebContext {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/web/WebLib.java:1000:class CookieUtil {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/web/WebLib.java:1046:class RouteNode {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/web/WebLib.java:1068:class RouteMatch {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/web/WebLib.java:1105:class Router {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/web/WebLib.java:1300:class WebNext implements Next {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/web/WebLib.java:1307:    public void run() {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/web/WebLib.java:1314:class MiddlewareChain {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/web/WebLib.java:1348:class MimeTypes {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/web/WebLib.java:1418:class MediaStreamer {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/web/WebLib.java:1516:class StaticMount {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/web/WebLib.java:1526:class PathSafety {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/web/WebLib.java:1604:class LoggerMiddleware implements Middleware {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/web/WebLib.java:1605:    public void handle(WebContext ctx, Next next) {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/web/WebLib.java:1613:class WebMiddleware {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/web/WebLib.java:1619:class CorsMiddleware implements Middleware {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/web/WebLib.java:1620:    public void handle(WebContext ctx, Next next) {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/web/WebLib.java:1632:class Cors {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/web/WebLib.java:1638:class WebAcceptThread extends Thread {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/web/WebLib.java:1645:    public void run() {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/web/WebLib.java:1650:class WebConnTask implements PoolTask {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/web/WebLib.java:1659:    public void run() {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/web/WebLib.java:1666:class WebServer {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/web/WebLib.java:2023:class WebApp {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/web/WebLib.java:2355:interface AsyncWebHandler {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/web/WebLib.java:2359:class NoopWebHandler implements WebHandler {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/web/WebLib.java:2360:    public void handle(WebContext ctx) {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/web/WebLib.java:2364:class SyncAsyncWebHandler implements AsyncWebHandler {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/web/WebLib.java:2373:    public JnFuture handle(WebContext ctx) {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/web/WebLib.java:2379:class WebHandlers {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/web/WebLib.java:2386:class GzipMiddleware implements Middleware {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/web/WebLib.java:2387:    public void handle(WebContext ctx, Next next) {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/web/WebLib.java:2401:class Compression {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/web/WebLib.java:2410:class Http2Server {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/web/AuthLib.java:6:class UnauthorizedException extends WebException {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/web/AuthLib.java:12:class ForbiddenException extends WebException {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/web/AuthLib.java:18:class UserPrincipal {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/web/AuthLib.java:41:class SessionData {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/web/AuthLib.java:67:interface SessionStore {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/web/AuthLib.java:73:interface SessionStoreSync {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/web/AuthLib.java:79:class InMemorySessionStore implements SessionStore, SessionStoreSync {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/web/AuthLib.java:99:    public SessionData loadSync(String id) {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/web/AuthLib.java:124:    public void saveSync(SessionData data) {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/web/AuthLib.java:135:    public void deleteSync(String id) {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/web/AuthLib.java:152:    public JnFuture load(EventLoop loop, String id) {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/web/AuthLib.java:156:    public JnFuture save(EventLoop loop, SessionData data) {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/web/AuthLib.java:161:    public JnFuture delete(EventLoop loop, String id) {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/web/AuthLib.java:197:class Session {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/web/AuthLib.java:300:class SessionManager {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/web/AuthLib.java:356:class AuthContext {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/web/AuthLib.java:419:class AuthRequired {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/web/AuthLib.java:441:class AuthRequireRole {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/web/AuthLib.java:461:class Csrf {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/web/AuthLib.java:493:class RateLimitBucket {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/web/AuthLib.java:505:class RateLimiter {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/web/AuthLib.java:576:class SecurityHeaders {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/web/AuthLib.java:595:class TrustedProxies {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/web/AuthLib.java:644:class ApiKeyAuth {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/web/AuthLib.java:686:class AuthLogin {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/web/RealtimeLib.java:6:interface WebSocketHandler {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/web/RealtimeLib.java:12:class WebSocketHandlerAdapter implements WebSocketHandler {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/web/RealtimeLib.java:13:    public void onConnect(WebSocketConnection socket) {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/web/RealtimeLib.java:16:    public void onMessage(WebSocketConnection socket, WebSocketMessage message) {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/web/RealtimeLib.java:20:class WebSocketOpcode {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/web/RealtimeLib.java:29:class WebSocketState {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/web/RealtimeLib.java:36:class WebSocketMessage {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/web/RealtimeLib.java:89:class WebSocketFrame {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/web/RealtimeLib.java:124:class WebSocketFrameCodec {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/web/RealtimeLib.java:342:class WsBytesChunk {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/web/RealtimeLib.java:360:class WsConnReadSupplier implements BlockingSupplier {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/web/RealtimeLib.java:364:    public Object get() {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/web/RealtimeLib.java:370:class WsConnWriteSupplier implements BlockingSupplier {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/web/RealtimeLib.java:374:    public Object get() {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/web/RealtimeLib.java:380:class WebSocketConnection {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/web/RealtimeLib.java:652:class WebSocketHub {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/web/RealtimeLib.java:723:class SseEvent {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/web/RealtimeLib.java:743:class SseStream {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/web/RealtimeLib.java:783:class SseSupport {

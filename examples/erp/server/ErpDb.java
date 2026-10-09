@@ -114,11 +114,61 @@ class ErpDb {
         } catch (Exception ignored) {
             reconnect();
         }
+        ensureDemoOpsSchema();
+        try {
+            recordMigration("006_demo_ops");
+        } catch (Exception ignored) {
+            reconnect();
+        }
         if (tableExists("companies") == 0) {
             throw new RuntimeException("migrate failed: companies table missing after ensure");
         }
         Erp.schemaReady = 1;
         Erp.schemaError = "";
+    }
+
+    /** Purchase requests, light masters, demo_seed_log. */
+    static void ensureDemoOpsSchema() {
+        ArrayList<Object> empty = new ArrayList<Object>();
+        String path6 = "examples/erp/migrations/006_demo_ops.sql";
+        if (Erp.dialect.equals("sqlite")) {
+            path6 = "examples/erp/migrations/006_demo_ops_sqlite.sql";
+        }
+        String sql6 = File.readString(path6);
+        if (sql6 != null && sql6.length() > 0) {
+            try {
+                runScriptSafe(sql6);
+            } catch (Exception ex) {
+                System.out.println("006_demo_ops_script_partial");
+                if (ex.getMessage() != null) {
+                    System.out.println(ex.getMessage());
+                }
+            }
+        }
+        if (Erp.dialect.equals("sqlite")) {
+            execRetry(
+                    "CREATE TABLE IF NOT EXISTS item_categories (id INTEGER PRIMARY KEY AUTOINCREMENT, company_id INTEGER NOT NULL, code TEXT NOT NULL, name TEXT NOT NULL, created_at INTEGER NOT NULL, UNIQUE (company_id, code))",
+                    empty);
+            execRetry(
+                    "CREATE TABLE IF NOT EXISTS units_of_measure (id INTEGER PRIMARY KEY AUTOINCREMENT, company_id INTEGER NOT NULL, code TEXT NOT NULL, name TEXT NOT NULL, created_at INTEGER NOT NULL, UNIQUE (company_id, code))",
+                    empty);
+            execRetry(
+                    "CREATE TABLE IF NOT EXISTS employees (id INTEGER PRIMARY KEY AUTOINCREMENT, company_id INTEGER NOT NULL, code TEXT NOT NULL, name TEXT NOT NULL, department TEXT NOT NULL DEFAULT '', title TEXT NOT NULL DEFAULT '', status TEXT NOT NULL DEFAULT 'ACTIVE', created_at INTEGER NOT NULL, UNIQUE (company_id, code))",
+                    empty);
+            execRetry(
+                    "CREATE TABLE IF NOT EXISTS purchase_requests (id INTEGER PRIMARY KEY AUTOINCREMENT, company_id INTEGER NOT NULL, doc_no TEXT NOT NULL, requester_name TEXT NOT NULL DEFAULT '', supplier_id INTEGER NOT NULL DEFAULT 0, status TEXT NOT NULL, notes TEXT NOT NULL DEFAULT '', seed_key TEXT NOT NULL DEFAULT '', created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL, UNIQUE (company_id, doc_no))",
+                    empty);
+            execRetry(
+                    "CREATE TABLE IF NOT EXISTS purchase_request_lines (id INTEGER PRIMARY KEY AUTOINCREMENT, company_id INTEGER NOT NULL, purchase_request_id INTEGER NOT NULL, line_no INTEGER NOT NULL, item_id INTEGER NOT NULL, quantity INTEGER NOT NULL, unit_price_cents INTEGER NOT NULL DEFAULT 0)",
+                    empty);
+            execRetry(
+                    "CREATE TABLE IF NOT EXISTS demo_seed_log (id INTEGER PRIMARY KEY AUTOINCREMENT, company_id INTEGER NOT NULL, seed_version INTEGER NOT NULL, seed_key TEXT NOT NULL, status TEXT NOT NULL, detail TEXT NOT NULL DEFAULT '', applied_at INTEGER NOT NULL)",
+                    empty);
+            execRetry("CREATE UNIQUE INDEX IF NOT EXISTS ux_demo_seed_log_key ON demo_seed_log (company_id, seed_key)",
+                    empty);
+        }
+        tryAlter("ALTER TABLE items ADD COLUMN category_code TEXT NOT NULL DEFAULT ''");
+        tryAlter("ALTER TABLE items ADD COLUMN uom TEXT NOT NULL DEFAULT 'EA'");
     }
 
     /** Minimal schema required for formal boot / login (idempotent). */

@@ -1,0 +1,22 @@
+# API extract index
+generated=2026-10-09T05:08Z
+stdlib=/Users/zhangxiaoda/jnative/src/main/resources/stdlib
+async lines=      72
+browser lines=      18
+collections lines=     112
+crypto lines=      24
+db lines=     140
+editor lines=      45
+graphics lines=      31
+http lines=      30
+io lines=      49
+json lines=      17
+math lines=       9
+net lines=       8
+rpc lines=      14
+studio lines=      35
+time lines=      17
+tls lines=      11
+ui lines=      91
+web lines=     114
+webui lines=      36

@@ -1,0 +1,30 @@
+public class Main {
+    public static void main(String[] args) {
+        Animal a = new Cat();
+        System.out.println(a.speak());
+        Greeter g = new HelloGreeter();
+        System.out.println(g.greet("Ada"));
+    }
+}
+
+class Animal {
+    String speak() {
+        return "…";
+    }
+}
+
+class Cat extends Animal {
+    String speak() {
+        return "meow";
+    }
+}
+
+interface Greeter {
+    String greet(String name);
+}
+
+class HelloGreeter implements Greeter {
+    public String greet(String name) {
+        return "hello " + name;
+    }
+}

@@ -1,0 +1,10 @@
+added 0
+added 1
+added 2
+0: Buy milk
+2: Buy tea
+hits=2
+done 0
+0 [x] Buy milk
+1 [ ] Write docs
+2 [ ] Buy tea

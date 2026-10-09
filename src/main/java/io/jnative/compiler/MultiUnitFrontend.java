@@ -98,6 +98,16 @@ public final class MultiUnitFrontend {
     }
 
     public static Result analyzeProgram(ProgramSources sources, DiagnosticReporter reporter) {
+        return analyzeProgram(sources, reporter, false);
+    }
+
+    /**
+     * @param lenient when true (IDE), still run semantic analysis after parse errors so
+     *                completion/navigation can use a partial {@link TypedCompilationUnit}.
+     */
+    public static Result analyzeProgram(
+            ProgramSources sources, DiagnosticReporter reporter, boolean lenient
+    ) {
         if (sources == null || sources.isEmpty()) {
             reporter.error(SourceLocation.UNKNOWN, "no source units");
             return null;
@@ -108,11 +118,19 @@ public final class MultiUnitFrontend {
             CompilationUnit cu = parseUnit(src, reporter, programTypes);
             units.add(cu);
         }
-        if (reporter.hasErrors()) {
+        if (reporter.hasErrors() && !lenient) {
             return new Result(new ProgramAst(units), null, new ProgramAst(units).flattened("<program>"));
         }
-        SemanticAnalyzer analyzer = new SemanticAnalyzer(reporter);
-        TypedCompilationUnit typed = analyzer.analyze(units);
-        return new Result(new ProgramAst(units), typed, typed.unit());
+        try {
+            SemanticAnalyzer analyzer = new SemanticAnalyzer(reporter);
+            TypedCompilationUnit typed = analyzer.analyze(units);
+            return new Result(new ProgramAst(units), typed, typed.unit());
+        } catch (RuntimeException e) {
+            if (!lenient) {
+                throw e;
+            }
+            // Partial ASTs may throw; keep parse diagnostics without a typed model.
+            return new Result(new ProgramAst(units), null, new ProgramAst(units).flattened("<program>"));
+        }
     }
 }

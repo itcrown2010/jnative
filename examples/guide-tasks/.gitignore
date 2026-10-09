@@ -1,0 +1,7 @@
+.build-staging/
+web/dist/app.wat
+mobile/android/.gradle/
+mobile/android/**/build/
+mobile/ios/**/DerivedData/
+mobile/ios/**/*.xcuserstate
+mobile/staging/

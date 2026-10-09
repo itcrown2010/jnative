@@ -1,0 +1,8 @@
+{
+  "name": "build-smoke",
+  "source": [
+    "src"
+  ],
+  "main": "Main",
+  "output": "build/build-smoke"
+}

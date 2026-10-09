@@ -1,0 +1,19 @@
+public class Main {
+    public static void main(String[] args) {
+        int score = 100;
+        boolean ok = true;
+        String name = "Ada";
+        System.out.println(name);
+        System.out.println(String.valueOf(score));
+        if (ok) {
+            System.out.println("ready");
+        }
+        {
+            int inner = 7;
+            System.out.println(String.valueOf(inner));
+        }
+        /* inner 在此不可见 */
+        score = score + 1;
+        System.out.println(String.valueOf(score));
+    }
+}

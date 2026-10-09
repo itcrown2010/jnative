@@ -1,0 +1,34 @@
+<!doctype html>
+<!-- Author: 张晓达 -->
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
+  <title>JNative 任务 · 移动</title>
+  <link rel="stylesheet" href="./tasks-touch.css"/>
+</head>
+<body class="touch">
+  <main id="app">
+    <header class="top">
+      <h1>任务管理器</h1>
+      <p class="sub">WASM TaskCore · WebView 容器</p>
+    </header>
+    <p id="status" class="status" role="status">加载中…</p>
+    <p id="lifecycle" class="meta" aria-live="polite"></p>
+
+    <form id="form" class="form">
+      <input id="title" type="text" maxlength="48" placeholder="任务标题" enterkeyhint="done" autocomplete="off"/>
+      <button type="submit" class="primary">添加</button>
+    </form>
+
+    <div class="tools">
+      <button type="button" id="save">保存</button>
+      <button type="button" id="load">加载</button>
+      <button type="button" id="bg">异步</button>
+    </div>
+
+    <ul id="list" class="list"></ul>
+  </main>
+  <script type="module" src="./app-shell.js"></script>
+</body>
+</html>

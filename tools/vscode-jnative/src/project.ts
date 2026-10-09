@@ -37,7 +37,7 @@ export async function pickProject(
   const all = discoverWorkspaceProjects(folders);
   if (all.length === 0) {
     vscode.window.showWarningMessage(
-      '未找到 JNative 项目（需要 jnative.project，或 jnative.toml + src/）。'
+      '未找到 JNative 项目（需要 jnative.project，或 jnative.toml + src/）。请先打开含项目根的工作区文件夹。'
     );
     return undefined;
   }
@@ -45,8 +45,22 @@ export async function pickProject(
     return all[0];
   }
   const picked = await vscode.window.showQuickPick(
-    all.map((p) => ({ label: p.name, description: p.root, project: p })),
-    { placeHolder: '选择 JNative 项目' }
+    all.map((p) => ({
+      label: p.name,
+      description: p.root,
+      detail: preferredFile && preferredFile.startsWith(p.root)
+        ? '当前文件所属项目'
+        : undefined,
+      project: p,
+    })),
+    {
+      placeHolder: '多个 JNative 项目 — 请选择构建/运行目标（取消则不继续）',
+      ignoreFocusOut: true,
+    }
   );
-  return picked?.project;
+  if (!picked) {
+    vscode.window.showInformationMessage('已取消：未选择项目，不会启动构建或运行。');
+    return undefined;
+  }
+  return picked.project;
 }

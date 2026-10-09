@@ -1,0 +1,5 @@
+class Util {
+    static String tag(String s) {
+        return "[" + s + "]";
+    }
+}

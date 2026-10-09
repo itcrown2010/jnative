@@ -1,0 +1,11 @@
+public class StringTest {
+    public static void main(String[] args) {
+        String a = "JNative";
+        String b = "J" + "Native";
+        int ok = 0;
+        if (a.compareTo(b) == 0) {
+            ok = 1;
+        }
+        int keep = 1 / ok;
+    }
+}

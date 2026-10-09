@@ -3,11 +3,13 @@
  */
 class DocStatus {
     static String DRAFT = "DRAFT";
+    static String SUBMITTED = "SUBMITTED";
     static String APPROVED = "APPROVED";
     static String PARTIALLY_RECEIVED = "PARTIALLY_RECEIVED";
     static String RECEIVED = "RECEIVED";
     static String PARTIALLY_DELIVERED = "PARTIALLY_DELIVERED";
     static String DELIVERED = "DELIVERED";
+    static String CLOSED = "CLOSED";
     static String CANCELLED = "CANCELLED";
 }
 

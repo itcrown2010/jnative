@@ -1,0 +1,91 @@
+# Generated from stdlib/ui — 2026-10-09T05:08Z
+# Signatures only. Behavior notes are maintained in website/api/*.md
+
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/ui/UiLib.java:5:class UiException extends RuntimeException {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/ui/UiLib.java:11:class UiNativeException extends UiException {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/ui/UiLib.java:17:class UiThreadViolationException extends UiException {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/ui/UiLib.java:23:class DisposedComponentException extends UiException {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/ui/UiLib.java:29:class Orientation {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/ui/UiLib.java:34:class KeyCode {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/ui/UiLib.java:57:class KeyCombination {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/ui/UiLib.java:116:class UiNative {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/ui/UiLib.java:397:class UiHandleRegistry {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/ui/UiLib.java:420:class UiTaskQueue {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/ui/UiLib.java:466:class UiMetrics {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/ui/UiLib.java:471:interface EventHandler<E> {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/ui/UiLib.java:475:interface UiHook {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/ui/UiLib.java:479:class UiEvent {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/ui/UiLib.java:501:class ActionEvent extends UiEvent {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/ui/UiLib.java:517:class UiSubscription {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/ui/UiLib.java:569:class ValueChangeEvent<T> extends UiEvent {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/ui/UiLib.java:588:class SelectionEvent<T> extends UiEvent {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/ui/UiLib.java:607:class MouseEvent extends UiEvent {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/ui/UiLib.java:646:class KeyEvent extends UiEvent {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/ui/UiLib.java:667:class FocusEvent extends UiEvent {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/ui/UiLib.java:680:class WindowEvent extends UiEvent {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/ui/UiLib.java:686:interface CellRenderer<T> {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/ui/UiLib.java:690:interface ListModel<T> {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/ui/UiLib.java:695:class ArrayListListModel<T> implements ListModel<T> {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/ui/UiLib.java:714:interface TreeModel<T> {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/ui/UiLib.java:720:class SelectionModel<T> {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/ui/UiLib.java:769:class Application {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/ui/UiLib.java:911:class Component {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/ui/UiLib.java:1555:class Control extends Component {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/ui/UiLib.java:1560:class Container extends Component {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/ui/UiLib.java:1647:class Panel extends Container {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/ui/UiLib.java:1654:class VBox extends Container {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/ui/UiLib.java:1741:class HBox extends Container {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/ui/UiLib.java:1872:class GridPane extends Container {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/ui/UiLib.java:1991:class StackPane extends Container {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/ui/UiLib.java:2051:class ScrollView extends Container {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/ui/UiLib.java:2095:class Tab {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/ui/UiLib.java:2105:class TabPane extends Container {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/ui/UiLib.java:2179:class SplitPane extends Container {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/ui/UiLib.java:2268:class Label extends Control {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/ui/UiLib.java:2287:class Button extends Control {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/ui/UiLib.java:2393:class TextField extends Control {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/ui/UiLib.java:2416:class TextArea extends Control {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/ui/UiLib.java:2442:class ProgressBar extends Control {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/ui/UiLib.java:2477:class CheckBox extends Control {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/ui/UiLib.java:2530:class RadioButton extends Control {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/ui/UiLib.java:2580:class ToggleGroup {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/ui/UiLib.java:2608:class ComboBox<T> extends Control {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/ui/UiLib.java:2696:class ListView<T> extends Control {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/ui/UiLib.java:2805:interface ColumnRenderer<T> {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/ui/UiLib.java:2810:class TableColumn<T, R> implements ColumnRenderer<T> {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/ui/UiLib.java:2846:class UiStrings {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/ui/UiLib.java:2877:interface TableIconPathProvider<T> {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/ui/UiLib.java:2881:class TableView<T> extends Control {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/ui/UiLib.java:3121:class TreeNode<T> {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/ui/UiLib.java:3137:class TreeView<T> extends Control {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/ui/UiLib.java:3307:class MenuItem extends Control {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/ui/UiLib.java:3357:class SeparatorMenuItem extends MenuItem {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/ui/UiLib.java:3364:class Menu extends Control {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/ui/UiLib.java:3391:class MenuBar extends Control {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/ui/UiLib.java:3407:class ContextMenu extends Menu {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/ui/UiLib.java:3419:class Dialogs {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/ui/UiLib.java:3475:class FileDialog {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/ui/UiLib.java:3507:class DirectoryDialog {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/ui/UiLib.java:3525:class PopupWindow {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/ui/UiLib.java:3562:class Window extends Component {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/ui/UiLib.java:3703:class Theme {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/ui/UiLib.java:3732:class UiThread {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/ui/UiLib.java:3746:class Point {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/ui/UiLib.java:3756:class Size {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/ui/UiLib.java:3766:class Rect {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/ui/UiLib.java:3796:class Insets {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/ui/UiLib.java:3814:class Dpi {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/ui/UiLib.java:3835:class Toolbar extends HBox {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/ui/UiLib.java:3873:interface BreadcrumbNavigate {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/ui/UiLib.java:3880:class BreadcrumbBar extends HBox {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/ui/UiLib.java:4099:class FocusManager {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/ui/UiLib.java:4111:class VirtualListMetrics {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/ui/UiLib.java:4163:class SystemIcons {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/ui/UiLib.java:4177:interface CommandExecute {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/ui/UiLib.java:4181:class Command {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/ui/UiLib.java:4262:class CommandRegistry {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/ui/UiLib.java:4339:class ShortcutManager {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/ui/UiLib.java:4345:interface SearchQueryListener {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/ui/UiLib.java:4349:class SearchField extends HBox {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/ui/UiLib.java:4446:class UiTest {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/ui/UiLib.java:4530:class UiTestHarness {

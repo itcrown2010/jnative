@@ -8,44 +8,56 @@ export interface JsonDiagnostic {
   column: number;
   severity: string;
   message: string;
+  code?: string;
+  hint?: string;
 }
 
 export interface BuildReport {
   success: boolean;
   artifact: string | null;
   diagnostics: JsonDiagnostic[];
+  target?: string;
+  compilerVersion?: string;
 }
 
-const collections = new Map<string, vscode.DiagnosticCollection>();
+/** Build diagnostics keyed by project root — cleared only on successful build of that project. */
+const buildCollections = new Map<string, vscode.DiagnosticCollection>();
 
-export function getCollection(projectRoot: string): vscode.DiagnosticCollection {
+export function getBuildCollection(projectRoot: string): vscode.DiagnosticCollection {
   const key = path.resolve(projectRoot);
-  let c = collections.get(key);
+  let c = buildCollections.get(key);
   if (!c) {
-    c = vscode.languages.createDiagnosticCollection(`jnative:${key}`);
-    collections.set(key, c);
+    c = vscode.languages.createDiagnosticCollection(`jnative-build:${key}`);
+    buildCollections.set(key, c);
   }
   return c;
 }
 
 export function clearProjectDiagnostics(projectRoot: string): void {
-  const c = collections.get(path.resolve(projectRoot));
+  const c = buildCollections.get(path.resolve(projectRoot));
   c?.clear();
 }
 
 export function disposeAllDiagnostics(): void {
-  for (const c of collections.values()) {
+  for (const c of buildCollections.values()) {
     c.dispose();
   }
-  collections.clear();
+  buildCollections.clear();
 }
 
 export function parseBuildReport(stdout: string): BuildReport | undefined {
   const text = stdout.trim();
+  if (!text) {
+    return undefined;
+  }
   if (!text.startsWith('{')) {
-    // Try last JSON object line
-    const lines = text.split(/\r?\n/).filter((l) => l.trim().startsWith('{'));
+    const lines = text.split(/\r?\n/).filter((l) => l.trim().startsWith('{') && l.trim().endsWith('}'));
     if (!lines.length) {
+      // Also accept last JSON object spanning trailing lines
+      const lastBrace = text.lastIndexOf('\n{');
+      if (lastBrace >= 0) {
+        return parseBuildReport(text.slice(lastBrace + 1));
+      }
       return undefined;
     }
     return parseBuildReport(lines[lines.length - 1]);
@@ -64,42 +76,66 @@ export function parseBuildReport(stdout: string): BuildReport | undefined {
   }
 }
 
-/** Apply structured diagnostics; line/column from compiler are 1-based. */
+/**
+ * Apply structured build diagnostics.
+ * Compiler line/column are 1-based. Tooling errors without a real file are shown
+ * in the Output channel only (via caller) — we skip forging user-file:1:1.
+ */
 export function applyJsonDiagnostics(
   projectRoot: string,
   diags: JsonDiagnostic[],
   fallbackCwd?: string
-): void {
-  const collection = getCollection(projectRoot);
+): { applied: number; orphanMessages: string[] } {
+  const collection = getBuildCollection(projectRoot);
   collection.clear();
   const byFile = new Map<string, vscode.Diagnostic[]>();
+  const orphanMessages: string[] = [];
+  let applied = 0;
   for (const d of diags) {
     if (!d || !d.message) {
       continue;
     }
-    let file = d.file || '';
-    if (file === '<stdlib>' || file === '<unknown>') {
-      // Annotate without wrong user mapping
-      file = path.join(projectRoot, '.jnative', 'stdlib-diagnostic');
-    } else if (!path.isAbsolute(file)) {
+    const rawFile = d.file || '';
+    if (
+      !rawFile ||
+      rawFile === '<unknown>' ||
+      rawFile === '<stdin>' ||
+      ((d.line || 0) <= 0 && (rawFile === '<stdlib>' || rawFile === '<unknown>'))
+    ) {
+      orphanMessages.push(d.message);
+      continue;
+    }
+    let file = rawFile;
+    if (file === '<stdlib>') {
+      // Keep visible but do not map onto user Main.java:1
+      orphanMessages.push(`[stdlib] ${d.message}`);
+      continue;
+    }
+    if (!path.isAbsolute(file)) {
       file = path.resolve(fallbackCwd || projectRoot, file);
     }
     const severity = toSeverity(d.severity);
     const line = Math.max(0, (d.line || 1) - 1);
     const col = Math.max(0, (d.column || 1) - 1);
     const range = new vscode.Range(line, col, line, Math.max(col + 1, col));
-    const vs = new vscode.Diagnostic(range, d.message, severity);
+    let message = d.message || '';
+    if (d.hint) {
+      message = `${message}\nhelp: ${d.hint}`;
+    }
+    const vs = new vscode.Diagnostic(range, message, severity);
     vs.source = 'jnative';
-    if (d.file === '<stdlib>') {
-      vs.message = `[stdlib] ${d.message}`;
+    if (d.code) {
+      vs.code = d.code;
     }
     const list = byFile.get(file) ?? [];
     list.push(vs);
     byFile.set(file, list);
+    applied++;
   }
   for (const [file, list] of byFile) {
     collection.set(vscode.Uri.file(file), list);
   }
+  return { applied, orphanMessages };
 }
 
 function toSeverity(s: string): vscode.DiagnosticSeverity {
@@ -115,7 +151,7 @@ function toSeverity(s: string): vscode.DiagnosticSeverity {
 
 /** Parse human diagnostic lines as fallback when JSON is absent. */
 export function parseTextDiagnostics(text: string): JsonDiagnostic[] {
-  const re = /^(.+):(\d+):(\d+):\s*(error|warning|note):\s*(.*)$/gim;
+  const re = /^(.+):(\d+):(\d+):\s*(error|warning|note):\s*(?:\[([A-Z0-9]+)\]\s*)?(.*)$/gim;
   const out: JsonDiagnostic[] = [];
   let m: RegExpExecArray | null;
   while ((m = re.exec(text)) !== null) {
@@ -124,7 +160,8 @@ export function parseTextDiagnostics(text: string): JsonDiagnostic[] {
       line: parseInt(m[2], 10),
       column: parseInt(m[3], 10),
       severity: m[4].toLowerCase(),
-      message: m[5],
+      code: m[5] || undefined,
+      message: m[6],
     });
   }
   return out;

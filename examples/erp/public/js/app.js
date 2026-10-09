@@ -16,6 +16,7 @@
   var bookInfo = null;
   var authed = sessionStorage.getItem("jn_auth") === "1" || sessionStorage.getItem("jn_rpc_auth") === "1";
   if (window.JnData) JnData.useRpc("");
+  if (window.JnGridData) JnGridData.useRpc("");
 
   function $(sel, root) { return (root || document).querySelector(sel); }
   function t(key, params, fallback) {
@@ -49,12 +50,23 @@
     return b.name || b.code || "";
   }
 
+  function isDemoBook() {
+    var b = bookInfo || (JnData.active && JnData.active.book) || null;
+    return !!(b && (b.bookKind === "DEMO" || b.demo === true || b.demoSeedVersion != null));
+  }
+
   function sanitizeTabs(list) {
     var removed = { "demo.center": 1 };
     return (list || []).filter(function (id) {
       if (removed[id]) return false;
       return !!JnRegistry.getRaw(id);
     });
+  }
+
+  function afterLogin(data) {
+    sessionUser = (data && data.user) || JnData.active.user;
+    authed = true;
+    return JnData.active.loadBook ? JnData.active.loadBook() : null;
   }
 
   function renderLogin() {
@@ -66,29 +78,58 @@
       '<div class="jn-field"><label>' + JnUI.esc(t("login.email")) + '</label><input class="jn-input" id="email" value="user1@jnative.dev" /></div>' +
       '<div class="jn-field"><label>' + JnUI.esc(t("login.password")) + '</label><input class="jn-input" id="password" type="password" value="erp1234" /></div>' +
       '<button type="button" class="jn-btn primary" id="btn-login" style="width:100%">' + JnUI.esc(t("login.submit")) + "</button>" +
+      '<button type="button" class="jn-btn" id="btn-demo-enter" style="width:100%;margin-top:8px;display:none">' +
+      JnUI.esc(t("login.demoEnter", null, "体验示例公司")) + "</button>" +
       '<p class="hint" style="margin-top:12px;color:var(--jn-color-text-muted);font-size:12px">' + JnUI.esc(t("login.hint")) + "</p>" +
       '<p id="login-err" style="color:#b91c1c;font-size:12px;margin-top:8px"></p>' +
       "</div></div>";
     if (window.JnI18n) {
       JnI18n.bindLangToggle(document.body, function () { renderLogin(); });
     }
+    var errEl = $("#login-err");
+    var demoBtn = $("#btn-demo-enter");
+    if (JnData.active && JnData.active.demoAvailable) {
+      JnData.active.demoAvailable().then(function (ok) {
+        if (ok && demoBtn) demoBtn.style.display = "";
+      });
+    }
     $("#btn-login").onclick = function () {
       var email = $("#email").value.trim();
       var password = $("#password").value;
-      var errEl = $("#login-err");
+      var btn = $("#btn-login");
       errEl.textContent = "";
+      if (btn) {
+        btn.disabled = true;
+        btn.textContent = t("login.submitting", null, "登录中…");
+      }
       JnData.useRpc("");
-      JnData.active.login(email, password).then(function (data) {
-        sessionUser = (data && data.user) || JnData.active.user;
-        authed = true;
-        return JnData.active.loadBook ? JnData.active.loadBook() : null;
-      }).then(function (book) {
+      JnData.active.login(email, password).then(afterLogin).then(function (book) {
         bookInfo = book || null;
         bootShell();
       }).catch(function (err) {
         errEl.textContent = (err && err.message) ? err.message : t("login.failed");
+        if (btn) {
+          btn.disabled = false;
+          btn.textContent = t("login.submit");
+        }
       });
     };
+    if (demoBtn) {
+      demoBtn.onclick = function () {
+        errEl.textContent = "";
+        demoBtn.disabled = true;
+        demoBtn.textContent = t("login.submitting", null, "登录中…");
+        JnData.useRpc("");
+        JnData.active.enterDemo().then(afterLogin).then(function (book) {
+          bookInfo = book || null;
+          bootShell();
+        }).catch(function (err) {
+          errEl.textContent = (err && err.message) ? err.message : t("login.failed");
+          demoBtn.disabled = false;
+          demoBtn.textContent = t("login.demoEnter", null, "体验示例公司");
+        });
+      };
+    }
   }
 
   function menuHtml() {
@@ -100,6 +141,7 @@
           '" data-nav="' + p.pageId + '" title="' + JnUI.esc(p.title) + '">' +
           '<span class="ico">' + JnUI.esc(p.icon || "*") + '</span><span class="lbl">' + JnUI.esc(p.title) + "</span></button>";
       }).join("");
+      if (!items) return "";
       return '<div class="jn-nav-group"><div class="jn-nav-group-title">' + JnUI.esc(g.title) + "</div>" + items + "</div>";
     }).join("");
   }
@@ -131,10 +173,16 @@
     if (nameEl) nameEl.textContent = label;
     var bookEl = $("#jn-book-label");
     if (bookEl) {
-      var bl = bookLabel();
-      bookEl.textContent = bl;
-      bookEl.style.display = bl ? "" : "none";
-      if (bl) bookEl.title = bl;
+      if (isDemoBook()) {
+        bookEl.textContent = t("common.demoBookChip", null, "示例公司 · 演示账套");
+        bookEl.style.display = "";
+        bookEl.title = bookLabel() || "DEMO";
+      } else {
+        var bl = bookLabel();
+        bookEl.textContent = bl;
+        bookEl.style.display = bl ? "" : "none";
+        if (bl) bookEl.title = bl;
+      }
     }
   }
 
@@ -292,17 +340,23 @@
       var cu = userDisplay();
       var bl = bookLabel();
       var role = (cu && cu.role) ? String(cu.role) : "";
+      var demoReset = isDemoBook()
+        ? '<p style="margin-top:12px"><button type="button" class="jn-btn" id="btn-demo-reset">' +
+          JnUI.esc(t("common.demoReset", null, "重置演示账套")) + "</button></p>"
+        : "";
       JnUI.modal({
         title: t("common.userMenu"),
         bodyHtml: "<p><strong>" + JnUI.esc(userLabel(cu)) + "</strong></p>" +
           (cu && cu.email ? "<p>" + JnUI.esc(cu.email) + "</p>" : "") +
           (role ? "<p>" + JnUI.esc(t("common.roleLine", { role: role })) + "</p>" : "") +
-          (bl ? "<p>" + JnUI.esc(t("common.bookLine", { name: bl })) + "</p>" : ""),
+          (bl ? "<p>" + JnUI.esc(t("common.bookLine", { name: bl })) + "</p>" : "") +
+          demoReset,
         primaryLabel: t("common.signOut"),
         onOk: function () {
           var done = function () {
             sessionStorage.removeItem("jn_auth");
             sessionStorage.removeItem("jn_rpc_auth");
+            sessionStorage.removeItem("jn_demo_auth");
             sessionStorage.removeItem("jn_csrf");
             sessionStorage.removeItem("jn_user");
             location.reload();
@@ -312,6 +366,26 @@
           } else done();
         }
       });
+      setTimeout(function () {
+        var rb = document.getElementById("btn-demo-reset");
+        if (!rb) return;
+        rb.onclick = function (e) {
+          e.preventDefault();
+          e.stopPropagation();
+          var ok = window.confirm(t("common.demoResetConfirm", null,
+            "确认重置演示账套？将删除演示业务数据并重新初始化示例场景。正式账套不可执行。"));
+          if (!ok) return;
+          rb.disabled = true;
+          JnData.active.resetDemo().then(function () {
+            JnUI.toast(t("common.demoResetOk", null, "演示账套已重置"), "ok");
+            if (JnData.active.invalidate) JnData.active.invalidate();
+            location.reload();
+          }).catch(function (err) {
+            JnUI.toast((err && err.message) || "reset failed", "err");
+            rb.disabled = false;
+          });
+        };
+      }, 0);
     };
 
     var hashRoute = (location.hash || "").replace(/^#/, "");
@@ -379,6 +453,7 @@
       JnI18n.applyHtmlLang();
     }
     JnData.useRpc("");
+    if (window.JnGridData) JnGridData.useRpc("");
     if (!authed) renderLogin();
     else resumeSession();
   });

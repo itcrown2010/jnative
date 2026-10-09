@@ -1,0 +1,72 @@
+# Generated from stdlib/async — 2026-10-09T05:08Z
+# Signatures only. Behavior notes are maintained in website/api/*.md
+
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/async/AsyncLib.java:4:class AsyncClockNative {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/async/AsyncLib.java:12:class AsyncCpuNative {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/async/AsyncLib.java:17:class AsyncCpu {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/async/AsyncLib.java:27:class PollNative {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/async/AsyncLib.java:59:class TimeoutException extends RuntimeException {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/async/AsyncLib.java:65:interface LoopTask {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/async/AsyncLib.java:69:interface JnFutureCallback {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/async/AsyncLib.java:79:class FutureSubscription {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/async/AsyncLib.java:98:class CancellableFutureCallback implements JnFutureCallback {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/async/AsyncLib.java:110:    public void invoke(JnFuture future) {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/async/AsyncLib.java:130:interface BlockingSupplier {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/async/AsyncLib.java:134:interface FlatMapFunction {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/async/AsyncLib.java:138:interface RecoverFunction {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/async/AsyncLib.java:142:class JnCancellationToken {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/async/AsyncLib.java:200:class CancellationSource {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/async/AsyncLib.java:216:class JnFuture {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/async/AsyncLib.java:498:class SuccessCallback implements JnFutureCallback {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/async/AsyncLib.java:505:    public void invoke(JnFuture future) {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/async/AsyncLib.java:512:class FailureCallback implements JnFutureCallback {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/async/AsyncLib.java:519:    public void invoke(JnFuture future) {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/async/AsyncLib.java:526:class RunCallbackTask implements LoopTask {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/async/AsyncLib.java:535:    public void run() {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/async/AsyncLib.java:542:class ThenCallback implements JnFutureCallback {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/async/AsyncLib.java:553:    public void invoke(JnFuture ignored) {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/async/AsyncLib.java:569:class FlatMapCallback implements JnFutureCallback {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/async/AsyncLib.java:580:    public void invoke(JnFuture ignored) {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/async/AsyncLib.java:598:class ForwardCallback implements JnFutureCallback {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/async/AsyncLib.java:605:    public void invoke(JnFuture inner) {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/async/AsyncLib.java:616:class RecoverCallback implements JnFutureCallback {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/async/AsyncLib.java:627:    public void invoke(JnFuture ignored) {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/async/AsyncLib.java:643:class FinallyCallback implements JnFutureCallback {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/async/AsyncLib.java:654:    public void invoke(JnFuture ignored) {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/async/AsyncLib.java:673:class AllWaiter implements JnFutureCallback {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/async/AsyncLib.java:679:    public void invoke(JnFuture f) {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/async/AsyncLib.java:697:class AnyRace implements JnFutureCallback {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/async/AsyncLib.java:701:    public void invoke(JnFuture f) {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/async/AsyncLib.java:718:class TimeoutPair {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/async/AsyncLib.java:724:class TimeoutSourceCallback implements JnFutureCallback {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/async/AsyncLib.java:731:    public void invoke(JnFuture ignored) {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/async/AsyncLib.java:746:class TimeoutFireTask implements LoopTask {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/async/AsyncLib.java:755:    public void run() {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/async/AsyncLib.java:769:class TimerEntry {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/async/AsyncLib.java:780:class EventLoop {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/async/AsyncLib.java:999:class EventLoopRunner extends Thread {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/async/AsyncLib.java:1002:    public void run() {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/async/AsyncLib.java:1007:class EventLoopGroup {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/async/AsyncLib.java:1060:class Async {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/async/AsyncLib.java:1141:class SleepCompleteTask implements LoopTask {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/async/AsyncLib.java:1148:    public void run() {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/async/AsyncLib.java:1155:class BlockingRunTask implements PoolTask {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/async/AsyncLib.java:1166:    public void run() {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/async/AsyncLib.java:1195:class BlockingCompleteTask implements LoopTask {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/async/AsyncLib.java:1206:    public void run() {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/async/AsyncLib.java:1215:class AsyncMutex {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/async/AsyncLib.java:1247:class AsyncSemaphore {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/async/AsyncLib.java:1279:class AsyncQueue {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/async/AsyncLib.java:1311:class AsyncTcpConnectSupplier implements BlockingSupplier {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/async/AsyncLib.java:1322:    public Object get() {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/async/AsyncLib.java:1336:class AsyncTcpSocket {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/async/AsyncLib.java:1382:class AsyncTcpWriteSupplier implements BlockingSupplier {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/async/AsyncLib.java:1386:    public Object get() {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/async/AsyncLib.java:1392:class AsyncTcpReadAllSupplier implements BlockingSupplier {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/async/AsyncLib.java:1395:    public Object get() {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/async/AsyncLib.java:1400:class AsyncTcpAcceptSupplier implements BlockingSupplier {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/async/AsyncLib.java:1409:    public Object get() {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/async/AsyncLib.java:1418:class AsyncTcpServer {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/async/AsyncLib.java:1439:class FutureBlocker {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/async/AsyncLib.java:1474:class AsyncTcpListenSupplier implements BlockingSupplier {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/async/AsyncLib.java:1479:    public Object get() {

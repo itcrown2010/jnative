@@ -7,6 +7,11 @@ tsconfig.json
 .gitignore
 out/test/**
 **/*.test.js
+verify-artifacts/**
+scripts/**
+DELIVERY-*.md
+TROUBLESHOOTING.md
+verify-artifacts/**
 # Keep production deps (vscode-languageclient); drop the rest of node_modules.
 node_modules/**
 !node_modules/vscode-languageclient/**

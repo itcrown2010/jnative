@@ -1,0 +1,9 @@
+# Generated from stdlib/math — 2026-10-09T05:08Z
+# Signatures only. Behavior notes are maintained in website/api/*.md
+
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/math/MathLib.java:10:class Math {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/math/DecimalLib.java:5:class DecimalException extends RuntimeException {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/math/DecimalLib.java:11:class Decimal {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/math/DecimalLib.java:310:class DecimalDigits {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/math/DecimalLib.java:542:class DoubleParse {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/math/MathLib.java.bak:6:class Math {

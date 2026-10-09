@@ -1,0 +1,6 @@
+{
+  "name": "tutorial-multifile",
+  "source": ["lib", "app"],
+  "main": "Main",
+  "output": "build/tutorial-multifile"
+}

@@ -1,0 +1,30 @@
+# Generated from stdlib/http — 2026-10-09T05:08Z
+# Signatures only. Behavior notes are maintained in website/api/*.md
+
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/http/Http2Lib.java:4:class Http2Error {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/http/Http2Lib.java:19:class Http2FrameType {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/http/Http2Lib.java:32:class Http2Frame {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/http/Http2Lib.java:44:class Http2Bits {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/http/Http2Lib.java:99:class Http2Codec {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/http/Http2Lib.java:180:class HpackEncoder {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/http/Http2Lib.java:229:class Http2Client {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/http/Http2Lib.java:321:class HpackDecoder {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/http/Http2Lib.java:349:class Http2Connection {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/http/Http2Lib.java:382:class HpackResponse {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/http/HttpLib.java:3:class HttpException extends IOException {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/http/HttpLib.java:9:class HttpProtocolException extends HttpException {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/http/HttpLib.java:15:class InvalidUrlException extends HttpException {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/http/HttpLib.java:21:class UnsupportedSchemeException extends HttpException {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/http/HttpLib.java:27:class HttpUrl {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/http/HttpLib.java:145:class HttpHeaders {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/http/HttpLib.java:249:class ByteBuf {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/http/HttpLib.java:318:class HttpUtil {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/http/HttpLib.java:447:class HttpRequest {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/http/HttpLib.java:494:class HttpResponse {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/http/HttpLib.java:639:class HttpPoolKey {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/http/HttpLib.java:665:class HttpPooledConn {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/http/HttpLib.java:673:class HttpConnectionPool {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/http/HttpLib.java:728:class HttpClient {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/http/HttpLib.java:1326:class HttpServerRequest {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/http/HttpLib.java:1358:class HttpConnection {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/http/HttpLib.java:1594:class HttpServer {

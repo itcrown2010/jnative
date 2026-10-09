@@ -1,0 +1,24 @@
+# Generated from stdlib/crypto — 2026-10-09T05:08Z
+# Signatures only. Behavior notes are maintained in website/api/*.md
+
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/crypto/CryptoLib.java:7:class CryptoException extends RuntimeException {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/crypto/CryptoLib.java:13:class CryptoInt {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/crypto/CryptoLib.java:21:class CryptoParse {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/crypto/CryptoLib.java:131:class BitOps {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/crypto/CryptoLib.java:172:class SecureRandomNative {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/crypto/CryptoLib.java:177:class SecureRandom {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/crypto/CryptoLib.java:235:class CryptoHex {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/crypto/CryptoLib.java:308:class CryptoBytes {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/crypto/CryptoLib.java:367:class Base64Codec {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/crypto/CryptoLib.java:502:class ConstantTime {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/crypto/CryptoLib.java:531:class Sha1 {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/crypto/CryptoLib.java:631:class Sha256 {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/crypto/CryptoLib.java:734:class Hmac {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/crypto/CryptoLib.java:763:class Password {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/crypto/CryptoLib.java:879:class PasswordHashSupplier implements BlockingSupplier {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/crypto/CryptoLib.java:882:    public Object get() {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/crypto/CryptoLib.java:887:class PasswordVerifySupplier implements BlockingSupplier {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/crypto/CryptoLib.java:891:    public Object get() {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/crypto/CryptoLib.java:896:class JwtClaims {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/crypto/CryptoLib.java:918:class Jwt {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/crypto/CryptoLib.java:1056:class WebSocketAccept {

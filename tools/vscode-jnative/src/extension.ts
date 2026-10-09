@@ -1,7 +1,14 @@
 // Author: 张晓达
 import * as vscode from 'vscode';
 import { disposeAllDiagnostics } from './diagnostics';
-import { isLspRunning, startLanguageServer, stopLanguageServer } from './lspClient';
+import {
+  getLspLog,
+  isLspRunning,
+  restartLanguageServer,
+  startLanguageServer,
+  stopLanguageServer,
+  disposeLspUi,
+} from './lspClient';
 import {
   fileBelongsToProject,
   findProjectForFile,
@@ -29,9 +36,15 @@ import {
 } from './runner';
 import { registerTaskProvider } from './tasks';
 import { checkToolchain, promptMissingToolchain, resolveToolchain } from './toolchain';
+import {
+  disposeTargetStatus,
+  refreshTargetStatus,
+  selectTargetCommand,
+} from './targetContext';
 
 export async function activate(context: vscode.ExtensionContext): Promise<void> {
   registerTaskProvider(context);
+  await refreshTargetStatus(context);
 
   context.subscriptions.push(
     vscode.debug.registerDebugConfigurationProvider(
@@ -98,7 +111,10 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         return;
       }
       const r = await buildProject(project);
-      vscode.window.showInformationMessage(r.success ? '构建成功' : '构建失败');
+      if (r.success) {
+        vscode.window.showInformationMessage('构建成功');
+      }
+      // failures already notify with Problems / Output actions
     }),
     vscode.commands.registerCommand('jnative.runProject', async () => {
       const editor = vscode.window.activeTextEditor?.document.uri.fsPath;
@@ -107,6 +123,15 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         return;
       }
       await runProject(project);
+    }),
+    vscode.commands.registerCommand('jnative.showLanguageServerLog', () => {
+      getLspLog().show(true);
+    }),
+    vscode.commands.registerCommand('jnative.restartLanguageServer', async () => {
+      await restartLanguageServer(context);
+      vscode.window.showInformationMessage(
+        isLspRunning() ? 'JNative 语言服务已重启' : 'JNative 语言服务重启未成功 — 请查看语言服务日志'
+      );
     }),
     vscode.commands.registerCommand('jnative.debugProject', async () => {
       const editor = vscode.window.activeTextEditor?.document.uri.fsPath;
@@ -125,7 +150,9 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         return;
       }
       const r = await buildCurrentFile(editor.document.uri.fsPath);
-      vscode.window.showInformationMessage(r.success ? '文件构建成功' : '文件构建失败');
+      if (r.success) {
+        vscode.window.showInformationMessage('文件构建成功');
+      }
     }),
     vscode.commands.registerCommand('jnative.stopRun', () => {
       stopRun();
@@ -140,7 +167,8 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       }
       const doc = await vscode.workspace.openTextDocument(manifestPath(project));
       await vscode.window.showTextDocument(doc);
-    })
+    }),
+    vscode.commands.registerCommand('jnative.selectTarget', () => selectTargetCommand(context))
   );
 
   context.subscriptions.push(
@@ -148,6 +176,12 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     vscode.window.onDidChangeActiveTextEditor((e) => {
       if (e) {
         void maybeSetJNativeLanguage(e.document);
+        void refreshTargetStatus(context);
+      }
+    }),
+    vscode.workspace.onDidChangeConfiguration((e) => {
+      if (e.affectsConfiguration('jnative.target')) {
+        void refreshTargetStatus(context);
       }
     })
   );
@@ -171,16 +205,26 @@ export async function deactivate(): Promise<void> {
   await stopLanguageServer();
   disposeRunner();
   disposeAllDiagnostics();
+  disposeLspUi();
+  disposeTargetStatus();
 }
 
 async function maybeSetJNativeLanguage(doc: vscode.TextDocument): Promise<void> {
   if (doc.uri.scheme !== 'file') {
     return;
   }
-  if (!doc.fileName.endsWith('.java')) {
+  const lower = doc.fileName.toLowerCase();
+  const isJn = lower.endsWith('.jn');
+  const isJava = lower.endsWith('.java');
+  if (!isJn && !isJava) {
     return;
   }
   if (doc.languageId === 'jnative') {
+    return;
+  }
+  if (isJn) {
+    // .jn is always JNative (contributes.languages also maps it).
+    await vscode.languages.setTextDocumentLanguage(doc, 'jnative');
     return;
   }
   const project = findProjectForFile(doc.fileName);

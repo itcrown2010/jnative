@@ -39,6 +39,55 @@ class ErpPurchasing {
         return loadPo(companyId, poId);
     }
 
+    static ArrayList<Object> list(long companyId) {
+        ArrayList<Object> p = new ArrayList<Object>();
+        p.add(CryptoParse.longToString(companyId));
+        DbQueryResult r = ErpDb.query(
+                "SELECT id FROM purchase_orders WHERE company_id=? ORDER BY id", p);
+        ArrayList<Object> out = new ArrayList<Object>();
+        int i = 0;
+        while (i < r.rows.size()) {
+            long id = r.rows.get(i).getLong(0);
+            PurchaseOrderDto po = loadPo(companyId, id);
+            if (po != null) {
+                out.add(po);
+            }
+            i = i + 1;
+        }
+        return out;
+    }
+
+    static long poTotalCents(PurchaseOrderDto po) {
+        long t = 0L;
+        int i = 0;
+        while (po.lines != null && i < po.lines.size()) {
+            OrderLineDto ln = (OrderLineDto) po.lines.get(i);
+            t = t + (ln.unitPriceCents * (long) ln.quantity);
+            i = i + 1;
+        }
+        return t;
+    }
+
+    static String poListJson(ArrayList<Object> list) {
+        String out = "[";
+        int i = 0;
+        while (i < list.size()) {
+            if (i > 0) {
+                out = out + ",";
+            }
+            PurchaseOrderDto po = (PurchaseOrderDto) list.get(i);
+            out = out + "{\"id\":" + ErpJson.num(po.id)
+                    + ",\"docNo\":" + ErpJson.str(po.docNo)
+                    + ",\"supplierId\":" + ErpJson.num(po.supplierId)
+                    + ",\"supplierName\":" + ErpJson.str(po.supplierName)
+                    + ",\"status\":" + ErpJson.str(po.status)
+                    + ",\"totalCents\":" + ErpJson.num(poTotalCents(po))
+                    + ",\"total\":" + ErpJson.num(poTotalCents(po)) + "}";
+            i = i + 1;
+        }
+        return out + "]";
+    }
+
     static PurchaseOrderDto loadPo(long companyId, long poId) {
         ArrayList<Object> p = new ArrayList<Object>();
         p.add(CryptoParse.longToString(poId));

@@ -98,16 +98,16 @@ public final class BuildGraphPackageIntegration {
     }
 
     public static void validateCapabilities(List<PackageBuildNode> nodes, String triple) {
-        var provided = TargetCapability.forTriple(triple);
-        for (PackageBuildNode n : nodes) {
-            String missing = TargetCapability.describeMissing(n.requires(), provided);
-            if (!missing.isEmpty()) {
-                throw new IllegalStateException(
-                        "error:\npackage " + n.id()
-                                + "\nrequires " + missing
-                                + "\n\ntarget " + triple
-                                + "\ndoes not provide " + missing);
+        var diags = io.jnative.target.TargetCapabilityChecker.checkPackages(nodes, triple);
+        if (!diags.isEmpty()) {
+            StringBuilder sb = new StringBuilder();
+            for (var d : diags) {
+                if (sb.length() > 0) {
+                    sb.append('\n');
+                }
+                sb.append(d);
             }
+            throw new IllegalStateException(sb.toString());
         }
     }
 

@@ -13,17 +13,37 @@
     return global.JnI18n ? JnI18n.t(key, params, fb) : (fb != null ? fb : key);
   }
 
+  function rowsFromActive(collection) {
+    if (global.JnData && JnData.active && typeof JnData.active._fetchCollection === "function") {
+      return JnData.active._fetchCollection(collection);
+    }
+    if (global.JnMockData && typeof JnMockData.list === "function") {
+      return Promise.resolve((JnMockData.list(collection, { page: 1, pageSize: 100000 }).rows) || []);
+    }
+    if (global.JnDemoState && typeof JnDemoState.collection === "function") {
+      try {
+        return Promise.resolve(JSON.parse(JSON.stringify(JnDemoState.collection(collection) || [])));
+      } catch (e) {}
+    }
+    return Promise.resolve([]);
+  }
+
   function MockGridDataProvider() {
     this.kind = "mock";
   }
-  MockGridDataProvider.prototype.query = function () {
-    return Promise.reject(new Error(tt("error.mockDisabled", null, "Mock grid disabled")));
+  MockGridDataProvider.prototype._rows = function (collection) {
+    return rowsFromActive(collection);
   };
-  MockGridDataProvider.prototype.count = function () {
-    return Promise.reject(new Error(tt("error.mockDisabled", null, "Mock grid disabled")));
+  MockGridDataProvider.prototype.query = function (collection, state, columns) {
+    return SharedGridQuery(this, collection, state, columns);
   };
-  MockGridDataProvider.prototype.aggregate = function () {
-    return Promise.reject(new Error(tt("error.mockDisabled", null, "Mock grid disabled")));
+  MockGridDataProvider.prototype.count = function (collection, state, columns) {
+    return this.query(collection, Object.assign({}, state, { page: 1, pageSize: 1 }), columns).then(function (r) {
+      return { total: r.total };
+    });
+  };
+  MockGridDataProvider.prototype.aggregate = function (collection, state, columns, specs) {
+    return SharedGridAggregate(this, collection, state, columns, specs);
   };
 
   function RpcGridDataProvider(baseUrl) {
@@ -32,15 +52,11 @@
   }
 
   RpcGridDataProvider.prototype._rows = function (collection) {
-    if (!global.JnData || !JnData.active || JnData.active.kind !== "rpc") {
-      return Promise.reject(new Error(tt("error.rpcRequired", null, "Server data provider required")));
-    }
-    return JnData.active._fetchCollection(collection);
+    return rowsFromActive(collection);
   };
 
-  RpcGridDataProvider.prototype.query = function (collection, state, columns) {
-    var self = this;
-    return this._rows(collection).then(function (rows) {
+  function SharedGridQuery(provider, collection, state, columns) {
+    return provider._rows(collection).then(function (rows) {
       var t0 = performance.now();
       var cmap = colMap(columns);
       var filtered = rows.filter(function (r) {
@@ -74,17 +90,10 @@
         timings: { filterMs: filterMs, sortMs: sortMs, totalMs: Math.round(performance.now() - t0) }
       };
     });
-  };
+  }
 
-  RpcGridDataProvider.prototype.count = function (collection, state, columns) {
-    return this.query(collection, Object.assign({}, state, { page: 1, pageSize: 1 }), columns).then(function (r) {
-      return { total: r.total };
-    });
-  };
-
-  RpcGridDataProvider.prototype.aggregate = function (collection, state, columns, specs) {
-    var self = this;
-    return this._rows(collection).then(function (rows) {
+  function SharedGridAggregate(provider, collection, state, columns, specs) {
+    return provider._rows(collection).then(function (rows) {
       var cmap = colMap(columns);
       var filtered = rows.filter(function (r) { return JnGridFilter.matchGroup(r, state.filters, cmap); });
       filtered = JnGridFilter.stableSort(filtered, state.sorting);
@@ -103,6 +112,20 @@
       });
       return { aggregates: out, total: filtered.length };
     });
+  }
+
+  RpcGridDataProvider.prototype.query = function (collection, state, columns) {
+    return SharedGridQuery(this, collection, state, columns);
+  };
+
+  RpcGridDataProvider.prototype.count = function (collection, state, columns) {
+    return this.query(collection, Object.assign({}, state, { page: 1, pageSize: 1 }), columns).then(function (r) {
+      return { total: r.total };
+    });
+  };
+
+  RpcGridDataProvider.prototype.aggregate = function (collection, state, columns, specs) {
+    return SharedGridAggregate(this, collection, state, columns, specs);
   };
 
   global.JnGridData = {

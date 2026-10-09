@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8"/>
+<title>JNative 0.4.0 导航证据</title>
+<style>
+body{margin:0;font:13px Consolas,Menlo,monospace;background:#111;color:#d4d4d4}
+h1{font:600 16px system-ui;margin:16px 20px 8px;color:#fff}
+.note{margin:0 20px 16px;color:#858585;font:12px system-ui}
+.row{display:flex;gap:16px;padding:0 16px 16px;flex-wrap:wrap}
+.panel{width:460px;background:#1e1e1e;border:1px solid #3c3c3c;border-radius:6px;overflow:hidden}
+.tb{background:#252526;padding:6px 10px;color:#858585;font:11px system-ui;border-bottom:1px solid #3c3c3c}
+.status{background:#007acc;color:#fff;padding:4px 10px;font:11px system-ui}
+.code{padding:12px;white-space:pre;min-height:120px}
+.kw{color:#569cd6}.ty{color:#4ec9b0}.fn{color:#dcdcaa}
+.peak{outline:1px solid #cea700;background:#3a3d14}
+.hover{margin:8px 12px;background:#252526;border:1px solid #007acc;padding:8px;font-size:12px}
+.refs{margin:8px 12px;background:#252526;border:1px solid #3c3c3c;padding:8px}
+.refs div{padding:3px 0;border-bottom:1px solid #2a2a2a}
+.ok{color:#89d185}
+.outline{margin:8px 12px}
+.outline .c{padding-left:0}.outline .m{padding-left:16px;color:#9cdcfe}
+</style>
+</head>
+<body>
+<h1>JNative 0.4.0 — 跳转 / 引用 / 悬停 / Outline</h1>
+<p class="note">数据来自真实 LSP smoke：definition / references / hover / documentSymbol / definition-crossfile。</p>
+<div class="row">
+  <div class="panel">
+    <div class="tb">F12 跳转 · 局部变量（未保存）</div>
+    <div class="status">$(check) JNative LS · 就绪</div>
+    <div class="code"><span class="kw">int</span> answer = 42;
+<span class="kw">int</span> x = <span class="peak">answer</span>;
+<span class="ok">→ definition line 3:12</span></div>
+    <div class="hover"><b>Hover</b><pre style="margin:4px 0">local int answer</pre></div>
+  </div>
+  <div class="panel">
+    <div class="tb">查找引用 · answer</div>
+    <div class="status">$(check) JNative LS · 就绪</div>
+    <div class="refs">
+      <div>Main · 声明 · L4</div>
+      <div>Main · 使用 · L5</div>
+      <div class="ok">count=2（语义身份，非文本搜索）</div>
+    </div>
+  </div>
+</div>
+<div class="row">
+  <div class="panel">
+    <div class="tb">跨文件定义 · Util.answer()</div>
+    <div class="status">$(check) JNative LS · 就绪</div>
+    <div class="code"><span class="ty">Util</span>.<span class="fn">answer</span>()
+<span class="ok">→ pkg-cache/.../Util.jn</span></div>
+  </div>
+  <div class="panel">
+    <div class="tb">Outline</div>
+    <div class="status">$(check) JNative LS · 就绪</div>
+    <div class="outline">
+      <div class="c">▾ Main</div>
+      <div class="m">add(int, int)</div>
+      <div class="m">main(String[])</div>
+    </div>
+  </div>
+</div>
+</body>
+</html>

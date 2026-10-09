@@ -1,0 +1,35 @@
+# Generated from stdlib/studio — 2026-10-09T05:08Z
+# Signatures only. Behavior notes are maintained in website/api/*.md
+
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/studio/StudioLib.java:7:class ProjectNodeKind {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/studio/StudioLib.java:14:class ProjectNode {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/studio/StudioLib.java:34:class Project {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/studio/StudioLib.java:111:class EditorTab {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/studio/StudioLib.java:140:class ConsoleBuffer {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/studio/StudioLib.java:171:class StudioDiagnostic {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/studio/StudioLib.java:187:class BuildState {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/studio/StudioLib.java:195:class RunConfiguration {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/studio/StudioLib.java:209:class SearchMatch {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/studio/StudioLib.java:223:class CompletionItem {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/studio/StudioLib.java:243:class StudioCommand {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/studio/StudioLib.java:253:class StudioCommandRegistry {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/studio/StudioLib.java:268:class StudioSettings {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/studio/StudioLib.java:308:class StudioSymbol {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/studio/StudioLib.java:324:class CompletionService {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/studio/StudioLib.java:355:class WorkspaceIndex {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/studio/StudioLib.java:386:class StudioApplication {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/studio/StudioLib.java:649:class StudioHolder {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/studio/StudioLib.java:653:class ProjectTreeModel implements TreeModel<ProjectNode> {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/studio/StudioLib.java:674:class ProjectNodeRenderer implements CellRenderer<ProjectNode> {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/studio/StudioLib.java:680:class StudioVersion {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/studio/StudioLib.java:684:class StudioUtil {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/studio/StudioLib.java:693:class StudioActions {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/studio/StudioLib.java:892:class StudioBuildWorker {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/studio/StudioLib.java:923:class StudioRunWorker {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/studio/StudioLib.java:947:class StudioSearchWorker {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/studio/StudioLib.java:1004:class BuildThread extends Thread {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/studio/StudioLib.java:1005:    public void run() {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/studio/StudioLib.java:1010:class RunThread extends Thread {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/studio/StudioLib.java:1011:    public void run() {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/studio/StudioLib.java:1016:class SearchThread extends Thread {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/studio/StudioLib.java:1017:    public void run() {

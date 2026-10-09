@@ -22,10 +22,14 @@ cd tools/vscode-jnative && npm install && npm run package
 
 ```bash
 "/Applications/Visual Studio Code.app/Contents/Resources/app/bin/code" \
-  --install-extension tools/vscode-jnative/jnative-0.2.1.vsix
+  --uninstall-extension jnative.jnative
+"/Applications/Visual Studio Code.app/Contents/Resources/app/bin/code" \
+  --install-extension tools/vscode-jnative/jnative-0.6.0.vsix --force
 ```
 
-或在 VS Code：扩展视图 → `...` → Install from VSIX。
+确认扩展版本为 **0.6.0**，且 `jnative.jarPath` 指向当前仓库的 `target/jnative.jar`（与 LSP 一致）。  
+交付：`DELIVERY-0.6.0.md`；故障排查：`TROUBLESHOOTING.md`。  
+验收：`node scripts/lsp-smoke.mjs`；三类项目：`node scripts/acceptance-e2e.mjs`。
 
 ## 工具链配置（优先级）
 
@@ -97,12 +101,19 @@ hello-jnative/
 - 成功构建清除该项目过期诊断。
 - 行号：编译器 1-based → VS Code 0-based。
 - stdlib 拼接产生的诊断会标为 `[stdlib]`，避免错误落到用户行。
-- 可选 LSP（`jnative lsp`）：对编辑器 **当前文本** 做 analyze-only 诊断（防抖、版本丢弃）。日志在 stderr。
+- LSP（`jnative lsp`）：未保存文本上的语义补全、参数提示、编辑诊断（防抖、版本丢弃）。
+- 跳转定义 / 查找引用 / 悬停 / Outline / 工作区符号；有限 import 快速修复（WorkspaceEdit，可撤销）。
+- **重命名**（F2）：语义引用；冲突/继承/第三方明确拒绝；支持预览与撤销。
+- **文档格式化**：确定性缩进与空格；保留字面量、注释与换行符；语法错误时失败不写回。设置 `jnative.formatIndentSize` / `formatInsertSpaces`（默认不启用 formatOnSave）。
+- 命令：**显示语言服务日志** / **重启语言服务**；状态栏显示启动中 / 就绪 / 失败。
+- 构建失败：错误通知 + Problems（JSON 诊断）；成功清除该项目过期诊断；失败不运行旧产物。多项目时需明确选择。
+- 导航/重命名/格式化只做前端 analyze，不触发原生链接构建。
 
 ### LSP 限制
 
-- 单缓冲前端分析；多文件 / 第三方源码库 / 生成源码的完整解析能力与编译器一致，不伪造符号表。
-- 无补全、跳转、重命名、调试（本轮不做空壳命令）。
+- 补全与导航基于编译器符号，无固定 Java API 列表。
+- 引用/重命名不含字符串/注释；可覆盖实例方法重命名拒绝；第三方只读源码拒绝。
+- 范围格式化未开放；无跨项目文件移动。
 
 ## Workspace Trust
 

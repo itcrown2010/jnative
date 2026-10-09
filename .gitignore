@@ -1,4 +1,5 @@
-target/
+# Maven output only (do not ignore io.jnative.target sources)
+/target/
 .idea/
 *.iml
 .classpath

@@ -3,10 +3,12 @@ package io.jnative.diagnostics;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 
 /**
  * Machine-readable diagnostic serialization for IDE / problem matchers.
  * Fields reflect only what {@link Diagnostic} actually carries.
+ *
  * @author 张晓达
  */
 public final class DiagnosticJson {
@@ -39,7 +41,10 @@ public final class DiagnosticJson {
                 out.add(new Diagnostic(
                         d.severity(),
                         new SourceLocation("<stdlib>", line, loc.column()),
-                        "[stdlib] " + d.message()));
+                        "[stdlib] " + d.message(),
+                        d.code(),
+                        d.hint(),
+                        d.related()));
             } else {
                 int userLine = userLineOffset > 0 ? line - userLineOffset : line;
                 out.add(new Diagnostic(
@@ -48,7 +53,10 @@ public final class DiagnosticJson {
                                 path != null ? path : loc.file(),
                                 userLine,
                                 loc.column()),
-                        d.message()));
+                        d.message(),
+                        d.code(),
+                        d.hint(),
+                        d.related()));
             }
         }
         return out;
@@ -62,7 +70,6 @@ public final class DiagnosticJson {
         if (prepended.equals(userSource)) {
             return 0;
         }
-        // Prefer exact suffix match (common for small programs).
         if (prepended.endsWith(userSource)) {
             int cut = prepended.length() - userSource.length();
             if (cut <= 0) {
@@ -74,9 +81,6 @@ public final class DiagnosticJson {
         if (idx > 0) {
             return countLines(prepended.substring(0, idx));
         }
-        // Database/Time stdlibs may be inserted before the primary public class, so the
-        // user unit is no longer a contiguous suffix. Locate the leading probe of the
-        // user buffer instead (enough for files that appear before the insert point).
         int probeLen = Math.min(userSource.length(), 4096);
         while (probeLen >= 64) {
             String probe = userSource.substring(0, probeLen);
@@ -102,9 +106,6 @@ public final class DiagnosticJson {
                 lines++;
             }
         }
-        // Trailing newline does not start another line of content for offset purposes
-        // when the suffix is joined after "\n\n"; countLines of the prefix substring
-        // (which typically ends with \n\n) is what we want as 1-based start offset.
         if (text.endsWith("\n")) {
             lines--;
         }
@@ -133,13 +134,38 @@ public final class DiagnosticJson {
             case WARNING -> "warning";
             case NOTE -> "hint";
         };
-        return "{"
-                + "\"file\":" + quote(loc.file())
-                + ",\"line\":" + loc.line()
-                + ",\"column\":" + loc.column()
-                + ",\"severity\":" + quote(severity)
-                + ",\"message\":" + quote(d.message())
-                + "}";
+        StringBuilder sb = new StringBuilder();
+        sb.append('{');
+        sb.append("\"file\":").append(quote(loc.file()));
+        sb.append(",\"line\":").append(loc.line());
+        sb.append(",\"column\":").append(loc.column());
+        sb.append(",\"severity\":").append(quote(severity));
+        sb.append(",\"message\":").append(quote(d.message()));
+        if (d.code() != null && !d.code().isBlank()) {
+            sb.append(",\"code\":").append(quote(d.code()));
+        }
+        if (d.hint() != null && !d.hint().isBlank()) {
+            sb.append(",\"hint\":").append(quote(d.hint()));
+        }
+        if (d.related() != null && !d.related().isEmpty()) {
+            sb.append(",\"related\":[");
+            boolean first = true;
+            for (Diagnostic.RelatedLocation r : d.related()) {
+                if (!first) {
+                    sb.append(',');
+                }
+                first = false;
+                SourceLocation rl = r.location() == null ? SourceLocation.UNKNOWN : r.location();
+                sb.append("{\"file\":").append(quote(rl.file()))
+                        .append(",\"line\":").append(rl.line())
+                        .append(",\"column\":").append(rl.column())
+                        .append(",\"message\":").append(quote(r.message()))
+                        .append('}');
+            }
+            sb.append(']');
+        }
+        sb.append('}');
+        return sb.toString();
     }
 
     public static String buildReportJson(
@@ -147,10 +173,35 @@ public final class DiagnosticJson {
             String artifact,
             List<Diagnostic> diagnostics
     ) {
+        return buildReportJson(success, artifact, diagnostics, Map.of());
+    }
+
+    /**
+     * @param meta optional build metadata (target, compilerVersion, inputFingerprint, …)
+     */
+    public static String buildReportJson(
+            boolean success,
+            String artifact,
+            List<Diagnostic> diagnostics,
+            Map<String, String> meta
+    ) {
         StringBuilder sb = new StringBuilder();
         sb.append('{');
         sb.append("\"success\":").append(success);
         sb.append(",\"artifact\":").append(artifact == null ? "null" : quote(artifact));
+        if (meta != null) {
+            for (Map.Entry<String, String> e : meta.entrySet()) {
+                if (e.getKey() == null || e.getKey().isBlank()) {
+                    continue;
+                }
+                sb.append(',').append(quote(e.getKey())).append(':');
+                if (e.getValue() == null) {
+                    sb.append("null");
+                } else {
+                    sb.append(quote(e.getValue()));
+                }
+            }
+        }
         sb.append(",\"diagnostics\":").append(toJsonArray(diagnostics == null ? List.of() : diagnostics));
         sb.append('}');
         return sb.toString();

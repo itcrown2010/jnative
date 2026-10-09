@@ -187,6 +187,7 @@
     "page.pur.returns": "Purchase Returns",
     "page.pur.ap": "AP Invoices",
     "page.pur.analysis": "Purchasing Analysis",
+    "page.inv.opening": "Opening Stock",
     "page.inv.balance": "Inventory Balance",
     "page.inv.txns": "Inventory Transactions",
     "page.inv.transfers": "Inventory Transfers",

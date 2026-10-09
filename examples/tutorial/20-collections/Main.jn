@@ -1,0 +1,17 @@
+public class Main {
+    public static void main(String[] args) {
+        ArrayList<String> xs = new ArrayList<String>();
+        xs.add("tea");
+        xs.add("code");
+        System.out.println(String.valueOf(xs.size()));
+        System.out.println(xs.get(0));
+        int i = 0;
+        while (i < xs.size()) {
+            System.out.println(xs.get(i));
+            i = i + 1;
+        }
+        HashMap<String, int> ages = new HashMap<String, int>();
+        ages.put("Ada", 36);
+        System.out.println(String.valueOf(ages.get("Ada")));
+    }
+}

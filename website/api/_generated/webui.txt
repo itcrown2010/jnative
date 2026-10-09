@@ -1,0 +1,36 @@
+# Generated from stdlib/webui — 2026-10-09T05:08Z
+# Signatures only. Behavior notes are maintained in website/api/*.md
+
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/webui/WebUiLib.java:9:interface ReactiveSubscription {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/webui/WebUiLib.java:14:interface ReactiveSource {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/webui/WebUiLib.java:19:interface StringProducer {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/webui/WebUiLib.java:23:interface VoidCallback {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/webui/WebUiLib.java:27:interface MouseCallback {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/webui/WebUiLib.java:31:class ReactiveTracker {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/webui/WebUiLib.java:41:abstract class ReactiveComputation implements ReactiveSubscription {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/webui/WebUiLib.java:82:class IntState implements ReactiveSource {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/webui/WebUiLib.java:131:class StringState implements ReactiveSource {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/webui/WebUiLib.java:182:class RenderScheduler {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/webui/WebUiLib.java:239:class FlushTask implements VoidCallback {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/webui/WebUiLib.java:240:    public void run() {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/webui/WebUiLib.java:245:class DomPatchOps {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/webui/WebUiLib.java:252:class DomPatchBuffer {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/webui/WebUiLib.java:299:class View {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/webui/WebUiLib.java:314:class ElementView extends View {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/webui/WebUiLib.java:327:class TextView extends View {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/webui/WebUiLib.java:342:class ComponentView extends View {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/webui/WebUiLib.java:351:class ViewProp {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/webui/WebUiLib.java:358:class ViewEvent {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/webui/WebUiLib.java:363:class DomBinding extends ReactiveComputation {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/webui/WebUiLib.java:390:abstract class WebUiComponent {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/webui/WebUiLib.java:395:    protected void onMount() {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/webui/WebUiLib.java:398:    protected void onUnmount() {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/webui/WebUiLib.java:402:class ComponentInstance {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/webui/WebUiLib.java:435:class BrowserDomRenderer {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/webui/WebUiLib.java:509:class Html {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/webui/WebUiLib.java:544:class ClickVoidAdapter implements MouseCallback {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/webui/WebUiLib.java:551:    public void onClick(BrowserEvent event) {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/webui/WebUiLib.java:556:class WebUI {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/webui/WebUiLib.java:586:class WebUiNative {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/webui/WebUiLib.java:635:class WebUiEventBridge implements BrowserEventHandler {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/webui/WebUiLib.java:642:    public void handle(BrowserEvent event) {

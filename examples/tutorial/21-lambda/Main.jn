@@ -1,0 +1,19 @@
+public class Main {
+    public static void main(String[] args) {
+        IntOp twice = (n) -> n * 2;
+        System.out.println(String.valueOf(twice.apply(5)));
+        final int base = 10;
+        IntOp addBase = (n) -> n + base;
+        System.out.println(String.valueOf(addBase.apply(3)));
+        IntOp viaRef = Main::inc;
+        System.out.println(String.valueOf(viaRef.apply(7)));
+    }
+
+    static int inc(int n) {
+        return n + 1;
+    }
+}
+
+interface IntOp {
+    int apply(int n);
+}

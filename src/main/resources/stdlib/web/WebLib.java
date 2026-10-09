@@ -1855,6 +1855,9 @@ class WebServer {
                     if (count >= app.config.keepAliveMax) {
                         wantClose = 1;
                     }
+                    if (app.config.readTimeoutMs <= 0) {
+                        wantClose = 1;
+                    }
                     HttpResponse httpResp = ctx.response.toHttp();
                     if (wantClose != 0) {
                         httpResp.headers.set("Connection", "close");
@@ -1907,7 +1910,12 @@ class WebServer {
                     if (count >= app.config.keepAliveMax) {
                         wantClose = 1;
                     }
-                    /* HTTP/1.1 default is keep-alive; only close when asked or capped. */
+                    /* Without socket read timeouts, keep-alive parks a worker forever in
+                     * recv() after the response — Safari multi-conn loads exhaust the pool
+                     * and the whole server stops answering (including /ready). */
+                    if (app.config.readTimeoutMs <= 0) {
+                        wantClose = 1;
+                    }
                     HttpResponse httpResp = ctx.response.toHttp();
                     if (wantClose != 0) {
                         httpResp.headers.set("Connection", "close");

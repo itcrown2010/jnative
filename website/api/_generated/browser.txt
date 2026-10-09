@@ -1,0 +1,18 @@
+# Generated from stdlib/browser — 2026-10-09T05:08Z
+# Signatures only. Behavior notes are maintained in website/api/*.md
+
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/browser/BrowserLib.java:5:class JsException extends RuntimeException {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/browser/BrowserLib.java:16:class BrowserException extends RuntimeException {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/browser/BrowserLib.java:22:class JsHandle {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/browser/BrowserLib.java:34:class JsObject {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/browser/BrowserLib.java:49:class Console extends JsObject {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/browser/BrowserLib.java:67:class Document extends JsObject {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/browser/BrowserLib.java:90:class Element extends JsObject {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/browser/BrowserLib.java:126:class HtmlInputElement extends Element {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/browser/BrowserLib.java:140:class HtmlButtonElement extends Element {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/browser/BrowserLib.java:146:interface BrowserEventHandler {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/browser/BrowserLib.java:150:class BrowserEvent extends JsObject {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/browser/BrowserLib.java:160:class Storage extends JsObject {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/browser/BrowserLib.java:174:class Window extends JsObject {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/browser/BrowserLib.java:188:class Browser {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/browser/BrowserLib.java:209:class BrowserNative {

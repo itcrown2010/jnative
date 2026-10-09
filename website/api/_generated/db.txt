@@ -1,0 +1,140 @@
+# Generated from stdlib/db — 2026-10-09T05:08Z
+# Signatures only. Behavior notes are maintained in website/api/*.md
+
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/db/SqliteDriverLib.java:6:class Sqlite3Native {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/db/SqliteDriverLib.java:54:class SqliteConst {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/db/SqliteDriverLib.java:68:class DbSqliteBootstrap {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/db/SqliteDriverLib.java:74:class SQLiteDriver implements DatabaseDriver {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/db/SqliteDriverLib.java:75:    public JnFuture connect(DatabaseConfig config) {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/db/SqliteDriverLib.java:87:class SqliteConnectSupplier implements BlockingSupplier {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/db/SqliteDriverLib.java:91:    public Object get() {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/db/SqliteDriverLib.java:116:class SQLiteConnection implements DatabaseBackend {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/db/SqliteDriverLib.java:125:    public JnFuture query(String sql, ArrayList<Object> params) {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/db/SqliteDriverLib.java:135:    public JnFuture queryOne(String sql, ArrayList<Object> params, RowMapper mapper) {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/db/SqliteDriverLib.java:145:    public JnFuture execute(String sql, ArrayList<Object> params) {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/db/SqliteDriverLib.java:153:    public JnFuture beginTransaction() {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/db/SqliteDriverLib.java:157:    public JnFuture commit() {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/db/SqliteDriverLib.java:161:    public JnFuture rollback() {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/db/SqliteDriverLib.java:165:    public void release() {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/db/SqliteDriverLib.java:176:    public int isBroken() {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/db/SqliteDriverLib.java:275:class DbBindInt {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/db/SqliteDriverLib.java:283:class SqliteParam {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/db/SqliteDriverLib.java:297:class SqliteNativeUtil {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/db/SqliteDriverLib.java:333:class SqliteQuerySupplier implements BlockingSupplier {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/db/SqliteDriverLib.java:340:    public Object get() {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/db/SqliteDriverLib.java:364:class SqliteExecuteSupplier implements BlockingSupplier {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/db/SqliteDriverLib.java:369:    public Object get() {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/db/DbLib.java:6:class DatabaseException extends RuntimeException {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/db/DbLib.java:12:class ConnectionException extends DatabaseException {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/db/DbLib.java:18:class AuthenticationException extends DatabaseException {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/db/DbLib.java:24:class QueryException extends DatabaseException {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/db/DbLib.java:30:class ConstraintViolationException extends DatabaseException {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/db/DbLib.java:36:class TransactionException extends DatabaseException {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/db/DbLib.java:42:class QueryTimeoutException extends DatabaseException {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/db/DbLib.java:48:class ConnectionAcquireTimeoutException extends DatabaseException {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/db/DbLib.java:54:class DbLoopViolationException extends DatabaseException {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/db/DbLib.java:60:class DbByteUtil {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/db/DbLib.java:108:class DbByteBuffer {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/db/DbLib.java:332:class DatabaseUrl {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/db/DbLib.java:420:class DbParseUtil {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/db/DbLib.java:667:class Row {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/db/DbLib.java:796:class DbBlobHolder {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/db/DbLib.java:804:class DbColumnType {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/db/DbLib.java:812:interface RowMapper {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/db/DbLib.java:816:interface TypeCodec {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/db/DbLib.java:822:interface DatabaseDriver {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/db/DbLib.java:826:class DbConnection {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/db/DbLib.java:941:interface DatabaseBackend {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/db/DbLib.java:959:interface DbTransactionWork {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/db/DbLib.java:963:class DatabaseConfig {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/db/DbLib.java:981:class DbMetrics {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/db/DbLib.java:1001:class DriverRegistry {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/db/DbLib.java:1028:class DbLoopGuard {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/db/DbLib.java:1040:class FutureBridge {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/db/DbLib.java:1062:class ConnectionPool {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/db/DbLib.java:1139:class PoolAcquireStep implements FlatMapFunction {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/db/DbLib.java:1142:    public JnFuture apply(Object ignored) {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/db/DbLib.java:1147:class PoolConnectDone implements Function<Object, Object> {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/db/DbLib.java:1150:    public Object apply(Object v) {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/db/DbLib.java:1159:class Database {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/db/DbLib.java:1240:interface DbPoolWork {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/db/DbLib.java:1244:class WithConnectionFlatMap implements FlatMapFunction {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/db/DbLib.java:1248:    public JnFuture apply(Object v) {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/db/DbLib.java:1258:class ReleaseAfterWork implements Consumer<Object> {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/db/DbLib.java:1262:    public void accept(Object ignored) {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/db/DbLib.java:1267:class PoolQueryAllWork implements DbPoolWork {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/db/DbLib.java:1272:    public JnFuture run(DbConnection conn) {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/db/DbLib.java:1282:class QueryMetricsCallback implements Function<Object, Object> {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/db/DbLib.java:1286:    public Object apply(Object v) {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/db/DbLib.java:1294:class PoolQueryOneWork implements DbPoolWork {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/db/DbLib.java:1300:    public JnFuture run(DbConnection conn) {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/db/DbLib.java:1310:class PoolExecuteWork implements DbPoolWork {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/db/DbLib.java:1315:    public JnFuture run(DbConnection conn) {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/db/DbLib.java:1325:class PoolTransactionWork implements DbPoolWork {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/db/DbLib.java:1329:    public JnFuture run(DbConnection conn) {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/db/DbLib.java:1338:class TransactionFlatMap implements FlatMapFunction {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/db/DbLib.java:1342:    public JnFuture apply(Object ignored) {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/db/DbLib.java:1359:class TransactionLoopUtil {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/db/DbLib.java:1370:class TransactionRollbackRecover implements RecoverFunction {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/db/DbLib.java:1373:    public Object apply(Exception ex) {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/db/DbLib.java:1384:class TransactionCommitMap implements FlatMapFunction {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/db/DbLib.java:1387:    public JnFuture apply(Object v) {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/db/DbLib.java:1396:class TransactionReturnValue implements Function<Object, Object> {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/db/DbLib.java:1400:    public Object apply(Object ignored) {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/db/DbLib.java:1408:class DbQueryResult {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/db/DbLib.java:1418:class DbBootstrap {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/db/DbMigrateLib.java:6:class MigrationRecord {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/db/DbMigrateLib.java:20:class MigrationFile {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/db/DbMigrateLib.java:34:class MigrationUtil {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/db/DbMigrateLib.java:69:class Migrator {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/db/DbMigrateLib.java:99:class MigrationInsertStep implements FlatMapFunction {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/db/DbMigrateLib.java:103:    public JnFuture apply(Object ignored) {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/db/DbMigrateLib.java:115:class SchemaSnapshot {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/db/DbMigrateLib.java:138:class QueryAnnotation {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/db/PgDriverLib.java:7:class PgType {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/db/PgDriverLib.java:21:class PgMsg {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/db/PgDriverLib.java:39:class DbPgBootstrap {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/db/PgDriverLib.java:45:class PgMessage {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/db/PgDriverLib.java:59:class PgMessageReader {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/db/PgDriverLib.java:101:class PgErrorInfo {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/db/PgDriverLib.java:149:class PgHex {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/db/PgDriverLib.java:184:class PgMd5 {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/db/PgDriverLib.java:361:class PgWire {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/db/PgDriverLib.java:480:class PgCast {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/db/PgDriverLib.java:490:class PgBytesParam {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/db/PgDriverLib.java:498:class PgParam {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/db/PgDriverLib.java:557:class PgChunk {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/db/PgDriverLib.java:565:class AsyncTcpReadBytesSupplier implements BlockingSupplier {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/db/PgDriverLib.java:569:    public Object get() {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/db/PgDriverLib.java:576:class PgSocket {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/db/PgDriverLib.java:603:class PostgreSQLDriver implements DatabaseDriver {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/db/PgDriverLib.java:604:    public JnFuture connect(DatabaseConfig config) {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/db/PgDriverLib.java:617:class PgConnectSupplier implements BlockingSupplier {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/db/PgDriverLib.java:621:    public Object get() {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/db/PgDriverLib.java:639:class PgConnection implements DatabaseBackend {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/db/PgDriverLib.java:684:    public JnFuture query(String sql, ArrayList<Object> params) {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/db/PgDriverLib.java:707:    public JnFuture queryOne(String sql, ArrayList<Object> params, RowMapper mapper) {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/db/PgDriverLib.java:711:    public JnFuture execute(String sql, ArrayList<Object> params) {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/db/PgDriverLib.java:715:    public JnFuture beginTransaction() {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/db/PgDriverLib.java:719:    public JnFuture commit() {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/db/PgDriverLib.java:723:    public JnFuture rollback() {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/db/PgDriverLib.java:727:    public void release() {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/db/PgDriverLib.java:739:    public int isBroken() {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/db/PgDriverLib.java:749:class PgQueryState {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/db/PgDriverLib.java:755:class PgQueryOneMap implements Function<Object, Object> {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/db/PgDriverLib.java:762:    public Object apply(Object v) {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/db/PgDriverLib.java:771:class PgExecuteMap implements Function<Object, Object> {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/db/PgDriverLib.java:772:    public Object apply(Object v) {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/db/PgDriverLib.java:778:class PgHandshakeStart implements Function<Object, Object> {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/db/PgDriverLib.java:785:    public Object apply(Object v) {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/db/PgDriverLib.java:794:class PgQueryStart implements Function<Object, Object> {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/db/PgDriverLib.java:801:    public Object apply(Object v) {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/db/PgDriverLib.java:811:class PgCloseDone implements Function<Object, Object> {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/db/PgDriverLib.java:818:    public Object apply(Object v) {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/db/PgDriverLib.java:824:class PgReadLoop {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/db/PgDriverLib.java:952:class PgRowParser {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/db/PgDriverLib.java:997:class PgReadChunkCallback implements Function<Object, Object> {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/db/PgDriverLib.java:1004:    public Object apply(Object v) {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/db/PgDriverLib.java:1010:class PgAuthWriteCallback implements Function<Object, Object> {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/db/PgDriverLib.java:1017:    public Object apply(Object v) {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/db/PgDriverLib.java:1023:class PgProtocolTestKit {

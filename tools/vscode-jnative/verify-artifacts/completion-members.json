@@ -1,0 +1,34 @@
+[
+  {
+    "label": "value",
+    "kind": 5,
+    "detail": "field: int",
+    "insertText": "value",
+    "insertTextFormat": 1,
+    "filterText": "value"
+  },
+  {
+    "label": "bump",
+    "kind": 2,
+    "detail": "bump(): void",
+    "insertText": "bump()",
+    "insertTextFormat": 1,
+    "filterText": "bump"
+  },
+  {
+    "label": "equals",
+    "kind": 2,
+    "detail": "equals(Object other): boolean",
+    "insertText": "equals(${1:other})",
+    "insertTextFormat": 2,
+    "filterText": "equals"
+  },
+  {
+    "label": "hashCode",
+    "kind": 2,
+    "detail": "hashCode(): int",
+    "insertText": "hashCode()",
+    "insertTextFormat": 1,
+    "filterText": "hashCode"
+  }
+]

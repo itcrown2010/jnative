@@ -131,6 +131,22 @@ function applyDomPatches(bufPtr, byteLen) {
   }
 }
 
+/** Last uncaught JNative exception reported to the host (not a WASM trap). */
+let lastUncaught = null;
+
+function raiseHostError(kind, detail) {
+  // Convert host failures into a pending JNative exception when runtime is ready.
+  // Do not embed full argument payloads (avoid leaking secrets into messages).
+  try {
+    if (exports?.jn_raise_host_error && typeof writeWasmString === 'function') {
+      const msg = writeWasmString(String(kind) + (detail ? (': ' + detail) : ''));
+      exports.jn_raise_host_error(msg);
+      return;
+    }
+  } catch (_) { /* fall through */ }
+  console.error('JNative host error:', kind, detail || '');
+}
+
 function bindCallback(el, type, cbId) {
   el.dataset.jnCb = String(cbId | 0);
   const handler = (ev) => {
@@ -138,7 +154,12 @@ function bindCallback(el, type, cbId) {
       try {
         exports.jnative_callback(cbId | 0, retain(ev));
       } catch (e) {
-        console.error('JNative callback trap/error:', e);
+        // Distinguishes: JNativeException (language) vs WebAssembly.RuntimeError (trap).
+        console.error('JNative callback failure:', e && e.name, e && e.message);
+        if (e && e.name !== 'JNativeException') {
+          // Trap: do not assume the runtime remains usable.
+          console.error('JNative: WASM trap in callback — runtime may be unsafe to continue');
+        }
       }
     }
   };
@@ -173,25 +194,57 @@ const imports = {
     console_log(ptr, len) { console.log(readUtf8(ptr, len)); },
     console_warn(ptr, len) { console.warn(readUtf8(ptr, len)); },
     console_error(ptr, len) { console.error(readUtf8(ptr, len)); },
+    report_uncaught(ptr, len) {
+      const msg = (len >>> 0) ? readUtf8(ptr, len) : 'uncaught exception';
+      const err = new Error(msg);
+      err.name = 'JNativeException';
+      lastUncaught = err;
+      console.error('JNative uncaught:', err.name, msg);
+      // Re-throw so the WASM→JS call (jnative_start / callback) fails observably.
+      throw err;
+    },
     document_get_element_by_id(ptr, len) {
-      const id = readUtf8(ptr, len);
-      const el = document.getElementById(id);
-      return el ? retain(el) : 0;
+      try {
+        const id = readUtf8(ptr, len);
+        const el = document.getElementById(id);
+        return el ? retain(el) : 0;
+      } catch (e) {
+        raiseHostError('DOM.getElementById', e && e.message);
+        return 0;
+      }
     },
     document_body() {
-      return retain(document.body);
+      try {
+        return retain(document.body);
+      } catch (e) {
+        raiseHostError('DOM.body', e && e.message);
+        return 0;
+      }
     },
     element_set_text(handle, ptr, len) {
-      const el = getHandle(handle);
-      if (el) el.textContent = readUtf8(ptr, len);
+      try {
+        const el = getHandle(handle);
+        if (el) el.textContent = readUtf8(ptr, len);
+      } catch (e) {
+        raiseHostError('DOM.setText', e && e.message);
+      }
     },
     element_get_text(handle) { return 0; },
     document_create_element(ptr, len) {
-      return retain(document.createElement(readUtf8(ptr, len)));
+      try {
+        return retain(document.createElement(readUtf8(ptr, len)));
+      } catch (e) {
+        raiseHostError('DOM.createElement', e && e.message);
+        return 0;
+      }
     },
     element_append_child(parent, child) {
-      const p = getHandle(parent), c = getHandle(child);
-      if (p && c) p.appendChild(c);
+      try {
+        const p = getHandle(parent), c = getHandle(child);
+        if (p && c) p.appendChild(c);
+      } catch (e) {
+        raiseHostError('DOM.appendChild', e && e.message);
+      }
     },
     element_add_event_listener(handle, typePtr, typeLen, callbackId) {
       const el = getHandle(handle);
@@ -281,18 +334,34 @@ async function jnativeStart(wasmSource = './app.wasm', { autoStart = true } = {}
   const { instance } = await WebAssembly.instantiate(bytes, imports);
   exports = instance.exports;
   memory = exports.memory;
+  lastUncaught = null;
   if (autoStart && typeof exports.jnative_start === 'function') {
     try {
       exports.jnative_start();
     } catch (e) {
-      console.error('JNative uncaught (WASM trap or JS):', e);
+      if (e && e.name === 'JNativeException') {
+        console.error('JNative uncaught exception:', e.message);
+      } else {
+        console.error('JNative WASM trap or host error (runtime may be unsafe):', e);
+      }
       throw e;
     }
   }
   return {
     exports, memory, handles, release, writeWasmString, writeWasmStringRooted,
     findExport, readWasmString, retainManaged, releaseManaged, getManaged,
-    gcStats, gcCollect,
+    gcStats, gcCollect, lastUncaught: () => lastUncaught,
+    /**
+     * Call a WASM export and surface pending JNative exceptions to JS.
+     * WASM traps still throw WebAssembly.RuntimeError separately.
+     */
+    callChecked(fn, ...args) {
+      const r = fn(...args);
+      if (exports?.jn_exception_pending && exports.jn_exception_pending()) {
+        if (exports.jn_exception_uncaught) exports.jn_exception_uncaught();
+      }
+      return r;
+    },
     releaseCallback(id) {
       if (exports?.jn_release_callback) exports.jn_release_callback(id | 0);
       imports.jnative.unregister_callback(id | 0);

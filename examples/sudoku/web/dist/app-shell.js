@@ -1,3 +1,4 @@
+// Author: 张晓达
 /**
  * Browser Sudoku shell — mouse/keyboard layout.
  * All rules/solve/conflict logic come from WASM SudokuCore exports.

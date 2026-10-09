@@ -1,0 +1,155 @@
+/**
+ * Stage 3: ArrayList + search.
+ * Usage: add|list|done|delete|search <kw>
+ */
+public class Main {
+    static ArrayList<Task> tasks = new ArrayList<Task>();
+
+    public static void main(String[] args) {
+        if (args.length == 0) {
+            System.out.println("usage: add|list|done|delete|search");
+            return;
+        }
+        String cmd = args[0];
+        if (cmd.compareTo("demo") == 0) {
+            run3("add", "Buy", "milk");
+            run3("add", "Write", "docs");
+            run3("add", "Buy", "tea");
+            run2("search", "Buy");
+            run2("done", "0");
+            run1("list");
+            return;
+        }
+        if (cmd.compareTo("add") == 0) {
+            if (args.length < 2) {
+                System.out.println("error: missing title");
+                return;
+            }
+            tasks.add(new Task(joinFrom(args, 1)));
+            System.out.println("added " + String.valueOf(tasks.size() - 1));
+            return;
+        }
+        if (cmd.compareTo("list") == 0) {
+            int i = 0;
+            while (i < tasks.size()) {
+                Task t = tasks.get(i);
+                String mark = "[ ]";
+                if (t.done) {
+                    mark = "[x]";
+                }
+                System.out.println(String.valueOf(i) + " " + mark + " " + t.title);
+                i = i + 1;
+            }
+            return;
+        }
+        if (cmd.compareTo("done") == 0) {
+            int id = parseId(args);
+            if (id < 0) {
+                return;
+            }
+            tasks.get(id).done = true;
+            System.out.println("done " + String.valueOf(id));
+            return;
+        }
+        if (cmd.compareTo("delete") == 0) {
+            int id = parseId(args);
+            if (id < 0) {
+                return;
+            }
+            tasks.removeAt(id);
+            System.out.println("deleted " + String.valueOf(id));
+            return;
+        }
+        if (cmd.compareTo("search") == 0) {
+            if (args.length < 2) {
+                System.out.println("error: missing keyword");
+                return;
+            }
+            String kw = joinFrom(args, 1);
+            int i = 0;
+            int hits = 0;
+            while (i < tasks.size()) {
+                Task t = tasks.get(i);
+                if (t.title.indexOf(kw) >= 0) {
+                    System.out.println(String.valueOf(i) + ": " + t.title);
+                    hits = hits + 1;
+                }
+                i = i + 1;
+            }
+            System.out.println("hits=" + String.valueOf(hits));
+            return;
+        }
+        System.out.println("error: unknown command");
+    }
+
+    static void run1(String a) {
+        String[] x = new String[1];
+        x[0] = a;
+        main(x);
+    }
+
+    static void run2(String a, String b) {
+        String[] x = new String[2];
+        x[0] = a;
+        x[1] = b;
+        main(x);
+    }
+
+    static void run3(String a, String b, String c) {
+        String[] x = new String[3];
+        x[0] = a;
+        x[1] = b;
+        x[2] = c;
+        main(x);
+    }
+
+    static int parseId(String[] args) {
+        if (args.length < 2) {
+            System.out.println("error: missing id");
+            return -1;
+        }
+        int id = parseInt(args[1]);
+        if (id < 0 || id >= tasks.size()) {
+            System.out.println("error: bad id");
+            return -1;
+        }
+        return id;
+    }
+
+    static int parseInt(String s) {
+        int v = 0;
+        int i = 0;
+        if (s.length() == 0) {
+            return -1;
+        }
+        while (i < s.length()) {
+            int c = s.charAt(i);
+            if (c < 48 || c > 57) {
+                return -1;
+            }
+            v = v * 10 + (c - 48);
+            i = i + 1;
+        }
+        return v;
+    }
+
+    static String joinFrom(String[] args, int start) {
+        String s = args[start];
+        int i = start + 1;
+        while (i < args.length) {
+            s = s + " " + args[i];
+            i = i + 1;
+        }
+        return s;
+    }
+}
+
+class Task {
+    String title;
+    boolean done;
+
+    Task(String title) {
+        this.title = title;
+        this.done = false;
+    }
+}

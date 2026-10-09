@@ -1,0 +1,13 @@
+{
+  "range": {
+    "start": {
+      "line": 3,
+      "character": 16
+    },
+    "end": {
+      "line": 3,
+      "character": 22
+    }
+  },
+  "placeholder": "answer"
+}

@@ -1,0 +1,6 @@
+{
+  "name": "guide-hello",
+  "source": ["src"],
+  "main": "Main",
+  "output": "build/guide-hello"
+}

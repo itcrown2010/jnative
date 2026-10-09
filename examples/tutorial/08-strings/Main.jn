@@ -1,0 +1,17 @@
+public class Main {
+    public static void main(String[] args) {
+        String s = "JNative";
+        System.out.println(String.valueOf(s.length()));
+        /* charAt 返回 char；打印时用拼接避免当成整数 */
+        System.out.println("ch=" + s.substring(0, 1));
+        System.out.println(s.substring(1, 4));
+        System.out.println(String.valueOf(s.indexOf("Nat")));
+        String t = "JN" + "ative";
+        if (s.compareTo(t) == 0) {
+            System.out.println("equal");
+        }
+        /* length = UTF-16 码元个数 */
+        String smile = "A";
+        System.out.println(String.valueOf(smile.length()));
+    }
+}

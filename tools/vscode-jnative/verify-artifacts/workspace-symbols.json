@@ -1,0 +1,20 @@
+[
+  {
+    "name": "add",
+    "kind": 6,
+    "containerName": "Main",
+    "location": {
+      "uri": "file:///Users/zhangxiaoda/jnative/tools/vscode-jnative/verify-artifacts/Smoke.jn",
+      "range": {
+        "start": {
+          "line": 1,
+          "character": 15
+        },
+        "end": {
+          "line": 1,
+          "character": 16
+        }
+      }
+    }
+  }
+]

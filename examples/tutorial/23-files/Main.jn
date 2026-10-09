@@ -1,0 +1,11 @@
+public class Main {
+    public static void main(String[] args) {
+        String path = "build/tutorial-files-demo.txt";
+        File.writeString(path, "line1\nline2");
+        String text = File.readString(path);
+        System.out.println(text);
+        if (File.exists(path)) {
+            System.out.println("exists");
+        }
+    }
+}

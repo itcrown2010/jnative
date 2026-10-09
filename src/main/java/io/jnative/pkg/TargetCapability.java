@@ -1,11 +1,18 @@
 package io.jnative.pkg;
 
+import io.jnative.target.TargetId;
+import io.jnative.target.TargetProfiles;
+
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.Locale;
 import java.util.Set;
 
-/** Target / platform capabilities required or provided.
+/**
+ * Package feature flags ({@code requires = [...]}).
+ * Provided sets come from {@link TargetProfiles} — must stay aligned with
+ * {@link io.jnative.backend.TargetCapability}.
+ *
  * @author 张晓达
  */
 public enum TargetCapability {
@@ -18,24 +25,26 @@ public enum TargetCapability {
     BROWSER_DOM,
     JS_INTEROP,
     BROWSER_FETCH,
+    PROCESS,
+    DATABASE,
+    DESKTOP_UI,
+    /** Host JVM bridge for tooling only — not a runtime mobile/native claim. */
     JAVA_BRIDGE;
 
+    /**
+     * Capabilities provided by a compile/package triple.
+     * {@code wasm32-browser} and mobile containers do <em>not</em> provide THREADS.
+     */
     public static Set<TargetCapability> forTriple(String triple) {
-        String t = triple == null ? "native" : triple.toLowerCase(Locale.ROOT);
+        TargetId id = TargetId.fromCompileTriple(triple);
         EnumSet<TargetCapability> set = EnumSet.noneOf(TargetCapability.class);
-        if (t.contains("wasm") || t.contains("browser")) {
-            set.add(BROWSER_DOM);
-            set.add(JS_INTEROP);
-            set.add(BROWSER_FETCH);
-            set.add(THREADS);
-            return set;
+        for (io.jnative.backend.TargetCapability c : TargetProfiles.packageFlags(id)) {
+            try {
+                set.add(TargetCapability.valueOf(c.name()));
+            } catch (IllegalArgumentException ignored) {
+                // ignore backend-only names
+            }
         }
-        set.add(FILESYSTEM);
-        set.add(RAW_SOCKET);
-        set.add(THREADS);
-        set.add(NATIVE_FFI);
-        set.add(TLS_NATIVE);
-        set.add(HTTP2_NATIVE);
         return set;
     }
 
@@ -58,8 +67,12 @@ public enum TargetCapability {
 
     public static String describeMissing(Set<TargetCapability> required, Set<TargetCapability> provided) {
         StringBuilder sb = new StringBuilder();
+        Set<TargetCapability> prov = provided == null ? Collections.emptySet() : provided;
+        if (required == null) {
+            return "";
+        }
         for (TargetCapability c : required) {
-            if (!provided.contains(c)) {
+            if (!prov.contains(c)) {
                 if (sb.length() > 0) {
                     sb.append(", ");
                 }

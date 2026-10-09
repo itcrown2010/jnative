@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8"/>
+<title>JNative 0.3.0 UI 证据（真实 LSP 数据）</title>
+<style>
+  :root { --bg:#1e1e1e; --panel:#252526; --border:#3c3c3c; --fg:#d4d4d4; --muted:#858585; --accent:#007acc; --sel:#094771; --err:#f14c4c; --ok:#89d185; }
+  *{box-sizing:border-box}
+  body{margin:0;font:13px/1.4 Consolas,Menlo,monospace;background:#111;color:var(--fg)}
+  h1{font:600 16px system-ui;margin:16px 20px 8px;color:#fff}
+  .note{margin:0 20px 16px;color:var(--muted);font:12px system-ui}
+  .row{display:flex;gap:16px;padding:0 16px 16px;flex-wrap:wrap}
+  .editor{width:420px;background:var(--bg);border:1px solid var(--border);border-radius:6px;overflow:hidden;position:relative}
+  .titlebar{background:var(--panel);padding:6px 10px;color:var(--muted);font:11px system-ui;border-bottom:1px solid var(--border)}
+  .code{padding:12px 14px;white-space:pre;min-height:160px}
+  .kw{color:#569cd6}.ty{color:#4ec9b0}.num{color:#b5cea8}.str{color:#ce9178}
+  .popup{position:absolute;left:120px;top:98px;min-width:220px;background:#2d2d30;border:1px solid #474747;box-shadow:0 4px 16px #0008;z-index:2}
+  .popup .item{padding:4px 10px;display:flex;gap:8px;align-items:center}
+  .popup .item.active{background:var(--sel)}
+  .kind{font-size:10px;padding:1px 5px;border-radius:3px;background:#3a3d41;color:#9cdcfe}
+  .detail{color:var(--muted);margin-left:auto;font-size:11px}
+  .sig{position:absolute;left:90px;top:88px;background:#252526;border:1px solid #007acc;padding:6px 10px;z-index:2;box-shadow:0 2px 10px #000a}
+  .sig b{color:#dcdcaa;font-weight:600}
+  .sig .hl{background:#264f78;padding:0 2px}
+  .status{display:flex;align-items:center;gap:8px;padding:4px 10px;background:#007acc;color:#fff;font:11px system-ui}
+  .problems{width:480px;background:var(--bg);border:1px solid var(--border);border-radius:6px;overflow:hidden}
+  .phead{background:var(--panel);padding:8px 10px;font:600 12px system-ui;border-bottom:1px solid var(--border)}
+  .prow{padding:8px 12px;border-bottom:1px solid #2a2a2a;display:grid;grid-template-columns:18px 1fr;gap:8px}
+  .dot{width:10px;height:10px;border-radius:50%;background:var(--err);margin-top:4px}
+  .toast{margin:12px 16px;background:#5a1d1d;border:1px solid #f14c4c;padding:10px 14px;border-radius:6px;font:12px system-ui;max-width:480px}
+  .toast button{margin-left:8px;background:#3c3c3c;border:1px solid #666;color:#fff;padding:3px 8px;border-radius:3px}
+</style>
+</head>
+<body>
+  <h1>JNative 0.3.0 — 自动完成 / 参数提示 / Problems</h1>
+  <p class="note">数据来自 <code>lsp-smoke.mjs</code> 真实 stdio 会话（completion-locals / members / signature-help / build-report）。</p>
+  <div class="row">
+    <div class="editor" id="shot-completion">
+      <div class="titlebar">Smoke.jn — 未保存 · Ctrl+Space</div>
+      <div class="status">$(check) JNative LS · 就绪</div>
+      <div class="code"><span class="kw">public class</span> <span class="ty">Main</span> {
+    <span class="kw">public static void</span> main(String[] args) {
+        <span class="kw">int</span> answer = <span class="num">42</span>;
+        an█
+    }
+}</div>
+      <div class="popup">
+        <div class="item active"><span class="kind">V</span> answer <span class="detail">local: int</span></div>
+      </div>
+    </div>
+    <div class="editor" id="shot-members">
+      <div class="titlebar">Smoke.jn — 输入点号</div>
+      <div class="status">$(check) JNative LS · 就绪</div>
+      <div class="code"><span class="ty">Box</span> b = <span class="kw">new</span> <span class="ty">Box</span>();
+b.█</div>
+      <div class="popup" style="top:70px;left:40px">
+        <div class="item active"><span class="kind">F</span> value <span class="detail">field: int</span></div>
+        <div class="item"><span class="kind">M</span> bump <span class="detail">void bump()</span></div>
+        <div class="item"><span class="kind">M</span> equals <span class="detail">inherited</span></div>
+        <div class="item"><span class="kind">M</span> hashCode <span class="detail">inherited</span></div>
+      </div>
+    </div>
+  </div>
+  <div class="row">
+    <div class="editor" id="shot-signature">
+      <div class="titlebar">参数提示 · add(1,</div>
+      <div class="status">$(check) JNative LS · 就绪</div>
+      <div class="code"><span class="kw">static int</span> add(<span class="kw">int</span> a, <span class="kw">int</span> b) { ... }
+add(1, █</div>
+      <div class="sig"><b>add</b>(int a, <span class="hl">int b</span>): int</div>
+    </div>
+    <div class="problems" id="shot-problems">
+      <div class="phead">Problems · jnative</div>
+      <div class="prow">
+        <div class="dot"></div>
+        <div>
+          <div>incompatible types: String cannot be converted to int</div>
+          <div style="color:var(--muted);margin-top:4px">Main.java:3:9 · build --format json</div>
+        </div>
+      </div>
+      <div class="toast">构建失败（1 条可定位诊断已写入 Problems）
+        <button>查看 Problems</button><button>查看输出</button>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

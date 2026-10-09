@@ -1,0 +1,88 @@
+/* Author: 张晓达 — touch shell for guide-tasks mobile */
+:root {
+  --bg: #f5f0e8;
+  --ink: #1a2332;
+  --muted: #5a6570;
+  --panel: #fffdf9;
+  --line: #d5cdc0;
+  --accent: #0b6e4f;
+  --err: #a12622;
+  --tap: 48px;
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+}
+* { box-sizing: border-box; }
+html, body {
+  margin: 0;
+  min-height: 100%;
+  font-family: "Songti SC", "Noto Serif SC", "Iowan Old Style", serif;
+  background: linear-gradient(165deg, #ebe4d8, var(--bg) 45%, #e2ebe6);
+  color: var(--ink);
+  -webkit-tap-highlight-color: transparent;
+}
+body.touch {
+  padding-top: var(--safe-top);
+  padding-bottom: calc(var(--safe-bottom) + 12px);
+}
+main {
+  max-width: 40rem;
+  margin: 0 auto;
+  padding: 1rem 1rem 2.5rem;
+}
+.top h1 { margin: 0; font-size: 1.55rem; font-weight: 600; }
+.sub, .meta { color: var(--muted); font-size: 0.85rem; margin: 0.25rem 0 0; }
+.status { min-height: 1.35rem; margin: 0.75rem 0; font-size: 0.95rem; }
+.status.err { color: var(--err); }
+.form, .tools {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem;
+  margin: 0.65rem 0;
+}
+input[type="text"] {
+  flex: 1 1 12rem;
+  min-height: var(--tap);
+  padding: 0.65rem 0.8rem;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--panel);
+  font: inherit;
+  font-size: 1.05rem;
+}
+button {
+  min-height: var(--tap);
+  min-width: var(--tap);
+  padding: 0.55rem 1rem;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  background: var(--panel);
+  color: var(--ink);
+  font: inherit;
+  font-size: 1rem;
+}
+button.primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+.list { list-style: none; padding: 0; margin: 1rem 0 0; }
+.list li {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 0.75rem;
+  margin-bottom: 0.55rem;
+}
+.list li span { flex: 1 1 10rem; font-size: 1.05rem; word-break: break-word; }
+.list li.done span { text-decoration: line-through; color: var(--muted); }
+.list li button { flex: 0 0 auto; }
+.empty { color: var(--muted); font-style: italic; padding: 1rem 0.25rem; }
+
+/* Soft keyboard: keep focused field above keyboard when visualViewport shrinks */
+body.keyboard-open main {
+  padding-bottom: calc(var(--safe-bottom) + 8rem);
+}

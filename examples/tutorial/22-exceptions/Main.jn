@@ -1,0 +1,24 @@
+public class Main {
+    public static void main(String[] args) {
+        try {
+            mayFail(0);
+            System.out.println("ok");
+        } catch (Exception e) {
+            System.out.println("caught");
+        } finally {
+            System.out.println("finally");
+        }
+        try {
+            mayFail(1);
+            System.out.println("ok2");
+        } catch (Exception e) {
+            System.out.println("caught2");
+        }
+    }
+
+    static void mayFail(int mode) {
+        if (mode == 0) {
+            throw new RuntimeException("boom");
+        }
+    }
+}

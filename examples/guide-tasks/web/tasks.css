@@ -1,0 +1,62 @@
+/* Author: 张晓达 */
+:root {
+  --bg: #f6f3ee;
+  --ink: #1c2430;
+  --muted: #5c6672;
+  --panel: #fff;
+  --line: #d9d2c8;
+  --accent: #0f6e56;
+  --err: #a12622;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  font-family: "Iowan Old Style", "Palatino Linotype", Palatino, serif;
+  background: linear-gradient(160deg, #efe8dc, var(--bg) 40%, #e4ece8);
+  color: var(--ink);
+  min-height: 100vh;
+}
+main {
+  max-width: 40rem;
+  margin: 0 auto;
+  padding: 2rem 1.25rem 3rem;
+}
+h1 { margin: 0 0 0.35rem; font-size: 1.75rem; font-weight: 600; }
+.sub { color: var(--muted); margin: 0 0 1rem; font-size: 0.95rem; }
+.status { min-height: 1.4rem; font-size: 0.9rem; }
+.status.err { color: var(--err); }
+form, .tools { display: flex; flex-wrap: wrap; gap: 0.5rem; margin: 0.75rem 0; }
+input[type="text"] {
+  flex: 1 1 12rem;
+  padding: 0.55rem 0.7rem;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--panel);
+  font: inherit;
+}
+button {
+  border: 1px solid var(--line);
+  background: var(--panel);
+  color: var(--ink);
+  border-radius: 6px;
+  padding: 0.5rem 0.85rem;
+  font: inherit;
+  cursor: pointer;
+}
+button[type="submit"] {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+ul { list-style: none; padding: 0; margin: 1rem 0 0; }
+li {
+  display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 0.65rem 0.75rem;
+  margin-bottom: 0.5rem;
+}
+li span { flex: 1 1 10rem; }
+li.done span { text-decoration: line-through; color: var(--muted); }
+.empty { color: var(--muted); font-style: italic; }

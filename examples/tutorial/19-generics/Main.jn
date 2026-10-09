@@ -1,0 +1,22 @@
+public class Main {
+    public static void main(String[] args) {
+        Box<String> b = new Box<String>();
+        b.set("hi");
+        System.out.println(b.get());
+        Box<int> n = new Box<int>();
+        n.set(42);
+        System.out.println(String.valueOf(n.get()));
+    }
+}
+
+class Box<T> {
+    T value;
+
+    void set(T v) {
+        value = v;
+    }
+
+    T get() {
+        return value;
+    }
+}

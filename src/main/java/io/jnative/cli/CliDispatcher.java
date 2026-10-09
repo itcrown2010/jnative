@@ -90,17 +90,14 @@ public final class CliDispatcher {
 
     private static int runBuild(String[] args) throws Exception {
         // Hybrid: jnative build --target wasm32-browser App.java
-        boolean hasTarget = false;
+        // Project builds may pass --target without a source file; keep them here.
         boolean hasJava = false;
         for (String a : args) {
-            if ("--target".equals(a) || a.startsWith("--target=")) {
-                hasTarget = true;
-            }
             if (io.jnative.source.SourceFiles.isSourceFileName(a)) {
                 hasJava = true;
             }
         }
-        if (hasTarget || hasJava) {
+        if (hasJava) {
             return runSingleFile(args);
         }
         Path root = Path.of(".").toAbsolutePath().normalize();
@@ -110,6 +107,7 @@ public final class CliDispatcher {
         boolean jsonFormat = false;
         boolean debug = false;
         boolean optExplicit = false;
+        String projectTarget = null;
         int jobs = 0;
         int opt = 1;
         java.util.List<Path> registries = new java.util.ArrayList<>();
@@ -163,7 +161,15 @@ public final class CliDispatcher {
                         registries.add(Path.of(args[++i]).toAbsolutePath().normalize());
                     }
                 }
+                case "--target" -> {
+                    if (i + 1 < args.length) {
+                        projectTarget = args[++i];
+                    }
+                }
                 default -> {
+                    if (args[i].startsWith("--target=")) {
+                        projectTarget = args[i].substring("--target=".length());
+                    }
                 }
             }
         }
@@ -173,13 +179,20 @@ public final class CliDispatcher {
         if (!explain) {
             try {
                 ProjectCli.BuildOutcome outcome = ProjectCli.buildQuiet(
-                        root, release, opt, !jsonFormat, offline, registries, debug);
+                        root, release, opt, !jsonFormat, offline, registries, debug,
+                        projectTarget);
                 if (jsonFormat) {
                     String artifact = outcome.primaryArtifact() == null
                             ? null
                             : outcome.primaryArtifact().toAbsolutePath().normalize().toString();
+                    java.util.Map<String, String> meta = new java.util.LinkedHashMap<>();
+                    meta.put("compilerVersion", io.jnative.Main.VERSION);
+                    if (projectTarget != null) {
+                        meta.put("target", projectTarget);
+                    }
                     System.out.println(io.jnative.diagnostics.DiagnosticJson.buildReportJson(
-                            outcome.success(), artifact, parseDiagnosticTexts(outcome.diagnosticTexts())));
+                            outcome.success(), artifact,
+                            parseDiagnosticTexts(outcome.diagnosticTexts()), meta));
                 }
                 return outcome.success() ? 0 : 1;
             } catch (Exception e) {
@@ -187,8 +200,10 @@ public final class CliDispatcher {
                     System.out.println(io.jnative.diagnostics.DiagnosticJson.buildReportJson(
                             false, null, java.util.List.of(
                                     io.jnative.diagnostics.Diagnostic.error(
+                                            io.jnative.diagnostics.DiagnosticCodes.DEPENDENCY,
                                             io.jnative.diagnostics.SourceLocation.UNKNOWN,
-                                            e.getMessage() == null ? "build failed" : e.getMessage()))));
+                                            e.getMessage() == null ? "build failed" : e.getMessage(),
+                                            "Fix package/tooling configuration, then rebuild."))));
                 } else {
                     System.err.println("[pkg] " + e.getMessage());
                 }

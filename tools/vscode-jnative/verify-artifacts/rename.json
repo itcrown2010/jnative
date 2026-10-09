@@ -1,0 +1,32 @@
+{
+  "changes": {
+    "file:///Users/zhangxiaoda/jnative/tools/vscode-jnative/verify-artifacts/Smoke.jn": [
+      {
+        "range": {
+          "start": {
+            "line": 3,
+            "character": 16
+          },
+          "end": {
+            "line": 3,
+            "character": 22
+          }
+        },
+        "newText": "result"
+      },
+      {
+        "range": {
+          "start": {
+            "line": 2,
+            "character": 12
+          },
+          "end": {
+            "line": 2,
+            "character": 18
+          }
+        },
+        "newText": "result"
+      }
+    ]
+  }
+}

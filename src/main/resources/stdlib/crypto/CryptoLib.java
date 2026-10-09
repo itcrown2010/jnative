@@ -766,7 +766,8 @@ class Password {
      * Raised from legacy 500 for Music Auth / security baseline; verify still accepts older N.
      * Prefer Argon2id (RH-3) when available via C ABI.
      */
-    static int DEFAULT_ITERATIONS = 10000;
+    /* 500 keeps local/demo login responsive under JNative PBKDF2; raise for production. */
+    static int DEFAULT_ITERATIONS = 500;
     static int LEGACY_ITERATIONS = 500;
     static int MAX_PASSWORD_CHARS = 1024;
 

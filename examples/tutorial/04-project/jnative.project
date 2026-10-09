@@ -1,0 +1,6 @@
+{
+  "name": "tutorial-04",
+  "source": ["src"],
+  "main": "Main",
+  "output": "build/tutorial-04"
+}

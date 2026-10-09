@@ -5,11 +5,14 @@ import io.jnative.ast.Expression;
 import io.jnative.diagnostics.SourceLocation;
 import io.jnative.semantic.ClassSymbol;
 import io.jnative.semantic.ClassType;
+import io.jnative.semantic.ConstructorSymbol;
 import io.jnative.semantic.FieldSymbol;
 import io.jnative.semantic.InterfaceSymbol;
 import io.jnative.semantic.JType;
 import io.jnative.semantic.MethodSymbol;
+import io.jnative.semantic.ParameterSymbol;
 import io.jnative.semantic.TypedCompilationUnit;
+import io.jnative.semantic.VariableSymbol;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -101,16 +104,25 @@ public final class SemanticModel {
 
     public Optional<TextRange> declarationOf(Object symbol) {
         if (symbol instanceof ClassSymbol c) {
-            return Optional.of(TextRange.of(c.location()));
+            return rangeOrEmpty(c.location());
         }
         if (symbol instanceof InterfaceSymbol i) {
-            return Optional.of(TextRange.of(i.location()));
+            return rangeOrEmpty(i.location());
         }
         if (symbol instanceof MethodSymbol m) {
-            return Optional.of(TextRange.of(m.location()));
+            return rangeOrEmpty(m.location());
+        }
+        if (symbol instanceof ConstructorSymbol ctor) {
+            return rangeOrEmpty(ctor.location());
         }
         if (symbol instanceof FieldSymbol f) {
-            return Optional.of(TextRange.of(f.location()));
+            return rangeOrEmpty(f.location());
+        }
+        if (symbol instanceof VariableSymbol v) {
+            return rangeOrEmpty(v.location());
+        }
+        if (symbol instanceof ParameterSymbol p) {
+            return rangeOrEmpty(p.location());
         }
         return Optional.empty();
     }
@@ -119,11 +131,22 @@ public final class SemanticModel {
         List<TextRange> out = new ArrayList<>();
         declarationOf(symbol).ifPresent(out::add);
         for (Map.Entry<Expression, Object> e : typed.resolvedSymbols().entrySet()) {
-            if (e.getValue() == symbol || sameSymbol(e.getValue(), symbol)) {
+            if (e.getValue() == symbol || sameIdentity(e.getValue(), symbol)) {
                 out.add(TextRange.of(e.getKey().location()));
             }
         }
         return out;
+    }
+
+    private static Optional<TextRange> rangeOrEmpty(SourceLocation loc) {
+        if (loc == null || loc.file() == null || loc.file().isBlank()
+                || "<unknown>".equals(loc.file()) || "<stdlib>".equals(loc.file())) {
+            return Optional.empty();
+        }
+        if (loc.line() <= 0) {
+            return Optional.empty();
+        }
+        return Optional.of(TextRange.of(loc));
     }
 
     public List<Object> membersOf(JType type) {
@@ -169,20 +192,69 @@ public final class SemanticModel {
         return new LinkedHashMap<>(typed.classes());
     }
 
-    private static boolean sameSymbol(Object a, Object b) {
+    /**
+     * Identity for references: prefer object identity, then FQN + method signature.
+     * Does not collapse overloads that only share a name.
+     */
+    static boolean sameIdentity(Object a, Object b) {
         if (a == null || b == null) {
             return false;
         }
-        if (a.equals(b)) {
+        if (a == b || a.equals(b)) {
             return true;
         }
         if (a instanceof ClassSymbol ca && b instanceof ClassSymbol cb) {
             return ca.name().equals(cb.name());
         }
+        if (a instanceof InterfaceSymbol ia && b instanceof InterfaceSymbol ib) {
+            return ia.name().equals(ib.name());
+        }
         if (a instanceof MethodSymbol ma && b instanceof MethodSymbol mb) {
-            return ma.name().equals(mb.name())
-                    && ma.owner() != null && mb.owner() != null
-                    && ma.owner().name().equals(mb.owner().name());
+            if (!ma.name().equals(mb.name())) {
+                return false;
+            }
+            if (ma.owner() == null || mb.owner() == null
+                    || !ma.owner().name().equals(mb.owner().name())) {
+                return false;
+            }
+            if (ma.parameters().size() != mb.parameters().size()) {
+                return false;
+            }
+            for (int i = 0; i < ma.parameters().size(); i++) {
+                JType ta = ma.parameters().get(i).type();
+                JType tb = mb.parameters().get(i).type();
+                if (ta == null || tb == null || !ta.toString().equals(tb.toString())) {
+                    return false;
+                }
+            }
+            return true;
+        }
+        if (a instanceof ConstructorSymbol ca && b instanceof ConstructorSymbol cb) {
+            if (ca.owner() == null || cb.owner() == null
+                    || !ca.owner().name().equals(cb.owner().name())) {
+                return false;
+            }
+            if (ca.parameters().size() != cb.parameters().size()) {
+                return false;
+            }
+            for (int i = 0; i < ca.parameters().size(); i++) {
+                JType ta = ca.parameters().get(i).type();
+                JType tb = cb.parameters().get(i).type();
+                if (ta == null || tb == null || !ta.toString().equals(tb.toString())) {
+                    return false;
+                }
+            }
+            return true;
+        }
+        if (a instanceof FieldSymbol fa && b instanceof FieldSymbol fb) {
+            return fa.name().equals(fb.name())
+                    && fa.owner() != null && fb.owner() != null
+                    && fa.owner().name().equals(fb.owner().name());
+        }
+        if (a instanceof VariableSymbol va && b instanceof VariableSymbol vb) {
+            return va == vb || (va.name().equals(vb.name())
+                    && va.location() != null && vb.location() != null
+                    && va.location().equals(vb.location()));
         }
         return false;
     }

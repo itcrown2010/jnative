@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="zh-CN"><head><meta charset="utf-8"/><title>JNative LSP 0.3.0 验收证据</title>
+<style>
+body{font-family:ui-sans-serif,system-ui;margin:24px;background:#0f1419;color:#e7ecf1}
+h1{font-size:22px;margin:0 0 8px}
+.sub{color:#8b9aab;margin-bottom:24px}
+.card{background:#1a2332;border:1px solid #2a3a4f;border-radius:8px;padding:16px;margin:12px 0}
+.ok{color:#3dd68c}.bad{color:#f07178}
+pre{background:#0b1016;padding:12px;overflow:auto;font-size:12px;border-radius:6px}
+.tag{display:inline-block;padding:2px 8px;border-radius:4px;background:#243044;margin-right:8px}
+</style></head><body>
+<h1>JNative VS Code 插件 0.3.0 — LSP / 构建验收</h1>
+<p class="sub">真实 stdio 语言服务 + <code>build --format json</code>（非符号表假数据） · 2026-10-09T05:33:45.764Z</p>
+<div class="card"><strong>结果</strong>：
+  <span class="ok">24 passed / 0 failed</span>
+</div>
+<div class="card"><span class="tag ok">PASS</span>
+  <strong>initialize.completionProvider</strong><pre>{"triggerCharacters":["."],"resolveProvider":false}</pre></div><div class="card"><span class="tag ok">PASS</span>
+  <strong>initialize.signatureHelpProvider</strong><pre>{"triggerCharacters":["(",","],"retriggerCharacters":[","]}</pre></div><div class="card"><span class="tag ok">PASS</span>
+  <strong>initialize.definitionProvider</strong><pre>true</pre></div><div class="card"><span class="tag ok">PASS</span>
+  <strong>initialize.referencesProvider</strong><pre>true</pre></div><div class="card"><span class="tag ok">PASS</span>
+  <strong>initialize.hoverProvider</strong><pre>true</pre></div><div class="card"><span class="tag ok">PASS</span>
+  <strong>initialize.documentSymbolProvider</strong><pre>true</pre></div><div class="card"><span class="tag ok">PASS</span>
+  <strong>initialize.workspaceSymbolProvider</strong><pre>true</pre></div><div class="card"><span class="tag ok">PASS</span>
+  <strong>initialize.documentFormattingProvider</strong><pre>true</pre></div><div class="card"><span class="tag ok">PASS</span>
+  <strong>initialize.codeActionProvider</strong><pre>{"codeActionKinds":["quickfix"]}</pre></div><div class="card"><span class="tag ok">PASS</span>
+  <strong>initialize.renameProvider</strong><pre>{"prepareProvider":true}</pre></div><div class="card"><span class="tag ok">PASS</span>
+  <strong>completion.local</strong><pre>answer</pre></div><div class="card"><span class="tag ok">PASS</span>
+  <strong>completion.members</strong><pre>value,bump,equals,hashCode</pre></div><div class="card"><span class="tag ok">PASS</span>
+  <strong>signatureHelp</strong><pre>add(int a, int b): int active=1</pre></div><div class="card"><span class="tag ok">PASS</span>
+  <strong>publishDiagnostics</strong><pre>2:12 incompatible types: String cannot be converted to int</pre></div><div class="card"><span class="tag ok">PASS</span>
+  <strong>definition.local</strong><pre>{"start":{"line":3,"character":12},"end":{"line":3,"character":13}}</pre></div><div class="card"><span class="tag ok">PASS</span>
+  <strong>references.local</strong><pre>count=2</pre></div><div class="card"><span class="tag ok">PASS</span>
+  <strong>hover.local</strong><pre>```jnative
+local int answer
+```</pre></div><div class="card"><span class="tag ok">PASS</span>
+  <strong>documentSymbol</strong><pre>Main</pre></div><div class="card"><span class="tag ok">PASS</span>
+  <strong>workspaceSymbol</strong><pre>add</pre></div><div class="card"><span class="tag ok">PASS</span>
+  <strong>definition.crossFile</strong><pre>file:///Users/zhangxiaoda/jnative/examples/multi-cu-resolve/app/.jnative/pkg-cache/extracted/c8/c8acc28456a2b7ad873ef0a57b0e0a5042e3458ef53969fb7400f97208f70e3d/src/Util.jn</pre></div><div class="card"><span class="tag ok">PASS</span>
+  <strong>prepareRename</strong><pre>{"start":{"line":3,"character":16},"end":{"line":3,"character":22}}</pre></div><div class="card"><span class="tag ok">PASS</span>
+  <strong>rename.local</strong><pre>edits=2</pre></div><div class="card"><span class="tag ok">PASS</span>
+  <strong>formatting.document</strong><pre>len=129</pre></div><div class="card"><span class="tag ok">PASS</span>
+  <strong>build.jsonDiagnostics</strong><pre>default: /Users/zhangxiaoda/jnative/tools/vscode-jnative/verify-artifacts/build-smoke/src/Main.java:3:9 incompatible types: String cannot be converted to int</pre></div>
+<div class="card"><strong>补全（局部变量）</strong><pre>[
+  {
+    "label": "answer",
+    "kind": 6,
+    "detail": "local: int",
+    "insertText": "answer",
+    "insertTextFormat": 1,
+    "filterText": "answer"
+  }
+]</pre></div>
+<div class="card"><strong>补全（成员）</strong><pre>[
+  {
+    "label": "value",
+    "kind": 5,
+    "detail": "field: int",
+    "insertText": "value",
+    "insertTextFormat": 1,
+    "filterText": "value"
+  },
+  {
+    "label": "bump",
+    "kind": 2,
+    "detail": "bump(): void",
+    "insertText": "bump()",
+    "insertTextFormat": 1,
+    "filterText": "bump"
+  },
+  {
+    "label": "equals",
+    "kind": 2,
+    "detail": "equals(Object other): boolean",
+    "insertText": "equals(${1:other})",
+    "insertTextFormat": 2,
+    "filterText": "equals"
+  },
+  {
+    "label": "hashCode",
+    "kind": 2,
+    "detail": "hashCode(): int",
+    "insertText": "hashCode()",
+    "insertTextFormat": 1,
+    "filterText": "hashCode"
+  }
+]</pre></div>
+<div class="card"><strong>参数提示</strong><pre>{
+  "signatures": [
+    {
+      "label": "add(int a, int b): int",
+      "parameters": [
+        {
+          "label": "int a"
+        },
+        {
+          "label": "int b"
+        }
+      ]
+    }
+  ],
+  "activeSignature": 0,
+  "activeParameter": 1
+}</pre></div>
+<div class="card"><strong>编辑诊断 publishDiagnostics</strong><pre>{
+  "uri": "file:///Users/zhangxiaoda/jnative/tools/vscode-jnative/verify-artifacts/Smoke.jn",
+  "diagnostics": [
+    {
+      "range": {
+        "start": {
+          "line": 2,
+          "character": 12
+        },
+        "end": {
+          "line": 2,
+          "character": 13
+        }
+      },
+      "severity": 1,
+      "source": "jnative",
+      "message": "incompatible types: String cannot be converted to int"
+    }
+  ]
+}</pre></div>
+<div class="card"><strong>构建 JSON 诊断</strong><pre>{
+  "success": false,
+  "artifact": null,
+  "diagnostics": [
+    {
+      "file": "default: /Users/zhangxiaoda/jnative/tools/vscode-jnative/verify-artifacts/build-smoke/src/Main.java",
+      "line": 3,
+      "column": 9,
+      "severity": "error",
+      "message": "incompatible types: String cannot be converted to int"
+    }
+  ]
+}</pre></div>
+</body></html>

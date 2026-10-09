@@ -1,0 +1,26 @@
+public class Main {
+    public static void main(String[] args) {
+        int[] xs = new int[4];
+        xs[0] = 1;
+        xs[1] = 2;
+        xs[2] = 3;
+        xs[3] = 4;
+        System.out.println(String.valueOf(xs.length));
+        int sum = 0;
+        int i = 0;
+        while (i < xs.length) {
+            sum = sum + xs[i];
+            i = i + 1;
+        }
+        System.out.println(String.valueOf(sum));
+        int sum2 = 0;
+        for (int v : xs) {
+            sum2 = sum2 + v;
+        }
+        System.out.println(String.valueOf(sum2));
+        String[] names = new String[2];
+        names[0] = "a";
+        names[1] = "b";
+        System.out.println(names[0] + names[1]);
+    }
+}

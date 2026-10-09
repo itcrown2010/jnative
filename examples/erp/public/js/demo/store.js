@@ -11,6 +11,27 @@
 
   function clone(v) { return JSON.parse(JSON.stringify(v)); }
 
+  function hydrateMissing(fromSeed) {
+    if (!state || !fromSeed) return;
+    var changed = false;
+    Object.keys(fromSeed).forEach(function (k) {
+      if (k === "meta") return;
+      if (!Array.isArray(fromSeed[k])) return;
+      if (!state[k] || (Array.isArray(state[k]) && state[k].length === 0 && fromSeed[k].length > 0)) {
+        /* Fill missing or empty master/demo collections from current seed. */
+        if (!state[k] || (
+          ["categories", "units", "priceLists", "currencies", "employees", "departments",
+            "warehouses", "customers", "suppliers", "items", "accounts", "bankAccounts",
+            "fiscalPeriods", "boms", "mrpSuggestions", "inventoryBalances"].indexOf(k) >= 0
+        )) {
+          state[k] = JSON.parse(JSON.stringify(fromSeed[k]));
+          changed = true;
+        }
+      }
+    });
+    if (changed) persist();
+  }
+
   function load() {
     if (!persistEnabled) {
       state = JnDemoSeed.build();
@@ -23,6 +44,8 @@
         if (!state.meta || state.meta.version !== 14) {
           state = JnDemoSeed.build();
           persist();
+        } else {
+          hydrateMissing(JnDemoSeed.build());
         }
         return state;
       }

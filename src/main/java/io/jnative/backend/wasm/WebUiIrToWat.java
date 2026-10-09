@@ -1056,9 +1056,13 @@ public final class WebUiIrToWat {
                 out.append("          global.set $").append(sanitizeGlobal(ss.globalName())).append("\n");
                 return false;
             }
-            case IrInstruction.Println ignored ->
-                    throw new IllegalStateException(
-                            "wasm32-browser: Println is not supported (no host stdout); use Browser console APIs");
+            case IrInstruction.Println pl -> {
+                // Soft-map to browser console so WebUI/stdlib paths that still emit
+                // Println IR are usable; prefer Browser.console() in new code.
+                out.append("          ").append(emitValue(pl.value())).append("\n");
+                out.append("          call $jn_console_log\n");
+                return false;
+            }
             default -> throw new IllegalStateException(
                     "wasm32-browser: unsupported IR instruction (compile rejected): "
                             + insn.getClass().getSimpleName());
@@ -1213,6 +1217,25 @@ public final class WebUiIrToWat {
         if (function.startsWith("jnative_")) {
             // Remaining native runtime symbols (cond/sync/async helpers, etc.): soft-stub.
             // Browser path must not pull OS runtimes; zeros are safe for unused branches.
+            if (dest != null) {
+                out.append("          ").append(zeroConst(watType(dest.type()))).append("\n");
+                out.append("          local.set $t").append(dest.id()).append("\n");
+            }
+            return;
+        }
+        // Libc / host symbols that stdlib may reference (e.g. Env.getenv) but have no
+        // browser implementation — soft-stub like unused jnative_* OS natives.
+        if (function.equals("getenv")
+                || function.equals("strlen")
+                || function.equals("atol")
+                || function.equals("atoi")
+                || function.equals("strtol")
+                || function.equals("memcmp")
+                || function.equals("memcpy")
+                || function.equals("memmove")
+                || function.equals("memset")
+                || function.equals("abort")
+                || function.equals("exit")) {
             if (dest != null) {
                 out.append("          ").append(zeroConst(watType(dest.type()))).append("\n");
                 out.append("          local.set $t").append(dest.id()).append("\n");

@@ -1,0 +1,24 @@
+public class Main {
+    public static void main(String[] args) {
+        Counter c = new Counter();
+        c.bump();
+        c.bump();
+        System.out.println(String.valueOf(c.get()));
+    }
+}
+
+class Counter {
+    private int n;
+
+    Counter() {
+        n = 0;
+    }
+
+    void bump() {
+        n = n + 1;
+    }
+
+    int get() {
+        return n;
+    }
+}

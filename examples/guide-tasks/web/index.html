@@ -1,0 +1,28 @@
+<!doctype html>
+<!-- Author: 张晓达 -->
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>JNative 任务管理器 (Web)</title>
+  <link rel="stylesheet" href="./tasks.css"/>
+</head>
+<body>
+  <main>
+    <h1>小型任务管理器</h1>
+    <p class="sub">业务规则在 WASM（TaskCore）；本页 JS 仅负责 DOM 与 localStorage 适配。</p>
+    <p id="status" class="status">加载中…</p>
+    <form id="form">
+      <input id="title" type="text" maxlength="48" placeholder="任务标题" autocomplete="off"/>
+      <button type="submit">添加</button>
+    </form>
+    <div class="tools">
+      <button type="button" id="save">保存到 localStorage</button>
+      <button type="button" id="load">从 localStorage 加载</button>
+      <button type="button" id="bg">模拟异步</button>
+    </div>
+    <ul id="list"></ul>
+  </main>
+  <script type="module" src="./app-shell.js"></script>
+</body>
+</html>

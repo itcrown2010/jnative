@@ -17,6 +17,7 @@ import {
   spawnToolchain,
   ToolchainInvocation,
 } from './toolchain';
+import { getConfiguredTarget } from './targetContext';
 
 const buildLocks = new Map<string, Promise<unknown>>();
 let runProcess: ChildProcess | undefined;
@@ -68,8 +69,11 @@ async function requireToolchain(): Promise<ToolchainInvocation | undefined> {
   return resolved.invocation;
 }
 
-/** Build/run read files from disk — save dirty editors first so output matches the UI. */
-async function saveDirtySources(hintPath?: string): Promise<void> {
+/**
+ * Build/run read files from disk — save dirty editors first so output matches the UI.
+ * @returns false if the user cancelled or a save failed (must not compile stale buffers).
+ */
+async function saveDirtySources(hintPath?: string): Promise<boolean> {
   const dirty = vscode.workspace.textDocuments.filter((doc) => {
     if (doc.isUntitled || !doc.isDirty || doc.uri.scheme !== 'file') {
       return false;
@@ -85,9 +89,32 @@ async function saveDirtySources(hintPath?: string): Promise<void> {
     return true;
   });
   if (dirty.length === 0) {
-    return;
+    return true;
   }
-  await Promise.all(dirty.map((doc) => doc.save()));
+  for (const doc of dirty) {
+    const ok = await doc.save();
+    if (!ok || doc.isDirty) {
+      vscode.window.showErrorMessage(`无法保存 ${path.basename(doc.fileName)}，已取消构建（不会编译旧内容）。`);
+      return false;
+    }
+  }
+  return true;
+}
+
+async function notifyBuildFailure(
+  channel: vscode.OutputChannel,
+  summary: string,
+  orphanMessages: string[]
+): Promise<void> {
+  for (const m of orphanMessages) {
+    channel.appendLine(`[tool] ${m}`);
+  }
+  const pick = await vscode.window.showErrorMessage(summary, '查看 Problems', '查看输出');
+  if (pick === '查看 Problems') {
+    await vscode.commands.executeCommand('workbench.actions.view.problems');
+  } else if (pick === '查看输出') {
+    channel.show(true);
+  }
 }
 
 export interface BuildResult {
@@ -100,33 +127,56 @@ export async function buildProject(project: JNativeProject, debug = false): Prom
   if (!inv) {
     return { success: false };
   }
-  await saveDirtySources(project.root);
+  if (!(await saveDirtySources(project.root))) {
+    return { success: false };
+  }
   return withProjectLock(project.root, async () => {
     const channel = getOutput();
     channel.show(true);
     channel.appendLine(`[build${debug ? ' --debug' : ''}] ${project.root}`);
-    const cfg = vscode.workspace.getConfiguration('jnative');
+    const folder = vscode.workspace.getWorkspaceFolder(vscode.Uri.file(project.root));
+    const cfg = vscode.workspace.getConfiguration('jnative', folder?.uri);
     const extra = cfg.get<string[]>('buildArguments') ?? [];
+    const target = getConfiguredTarget(folder);
     const args = [
       'build',
       '--project',
       project.root,
+      '--target',
+      target,
       '--format',
       'json',
       ...(debug ? ['--debug'] : []),
       ...extra,
     ];
+    channel.appendLine(`[target] ${target}`);
     const result = await runCapture(inv, args, { cwd: project.root, timeoutMs: 300000 });
     channel.appendLine(result.stdout);
     if (result.stderr.trim()) {
       channel.appendLine(result.stderr);
+    }
+    channel.appendLine(`[exit] ${result.code}`);
+    if (result.timedOut) {
+      await notifyBuildFailure(channel, '构建超时（已终止进程，不视为成功）', []);
+      return { success: false };
     }
     const report = parseBuildReport(result.stdout);
     if (report) {
       if (report.success) {
         clearProjectDiagnostics(project.root);
       } else {
-        applyJsonDiagnostics(project.root, report.diagnostics, project.root);
+        const { applied, orphanMessages } = applyJsonDiagnostics(
+          project.root,
+          report.diagnostics,
+          project.root
+        );
+        await notifyBuildFailure(
+          channel,
+          applied > 0
+            ? `构建失败（${applied} 条可定位诊断已写入 Problems）`
+            : `构建失败：${orphanMessages[0] || '见输出日志'}`,
+          orphanMessages
+        );
       }
       if (report.success && report.artifact && fs.existsSync(report.artifact)) {
         channel.appendLine(`[artifact] ${report.artifact}`);
@@ -134,11 +184,11 @@ export async function buildProject(project: JNativeProject, debug = false): Prom
       }
       if (report.success) {
         channel.appendLine('[build] success but artifact missing');
+        await notifyBuildFailure(channel, '构建报告成功但找不到产物', []);
         return { success: false };
       }
       return { success: false };
     }
-    // Fallback: text diagnostics from stderr/stdout
     const textDiags = parseTextDiagnostics(result.stdout + '\n' + result.stderr);
     if (result.code === 0) {
       clearProjectDiagnostics(project.root);
@@ -152,9 +202,21 @@ export async function buildProject(project: JNativeProject, debug = false): Prom
         }
       }
       channel.appendLine('[build] success but could not locate artifact');
+      await notifyBuildFailure(channel, '构建退出 0 但无法定位产物', []);
       return { success: false };
     }
-    applyJsonDiagnostics(project.root, textDiags, project.root);
+    const { applied, orphanMessages } = applyJsonDiagnostics(project.root, textDiags, project.root);
+    const toolHint =
+      /clang|linker|ld:|not found|No such file/i.test(result.stderr + result.stdout)
+        ? '（可能是工具链/链接错误，见输出）'
+        : '';
+    await notifyBuildFailure(
+      channel,
+      applied > 0
+        ? `构建失败${toolHint}（Problems 已更新）`
+        : `构建失败${toolHint}：${orphanMessages[0] || (result.stderr || result.stdout).trim().split('\n')[0] || '见输出'}`,
+      orphanMessages
+    );
     return { success: false };
   });
 }
@@ -170,22 +232,28 @@ export async function buildCurrentFile(filePath: string): Promise<BuildResult> {
      src/.jnative-file-build/Main.jn (Mach-O) as source and fail with UTF-8 errors. */
   const project = findProjectForFile(filePath);
   const projectRoot = project?.root ?? path.dirname(filePath);
-  await saveDirtySources(projectRoot);
+  if (!(await saveDirtySources(projectRoot))) {
+    return { success: false };
+  }
   const outDir = path.join(projectRoot, '.jnative', 'file-build');
   fs.mkdirSync(outDir, { recursive: true });
   const fileName = path.basename(filePath);
   const base = fileName.replace(/\.(java|jn)$/i, '');
   const outFile = path.join(outDir, base);
+  const folder = vscode.workspace.getWorkspaceFolder(vscode.Uri.file(projectRoot));
+  const target = getConfiguredTarget(folder);
   channel.appendLine(`[build-file] ${filePath}`);
+  channel.appendLine(`[target] ${target}`);
   const result = await runCapture(
     inv,
-    [filePath, '-o', outFile, '--format', 'json'],
+    [filePath, '-o', outFile, '--target', target, '--format', 'json'],
     { cwd: projectRoot, timeoutMs: 300000 }
   );
   channel.appendLine(result.stdout);
   if (result.stderr.trim()) {
     channel.appendLine(result.stderr);
   }
+  channel.appendLine(`[exit] ${result.code}`);
   const report = parseBuildReport(result.stdout);
   if (report) {
     if (report.success) {
@@ -193,14 +261,31 @@ export async function buildCurrentFile(filePath: string): Promise<BuildResult> {
       const art = report.artifact && fs.existsSync(report.artifact) ? report.artifact : outFile;
       return { success: true, artifact: art };
     }
-    applyJsonDiagnostics(projectRoot, report.diagnostics, projectRoot);
+    const { applied, orphanMessages } = applyJsonDiagnostics(
+      projectRoot,
+      report.diagnostics,
+      projectRoot
+    );
+    await notifyBuildFailure(
+      channel,
+      applied > 0
+        ? `文件构建失败（${applied} 条诊断已写入 Problems）`
+        : `文件构建失败：${orphanMessages[0] || '见输出'}`,
+      orphanMessages
+    );
     return { success: false };
   }
   if (result.code === 0 && fs.existsSync(outFile)) {
     clearProjectDiagnostics(projectRoot);
     return { success: true, artifact: outFile };
   }
-  applyJsonDiagnostics(projectRoot, parseTextDiagnostics(result.stdout + '\n' + result.stderr), projectRoot);
+  const textDiags = parseTextDiagnostics(result.stdout + '\n' + result.stderr);
+  const { applied, orphanMessages } = applyJsonDiagnostics(projectRoot, textDiags, projectRoot);
+  await notifyBuildFailure(
+    channel,
+    applied > 0 ? '文件构建失败（Problems 已更新）' : '文件构建失败（见输出）',
+    orphanMessages
+  );
   return { success: false };
 }
 

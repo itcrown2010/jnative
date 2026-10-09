@@ -1,0 +1,21 @@
+public class Main {
+    public static void main(String[] args) {
+        final int limit = 3;
+        InkTone t = InkTone.DARK;
+        System.out.println(t.name());
+        System.out.println(String.valueOf(t.ordinal()));
+        int code = 0;
+        if (t == InkTone.DARK) {
+            code = 1;
+        }
+        System.out.println(String.valueOf(code));
+        System.out.println(String.valueOf(limit));
+        /* final 局部变量不可再赋值；final 字段当前语言不支持 */
+    }
+}
+
+enum InkTone {
+    LIGHT,
+    DARK,
+    ACCENT
+}

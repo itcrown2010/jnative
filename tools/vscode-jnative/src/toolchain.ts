@@ -143,14 +143,16 @@ export async function runCapture(
   inv: ToolchainInvocation,
   args: string[],
   opts: { cwd?: string; timeoutMs?: number } = {}
-): Promise<{ code: number; stdout: string; stderr: string }> {
+): Promise<{ code: number; stdout: string; stderr: string; timedOut?: boolean }> {
   return new Promise((resolve) => {
     const child = spawnToolchain(inv, args, { cwd: opts.cwd });
     let stdout = '';
     let stderr = '';
+    let timedOut = false;
     const timer =
       opts.timeoutMs && opts.timeoutMs > 0
         ? setTimeout(() => {
+            timedOut = true;
             child.kill('SIGTERM');
             setTimeout(() => child.kill('SIGKILL'), 2000);
           }, opts.timeoutMs)
@@ -165,13 +167,13 @@ export async function runCapture(
       if (timer) {
         clearTimeout(timer);
       }
-      resolve({ code: 1, stdout, stderr: stderr + '\n' + err.message });
+      resolve({ code: 1, stdout, stderr: stderr + '\n' + err.message, timedOut });
     });
     child.on('close', (code) => {
       if (timer) {
         clearTimeout(timer);
       }
-      resolve({ code: code ?? 1, stdout, stderr });
+      resolve({ code: code ?? 1, stdout, stderr, timedOut });
     });
   });
 }

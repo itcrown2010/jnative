@@ -1,0 +1,10 @@
+public class IdentityTest {
+    public static void main(String[] args) {
+        int x = 42;
+        int ok = 0;
+        if (x == 42) {
+            ok = 1;
+        }
+        int keep = 1 / ok;
+    }
+}

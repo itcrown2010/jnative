@@ -1,0 +1,15 @@
+{
+  "name": "jnative-developer-docs",
+  "private": true,
+  "version": "0.32.0",
+  "description": "JNative developer documentation site (VitePress)",
+  "type": "module",
+  "scripts": {
+    "dev": "vitepress dev",
+    "build": "vitepress build",
+    "preview": "vitepress preview"
+  },
+  "devDependencies": {
+    "vitepress": "^1.6.3"
+  }
+}

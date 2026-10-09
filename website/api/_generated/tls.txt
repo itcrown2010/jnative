@@ -1,0 +1,11 @@
+# Generated from stdlib/tls — 2026-10-09T05:08Z
+# Signatures only. Behavior notes are maintained in website/api/*.md
+
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/tls/TlsLib.java:8:class TlsException extends IOException {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/tls/TlsLib.java:14:class TlsHandshakeException extends TlsException {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/tls/TlsLib.java:20:class TlsCertificateException extends TlsException {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/tls/TlsLib.java:26:class TlsWant {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/tls/TlsLib.java:33:class TlsNative {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/tls/TlsLib.java:129:class TlsConfig {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/tls/TlsLib.java:188:class TlsContext {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/tls/TlsLib.java:249:class TlsConnection implements AutoCloseable {

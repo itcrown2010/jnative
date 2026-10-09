@@ -1,0 +1,45 @@
+public class Main {
+    public static void main(String[] args) {
+        Point p = new Point(3, 4);
+        System.out.println(String.valueOf(p.manhattan()));
+        Point q = p;
+        q.x = 10;
+        /* q 与 p 指向同一对象 */
+        System.out.println(String.valueOf(p.x));
+        Point r = new Point(10, 4);
+        int sameRef = 0;
+        if (p == q) {
+            sameRef = 1;
+        }
+        int sameVal = 0;
+        if (p.x == r.x) {
+            if (p.y == r.y) {
+                sameVal = 1;
+            }
+        }
+        System.out.println(String.valueOf(sameRef));
+        System.out.println(String.valueOf(sameVal));
+    }
+}
+
+class Point {
+    int x;
+    int y;
+
+    Point(int x, int y) {
+        this.x = x;
+        this.y = y;
+    }
+
+    int manhattan() {
+        int ax = this.x;
+        int ay = this.y;
+        if (ax < 0) {
+            ax = 0 - ax;
+        }
+        if (ay < 0) {
+            ay = 0 - ay;
+        }
+        return ax + ay;
+    }
+}

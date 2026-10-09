@@ -269,7 +269,11 @@ class ByteBuf {
     }
 
     void appendBytes(byte[] more) {
-        if (more == null || more.length == 0) {
+        /* Split null/empty checks — avoid short-circuit codegen that NPEs then deref null. */
+        if (more == null) {
+            return;
+        }
+        if (more.length == 0) {
             return;
         }
         ensure(size + more.length);

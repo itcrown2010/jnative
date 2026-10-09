@@ -1,0 +1,147 @@
+/**
+ * Stage 2: Task objects + done/delete.
+ * Usage: add | list | done <id> | delete <id>
+ */
+public class Main {
+    static final int MAX = 32;
+    static Task[] tasks = new Task[MAX];
+    static int count = 0;
+
+    public static void main(String[] args) {
+        if (args.length == 0) {
+            System.out.println("usage: add|list|done|delete");
+            return;
+        }
+        String cmd = args[0];
+        if (cmd.compareTo("demo") == 0) {
+            run3("add", "Buy", "milk");
+            run3("add", "Write", "docs");
+            run2("done", "0");
+            run1("list");
+            run2("delete", "1");
+            run1("list");
+            return;
+        }
+        if (cmd.compareTo("add") == 0) {
+            if (args.length < 2) {
+                System.out.println("error: missing title");
+                return;
+            }
+            if (count >= MAX) {
+                System.out.println("error: full");
+                return;
+            }
+            tasks[count] = new Task(joinFrom(args, 1));
+            count = count + 1;
+            System.out.println("added " + String.valueOf(count - 1));
+            return;
+        }
+        if (cmd.compareTo("list") == 0) {
+            int i = 0;
+            while (i < count) {
+                String mark = "[ ]";
+                if (tasks[i].done) {
+                    mark = "[x]";
+                }
+                System.out.println(String.valueOf(i) + " " + mark + " " + tasks[i].title);
+                i = i + 1;
+            }
+            return;
+        }
+        if (cmd.compareTo("done") == 0) {
+            int id = parseId(args);
+            if (id < 0) {
+                return;
+            }
+            tasks[id].done = true;
+            System.out.println("done " + String.valueOf(id));
+            return;
+        }
+        if (cmd.compareTo("delete") == 0) {
+            int id = parseId(args);
+            if (id < 0) {
+                return;
+            }
+            int i = id;
+            while (i < count - 1) {
+                tasks[i] = tasks[i + 1];
+                i = i + 1;
+            }
+            count = count + 0 - 1;
+            System.out.println("deleted " + String.valueOf(id));
+            return;
+        }
+        System.out.println("error: unknown command");
+    }
+
+    static void run1(String a) {
+        String[] x = new String[1];
+        x[0] = a;
+        main(x);
+    }
+
+    static void run2(String a, String b) {
+        String[] x = new String[2];
+        x[0] = a;
+        x[1] = b;
+        main(x);
+    }
+
+    static void run3(String a, String b, String c) {
+        String[] x = new String[3];
+        x[0] = a;
+        x[1] = b;
+        x[2] = c;
+        main(x);
+    }
+
+    static int parseId(String[] args) {
+        if (args.length < 2) {
+            System.out.println("error: missing id");
+            return -1;
+        }
+        int id = parseInt(args[1]);
+        if (id < 0 || id >= count) {
+            System.out.println("error: bad id");
+            return -1;
+        }
+        return id;
+    }
+
+    static int parseInt(String s) {
+        int v = 0;
+        int i = 0;
+        if (s.length() == 0) {
+            return -1;
+        }
+        while (i < s.length()) {
+            int c = s.charAt(i);
+            if (c < 48 || c > 57) {
+                return -1;
+            }
+            v = v * 10 + (c - 48);
+            i = i + 1;
+        }
+        return v;
+    }
+
+    static String joinFrom(String[] args, int start) {
+        String s = args[start];
+        int i = start + 1;
+        while (i < args.length) {
+            s = s + " " + args[i];
+            i = i + 1;
+        }
+        return s;
+    }
+}
+
+class Task {
+    String title;
+    boolean done;
+
+    Task(String title) {
+        this.title = title;
+        this.done = false;
+    }
+}

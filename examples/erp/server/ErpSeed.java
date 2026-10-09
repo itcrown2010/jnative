@@ -35,11 +35,21 @@ class ErpSeed {
                 seedDemoBusiness(companyId, now);
                 seedSequences(companyId);
                 ErpFinanceCore.ensureSeed(companyId);
-                ErpBooks.recordDemoSeed(companyId, ErpBooks.DEMO_SEED_VERSION);
+                ErpBooks.recordDemoSeed(companyId, 0);
+                ErpDemoScenarioSeed.applyIfNeeded(companyId);
             } else {
                 companyId = ErpNum.asLong(c);
                 ErpBooks.setBookKind(companyId, BookKind.DEMO);
                 ErpBooks.upgradeDemoSeedIfNeeded(companyId);
+                Object uc = ErpDb.queryOne(
+                        "SELECT COUNT(*) FROM users WHERE company_id="
+                                + CryptoParse.longToString(companyId),
+                        new ArrayList<Object>(), new LongMapper());
+                if (ErpNum.asLong(uc) == 0L) {
+                    seedUsers(companyId, AsyncClockNative.wallMillis());
+                    System.out.println("DEMO_RESEED_USERS companyId="
+                            + CryptoParse.longToString(companyId));
+                }
             }
             ensurePlatform(companyId);
             return;
@@ -223,7 +233,7 @@ class ErpSeed {
     }
 
     static void seedSequences(long companyId) {
-        String[] names = new String[8];
+        String[] names = new String[9];
         names[0] = "PO";
         names[1] = "SO";
         names[2] = "GR";
@@ -232,6 +242,7 @@ class ErpSeed {
         names[5] = "OA";
         names[6] = "OAP";
         names[7] = "RV";
+        names[8] = "PR";
         int i = 0;
         while (i < names.length) {
             ArrayList<Object> chk = new ArrayList<Object>();

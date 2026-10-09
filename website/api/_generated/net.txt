@@ -1,0 +1,8 @@
+# Generated from stdlib/net — 2026-10-09T05:08Z
+# Signatures only. Behavior notes are maintained in website/api/*.md
+
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/net/NetLib.java:7:class NetNative {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/net/NetLib.java:69:class IPAddress {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/net/NetLib.java:118:class SocketAddress {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/net/NetLib.java:140:class DnsResolver {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/net/NetLib.java:175:class UdpSocket implements AutoCloseable {

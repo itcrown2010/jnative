@@ -2,7 +2,7 @@
   "name": "jnative",
   "displayName": "JNative",
   "description": "Develop JNative native programs in VS Code (subset of Java → native, no JVM at runtime).",
-  "version": "0.2.3",
+  "version": "0.7.0",
   "publisher": "jnative",
   "engines": {
     "vscode": "^1.85.0"
@@ -24,6 +24,8 @@
     "onCommand:jnative.openAsJNative",
     "onCommand:jnative.debugProject",
     "onCommand:jnative.generateLaunchJson",
+    "onCommand:jnative.showLanguageServerLog",
+    "onCommand:jnative.restartLanguageServer",
     "onDebugInitialConfigurations",
     "onDebugDynamicConfigurations:lldb"
   ],
@@ -101,6 +103,14 @@
         "title": "JNative: 显示输出"
       },
       {
+        "command": "jnative.showLanguageServerLog",
+        "title": "JNative: 显示语言服务日志"
+      },
+      {
+        "command": "jnative.restartLanguageServer",
+        "title": "JNative: 重启语言服务"
+      },
+      {
         "command": "jnative.openManifest",
         "title": "JNative: 打开项目清单"
       },
@@ -119,11 +129,25 @@
       {
         "command": "jnative.mobileDoctor",
         "title": "JNative: 检查移动工具链"
+      },
+      {
+        "command": "jnative.selectTarget",
+        "title": "JNative: 选择编译目标"
       }
     ],
     "configuration": {
       "title": "JNative",
       "properties": {
+        "jnative.target": {
+          "type": "string",
+          "enum": [
+            "native",
+            "wasm32-browser"
+          ],
+          "default": "native",
+          "scope": "resource",
+          "description": "当前工作区文件夹的编译目标。构建、运行、调试与 Problems 诊断共用；移动容器实际编译为 wasm32-browser，不是完整原生移动运行时。"
+        },
         "jnative.executablePath": {
           "type": "string",
           "default": "",
@@ -158,7 +182,19 @@
         "jnative.enableLanguageServer": {
           "type": "boolean",
           "default": true,
-          "description": "在受信任的 JNative 项目中启用前端诊断 LSP（analyze-only）。"
+          "description": "在受信任的 JNative 项目中启用前端诊断 LSP（analyze-only，含补全/导航/重命名/格式化）。"
+        },
+        "jnative.formatIndentSize": {
+          "type": "number",
+          "default": 4,
+          "minimum": 1,
+          "maximum": 8,
+          "description": "文档格式化缩进空格数（insertSpaces=true 时）。不强制保存时格式化。"
+        },
+        "jnative.formatInsertSpaces": {
+          "type": "boolean",
+          "default": true,
+          "description": "格式化时使用空格缩进；false 则使用 Tab。默认不启用 editor.formatOnSave。"
         },
         "jnative.debugEnv": {
           "type": "object",

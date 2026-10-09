@@ -1,0 +1,31 @@
+# Generated from stdlib/graphics — 2026-10-09T05:08Z
+# Signatures only. Behavior notes are maintained in website/api/*.md
+
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/graphics/GraphicsLib.java:7:class GraphicsException extends RuntimeException {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/graphics/GraphicsLib.java:13:class ImageDecodeException extends GraphicsException {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/graphics/GraphicsLib.java:19:class InvalidGraphicsStateException extends GraphicsException {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/graphics/GraphicsLib.java:25:class DisposedGraphicsResourceException extends GraphicsException {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/graphics/GraphicsLib.java:31:class GfxNative {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/graphics/GraphicsLib.java:204:class Color {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/graphics/GraphicsLib.java:261:class Point {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/graphics/GraphicsLib.java:279:class Size {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/graphics/GraphicsLib.java:297:class Rect {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/graphics/GraphicsLib.java:311:class Stroke {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/graphics/GraphicsLib.java:323:class FontStyle {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/graphics/GraphicsLib.java:330:class Font {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/graphics/GraphicsLib.java:364:class FontMetrics {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/graphics/GraphicsLib.java:388:class Path {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/graphics/GraphicsLib.java:445:class Image {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/graphics/GraphicsLib.java:531:interface PaintHandler {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/graphics/GraphicsLib.java:535:interface FrameHandler {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/graphics/GraphicsLib.java:539:class Graphics {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/graphics/GraphicsLib.java:707:class GfxMetrics {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/graphics/GraphicsLib.java:729:class PointF {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/graphics/GraphicsLib.java:739:class SizeF {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/graphics/GraphicsLib.java:749:class RectF {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/graphics/GraphicsLib.java:763:class AffineTransform {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/graphics/GraphicsLib.java:807:class CanvasPaintHook implements UiHook {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/graphics/GraphicsLib.java:819:class CanvasTimerHook implements UiHook {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/graphics/GraphicsLib.java:831:class UiTimerHook implements UiHook {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/graphics/GraphicsLib.java:843:class Canvas extends Component {
+/Users/zhangxiaoda/jnative/src/main/resources/stdlib/graphics/GraphicsLib.java:983:class UiTimer extends Component {
