@@ -1,0 +1,6 @@
+{
+  "name": "stats-app",
+  "source": ["src"],
+  "main": "Main",
+  "output": "build/stats-app"
+}

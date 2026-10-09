@@ -255,6 +255,10 @@ public final class IrUtil {
             case IrInstruction.ReleaseNativeCallback rnc -> new IrInstruction.ReleaseNativeCallback(
                     map.apply(rnc.handle()), rnc.llvmTypeName(), rnc.slotFieldIndex(),
                     rnc.handleFieldIndex(), rnc.retainedFieldIndex());
+            case IrInstruction.LoadStatic ls -> new IrInstruction.LoadStatic(
+                    mapTemp(ls.dest(), map), ls.globalName(), ls.fieldType(), ls.isVolatile());
+            case IrInstruction.StoreStatic ss -> new IrInstruction.StoreStatic(
+                    ss.globalName(), map.apply(ss.value()), ss.isVolatile());
             default -> inst;
         };
     }
@@ -319,6 +323,10 @@ public final class IrUtil {
     }
 
     public static IrValue.Const foldBinary(IrInstruction.BinOp op, IrValue.Const left, IrValue.Const right) {
+        if (left.type() == IrType.DOUBLE || left.type() == IrType.FLOAT
+                || right.type() == IrType.DOUBLE || right.type() == IrType.FLOAT) {
+            return foldBinaryFloat(op, left, right);
+        }
         if (!left.type().isIntegerLike() || !right.type().isIntegerLike()) {
             return null;
         }
@@ -380,6 +388,10 @@ public final class IrUtil {
     }
 
     public static IrValue.Const foldCompare(IrInstruction.CmpOp op, IrValue.Const left, IrValue.Const right) {
+        if (left.type() == IrType.DOUBLE || left.type() == IrType.FLOAT
+                || right.type() == IrType.DOUBLE || right.type() == IrType.FLOAT) {
+            return foldCompareFloat(op, left, right);
+        }
         if (!left.type().isIntegerLike() || !right.type().isIntegerLike()) {
             return null;
         }
@@ -392,6 +404,70 @@ public final class IrUtil {
             case LE -> l <= r;
             case GT -> l > r;
             case GE -> l >= r;
+        };
+        return new IrValue.Const(IrType.I1, result);
+    }
+
+    /** Single-binop fold; float intermediates use binary32 (Java float ops). */
+    private static IrValue.Const foldBinaryFloat(
+            IrInstruction.BinOp op, IrValue.Const left, IrValue.Const right) {
+        boolean useFloat = left.type() == IrType.FLOAT || right.type() == IrType.FLOAT;
+        if (useFloat && left.type() != IrType.DOUBLE && right.type() != IrType.DOUBLE) {
+            float a = ((Number) left.value()).floatValue();
+            float b = ((Number) right.value()).floatValue();
+            Float r = switch (op) {
+                case ADD -> a + b;
+                case SUB -> a - b;
+                case MUL -> a * b;
+                case DIV -> a / b;
+                case MOD -> a % b;
+                default -> null;
+            };
+            if (r == null) {
+                return null;
+            }
+            return new IrValue.Const(IrType.FLOAT, r);
+        }
+        double a = ((Number) left.value()).doubleValue();
+        double b = ((Number) right.value()).doubleValue();
+        Double r = switch (op) {
+            case ADD -> a + b;
+            case SUB -> a - b;
+            case MUL -> a * b;
+            case DIV -> a / b;
+            case MOD -> a % b;
+            default -> null;
+        };
+        if (r == null) {
+            return null;
+        }
+        return new IrValue.Const(IrType.DOUBLE, r);
+    }
+
+    private static IrValue.Const foldCompareFloat(
+            IrInstruction.CmpOp op, IrValue.Const left, IrValue.Const right) {
+        if (left.type() == IrType.FLOAT && right.type() == IrType.FLOAT) {
+            float fa = ((Number) left.value()).floatValue();
+            float fb = ((Number) right.value()).floatValue();
+            boolean result = switch (op) {
+                case EQ -> fa == fb;
+                case NE -> fa != fb;
+                case LT -> fa < fb;
+                case LE -> fa <= fb;
+                case GT -> fa > fb;
+                case GE -> fa >= fb;
+            };
+            return new IrValue.Const(IrType.I1, result);
+        }
+        double a = ((Number) left.value()).doubleValue();
+        double b = ((Number) right.value()).doubleValue();
+        boolean result = switch (op) {
+            case EQ -> a == b;
+            case NE -> a != b;
+            case LT -> a < b;
+            case LE -> a <= b;
+            case GT -> a > b;
+            case GE -> a >= b;
         };
         return new IrValue.Const(IrType.I1, result);
     }

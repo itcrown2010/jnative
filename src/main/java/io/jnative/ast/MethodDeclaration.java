@@ -12,6 +12,7 @@ public record MethodDeclaration(
         boolean isConstructor,
         boolean isAbstract,
         boolean isAsync,
+        boolean isFinal,
         List<TypeParameterDeclaration> typeParameters,
         TypeName returnType,
         boolean returnsArray,
@@ -39,7 +40,7 @@ public record MethodDeclaration(
             BlockStatement body,
             SourceLocation location
     ) {
-        this(isPublic, isStatic, false, isConstructor, false, false, List.of(), returnType, false, name, parameters, body,
+        this(isPublic, isStatic, false, isConstructor, false, false, false, List.of(), returnType, false, name, parameters, body,
                 null, null, isPublic ? Visibility.PUBLIC : Visibility.PACKAGE, location);
     }
 
@@ -56,7 +57,7 @@ public record MethodDeclaration(
             NativeAnnotation nativeAnnotation,
             SourceLocation location
     ) {
-        this(isPublic, isStatic, isNative, isConstructor, false, false, List.of(), returnType, returnsArray, name, parameters,
+        this(isPublic, isStatic, isNative, isConstructor, false, false, false, List.of(), returnType, returnsArray, name, parameters,
                 body, nativeAnnotation, null, isPublic ? Visibility.PUBLIC : Visibility.PACKAGE, location);
     }
 
@@ -74,7 +75,7 @@ public record MethodDeclaration(
             EffectContract effectContract,
             SourceLocation location
     ) {
-        this(isPublic, isStatic, isNative, isConstructor, false, false, List.of(), returnType, returnsArray, name, parameters,
+        this(isPublic, isStatic, isNative, isConstructor, false, false, false, List.of(), returnType, returnsArray, name, parameters,
                 body, nativeAnnotation, effectContract, isPublic ? Visibility.PUBLIC : Visibility.PACKAGE, location);
     }
 
@@ -93,7 +94,7 @@ public record MethodDeclaration(
             EffectContract effectContract,
             SourceLocation location
     ) {
-        this(isPublic, isStatic, isNative, isConstructor, isAbstract, false, List.of(), returnType, returnsArray, name,
+        this(isPublic, isStatic, isNative, isConstructor, isAbstract, false, false, List.of(), returnType, returnsArray, name,
                 parameters, body, nativeAnnotation, effectContract,
                 isPublic ? Visibility.PUBLIC : Visibility.PACKAGE, location);
     }
@@ -115,8 +116,31 @@ public record MethodDeclaration(
             EffectContract effectContract,
             SourceLocation location
     ) {
-        this(isPublic, isStatic, isNative, isConstructor, isAbstract, isAsync, typeParameters, returnType, returnsArray,
+        this(isPublic, isStatic, isNative, isConstructor, isAbstract, isAsync, false, typeParameters, returnType, returnsArray,
                 name, parameters, body, nativeAnnotation, effectContract,
                 isPublic ? Visibility.PUBLIC : Visibility.PACKAGE, location);
+    }
+
+    /** Full constructor including visibility (pre-final flag). */
+    public MethodDeclaration(
+            boolean isPublic,
+            boolean isStatic,
+            boolean isNative,
+            boolean isConstructor,
+            boolean isAbstract,
+            boolean isAsync,
+            List<TypeParameterDeclaration> typeParameters,
+            TypeName returnType,
+            boolean returnsArray,
+            String name,
+            List<Parameter> parameters,
+            BlockStatement body,
+            NativeAnnotation nativeAnnotation,
+            EffectContract effectContract,
+            Visibility visibility,
+            SourceLocation location
+    ) {
+        this(isPublic, isStatic, isNative, isConstructor, isAbstract, isAsync, false, typeParameters, returnType, returnsArray,
+                name, parameters, body, nativeAnnotation, effectContract, visibility, location);
     }
 }

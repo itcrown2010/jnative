@@ -38,6 +38,7 @@ public final class MethodSymbol {
     /** Trusted native effects from @Native(effects=...). */
     private String nativeEffectsContract;
     private boolean isAsync;
+    private boolean isFinal;
     private JType logicalReturnType;
     private Visibility visibility = Visibility.PUBLIC;
 
@@ -282,6 +283,14 @@ public final class MethodSymbol {
 
     public void setAsync(boolean isAsync) {
         this.isAsync = isAsync;
+    }
+
+    public boolean isFinal() {
+        return isFinal;
+    }
+
+    public void setFinal(boolean isFinal) {
+        this.isFinal = isFinal;
     }
 
     /** Declared return type before async lowering ({@code T} in {@code async T m()}). */

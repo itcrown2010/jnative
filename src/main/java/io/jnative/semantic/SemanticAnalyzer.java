@@ -26,6 +26,7 @@ import java.util.Deque;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -51,6 +52,7 @@ public final class SemanticAnalyzer {
     private final Map<ConstructorSymbol, MethodDeclaration> constructorAst = new HashMap<>();
     private final Map<CatchClause, ClassSymbol> catchTypes = new HashMap<>();
     private final Map<TryStatement, List<MethodCallExpression>> resourceCloseCalls = new HashMap<>();
+    private final Map<EnhancedForStatement, EnhancedForDesugar> enhancedForDesugars = new HashMap<>();
 
     private Scope current;
     private ClassSymbol currentClass;
@@ -69,18 +71,45 @@ public final class SemanticAnalyzer {
     private final TargetAbi targetAbi = TargetAbi.forHost();
     private final LinkedHashMap<String, String> nativeLibraries = new LinkedHashMap<>();
     private JType expectedSamType;
-    private boolean inLambdaBody;
-    private Scope lambdaBodyScope;
-    private final Set<VariableSymbol> lambdaCapturedVars = new HashSet<>();
+    /**
+     * Nested lambda analysis frames (innermost at head). Captures propagate outward so
+     * an inner lambda using an enclosing local also forces the outer closure env to hold it.
+     */
+    private final Deque<LambdaAnalysisFrame> lambdaStack = new ArrayDeque<>();
     private int envClassCounter;
     private int lambdaCounter;
     private int callbackCounter;
+
+    private static final class LambdaAnalysisFrame {
+        final Scope bodyScope;
+        final LinkedHashSet<VariableSymbol> captured = new LinkedHashSet<>();
+
+        LambdaAnalysisFrame(Scope bodyScope) {
+            this.bodyScope = bodyScope;
+        }
+    }
+    /** Only one `main(String[])` per CU may be the process entry (`jn_main`). */
+    private boolean entryMainAssigned;
     private ClassSymbol runnableClass;
     private ClassSymbol nativeCallbackHandleClass;
     private final Deque<Map<String, TypeParameterSymbol>> typeParamScopes = new ArrayDeque<>();
     private boolean instanceofContext;
-    /** Nested break/continue targets (loops today; switch may push later). */
-    private int breakTargetDepth;
+    /** Nested loop depth for {@code continue}. */
+    private int loopDepth;
+    /** Nested switch depth; {@code break} allowed when {@code loopDepth + switchDepth > 0}. */
+    private int switchDepth;
+    /** Definite-assignment environment for the current method/constructor body. */
+    private DaEnv daEnv = new DaEnv();
+    /** Whether the current statement position is reachable for DA purposes. */
+    private boolean daReachable = true;
+    /** When true, variable reads skip definite-assignment checks (assignment LHS). */
+    private boolean skippingDaRead;
+    /** Break exit DA states for the innermost loop/switch. */
+    private final Deque<List<DaEnv>> breakDaExits = new ArrayDeque<>();
+    /** Locals declared in the current block (removed from DA env on exit). */
+    private final Deque<List<VariableSymbol>> blockDaLocals = new ArrayDeque<>();
+    /** Locals declared inside each loop nest (blank final may be assigned once per iteration). */
+    private final Deque<Set<VariableSymbol>> loopDeclaredLocals = new ArrayDeque<>();
 
     public SemanticAnalyzer(DiagnosticReporter reporter) {
         this.reporter = reporter;
@@ -108,6 +137,7 @@ public final class SemanticAnalyzer {
         constructorAst.clear();
         catchTypes.clear();
         resourceCloseCalls.clear();
+        enhancedForDesugars.clear();
         nativeStructs.clear();
         typesBySimpleName.clear();
         provenances.clear();
@@ -202,8 +232,12 @@ public final class SemanticAnalyzer {
                     ClassSymbol symbol = classOf(cls);
                     if (symbol != null) {
                         currentClass = symbol;
-                        registerMethods(symbol, cls);
-                        registerConstructors(symbol, cls);
+                        if (cls.isEnum()) {
+                            registerEnumSynthetics(symbol, cls);
+                        } else {
+                            registerMethods(symbol, cls);
+                            registerConstructors(symbol, cls);
+                        }
                     }
                 }
                 endResolve();
@@ -285,6 +319,7 @@ public final class SemanticAnalyzer {
                 Map.copyOf(arrayMetadatas),
                 Map.copyOf(catchTypes),
                 Map.copyOf(resourceCloseCalls),
+                Map.copyOf(enhancedForDesugars),
                 List.copyOf(nativeLibraries.keySet()),
                 targetAbi
         );
@@ -353,6 +388,12 @@ public final class SemanticAnalyzer {
         FieldSymbol causeField = new FieldSymbol(
                 throwableClass, "cause", throwableClass.asType(), 1, SourceLocation.UNKNOWN);
         throwableClass.addField(causeField);
+        FieldSymbol suppressedField = new FieldSymbol(
+                throwableClass, "suppressed", new ArrayType(throwableClass.asType()),
+                2, SourceLocation.UNKNOWN);
+        throwableClass.addField(suppressedField);
+        // Ensure Throwable[] metadata exists for getSuppressed / runtime helpers.
+        arrayMetadataFor(throwableClass.asType());
 
         ParameterSymbol msgParam = new ParameterSymbol("message", stringClass.asType(), SourceLocation.UNKNOWN);
         ConstructorSymbol throwableStringCtor = new ConstructorSymbol(
@@ -378,6 +419,21 @@ public final class SemanticAnalyzer {
                 false, false, NameMangler.mangleMethod(throwableClass.name(), "getCause", List.of(), false),
                 SourceLocation.UNKNOWN);
         throwableClass.addMethod(getCause);
+        ParameterSymbol suppressedParam = new ParameterSymbol(
+                "exception", throwableClass.asType(), SourceLocation.UNKNOWN);
+        MethodSymbol addSuppressed = new MethodSymbol(
+                throwableClass, "addSuppressed", VoidType.INSTANCE, List.of(suppressedParam),
+                false, false,
+                NameMangler.mangleMethod(throwableClass.name(), "addSuppressed",
+                        List.of(throwableClass.asType()), false),
+                SourceLocation.UNKNOWN);
+        throwableClass.addMethod(addSuppressed);
+        MethodSymbol getSuppressed = new MethodSymbol(
+                throwableClass, "getSuppressed", new ArrayType(throwableClass.asType()), List.of(),
+                false, false,
+                NameMangler.mangleMethod(throwableClass.name(), "getSuppressed", List.of(), false),
+                SourceLocation.UNKNOWN);
+        throwableClass.addMethod(getSuppressed);
 
         ConstructorSymbol exceptionString = addStringSuperCtor(exceptionClass);
         ConstructorSymbol runtimeString = addStringSuperCtor(runtimeExceptionClass);
@@ -492,6 +548,12 @@ public final class SemanticAnalyzer {
                 false, false, true, "_JN_String_length", SourceLocation.UNKNOWN);
         length.setFfiIntrinsic(true);
         stringClass.addMethod(length);
+
+        MethodSymbol utf8Length = new MethodSymbol(
+                stringClass, "utf8Length", PrimitiveType.INT, List.of(),
+                false, false, true, "_JN_String_utf8Length", SourceLocation.UNKNOWN);
+        utf8Length.setFfiIntrinsic(true);
+        stringClass.addMethod(utf8Length);
 
         ParameterSymbol charAtParam = new ParameterSymbol("index", PrimitiveType.INT, SourceLocation.UNKNOWN);
         MethodSymbol charAt = new MethodSymbol(
@@ -661,15 +723,31 @@ public final class SemanticAnalyzer {
 
         addFfiIntrinsic(futureClass, "completed", futureClass.asType(), List.of(
                 new ParameterSymbol("value", objectClass.asType(), SourceLocation.UNKNOWN)));
+        addFfiIntrinsic(futureClass, "pending", futureClass.asType(), List.of());
+        addFfiIntrinsic(futureClass, "failed", futureClass.asType(), List.of(
+                new ParameterSymbol("error", objectClass.asType(), SourceLocation.UNKNOWN)));
         addFfiIntrinsic(futureClass, "isComplete", PrimitiveType.BOOLEAN, List.of(
                 new ParameterSymbol("future", futureClass.asType(), SourceLocation.UNKNOWN)));
+        addFfiIntrinsic(futureClass, "getState", PrimitiveType.INT, List.of(
+                new ParameterSymbol("future", futureClass.asType(), SourceLocation.UNKNOWN)));
         addFfiIntrinsic(futureClass, "getCompleted", objectClass.asType(), List.of(
+                new ParameterSymbol("future", futureClass.asType(), SourceLocation.UNKNOWN)));
+        addFfiIntrinsic(futureClass, "getError", objectClass.asType(), List.of(
+                new ParameterSymbol("future", futureClass.asType(), SourceLocation.UNKNOWN)));
+        addFfiIntrinsic(futureClass, "tryComplete", PrimitiveType.BOOLEAN, List.of(
+                new ParameterSymbol("future", futureClass.asType(), SourceLocation.UNKNOWN),
+                new ParameterSymbol("value", objectClass.asType(), SourceLocation.UNKNOWN)));
+        addFfiIntrinsic(futureClass, "tryFail", PrimitiveType.BOOLEAN, List.of(
+                new ParameterSymbol("future", futureClass.asType(), SourceLocation.UNKNOWN),
+                new ParameterSymbol("error", objectClass.asType(), SourceLocation.UNKNOWN)));
+        addFfiIntrinsic(futureClass, "tryCancel", PrimitiveType.BOOLEAN, List.of(
                 new ParameterSymbol("future", futureClass.asType(), SourceLocation.UNKNOWN)));
         addFfiIntrinsic(futureClass, "awaitCooperative", VoidType.INSTANCE, List.of(
                 new ParameterSymbol("future", futureClass.asType(), SourceLocation.UNKNOWN),
                 new ParameterSymbol("frame", objectClass.asType(), SourceLocation.UNKNOWN),
                 new ParameterSymbol("resumeState", PrimitiveType.INT, SourceLocation.UNKNOWN),
                 new ParameterSymbol("resumeFn", objectClass.asType(), SourceLocation.UNKNOWN)));
+        // Runtime state: 0=PENDING 1=SUCCESS 2=FAILED 3=CANCELLED (see AsyncRuntimeEmitter)
 
         futureClass.setLayout(ObjectLayoutBuilder.build(futureClass));
         futureClass.setVtable(new io.jnative.vtable.VTable(futureClass, List.of()));
@@ -977,9 +1055,14 @@ public final class SemanticAnalyzer {
         // Same simple name in the same package is duplicate; across packages OK.
         ClassSymbol symbol = new ClassSymbol(fqn, cls.location(), false);
         symbol.setPackageName(cls.packageName());
-        symbol.setVisibility(cls.visibility() == null ? Visibility.PACKAGE : cls.visibility());
+        symbol.setVisibility(defaultTypeVisibility(cls));
         symbol.setImportTypes(cls.imports().stream().map(ImportDeclaration::qualifiedType).toList());
         symbol.setAbstract(cls.isAbstract());
+        symbol.setFinal(cls.isFinal() || cls.isEnum());
+        symbol.setEnum(cls.isEnum());
+        if (cls.isEnum()) {
+            symbol.setEnumConstants(cls.enumConstants());
+        }
         symbol.setTypeParameters(createTypeParameters(cls.typeParameters(), symbol, null));
         classes.put(fqn, symbol);
         indexSimpleName(cls.name(), fqn);
@@ -998,7 +1081,7 @@ public final class SemanticAnalyzer {
         }
         InterfaceSymbol symbol = new InterfaceSymbol(fqn, cls.location(), false);
         symbol.setPackageName(cls.packageName());
-        symbol.setVisibility(cls.visibility() == null ? Visibility.PACKAGE : cls.visibility());
+        symbol.setVisibility(defaultTypeVisibility(cls));
         symbol.setImportTypes(cls.imports().stream().map(ImportDeclaration::qualifiedType).toList());
         symbol.setTypeParameters(createTypeParameters(cls.typeParameters(), symbol, null));
         interfaces.put(fqn, symbol);
@@ -1222,6 +1305,11 @@ public final class SemanticAnalyzer {
             reporter.error(cls.location(), "class '" + cls.name() + "' cannot extend String");
             return;
         }
+        if (superSymbol.isFinal()) {
+            reporter.error(cls.location(),
+                    "cannot inherit from final class '" + superSymbol.simpleName() + "'");
+            return;
+        }
         symbol.setSuperClass(superSymbol);
         if (superType instanceof ParameterizedType pt) {
             symbol.setParameterizedSuper(pt);
@@ -1379,7 +1467,9 @@ public final class SemanticAnalyzer {
             }
             FieldSymbol fs = new FieldSymbol(
                     symbol, field.name(), type, index, field.isStatic(), field.isVolatile(),
-                    field.visibility() == null ? Visibility.PACKAGE : field.visibility(),
+                    exportStdlibMember(
+                            field.visibility() == null ? Visibility.PACKAGE : field.visibility(),
+                            field.location()),
                     field.location());
             if (field.initializer() != null) {
                 fs.setInitializer(field.initializer());
@@ -1408,7 +1498,7 @@ public final class SemanticAnalyzer {
                 continue;
             }
             JType initType = analyzeExpression(field.initializer());
-            if (!field.type().isAssignableFrom(initType) && !(initType instanceof ErrorType)) {
+            if (!assignableWithBoxing(field.type(), initType) && !(initType instanceof ErrorType)) {
                 reporter.error(field.location(),
                         "incompatible types: " + initType + " cannot be converted to " + field.type());
             }
@@ -1429,7 +1519,7 @@ public final class SemanticAnalyzer {
             List<ParameterSymbol> params = new ArrayList<>();
             for (Parameter p : method.parameters()) {
                 JType pt = resolveTypeName(p.type(), p.isArray(), p.location());
-                params.add(new ParameterSymbol(p.name(), pt, p.location()));
+                params.add(new ParameterSymbol(p.name(), pt, p.location(), p.isFinal()));
             }
             JType logicalReturn = resolveTypeName(method.returnType(), method.returnsArray(), method.location());
             JType returnType = logicalReturn;
@@ -1456,13 +1546,19 @@ public final class SemanticAnalyzer {
                 }
             }
 
-            boolean isMain = method.name().equals("main")
+            boolean looksLikeMain = method.name().equals("main")
                     && method.isStatic()
                     && returnType instanceof VoidType
                     && params.size() == 1
                     && params.getFirst().type() instanceof ArrayType at
                     && at.elementType() instanceof ClassType ct
                     && ct.name().equals("String");
+            // Only one process entry per CU may mangle to jn_main. Additional
+            // main methods keep normal mangling (avoids duplicate @jn_main / %args.addr).
+            boolean isMain = looksLikeMain && !entryMainAssigned;
+            if (isMain) {
+                entryMainAssigned = true;
+            }
 
             String mangled = NameMangler.mangleMethod(
                     symbol.name(), method.name(),
@@ -1473,9 +1569,11 @@ public final class SemanticAnalyzer {
                     symbol, method.name(), returnType, params,
                     method.isStatic(), isMain, method.isNative(), method.isAbstract(), mangled, method.location());
             ms.setTypeParameters(methodTypeParams);
-            ms.setVisibility(method.visibility() == null
+            ms.setFinal(method.isFinal());
+            Visibility methodVis = method.visibility() == null
                     ? (method.isPublic() ? Visibility.PUBLIC : Visibility.PACKAGE)
-                    : method.visibility());
+                    : method.visibility();
+            ms.setVisibility(exportStdlibMember(methodVis, method.location()));
             if (method.isAsync()) {
                 ms.setAsync(true);
                 ms.setLogicalReturnType(logicalReturn);
@@ -1499,6 +1597,10 @@ public final class SemanticAnalyzer {
                                 "instance/static mismatch overriding '" + method.name() + "'");
                     }
                     /* static same-signature hide is allowed; different signatures are overloads */
+                } else if (parent.isFinal()) {
+                    reporter.error(method.location(),
+                            "method '" + method.name() + "' cannot override final method in "
+                                    + parent.owner().name());
                 } else if (!ms.sameSignatureAs(parent)) {
                     reporter.error(method.location(),
                             "method '" + method.name()
@@ -1539,7 +1641,7 @@ public final class SemanticAnalyzer {
             List<ParameterSymbol> params = new ArrayList<>();
             for (Parameter p : method.parameters()) {
                 JType pt = resolveTypeName(p.type(), p.isArray(), p.location());
-                params.add(new ParameterSymbol(p.name(), pt, p.location()));
+                params.add(new ParameterSymbol(p.name(), pt, p.location(), p.isFinal()));
             }
             JType returnType = resolveTypeName(method.returnType(), method.returnsArray(), method.location());
             String mangled = NameMangler.mangleMethod(
@@ -1550,9 +1652,10 @@ public final class SemanticAnalyzer {
                     symbol, method.name(), returnType, params,
                     method.isStatic(), false, method.isNative(), true, mangled, method.location());
             ms.setTypeParameters(methodTypeParams);
-            ms.setVisibility(method.visibility() == null
+            Visibility ifaceVis = method.visibility() == null
                     ? (method.isPublic() ? Visibility.PUBLIC : Visibility.PACKAGE)
-                    : method.visibility());
+                    : method.visibility();
+            ms.setVisibility(exportStdlibMember(ifaceVis, method.location()));
             applyEffectContract(ms, method.effectContract());
             if (!symbol.addMethod(ms)) {
                 reporter.error(method.location(),
@@ -1641,7 +1744,12 @@ public final class SemanticAnalyzer {
                 adapter, samDecl.name(), ft.returnType(), params,
                 false, false, true, false, mangled, iface.location());
         ms.setFfiIntrinsic(true);
-        ms.setSamInvokeRuntime(invokeRuntimeForFunctionType(ft));
+        String invokeRt = invokeRuntimeForFunctionType(ft);
+        if (invokeRt == null) {
+            throw new IllegalStateException(
+                    "unsupported functional interface signature: " + iface.name() + " " + ft);
+        }
+        ms.setSamInvokeRuntime(invokeRt);
         adapter.addMethod(ms);
         adapter.setLayout(ObjectLayoutBuilder.build(adapter));
         adapter.setVtable(VTableBuilder.build(adapter));
@@ -1651,35 +1759,60 @@ public final class SemanticAnalyzer {
         return adapter;
     }
 
+    /**
+     * @return runtime invoke helper name, or {@code null} if the SAM signature is unsupported
+     *         (must diagnose — never silently map to a wrong arity/return helper).
+     */
     private static String invokeRuntimeForFunctionType(FunctionType ft) {
         List<JType> params = ft.parameterTypes();
         JType ret = ft.returnType();
         if (params.isEmpty() && ret instanceof VoidType) {
             return "jnative_invoke_void";
         }
-        if (params.size() == 1 && params.getFirst() instanceof PrimitiveType p && p == PrimitiveType.INT
-                && ret instanceof PrimitiveType r && r == PrimitiveType.INT) {
+        if (params.isEmpty() && ret.isReference()) {
+            return "jnative_invoke_ptr";
+        }
+        if (params.size() == 1 && isInvokeI32Like(params.getFirst()) && isInvokeI32Like(ret)) {
             return "jnative_invoke_i32_i32";
         }
         if (params.size() == 2
-                && params.get(0) instanceof PrimitiveType p0 && p0 == PrimitiveType.INT
-                && params.get(1) instanceof PrimitiveType p1 && p1 == PrimitiveType.INT
-                && ret instanceof PrimitiveType r && r == PrimitiveType.INT) {
+                && isInvokeI32Like(params.get(0))
+                && isInvokeI32Like(params.get(1))
+                && isInvokeI32Like(ret)) {
             return "jnative_invoke_i32_i32_i32";
         }
-        if (params.size() == 1 && params.getFirst().isReference() && ret instanceof VoidType) {
+        if (params.size() == 1 && isInvokePtrLike(params.getFirst()) && ret instanceof VoidType) {
             return "jnative_invoke_void_ptr";
         }
+        if (params.size() == 1 && isInvokePtrLike(params.getFirst()) && isInvokeI32Like(ret)) {
+            return "jnative_invoke_i32_ptr";
+        }
         if (params.size() == 2
-                && params.get(0).isReference()
-                && params.get(1).isReference()
+                && isInvokePtrLike(params.get(0))
+                && isInvokePtrLike(params.get(1))
                 && ret instanceof VoidType) {
             return "jnative_invoke_void_ptr_ptr";
         }
-        if (params.size() == 1 && params.getFirst().isReference() && ret.isReference()) {
+        if (params.size() == 1 && isInvokePtrLike(params.getFirst()) && ret.isReference()) {
             return "jnative_invoke_ptr_ptr";
         }
-        return "jnative_invoke_void";
+        if (params.size() == 2
+                && isInvokePtrLike(params.get(0))
+                && isInvokePtrLike(params.get(1))
+                && isInvokeI32Like(ret)) {
+            return "jnative_invoke_i32_ptr_ptr";
+        }
+        return null;
+    }
+
+    private static boolean isInvokePtrLike(JType t) {
+        return t != null && (t.isReference() || t instanceof NativePtrType);
+    }
+
+    /** int/boolean share i32 ABI in callable invoke helpers. */
+    private static boolean isInvokeI32Like(JType t) {
+        return t instanceof PrimitiveType p
+                && (p == PrimitiveType.INT || p == PrimitiveType.BOOLEAN);
     }
 
     private FunctionType expectedSamFunctionType() {
@@ -1754,7 +1887,7 @@ public final class SemanticAnalyzer {
             List<ParameterSymbol> params = new ArrayList<>();
             for (Parameter p : method.parameters()) {
                 JType pt = resolveTypeName(p.type(), p.isArray(), p.location());
-                params.add(new ParameterSymbol(p.name(), pt, p.location()));
+                params.add(new ParameterSymbol(p.name(), pt, p.location(), p.isFinal()));
             }
             // Check duplicate signatures
             for (ConstructorSymbol existing : symbol.constructors()) {
@@ -1904,19 +2037,23 @@ public final class SemanticAnalyzer {
             currentConstructor = ctor;
             currentMethod = null;
             current = new Scope(null);
+            beginDaFrame();
             current.declare(new Symbol.VariableBinding(
                     new VariableSymbol("this", owner.asType(),
                             VariableSymbol.Kind.PARAMETER, method.location())));
             for (ParameterSymbol p : ctor.parameters()) {
                 VariableSymbol vs = new VariableSymbol(
-                        p.name(), p.type(), VariableSymbol.Kind.PARAMETER, p.location());
+                        p.name(), p.type(), VariableSymbol.Kind.PARAMETER, p.location(),
+                        false, p.isFinal());
                 if (!current.declare(new Symbol.VariableBinding(vs))) {
                     reporter.error(p.location(), "duplicate parameter '" + p.name() + "'");
                 }
+                daEnv.declare(vs, true);
             }
             analyzeStatement(method.body());
             current = null;
             currentConstructor = null;
+            endDaFrame();
         } finally {
             popTypeParamScope();
         }
@@ -1954,6 +2091,7 @@ public final class SemanticAnalyzer {
         currentMethod = matched;
         currentConstructor = null;
         current = new Scope(null);
+        beginDaFrame();
         pushTypeParamScope(owner.typeParameters());
         pushTypeParamScope(currentMethod.typeParameters());
         try {
@@ -1964,10 +2102,12 @@ public final class SemanticAnalyzer {
             }
             for (ParameterSymbol p : currentMethod.parameters()) {
                 VariableSymbol vs = new VariableSymbol(
-                        p.name(), p.type(), VariableSymbol.Kind.PARAMETER, p.location());
+                        p.name(), p.type(), VariableSymbol.Kind.PARAMETER, p.location(),
+                        false, p.isFinal());
                 if (!current.declare(new Symbol.VariableBinding(vs))) {
                     reporter.error(p.location(), "duplicate parameter '" + p.name() + "'");
                 }
+                daEnv.declare(vs, true);
             }
             if (method.isNative() || method.isAbstract() || method.body() == null) {
                 return;
@@ -1985,7 +2125,84 @@ public final class SemanticAnalyzer {
             popTypeParamScope(); // class type params
             current = null;
             currentMethod = null;
+            endDaFrame();
         }
+    }
+
+    private void beginDaFrame() {
+        daEnv = new DaEnv();
+        daReachable = true;
+        breakDaExits.clear();
+        blockDaLocals.clear();
+        loopDeclaredLocals.clear();
+    }
+
+    private void endDaFrame() {
+        daEnv = new DaEnv();
+        daReachable = true;
+        breakDaExits.clear();
+        blockDaLocals.clear();
+        loopDeclaredLocals.clear();
+    }
+
+    private boolean isLiteralTrue(Expression expr) {
+        return expr instanceof LiteralExpression lit
+                && lit.kind() == LiteralExpression.Kind.BOOLEAN
+                && Boolean.TRUE.equals(lit.value());
+    }
+
+    private void noteLocalForDa(VariableSymbol vs) {
+        if (!blockDaLocals.isEmpty()) {
+            blockDaLocals.peek().add(vs);
+        }
+        if (!loopDeclaredLocals.isEmpty()) {
+            loopDeclaredLocals.peek().add(vs);
+        }
+    }
+
+    private boolean declaredInsideSomeLoop(VariableSymbol vs) {
+        for (Set<VariableSymbol> set : loopDeclaredLocals) {
+            if (set.contains(vs)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private void checkLocalRead(VariableSymbol vs, SourceLocation loc) {
+        if (skippingDaRead || !daReachable || !daEnv.tracks(vs)) {
+            return;
+        }
+        if (vs.kind() == VariableSymbol.Kind.LOCAL && !daEnv.isAssigned(vs)) {
+            reporter.error(loc,
+                    "variable '" + vs.name() + "' might not have been initialized");
+        }
+    }
+
+    private void assignLocal(VariableSymbol vs, SourceLocation loc) {
+        if (!daReachable || !daEnv.tracks(vs)) {
+            return;
+        }
+        if (vs.isFinal()) {
+            if (daEnv.isAssigned(vs)) {
+                reporter.error(loc,
+                        "cannot assign a value to final variable '" + vs.name() + "'");
+                return;
+            }
+            if (!daEnv.isUnassigned(vs)) {
+                reporter.error(loc,
+                        "variable '" + vs.name() + "' might already have been assigned");
+                return;
+            }
+            // One-pass loop analysis: outer blank finals are not DU on later iterations.
+            if (loopDepth > 0 && !declaredInsideSomeLoop(vs)) {
+                reporter.error(loc,
+                        "variable '" + vs.name() + "' might already have been assigned");
+                return;
+            }
+        }
+        daEnv.markAssigned(vs);
+        vs.setAssignedAfterInit(true);
     }
 
     private void bindNativeMethod(
@@ -2113,6 +2330,10 @@ public final class SemanticAnalyzer {
             case WhileStatement w -> hasReturn(w.body());
             case DoWhileStatement d -> hasReturn(d.body());
             case ForStatement f -> hasReturn(f.body());
+            case EnhancedForStatement ef -> hasReturn(ef.body());
+            case SwitchStatement s -> s.sections().stream()
+                    .flatMap(sec -> sec.statements().stream())
+                    .anyMatch(this::hasReturn);
             case BreakStatement ignored -> false;
             case ContinueStatement ignored -> false;
             case TryStatement t -> hasReturn(t.tryBlock())
@@ -2122,13 +2343,233 @@ public final class SemanticAnalyzer {
         };
     }
 
+    /**
+     * Synthetic members for basic enums: {@code $name}/{@code $ordinal} instance fields,
+     * public static constants, private (String,int) constructor, and name/ordinal/values/valueOf.
+     */
+    private void registerEnumSynthetics(ClassSymbol symbol, ClassDeclaration cls) {
+        SourceLocation loc = cls.location();
+        JType self = symbol.asType();
+        JType stringType = stringClass.asType();
+        FieldSymbol nameField = new FieldSymbol(
+                symbol, "$name", stringType, 0, false, false, Visibility.PRIVATE, loc);
+        FieldSymbol ordinalField = new FieldSymbol(
+                symbol, "$ordinal", PrimitiveType.INT, 1, false, false, Visibility.PRIVATE, loc);
+        symbol.addField(nameField);
+        symbol.addField(ordinalField);
+        int index = 2;
+        for (String constant : cls.enumConstants()) {
+            FieldSymbol fs = new FieldSymbol(
+                    symbol, constant, self, index++, true, false, Visibility.PUBLIC, loc);
+            if (!symbol.addField(fs)) {
+                reporter.error(loc, "duplicate enum constant '" + constant + "'");
+            }
+        }
+        ConstructorSymbol ctor = new ConstructorSymbol(
+                symbol,
+                List.of(
+                        new ParameterSymbol("$name", stringType, loc),
+                        new ParameterSymbol("$ordinal", PrimitiveType.INT, loc)),
+                false,
+                loc);
+        symbol.addConstructor(ctor);
+
+        addEnumMethod(symbol, "name", stringType, List.of(), false, loc);
+        addEnumMethod(symbol, "ordinal", PrimitiveType.INT, List.of(), false, loc);
+        addEnumMethod(symbol, "values", new ArrayType(self), List.of(), true, loc);
+        addEnumMethod(symbol, "valueOf", self,
+                List.of(new ParameterSymbol("name", stringType, loc)), true, loc);
+    }
+
+    private void addEnumMethod(
+            ClassSymbol owner,
+            String name,
+            JType returnType,
+            List<ParameterSymbol> params,
+            boolean isStatic,
+            SourceLocation loc
+    ) {
+        String mangled = NameMangler.mangleMethod(
+                owner.name(), name, params.stream().map(ParameterSymbol::type).toList(), false);
+        MethodSymbol ms = new MethodSymbol(
+                owner, name, returnType, params, isStatic, false, false, false, mangled, loc);
+        ms.setVisibility(Visibility.PUBLIC);
+        // Bodies are synthesized in IrGenerator.lowerEnumMethods (no source MethodDeclaration).
+        owner.addMethod(ms);
+    }
+
+    private void analyzeSwitch(SwitchStatement s) {
+        JType selectorType = analyzeExpression(s.selector());
+        boolean enumSwitch = false;
+        ClassSymbol enumSym = null;
+        if (selectorType instanceof ClassType ct && ct.classSymbol().isEnum()) {
+            enumSwitch = true;
+            enumSym = ct.classSymbol();
+        } else if (selectorType == PrimitiveType.BYTE
+                || selectorType == PrimitiveType.SHORT
+                || selectorType == PrimitiveType.CHAR
+                || selectorType == PrimitiveType.INT) {
+            enumSwitch = false;
+        } else if (selectorType instanceof ErrorType) {
+            // already reported
+        } else {
+            reporter.error(s.selector().location(),
+                    "switch selector must be byte, short, char, int, or an enum type; found "
+                            + selectorType);
+        }
+
+        Set<Integer> intLabels = new HashSet<>();
+        Set<String> enumLabels = new HashSet<>();
+        boolean sawDefault = false;
+        DaEnv beforeSwitch = daEnv.copy();
+        breakDaExits.push(new ArrayList<>());
+        switchDepth++;
+        Scope previous = current;
+        current = new Scope(previous);
+        blockDaLocals.push(new ArrayList<>());
+        try {
+            for (SwitchSection section : s.sections()) {
+                for (SwitchLabel label : section.labels()) {
+                    switch (label) {
+                        case DefaultLabel d -> {
+                            if (sawDefault) {
+                                reporter.error(d.location(), "duplicate default label in switch");
+                            }
+                            sawDefault = true;
+                        }
+                        case CaseLabel c -> {
+                            if (enumSwitch && enumSym != null) {
+                                String constName = enumCaseName(c.constant());
+                                if (constName == null) {
+                                    reporter.error(c.location(),
+                                            "enum switch case must be an unqualified enum constant name");
+                                } else if (enumSym.enumOrdinal(constName) < 0) {
+                                    reporter.error(c.location(),
+                                            "unknown enum constant '" + constName + "' for type "
+                                                    + enumSym.simpleName());
+                                } else if (!enumLabels.add(constName)) {
+                                    reporter.error(c.location(),
+                                            "duplicate case label '" + constName + "'");
+                                }
+                            } else {
+                                Integer value = evalSwitchIntConstant(c.constant());
+                                if (value == null) {
+                                    reporter.error(c.location(),
+                                            "case label must be a compile-time integer constant");
+                                } else if (!intLabels.add(value)) {
+                                    reporter.error(c.location(),
+                                            "duplicate case label " + value);
+                                } else {
+                                    expressionTypes.put(c.constant(), PrimitiveType.INT);
+                                }
+                            }
+                        }
+                    }
+                }
+                // Case is a jump target: intersect fall-through state with pre-switch state.
+                if (!daReachable) {
+                    daEnv = beforeSwitch.copy();
+                    daReachable = true;
+                } else {
+                    DaEnv fall = daEnv.copy();
+                    daEnv = beforeSwitch.copy();
+                    daEnv.mergeFrom(fall);
+                }
+                for (Statement st : section.statements()) {
+                    analyzeStatement(st);
+                }
+            }
+            List<DaEnv> exits = breakDaExits.pop();
+            if (daReachable) {
+                exits.add(daEnv.copy());
+            }
+            if (!sawDefault) {
+                exits.add(beforeSwitch.copy());
+            }
+            if (exits.isEmpty()) {
+                daReachable = false;
+            } else {
+                daReachable = true;
+                daEnv = DaEnv.mergeAll(exits);
+            }
+        } finally {
+            for (VariableSymbol vs : blockDaLocals.pop()) {
+                daEnv.remove(vs);
+            }
+            current = previous;
+            switchDepth--;
+        }
+    }
+
+    private String enumCaseName(Expression constant) {
+        if (constant instanceof VariableExpression v) {
+            return v.name();
+        }
+        return null;
+    }
+
+    /** Compile-time int constant for switch case labels (literals, unary ±, grouping, int cast). */
+    private Integer evalSwitchIntConstant(Expression expr) {
+        return switch (expr) {
+            case LiteralExpression lit -> switch (lit.kind()) {
+                case INT -> (Integer) lit.value();
+                case LONG -> {
+                    long v = (Long) lit.value();
+                    if (v < Integer.MIN_VALUE || v > Integer.MAX_VALUE) {
+                        yield null;
+                    }
+                    yield (int) v;
+                }
+                default -> null;
+            };
+            case UnaryExpression u -> {
+                Integer inner = evalSwitchIntConstant(u.operand());
+                if (inner == null) {
+                    yield null;
+                }
+                yield switch (u.operator()) {
+                    case NEGATE -> -inner;
+                    case PLUS -> inner;
+                    default -> null;
+                };
+            }
+            case GroupingExpression g -> evalSwitchIntConstant(g.expression());
+            case CastExpression c -> {
+                JType target = resolveTypeName(c.type(), false, c.location());
+                if (target != PrimitiveType.INT && target != PrimitiveType.BYTE
+                        && target != PrimitiveType.SHORT && target != PrimitiveType.CHAR) {
+                    yield null;
+                }
+                Integer inner = evalSwitchIntConstant(c.expression());
+                if (inner == null) {
+                    yield null;
+                }
+                if (target == PrimitiveType.BYTE) {
+                    yield (int) (byte) (int) inner;
+                }
+                if (target == PrimitiveType.SHORT) {
+                    yield (int) (short) (int) inner;
+                }
+                if (target == PrimitiveType.CHAR) {
+                    yield inner & 0xFFFF;
+                }
+                yield inner;
+            }
+            default -> null;
+        };
+    }
+
     private void analyzeStatement(Statement stmt) {
         switch (stmt) {
             case BlockStatement b -> {
                 Scope previous = current;
                 current = new Scope(previous);
+                blockDaLocals.push(new ArrayList<>());
                 for (Statement s : b.statements()) {
                     analyzeStatement(s);
+                }
+                for (VariableSymbol vs : blockDaLocals.pop()) {
+                    daEnv.remove(vs);
                 }
                 current = previous;
             }
@@ -2136,72 +2577,358 @@ public final class SemanticAnalyzer {
             case ExpressionStatement e -> analyzeExpression(e.expression());
             case IfStatement i -> {
                 expectBoolean(analyzeExpression(i.condition()), i.condition().location(), "if condition");
+                DaEnv before = daEnv.copy();
+                boolean reachBefore = daReachable;
                 analyzeStatement(i.thenBranch());
+                DaEnv thenEnv = daEnv.copy();
+                boolean thenReach = daReachable;
+                daEnv = before.copy();
+                daReachable = reachBefore;
                 if (i.elseBranch() != null) {
                     analyzeStatement(i.elseBranch());
+                }
+                DaEnv elseEnv = daEnv.copy();
+                boolean elseReach = daReachable;
+                List<DaEnv> merge = new ArrayList<>();
+                if (thenReach) {
+                    merge.add(thenEnv);
+                }
+                if (elseReach) {
+                    merge.add(elseEnv);
+                }
+                if (merge.isEmpty()) {
+                    daReachable = false;
+                } else {
+                    daReachable = true;
+                    daEnv = DaEnv.mergeAll(merge);
                 }
             }
             case WhileStatement w -> {
                 expectBoolean(analyzeExpression(w.condition()), w.condition().location(), "while condition");
-                breakTargetDepth++;
+                DaEnv before = daEnv.copy();
+                boolean infinite = isLiteralTrue(w.condition());
+                breakDaExits.push(new ArrayList<>());
+                loopDeclaredLocals.push(new HashSet<>());
+                loopDepth++;
                 analyzeStatement(w.body());
-                breakTargetDepth--;
+                loopDepth--;
+                loopDeclaredLocals.pop();
+                List<DaEnv> exits = breakDaExits.pop();
+                if (!infinite) {
+                    exits.add(before);
+                }
+                if (exits.isEmpty()) {
+                    daReachable = false;
+                } else {
+                    daReachable = true;
+                    daEnv = DaEnv.mergeAll(exits);
+                }
             }
             case DoWhileStatement d -> {
-                breakTargetDepth++;
+                breakDaExits.push(new ArrayList<>());
+                loopDeclaredLocals.push(new HashSet<>());
+                loopDepth++;
                 analyzeStatement(d.body());
-                breakTargetDepth--;
+                loopDepth--;
+                loopDeclaredLocals.pop();
+                List<DaEnv> breaks = breakDaExits.pop();
                 expectBoolean(analyzeExpression(d.condition()), d.condition().location(), "do-while condition");
+                boolean infinite = isLiteralTrue(d.condition());
+                List<DaEnv> exits = new ArrayList<>(breaks);
+                if (!infinite && daReachable) {
+                    exits.add(daEnv.copy());
+                }
+                if (exits.isEmpty()) {
+                    daReachable = false;
+                } else {
+                    daReachable = true;
+                    daEnv = DaEnv.mergeAll(exits);
+                }
             }
             case ForStatement f -> {
                 Scope previous = current;
                 current = new Scope(previous);
+                blockDaLocals.push(new ArrayList<>());
                 if (f.initializer() != null) {
                     analyzeStatement(f.initializer());
                 }
+                DaEnv beforeLoop = daEnv.copy();
                 if (f.condition() != null) {
                     expectBoolean(analyzeExpression(f.condition()),
                             f.condition().location(), "for condition");
                 }
-                if (f.update() != null) {
-                    analyzeExpression(f.update());
-                }
-                breakTargetDepth++;
+                boolean infinite = f.condition() == null || isLiteralTrue(f.condition());
+                breakDaExits.push(new ArrayList<>());
+                loopDeclaredLocals.push(new HashSet<>());
+                loopDepth++;
                 analyzeStatement(f.body());
-                breakTargetDepth--;
+                loopDepth--;
+                loopDeclaredLocals.pop();
+                if (f.update() != null && daReachable) {
+                    analyzeExpression(f.update());
+                } else if (f.update() != null) {
+                    // Still type-check update on a side path
+                    boolean r = daReachable;
+                    daReachable = true;
+                    analyzeExpression(f.update());
+                    daReachable = r;
+                }
+                List<DaEnv> exits = breakDaExits.pop();
+                if (!infinite) {
+                    exits.add(beforeLoop);
+                }
+                if (exits.isEmpty()) {
+                    daReachable = false;
+                } else {
+                    daReachable = true;
+                    daEnv = DaEnv.mergeAll(exits);
+                }
+                for (VariableSymbol vs : blockDaLocals.pop()) {
+                    daEnv.remove(vs);
+                }
                 current = previous;
             }
+            case EnhancedForStatement ef -> analyzeEnhancedFor(ef);
+            case SwitchStatement s -> analyzeSwitch(s);
             case BreakStatement b -> {
-                if (breakTargetDepth <= 0) {
+                if (loopDepth + switchDepth <= 0) {
                     reporter.error(b.location(),
                             "[JN1001] break outside loop or switch");
+                } else if (daReachable) {
+                    if (!breakDaExits.isEmpty()) {
+                        breakDaExits.peek().add(daEnv.copy());
+                    }
+                    daReachable = false;
                 }
             }
             case ContinueStatement c -> {
-                if (breakTargetDepth <= 0) {
+                if (loopDepth <= 0) {
                     reporter.error(c.location(),
                             "[JN1002] continue outside loop");
+                } else if (daReachable) {
+                    daReachable = false;
                 }
             }
-            case ReturnStatement r -> analyzeReturn(r);
+            case ReturnStatement r -> {
+                analyzeReturn(r);
+                if (daReachable) {
+                    daReachable = false;
+                }
+            }
             case ConstructorDelegationStatement d -> {
                 for (Expression arg : d.arguments()) {
                     analyzeExpression(arg);
                 }
-                // Target already resolved in resolveConstructorDelegations; store on a side map
                 if (currentConstructor != null && currentConstructor.delegatesTo() != null) {
                     // Keep for IR via ConstructorSymbol.delegatesTo
                 }
             }
             case EmptyStatement ignored -> {
             }
-            case ThrowStatement t -> analyzeThrow(t);
+            case ThrowStatement t -> {
+                analyzeThrow(t);
+                if (daReachable) {
+                    daReachable = false;
+                }
+            }
             case TryStatement t -> analyzeTry(t);
         }
     }
 
+    private void analyzeEnhancedFor(EnhancedForStatement ef) {
+        JType elemType = resolveTypeName(ef.elementType(), ef.elementIsArray(), ef.location());
+        if (elemType instanceof VoidType) {
+            reporter.error(ef.location(), "cannot declare variable of type void");
+            elemType = ErrorType.INSTANCE;
+        }
+        JType iterableType = analyzeExpression(ef.array());
+        boolean isArray = iterableType instanceof ArrayType;
+        JType sourceElem = null;
+        if (isArray) {
+            sourceElem = ((ArrayType) iterableType).elementType();
+        } else if (!(iterableType instanceof ErrorType)) {
+            sourceElem = extractIterableElementType(iterableType);
+            if (sourceElem == null) {
+                reporter.error(ef.array().location(),
+                        "enhanced for requires an array or Iterable; found " + iterableType);
+            }
+        }
+        if (sourceElem != null && !(elemType instanceof ErrorType)
+                && !assignableWithBoxing(elemType, sourceElem)) {
+            reporter.error(ef.location(),
+                    "incompatible types: " + sourceElem
+                            + " cannot be converted to " + elemType);
+        }
+
+        Scope previous = current;
+        current = new Scope(previous);
+        blockDaLocals.push(new ArrayList<>());
+
+        if (!isArray && sourceElem != null) {
+            int id = System.identityHashCode(ef);
+            String iterName = "$foreach$iter$" + id;
+            MethodCallExpression iteratorCall = new MethodCallExpression(
+                    ef.array(), "iterator", List.of(), ef.location());
+            JType iteratorType = analyzeExpression(iteratorCall);
+            if (!(iteratorType instanceof ErrorType)) {
+                VariableSymbol iterVs = new VariableSymbol(
+                        iterName, iteratorType, VariableSymbol.Kind.LOCAL, ef.location());
+                current.declare(new Symbol.VariableBinding(iterVs));
+                daEnv.declare(iterVs, true);
+                noteLocalForDa(iterVs);
+
+                VariableExpression iterVar = new VariableExpression(iterName, ef.location());
+                expressionTypes.put(iterVar, iteratorType);
+                resolvedSymbols.put(iterVar, iterVs);
+
+                MethodCallExpression hasNextCall = new MethodCallExpression(
+                        iterVar, "hasNext", List.of(), ef.location());
+                MethodCallExpression nextCall = new MethodCallExpression(
+                        iterVar, "next", List.of(), ef.location());
+                JType hn = analyzeExpression(hasNextCall);
+                expectBoolean(hn, hasNextCall.location(), "Iterator.hasNext()");
+                analyzeExpression(nextCall);
+                enhancedForDesugars.put(ef, new EnhancedForDesugar(
+                        iteratorCall, hasNextCall, nextCall, iterName));
+            }
+        }
+
+        VariableSymbol vs = new VariableSymbol(
+                ef.variableName(), elemType, VariableSymbol.Kind.LOCAL, ef.location(),
+                false, ef.elementIsFinal());
+        if (!current.declare(new Symbol.VariableBinding(vs))) {
+            reporter.error(ef.location(), "duplicate variable '" + ef.variableName() + "'");
+        }
+        daEnv.declare(vs, true);
+        noteLocalForDa(vs);
+
+        DaEnv before = daEnv.copy();
+        breakDaExits.push(new ArrayList<>());
+        loopDeclaredLocals.push(new HashSet<>());
+        loopDepth++;
+        analyzeStatement(ef.body());
+        loopDepth--;
+        loopDeclaredLocals.pop();
+        List<DaEnv> exits = breakDaExits.pop();
+        exits.add(before);
+        daReachable = true;
+        daEnv = DaEnv.mergeAll(exits);
+        for (VariableSymbol local : blockDaLocals.pop()) {
+            daEnv.remove(local);
+        }
+        current = previous;
+    }
+
+    /** Element type of Iterable&lt;E&gt; (or subtype), or null if not iterable. */
+    private JType extractIterableElementType(JType type) {
+        InterfaceSymbol iterable = findInterfaceBySimpleName("Iterable");
+        if (iterable == null) {
+            return null;
+        }
+        if (type instanceof ParameterizedType pt) {
+            if (pt.raw() instanceof InterfaceSymbol is && sameInterface(is, iterable)) {
+                return pt.typeArguments().isEmpty() ? null : pt.typeArguments().get(0);
+            }
+            if (pt.raw() instanceof ClassSymbol cs) {
+                TypeSubstitution sub = TypeSubstitution.zip(cs.typeParameters(), pt.typeArguments());
+                return findIterableElemFromClass(cs, sub, iterable);
+            }
+            if (pt.raw() instanceof InterfaceSymbol is) {
+                TypeSubstitution sub = TypeSubstitution.zip(is.typeParameters(), pt.typeArguments());
+                return findIterableElemFromIface(is, sub, iterable);
+            }
+        }
+        if (type instanceof ClassType ct) {
+            return findIterableElemFromClass(
+                    ct.classSymbol(), new TypeSubstitution(Map.of()), iterable);
+        }
+        if (type instanceof InterfaceType it) {
+            return findIterableElemFromIface(
+                    it.interfaceSymbol(), new TypeSubstitution(Map.of()), iterable);
+        }
+        return null;
+    }
+
+    private JType findIterableElemFromClass(
+            ClassSymbol cs, TypeSubstitution classSub, InterfaceSymbol iterable
+    ) {
+        for (ParameterizedType impl : cs.implementedParameterizedInterfaces()) {
+            JType applied = classSub.apply(impl);
+            if (applied instanceof ParameterizedType pt && pt.raw() instanceof InterfaceSymbol is) {
+                TypeSubstitution ifaceSub = TypeSubstitution.zip(
+                        is.typeParameters(), pt.typeArguments());
+                JType elem = findIterableElemFromIface(is, ifaceSub, iterable);
+                if (elem != null) {
+                    return elem;
+                }
+            }
+        }
+        for (InterfaceSymbol iface : cs.implementedInterfaces()) {
+            JType elem = findIterableElemFromIface(iface, classSub, iterable);
+            if (elem != null) {
+                return elem;
+            }
+        }
+        return cs.superClass()
+                .map(sup -> findIterableElemFromClass(sup, classSub, iterable))
+                .orElse(null);
+    }
+
+    private JType findIterableElemFromIface(
+            InterfaceSymbol iface, TypeSubstitution outerSub, InterfaceSymbol iterable
+    ) {
+        if (sameInterface(iface, iterable)) {
+            if (iface.typeParameters().isEmpty()) {
+                return objectClass != null ? objectClass.asType() : null;
+            }
+            return outerSub.apply(iface.typeParameters().get(0).asType());
+        }
+        for (ParameterizedType superPt : iface.parameterizedSuperInterfaces()) {
+            JType applied = outerSub.apply(superPt);
+            if (applied instanceof ParameterizedType pt && pt.raw() instanceof InterfaceSymbol is) {
+                if (sameInterface(is, iterable)) {
+                    return pt.typeArguments().isEmpty() ? null : pt.typeArguments().get(0);
+                }
+                TypeSubstitution nested = TypeSubstitution.zip(
+                        is.typeParameters(), pt.typeArguments());
+                JType elem = findIterableElemFromIface(is, nested, iterable);
+                if (elem != null) {
+                    return elem;
+                }
+            }
+        }
+        for (InterfaceSymbol superI : iface.superInterfaces()) {
+            JType elem = findIterableElemFromIface(superI, outerSub, iterable);
+            if (elem != null) {
+                return elem;
+            }
+        }
+        return null;
+    }
+
+    private InterfaceSymbol findInterfaceBySimpleName(String simple) {
+        InterfaceSymbol direct = interfaces.get(simple);
+        if (direct != null) {
+            return direct;
+        }
+        for (InterfaceSymbol is : interfaces.values()) {
+            if (simple.equals(is.simpleName())) {
+                return is;
+            }
+        }
+        return null;
+    }
+
+    private static boolean sameInterface(InterfaceSymbol a, InterfaceSymbol b) {
+        return a == b || a.name().equals(b.name()) || a.simpleName().equals(b.simpleName());
+    }
+
     private void analyzeThrow(ThrowStatement t) {
         JType type = analyzeExpression(t.expression());
+        // Java: `throw null` is well-typed and becomes NullPointerException at runtime.
+        if (type instanceof NullType) {
+            return;
+        }
         if (!isThrowableType(type) && !(type instanceof ErrorType)) {
             reporter.error(t.location(), "throw expression must be a Throwable subtype");
         }
@@ -2252,11 +2979,13 @@ public final class SemanticAnalyzer {
             Scope previous = current;
             current = new Scope(previous);
             VariableSymbol vs = new VariableSymbol(
-                    c.variableName(), catchType, VariableSymbol.Kind.LOCAL, c.location());
+                    c.variableName(), catchType, VariableSymbol.Kind.LOCAL, c.location(), false, true);
             if (!current.declare(new Symbol.VariableBinding(vs))) {
                 reporter.error(c.location(), "duplicate variable '" + c.variableName() + "'");
             }
+            daEnv.declare(vs, true);
             analyzeStatement(c.body());
+            daEnv.remove(vs);
             current = previous;
         }
         if (t.finallyBlock() != null) {
@@ -2365,7 +3094,7 @@ public final class SemanticAnalyzer {
                         initExpected = type;
                     }
                     JType initType = analyzeExpression(init, initExpected);
-                    if (!type.isAssignableFrom(initType)) {
+                    if (!assignableWithBoxing(type, initType)) {
                         reporter.error(v.location(),
                                 "incompatible types: " + initType
                                         + " cannot be converted to " + type);
@@ -2380,7 +3109,7 @@ public final class SemanticAnalyzer {
         }
 
         VariableSymbol vs = new VariableSymbol(
-                v.name(), type, VariableSymbol.Kind.LOCAL, v.location(), v.stackAllocated());
+                v.name(), type, VariableSymbol.Kind.LOCAL, v.location(), v.stackAllocated(), v.isFinal());
         if (v.stackAllocated()) {
             vs.setProvenance(PointerProvenance.STACK);
         } else if (type instanceof NativePtrType && v.initializer() != null) {
@@ -2388,6 +3117,12 @@ public final class SemanticAnalyzer {
         }
         if (!current.declare(new Symbol.VariableBinding(vs))) {
             reporter.error(v.location(), "duplicate variable '" + v.name() + "'");
+        }
+        boolean initialized = v.initializer() != null;
+        daEnv.declare(vs, initialized);
+        noteLocalForDa(vs);
+        if (initialized) {
+            vs.setAssignedAfterInit(false);
         }
     }
 
@@ -2401,7 +3136,7 @@ public final class SemanticAnalyzer {
         }
         JType expected;
         FunctionType samFt = expectedSamFunctionType();
-        if (inLambdaBody && samFt != null) {
+        if (!lambdaStack.isEmpty() && samFt != null) {
             expected = samFt.returnType();
         } else if (currentMethod == null) {
             reporter.error(r.location(), "return outside method");
@@ -2420,7 +3155,7 @@ public final class SemanticAnalyzer {
         JType actual = analyzeExpression(r.value(), samExpectedType(expected));
         if (expected instanceof VoidType) {
             reporter.error(r.location(), "cannot return a value from void method");
-        } else if (!expected.isAssignableFrom(actual)) {
+        } else if (!assignableWithBoxing(expected, actual)) {
             reporter.error(r.location(),
                     "incompatible return type: " + actual + " cannot be converted to " + expected);
         }
@@ -2493,6 +3228,7 @@ public final class SemanticAnalyzer {
         return switch (l.kind()) {
             case INT -> PrimitiveType.INT;
             case LONG -> PrimitiveType.LONG;
+            case FLOAT -> PrimitiveType.FLOAT;
             case DOUBLE -> PrimitiveType.DOUBLE;
             case BOOLEAN -> PrimitiveType.BOOLEAN;
             case STRING -> stringClass.asType();
@@ -2501,12 +3237,14 @@ public final class SemanticAnalyzer {
 
     private JType typeOfThis(ThisExpression t) {
         if (currentConstructor != null) {
+            captureEnclosingThis(t.location());
             return currentClass.asType();
         }
         if (currentMethod == null || currentMethod.isStatic()) {
             reporter.error(t.location(), "'this' is not available in a static context");
             return ErrorType.INSTANCE;
         }
+        captureEnclosingThis(t.location());
         return currentClass.asType();
     }
 
@@ -2515,13 +3253,9 @@ public final class SemanticAnalyzer {
         if (symbol.isPresent() && symbol.get() instanceof Symbol.VariableBinding vb) {
             resolvedSymbols.put(v, vb.variable());
             VariableSymbol vs = vb.variable();
-            if (inLambdaBody && lambdaBodyScope != null && !isLambdaLocalSymbol(vs)) {
-                lambdaCapturedVars.add(vs);
-                vs.setCapturedByLambda(true);
-                if (vs.isAssignedAfterInit()) {
-                    reporter.error(v.location(),
-                            "local variable '" + v.name() + "' must be effectively final");
-                }
+            checkLocalRead(vs, v.location());
+            if (!lambdaStack.isEmpty() && !isLambdaLocalSymbol(vs)) {
+                captureVariable(vs, v.location());
             }
             if (vs.type() instanceof NativePtrType) {
                 provenances.put(v, vs.provenance());
@@ -2536,6 +3270,9 @@ public final class SemanticAnalyzer {
                         || (currentMethod != null && !currentMethod.isStatic());
                 if (fs.isStatic() || inInstance) {
                     resolvedSymbols.put(v, fs);
+                    if (!fs.isStatic()) {
+                        captureEnclosingThis(v.location());
+                    }
                     if (fs.type() instanceof NativePtrType) {
                         provenances.put(v, PointerProvenance.UNKNOWN);
                     }
@@ -2559,7 +3296,18 @@ public final class SemanticAnalyzer {
     }
 
     private JType typeOfAssignment(AssignmentExpression a) {
-        JType targetType = analyzeExpression(a.target());
+        JType targetType;
+        if (a.target() instanceof VariableExpression) {
+            boolean prev = skippingDaRead;
+            skippingDaRead = true;
+            try {
+                targetType = analyzeExpression(a.target());
+            } finally {
+                skippingDaRead = prev;
+            }
+        } else {
+            targetType = analyzeExpression(a.target());
+        }
         JType valueType = analyzeExpression(a.value(), samExpectedType(targetType));
 
         if (!(a.target() instanceof VariableExpression)
@@ -2572,7 +3320,7 @@ public final class SemanticAnalyzer {
             reporter.error(a.location(), "cannot assign to 'this'");
             return ErrorType.INSTANCE;
         }
-        if (!targetType.isAssignableFrom(valueType)) {
+        if (!assignableWithBoxing(targetType, valueType)) {
             reporter.error(a.location(),
                     "incompatible types: " + valueType + " cannot be converted to " + targetType);
             return ErrorType.INSTANCE;
@@ -2594,7 +3342,7 @@ public final class SemanticAnalyzer {
         if (a.target() instanceof VariableExpression ve) {
             Object sym = resolvedSymbols.get(ve);
             if (sym instanceof VariableSymbol vs) {
-                vs.setAssignedAfterInit(true);
+                assignLocal(vs, a.location());
                 if (vs.isCapturedByLambda()) {
                     reporter.error(a.location(),
                             "local variable '" + vs.name() + "' must be effectively final");
@@ -2605,17 +3353,45 @@ public final class SemanticAnalyzer {
     }
 
     private JType typeOfBinary(BinaryExpression b) {
+        if (b.operator() == BinaryOp.AND || b.operator() == BinaryOp.OR) {
+            JType left = analyzeExpression(b.left());
+            left = unboxForOperator(left);
+            expectBoolean(left, b.left().location(), "operand of " + b.operator());
+            DaEnv afterLeft = daEnv.copy();
+            JType right = analyzeExpression(b.right());
+            right = unboxForOperator(right);
+            expectBoolean(right, b.right().location(), "operand of " + b.operator());
+            DaEnv afterRight = daEnv.copy();
+            // Short-circuit: merge path that skips right with path that evaluates right.
+            daEnv = afterLeft.copy();
+            daEnv.mergeFrom(afterRight);
+            return PrimitiveType.BOOLEAN;
+        }
         JType left = analyzeExpression(b.left());
         JType right = analyzeExpression(b.right());
+        // Binary numeric / relational ops unbox wrappers (Integer + int, etc.).
+        if (b.operator() != BinaryOp.EQ && b.operator() != BinaryOp.NE
+                && b.operator() != BinaryOp.BIT_AND && b.operator() != BinaryOp.BIT_OR
+                && b.operator() != BinaryOp.BIT_XOR) {
+            left = unboxForOperator(left);
+            right = unboxForOperator(right);
+        } else if (b.operator() == BinaryOp.EQ || b.operator() == BinaryOp.NE) {
+            // Keep reference == for two wrappers; unbox only when mixed with primitive.
+            if (Boxing.isWrapper(left) && right instanceof PrimitiveType) {
+                left = unboxForOperator(left);
+            } else if (Boxing.isWrapper(right) && left instanceof PrimitiveType) {
+                right = unboxForOperator(right);
+            }
+        }
         return switch (b.operator()) {
             case ADD -> {
                 if (isString(left) && isString(right)) {
                     yield stringClass.asType();
                 }
-                if (isString(left) && right.isNumeric()) {
+                if (isString(left) && (right.isNumeric() || Boxing.isWrapper(right))) {
                     yield stringClass.asType();
                 }
-                if (left.isNumeric() && isString(right)) {
+                if ((left.isNumeric() || Boxing.isWrapper(left)) && isString(right)) {
                     yield stringClass.asType();
                 }
                 if (!left.isNumeric() || !right.isNumeric()) {
@@ -2636,11 +3412,7 @@ public final class SemanticAnalyzer {
                     }
                     yield ErrorType.INSTANCE;
                 }
-                if (b.operator() == BinaryOp.MOD
-                        && (left == PrimitiveType.DOUBLE || right == PrimitiveType.DOUBLE)) {
-                    reporter.error(b.location(), "operator % cannot be applied to double");
-                    yield ErrorType.INSTANCE;
-                }
+                // float/double % is Java remainder (toward-zero quotient), not IEEE 754 remainder.
                 yield JType.binaryArithmeticResult(left, right);
             }
             case LT, LE, GT, GE -> {
@@ -2679,11 +3451,7 @@ public final class SemanticAnalyzer {
                 }
                 yield PrimitiveType.BOOLEAN;
             }
-            case AND, OR -> {
-                expectBoolean(left, b.left().location(), "operand of " + b.operator());
-                expectBoolean(right, b.right().location(), "operand of " + b.operator());
-                yield PrimitiveType.BOOLEAN;
-            }
+            case AND, OR -> PrimitiveType.BOOLEAN; // handled above
             case BIT_AND, BIT_OR, BIT_XOR -> {
                 if (left == PrimitiveType.BOOLEAN && right == PrimitiveType.BOOLEAN) {
                     yield PrimitiveType.BOOLEAN;
@@ -2770,8 +3538,14 @@ public final class SemanticAnalyzer {
     private JType typeOfConditional(ConditionalExpression c) {
         JType cond = analyzeExpression(c.condition());
         expectBoolean(cond, c.condition().location(), "condition of ?:");
+        DaEnv beforeBranches = daEnv.copy();
         JType thenT = analyzeExpression(c.thenExpr());
+        DaEnv thenEnv = daEnv.copy();
+        daEnv = beforeBranches.copy();
         JType elseT = analyzeExpression(c.elseExpr());
+        DaEnv elseEnv = daEnv.copy();
+        daEnv = thenEnv.copy();
+        daEnv.mergeFrom(elseEnv);
         if (thenT instanceof ErrorType || elseT instanceof ErrorType) {
             return ErrorType.INSTANCE;
         }
@@ -2779,12 +3553,6 @@ public final class SemanticAnalyzer {
             return PrimitiveType.BOOLEAN;
         }
         if (thenT.isNumeric() && elseT.isNumeric()) {
-            if (thenT == PrimitiveType.FLOAT || thenT == PrimitiveType.DOUBLE
-                    || elseT == PrimitiveType.FLOAT || elseT == PrimitiveType.DOUBLE) {
-                reporter.error(c.location(),
-                        "floating-point branches in ?: are not supported yet");
-                return ErrorType.INSTANCE;
-            }
             return JType.binaryArithmeticResult(thenT, elseT);
         }
         if (thenT instanceof NullType && elseT.isReference()) {
@@ -2857,12 +3625,7 @@ public final class SemanticAnalyzer {
                 checkNetworkPortLiteral(m, ms);
                 return resolveGenericCall(m, ms, expectedReturn);
             }
-            String maybeFqn = flattenQualifiedName(m.receiver());
-            if (maybeFqn != null && maybeFqn.contains(".")
-                    && !classes.containsKey(maybeFqn) && !interfaces.containsKey(maybeFqn)) {
-                reporter.error(m.location(), "undefined class '" + maybeFqn + "'");
-                return ErrorType.INSTANCE;
-            }
+            // Else: receiver may be an expression (e.g. EnumType.CONST.instanceMethod()).
         }
         if (m.receiver() != null) {
             JType recvType = analyzeExpression(m.receiver());
@@ -2904,10 +3667,54 @@ public final class SemanticAnalyzer {
                 recvClass = cs;
                 recvSub = TypeSubstitution.zip(cs.typeParameters(), pt.typeArguments());
             } else if (recvType instanceof TypeVariable tv) {
-                // Unbounded type variables erase to Object for method lookup (equals/hashCode).
-                JType erasure = tv.symbol().erasure(objectClass);
-                if (erasure instanceof ClassType ect) {
+                // Use upper bound for member lookup (class or interface); else Object.
+                JType bound = tv.symbol().erasure(objectClass);
+                if (bound instanceof ClassType ect) {
                     recvClass = ect.classSymbol();
+                } else if (bound instanceof ParameterizedType pt && pt.raw() instanceof ClassSymbol cs) {
+                    recvClass = cs;
+                    recvSub = TypeSubstitution.zip(cs.typeParameters(), pt.typeArguments());
+                } else if (bound instanceof InterfaceType it) {
+                    Optional<MethodSymbol> method = it.interfaceSymbol().findMethod(m.name());
+                    if (method.isEmpty()) {
+                        reporter.error(m.location(),
+                                "undefined method '" + m.name() + "' in bound '"
+                                        + it.interfaceSymbol().name() + "'");
+                        return ErrorType.INSTANCE;
+                    }
+                    MethodSymbol ms = method.get();
+                    checkArguments(m, ms);
+                    Integer slot = ms.interfaceSlot();
+                    if (slot == null) {
+                        reporter.error(m.location(),
+                                "interface method '" + m.name() + "' has no itable slot");
+                        return ErrorType.INSTANCE;
+                    }
+                    resolvedSymbols.put(m, new InterfaceCallTarget(
+                            it.interfaceSymbol(), slot, ms, ms.returnType(), ms.parameterTypes()));
+                    return ms.returnType();
+                } else if (bound instanceof ParameterizedType pt
+                        && pt.raw() instanceof InterfaceSymbol is) {
+                    TypeSubstitution boundSub = TypeSubstitution.zip(
+                            is.typeParameters(), pt.typeArguments());
+                    Optional<MethodSymbol> method = is.findMethod(m.name());
+                    if (method.isEmpty()) {
+                        reporter.error(m.location(),
+                                "undefined method '" + m.name() + "' in bound '" + is.name() + "'");
+                        return ErrorType.INSTANCE;
+                    }
+                    MethodSymbol ms = method.get();
+                    MethodSymbol callTarget = substituteMethod(ms, boundSub);
+                    checkArguments(m, callTarget);
+                    Integer slot = ms.interfaceSlot();
+                    if (slot == null) {
+                        reporter.error(m.location(),
+                                "interface method '" + m.name() + "' has no itable slot");
+                        return ErrorType.INSTANCE;
+                    }
+                    resolvedSymbols.put(m, new InterfaceCallTarget(
+                            is, slot, ms, callTarget.returnType(), callTarget.parameterTypes()));
+                    return callTarget.returnType();
                 } else {
                     recvClass = objectClass;
                 }
@@ -2919,7 +3726,7 @@ public final class SemanticAnalyzer {
                 }
                 return ErrorType.INSTANCE;
             }
-            MethodSymbol ms = resolveOverload(recvClass.findMethods(m.name()), m, false);
+            MethodSymbol ms = resolveOverload(recvClass.findMethods(m.name()), m, false, recvSub);
             if (ms == null) {
                 if (!lastOverloadAmbiguous) {
                     reporter.error(m.location(),
@@ -2937,7 +3744,8 @@ public final class SemanticAnalyzer {
                 callTarget = substituteMethod(ms, recvSub);
             }
             checkArguments(m, callTarget);
-            resolvedSymbols.put(m, ms);
+            // Store substituted params/return so IR can box (ArrayList<Integer>.add(int)).
+            resolvedSymbols.put(m, callTarget);
             return callTarget.returnType();
         }
 
@@ -2950,6 +3758,9 @@ public final class SemanticAnalyzer {
                     reporter.error(m.location(),
                             "cannot call instance method '" + m.name() + "' from a static context");
                     return ErrorType.INSTANCE;
+                }
+                if (!ms.isStatic()) {
+                    captureEnclosingThis(m.location());
                 }
                 return resolveGenericCall(m, ms, expectedReturn);
             }
@@ -2990,6 +3801,19 @@ public final class SemanticAnalyzer {
             MethodCallExpression m,
             boolean allowStatic
     ) {
+        return resolveOverload(candidates, m, allowStatic, null);
+    }
+
+    /**
+     * @param receiverSub when non-null (e.g. {@code ArrayList<String>}), applied so lambda
+     *                    arguments see {@code Predicate<String>} rather than erased {@code T}.
+     */
+    private MethodSymbol resolveOverload(
+            List<MethodSymbol> candidates,
+            MethodCallExpression m,
+            boolean allowStatic,
+            TypeSubstitution receiverSub
+    ) {
         lastOverloadAmbiguous = false;
         if (candidates == null || candidates.isEmpty()) {
             return null;
@@ -3015,18 +3839,26 @@ public final class SemanticAnalyzer {
             arityOk.addAll(usable);
         }
         MethodSymbol hint = arityOk.size() == 1 ? arityOk.get(0) : null;
+        MethodSymbol hintSam = hint;
+        if (hint != null && receiverSub != null) {
+            hintSam = substituteMethod(hint, receiverSub);
+        }
         List<JType> argTypes = new ArrayList<>();
         for (int i = 0; i < m.arguments().size(); i++) {
             Expression arg = m.arguments().get(i);
             JType expected = null;
-            if (hint != null && i < hint.parameterTypes().size()) {
-                expected = samExpectedType(hint.parameterTypes().get(i));
+            if (hintSam != null && i < hintSam.parameterTypes().size()) {
+                expected = samExpectedType(hintSam.parameterTypes().get(i));
             }
             argTypes.add(analyzeExpression(arg, expected));
         }
         List<CallableResolver.Candidate> list = new ArrayList<>();
         for (MethodSymbol ms : arityOk) {
-            list.add(new CallableResolver.Candidate(ms.parameterTypes(), ms));
+            List<JType> pts = ms.parameterTypes();
+            if (receiverSub != null) {
+                pts = substituteMethod(ms, receiverSub).parameterTypes();
+            }
+            list.add(new CallableResolver.Candidate(pts, ms));
         }
         Object resolved = CallableResolver.resolve(list, argTypes);
         if (resolved instanceof MethodSymbol ms) {
@@ -3109,7 +3941,7 @@ public final class SemanticAnalyzer {
                     continue;
                 }
             }
-            if (!exp.isAssignableFrom(actual)) {
+            if (!assignableWithBoxing(exp, actual)) {
                 reporter.error(args.get(i).location(),
                         "argument " + (i + 1) + ": " + actual
                                 + " cannot be converted to " + exp);
@@ -3221,12 +4053,48 @@ public final class SemanticAnalyzer {
     }
 
     private boolean isLambdaLocalSymbol(VariableSymbol vs) {
-        if (lambdaBodyScope == null) {
+        if (lambdaStack.isEmpty()) {
             return false;
         }
-        Optional<Symbol> sym = lambdaBodyScope.resolveLocal(vs.name());
+        return isLocalToFrame(lambdaStack.peek(), vs);
+    }
+
+    private static boolean isLocalToFrame(LambdaAnalysisFrame frame, VariableSymbol vs) {
+        Optional<Symbol> sym = frame.bodyScope.resolveLocal(vs.name());
         return sym.isPresent() && sym.get() instanceof Symbol.VariableBinding vb
                 && vb.variable() == vs;
+    }
+
+    /**
+     * Record a capture on every lambda frame that does not declare {@code vs}, so nested
+     * lambdas force outer envs to retain the value after the enclosing method returns.
+     */
+    private void captureVariable(VariableSymbol vs, SourceLocation loc) {
+        if (lambdaStack.isEmpty() || vs == null) {
+            return;
+        }
+        for (LambdaAnalysisFrame frame : lambdaStack) {
+            if (isLocalToFrame(frame, vs)) {
+                return;
+            }
+            if (frame.captured.add(vs)) {
+                vs.setCapturedByLambda(true);
+                if (vs.isAssignedAfterInit()) {
+                    reporter.error(loc,
+                            "local variable '" + vs.name() + "' must be effectively final");
+                }
+            }
+        }
+    }
+
+    private void captureEnclosingThis(SourceLocation loc) {
+        if (lambdaStack.isEmpty()) {
+            return;
+        }
+        Optional<Symbol> sym = current.resolve("this");
+        if (sym.isPresent() && sym.get() instanceof Symbol.VariableBinding vb) {
+            captureVariable(vb.variable(), loc);
+        }
     }
 
     private JType typeOfLambda(LambdaExpression lambda) {
@@ -3243,13 +4111,18 @@ public final class SemanticAnalyzer {
                             + lambda.parameters().size());
             return ErrorType.INSTANCE;
         }
+        String invokeRuntime = invokeRuntimeForFunctionType(expected);
+        if (invokeRuntime == null) {
+            reporter.error(lambda.location(),
+                    "unsupported functional interface signature for lambda: " + expected
+                            + " (no callable invoke runtime)");
+            return ErrorType.INSTANCE;
+        }
 
         Scope outer = current;
         current = new Scope(outer);
-        lambdaBodyScope = current;
-        lambdaCapturedVars.clear();
-        inLambdaBody = true;
-        List<VariableSymbol> paramSymbols = new ArrayList<>();
+        LambdaAnalysisFrame frame = new LambdaAnalysisFrame(current);
+        lambdaStack.push(frame);
         try {
             for (int i = 0; i < lambda.parameters().size(); i++) {
                 LambdaParameter p = lambda.parameters().get(i);
@@ -3267,7 +4140,6 @@ public final class SemanticAnalyzer {
                 if (!current.declare(new Symbol.VariableBinding(vs))) {
                     reporter.error(p.location(), "duplicate lambda parameter '" + p.name() + "'");
                 }
-                paramSymbols.add(vs);
             }
             if (lambda.isBlock()) {
                 for (Statement stmt : lambda.blockBody().statements()) {
@@ -3275,7 +4147,7 @@ public final class SemanticAnalyzer {
                 }
             } else {
                 JType bodyType = analyzeExpression(lambda.expressionBody());
-                if (!expected.returnType().isAssignableFrom(bodyType)
+                if (!assignableWithBoxing(expected.returnType(), bodyType)
                         && !(expected.returnType() instanceof VoidType)) {
                     if (!(bodyType instanceof ErrorType)) {
                         reporter.error(lambda.expressionBody().location(),
@@ -3285,20 +4157,19 @@ public final class SemanticAnalyzer {
                 }
             }
         } finally {
-            inLambdaBody = false;
-            lambdaBodyScope = null;
+            lambdaStack.pop();
             current = outer;
         }
 
         ClassSymbol envClass = null;
         List<ClosureCapture> captures = List.of();
-        if (!lambdaCapturedVars.isEmpty()) {
+        if (!frame.captured.isEmpty()) {
             String envName = "__jn.Env." + (envClassCounter++);
             envClass = new ClassSymbol(envName, lambda.location(), true);
             envClass.setSuperClass(objectClass);
             int idx = 0;
             List<ClosureCapture> capList = new ArrayList<>();
-            for (VariableSymbol vs : lambdaCapturedVars) {
+            for (VariableSymbol vs : frame.captured) {
                 String fieldName = "c" + idx;
                 envClass.addField(new FieldSymbol(
                         envClass, fieldName, vs.type(), idx, lambda.location()));
@@ -3312,7 +4183,10 @@ public final class SemanticAnalyzer {
         }
 
         String codeSymbol = "_JN_lambda_" + (lambdaCounter++);
-        String invokeRuntime = samClass.findMethod(samMethodNameFor(expectedSamType)).orElseThrow().samInvokeRuntime();
+        MethodSymbol samMethod = samClass.findMethod(samMethodNameFor(expectedSamType)).orElse(null);
+        if (samMethod != null && samMethod.samInvokeRuntime() != null) {
+            invokeRuntime = samMethod.samInvokeRuntime();
+        }
         CallableBinding binding = new CallableBinding(
                 samClass,
                 codeSymbol,
@@ -3359,26 +4233,56 @@ public final class SemanticAnalyzer {
         if (ref.typeName() != null) {
             ClassSymbol cls = classes.get(ref.typeName().name());
             if (cls == null) {
+                // Also allow simple interface/class names from packages via resolve helpers.
+                cls = resolveClassBySourceName(ref.typeName().name());
+            }
+            if (cls == null) {
                 reporter.error(ref.location(), "unknown type '" + ref.typeName().name() + "'");
                 return ErrorType.INSTANCE;
             }
-            Optional<MethodSymbol> method = cls.findMethod(ref.methodName());
-            if (method.isEmpty() || !method.get().isStatic()) {
+            if ("new".equals(ref.methodName())) {
                 reporter.error(ref.location(),
-                        "static method '" + ref.methodName() + "' not found on " + cls.name());
+                        "constructor method references (Type::new) are not supported yet");
                 return ErrorType.INSTANCE;
             }
-            if (!methodMatchesSam(method.get(), expected)) {
-                reporter.error(ref.location(), "method '" + ref.methodName() + "' incompatible with SAM");
+            Optional<MethodSymbol> method = cls.findMethod(ref.methodName());
+            if (method.isEmpty()) {
+                reporter.error(ref.location(),
+                        "method '" + ref.methodName() + "' not found on " + cls.name());
                 return ErrorType.INSTANCE;
             }
-            String codeSymbol = "_JN_thunk_static_" + cls.name() + "_" + ref.methodName();
+            MethodSymbol ms = method.get();
+            if (ms.isStatic()) {
+                if (!methodMatchesSam(ms, expected)) {
+                    reporter.error(ref.location(),
+                            "method '" + ref.methodName() + "' incompatible with SAM");
+                    return ErrorType.INSTANCE;
+                }
+                String codeSymbol = "_JN_thunk_static_" + cls.name() + "_" + ref.methodName();
+                CallableBinding binding = new CallableBinding(
+                        samClass, codeSymbol, null, List.of(), FunctionEffects.unknown(),
+                        false, false, null,
+                        samClass.findMethod(samMethod).orElseThrow().samInvokeRuntime(),
+                        null, null, List.of(),
+                        ms, null);
+                callableBindings.put(ref, binding);
+                return resultSamType();
+            }
+            // Unbound instance method reference: SAM params = (receiver, methodParams...)
+            if (!methodMatchesSamUnbound(ms, cls.asType(), expected)) {
+                reporter.error(ref.location(),
+                        "unbound instance method '" + ref.methodName()
+                                + "' incompatible with SAM (expected receiver as first parameter)");
+                return ErrorType.INSTANCE;
+            }
+            String codeSymbol = "_JN_thunk_unbound_" + cls.name() + "_" + ref.methodName();
+            boolean virtualDispatch = ms.isVirtual();
             CallableBinding binding = new CallableBinding(
                     samClass, codeSymbol, null, List.of(), FunctionEffects.unknown(),
-                    false, false, null,
+                    false, virtualDispatch, null,
                     samClass.findMethod(samMethod).orElseThrow().samInvokeRuntime(),
                     null, null, List.of(),
-                    method.get(), null);
+                    ms, null);
             callableBindings.put(ref, binding);
             return resultSamType();
         }
@@ -3446,7 +4350,32 @@ public final class SemanticAnalyzer {
             }
         }
         return expected.returnType().isAssignableFrom(method.returnType())
-                || method.returnType().isAssignableFrom(expected.returnType());
+                || method.returnType().isAssignableFrom(expected.returnType())
+                || assignableWithBoxing(expected.returnType(), method.returnType());
+    }
+
+    /** Unbound instance ref: SAM(receiver, args...) ↔ instanceMethod(args...). */
+    private boolean methodMatchesSamUnbound(MethodSymbol method, JType receiverType, FunctionType expected) {
+        if (expected.parameterTypes().isEmpty()) {
+            return false;
+        }
+        JType expRecv = expected.parameterTypes().getFirst();
+        if (!expRecv.isAssignableFrom(receiverType) && !receiverType.isAssignableFrom(expRecv)) {
+            return false;
+        }
+        if (method.parameterTypes().size() != expected.parameterTypes().size() - 1) {
+            return false;
+        }
+        for (int i = 0; i < method.parameterTypes().size(); i++) {
+            JType exp = expected.parameterTypes().get(i + 1);
+            JType act = method.parameterTypes().get(i);
+            if (!exp.isAssignableFrom(act) && !act.isAssignableFrom(exp)) {
+                return false;
+            }
+        }
+        return expected.returnType().isAssignableFrom(method.returnType())
+                || method.returnType().isAssignableFrom(expected.returnType())
+                || assignableWithBoxing(expected.returnType(), method.returnType());
     }
 
     private JType typeOfNativeAddressOf(MethodCallExpression m) {
@@ -3612,6 +4541,10 @@ public final class SemanticAnalyzer {
                 instantiated = new ParameterizedType(symbol, typeArgs);
             }
         }
+        if (symbol.isEnum()) {
+            reporter.error(n.location(), "cannot instantiate enum type '" + n.className() + "' with new");
+            return ErrorType.INSTANCE;
+        }
         if (symbol.isAbstract()) {
             reporter.error(n.location(), "cannot instantiate abstract class '" + n.className() + "'");
             return ErrorType.INSTANCE;
@@ -3620,6 +4553,9 @@ public final class SemanticAnalyzer {
             reporter.error(n.location(), "cannot instantiate builtin type '" + n.className() + "'");
             return ErrorType.INSTANCE;
         }
+        TypeSubstitution ctorSub = (instantiated != null)
+                ? TypeSubstitution.zip(symbol.typeParameters(), typeArgs)
+                : null;
         List<ConstructorSymbol> byArity = symbol.constructors().stream()
                 .filter(c -> c.parameters().size() == n.arguments().size())
                 .toList();
@@ -3627,8 +4563,12 @@ public final class SemanticAnalyzer {
         if (byArity.size() == 1) {
             ConstructorSymbol only = byArity.getFirst();
             for (int i = 0; i < n.arguments().size(); i++) {
+                JType expectedParam = only.parameters().get(i).type();
+                if (ctorSub != null) {
+                    expectedParam = ctorSub.apply(expectedParam);
+                }
                 argTypes.add(analyzeExpression(
-                        n.arguments().get(i), samExpectedType(only.parameters().get(i).type())));
+                        n.arguments().get(i), samExpectedType(expectedParam)));
             }
         } else {
             for (Expression arg : n.arguments()) {
@@ -3637,7 +4577,15 @@ public final class SemanticAnalyzer {
         }
         List<CallableResolver.Candidate> candidates = new ArrayList<>();
         for (ConstructorSymbol c : symbol.constructors()) {
-            candidates.add(new CallableResolver.Candidate(c.parameterTypes(), c));
+            List<JType> params = c.parameterTypes();
+            if (ctorSub != null) {
+                List<JType> substituted = new ArrayList<>(params.size());
+                for (JType p : params) {
+                    substituted.add(ctorSub.apply(p));
+                }
+                params = substituted;
+            }
+            candidates.add(new CallableResolver.Candidate(params, c));
         }
         Object resolved = CallableResolver.resolve(candidates, argTypes);
         if (!(resolved instanceof ConstructorSymbol ctor)) {
@@ -3883,9 +4831,11 @@ public final class SemanticAnalyzer {
     }
 
     /**
-     * Integer cast matrix (Java-compatible two's complement narrow / sign or zero extend).
-     * {@code char} is 16-bit unsigned: widen with zero-extend; narrow by truncation.
-     * Floating-point and boolean conversions are rejected (not silently remapped).
+     * Numeric cast matrix.
+     * Integers: two's complement narrow / sign or zero extend ({@code char} zero-extends).
+     * Float/double: binary32/64; to-integer is toward-zero with NaN→0 and saturation
+     * (see {@code jnative_f64_to_i32} / docs/jnative-float-double.md).
+     * Boolean conversions are rejected.
      */
     private JType typeOfPrimitiveCast(JType source, JType target, SourceLocation loc) {
         if (source == PrimitiveType.BOOLEAN || target == PrimitiveType.BOOLEAN) {
@@ -3896,12 +4846,7 @@ public final class SemanticAnalyzer {
             reporter.error(loc, "cannot cast " + source + " to " + target);
             return ErrorType.INSTANCE;
         }
-        if (source == PrimitiveType.FLOAT || source == PrimitiveType.DOUBLE
-                || target == PrimitiveType.FLOAT || target == PrimitiveType.DOUBLE) {
-            reporter.error(loc, "floating-point casts are not supported; use integer types only");
-            return ErrorType.INSTANCE;
-        }
-        if (!source.isInteger() || !target.isInteger()) {
+        if (!source.isNumeric() || !target.isNumeric()) {
             reporter.error(loc, "cannot cast " + source + " to " + target);
             return ErrorType.INSTANCE;
         }
@@ -3918,6 +4863,20 @@ public final class SemanticAnalyzer {
         if (type != PrimitiveType.BOOLEAN && !(type instanceof ErrorType)) {
             reporter.error(location, context + " must be boolean, found " + type);
         }
+    }
+
+    /** Subtype / primitive widen, or boxing/unboxing conversion. */
+    private static boolean assignableWithBoxing(JType expected, JType actual) {
+        if (expected == null || actual instanceof ErrorType) {
+            return true;
+        }
+        return Boxing.assignableOrBoxing(expected, actual);
+    }
+
+    /** Unbox wrapper to its primitive for operators; leave other types unchanged. */
+    private static JType unboxForOperator(JType type) {
+        PrimitiveType p = Boxing.primitiveOfWrapper(type);
+        return p != null ? p : type;
     }
 
     private JType resolveTypeName(TypeName typeName, boolean isArray, SourceLocation fallback) {
@@ -4229,6 +5188,40 @@ public final class SemanticAnalyzer {
         reporter.error(loc, "type '" + typeFqn + "' is not accessible from "
                 + (fromPkg.isEmpty() ? "<default package>" : fromPkg));
         return false;
+    }
+
+    /**
+     * Stdlib sources omit {@code public} historically; treat them as exported so
+     * named packages can use ArrayList/Integer/FileInputStream (java.lang-like).
+     * Parser defaults missing modifiers to {@link Visibility#PACKAGE}, so we elevate
+     * PACKAGE (not only null) when the declaration comes from stdlib.
+     * User types without {@code public} remain package-private.
+     */
+    private static Visibility defaultTypeVisibility(ClassDeclaration cls) {
+        Visibility v = cls.visibility();
+        if (v == Visibility.PUBLIC || v == Visibility.PRIVATE || v == Visibility.PROTECTED) {
+            return v;
+        }
+        if (isStdlibSource(cls.location())) {
+            return Visibility.PUBLIC;
+        }
+        return Visibility.PACKAGE;
+    }
+
+    private static Visibility exportStdlibMember(Visibility declared, SourceLocation loc) {
+        Visibility v = declared == null ? Visibility.PACKAGE : declared;
+        if (v == Visibility.PACKAGE && isStdlibSource(loc)) {
+            return Visibility.PUBLIC;
+        }
+        return v;
+    }
+
+    private static boolean isStdlibSource(SourceLocation loc) {
+        if (loc == null || loc.file() == null) {
+            return false;
+        }
+        String f = loc.file();
+        return f.contains("/stdlib/") || f.startsWith("<stdlib>") || f.contains("stdlib/");
     }
 
     private boolean isSubtypeOf(ClassSymbol sub, ClassSymbol sup) {

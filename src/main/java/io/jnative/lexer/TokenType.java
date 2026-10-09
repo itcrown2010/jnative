@@ -10,9 +10,12 @@ public enum TokenType {
     PROTECTED,
     CLASS,
     INTERFACE,
+    ENUM,
     IMPLEMENTS,
     ABSTRACT,
     DEFAULT,
+    SWITCH,
+    CASE,
     STATIC,
     VOID,
     BYTE,
@@ -42,6 +45,7 @@ public enum TokenType {
     TRY,
     CATCH,
     FINALLY,
+    FINAL,
     THROW,
     THROWS,
     NATIVE,
@@ -55,6 +59,7 @@ public enum TokenType {
     IDENTIFIER,
     INT_LITERAL,
     LONG_LITERAL,
+    FLOAT_LITERAL,
     DOUBLE_LITERAL,
     STRING_LITERAL,
 
@@ -107,9 +112,12 @@ public enum TokenType {
         KEYWORDS.put("protected", PROTECTED);
         KEYWORDS.put("class", CLASS);
         KEYWORDS.put("interface", INTERFACE);
+        KEYWORDS.put("enum", ENUM);
         KEYWORDS.put("implements", IMPLEMENTS);
         KEYWORDS.put("abstract", ABSTRACT);
         KEYWORDS.put("default", DEFAULT);
+        KEYWORDS.put("switch", SWITCH);
+        KEYWORDS.put("case", CASE);
         KEYWORDS.put("static", STATIC);
         KEYWORDS.put("void", VOID);
         KEYWORDS.put("byte", BYTE);
@@ -139,6 +147,7 @@ public enum TokenType {
         KEYWORDS.put("try", TRY);
         KEYWORDS.put("catch", CATCH);
         KEYWORDS.put("finally", FINALLY);
+        KEYWORDS.put("final", FINAL);
         KEYWORDS.put("throw", THROW);
         KEYWORDS.put("throws", THROWS);
         KEYWORDS.put("native", NATIVE);

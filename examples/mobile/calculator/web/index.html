@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en">
+<html lang="zh-CN">
 <head>
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
@@ -43,7 +43,23 @@
       border-radius: 0.35rem;
       background: var(--card);
     }
-    button {
+    .ops {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 0.5rem;
+      margin-top: 0.85rem;
+    }
+    .ops button {
+      margin-top: 0;
+      font-size: 1.35rem;
+      padding: 0.7rem 0;
+      background: #2a4a3c;
+    }
+    .ops button.active {
+      background: var(--accent);
+      outline: 2px solid #063d2b;
+    }
+    button#go {
       margin-top: 1.1rem;
       width: 100%;
       font: inherit;
@@ -69,25 +85,35 @@
 </head>
 <body>
   <h1>JNative Calculator</h1>
-  <p class="sub">Shared WebUI/WASM core — thin mobile containers</p>
+  <p class="sub">共享 WASM 核心 — 支持 + − × ÷（整数）</p>
 
-  <label for="left">First integer</label>
-  <input id="left" inputmode="numeric" autocomplete="off" placeholder="e.g. 12"/>
+  <label for="left">第一个整数</label>
+  <input id="left" inputmode="numeric" autocomplete="off" placeholder="例如 123"/>
 
-  <label for="right">Second integer</label>
-  <input id="right" inputmode="numeric" autocomplete="off" placeholder="e.g. 30"/>
+  <div class="ops" role="group" aria-label="运算符">
+    <button type="button" data-op="0" class="active">+</button>
+    <button type="button" data-op="1">−</button>
+    <button type="button" data-op="2">×</button>
+    <button type="button" data-op="3">÷</button>
+  </div>
 
-  <button id="sum" type="button">Add</button>
+  <label for="right">第二个整数</label>
+  <input id="right" inputmode="numeric" autocomplete="off" placeholder="例如 456"/>
 
-  <div class="result">Result: <span id="result">—</span></div>
+  <label for="expr">或直接输入表达式</label>
+  <input id="expr" autocomplete="off" placeholder="例如 123*456 或 12+30"/>
+
+  <button id="go" type="button">计算</button>
+
+  <div class="result">结果: <span id="result">—</span></div>
   <div id="status" class="status"></div>
   <div class="meta">
     <div id="platform">platform: …</div>
     <div id="lifecycle">lifecycle: …</div>
   </div>
   <p class="note">
-    Stored values use ordinary key-value storage (web: localStorage; mobile: app preferences).
-    This is not a secure store for passwords or tokens.
+    整数运算由 WASM 中的 CalculatorApp 完成；壳层不重复实现算术。
+    也可在「表达式」框输入 123*456 一次算完。
   </p>
 
   <script type="module" src="./app-shell.js"></script>

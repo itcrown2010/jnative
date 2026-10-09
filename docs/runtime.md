@@ -10,7 +10,7 @@ opcodes to calls into this API; it does not embed Java semantics.
 - Documented here so frontend does not assume encoding.
 - Runtime APIs isolate encoding (`jnative_string_*`).
 - Migration path to UTF-16 code units is reserved for a later release.
-- `String.length()` / `charAt` currently operate on UTF-8 byte indices for ASCII
+- `String.length()` / `charAt` use UTF-16 code units; use `utf8Length()` / `getBytes()` for bytes (see `string.md`)
   acceptance tests; non-ASCII semantics are not yet Java-compatible.
 
 ## Object header

@@ -148,9 +148,11 @@ class ConsoleBuffer {
             return;
         }
         text = text + s;
-        if (text.length() > maxBytes) {
-            int drop = text.length() - maxBytes;
-            text = text.substring(drop, text.length());
+        if (text.utf8Length() > maxBytes) {
+            // Approximate trim by UTF-16 units when over UTF-8 byte budget.
+            while (text.utf8Length() > maxBytes && text.length() > 0) {
+                text = text.substring(1, text.length());
+            }
         }
     }
 

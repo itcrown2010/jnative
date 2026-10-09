@@ -17,6 +17,7 @@ public final class RuntimeEmitter {
         new GcRuntimeEmitter(sb).emit();
         new ArrayRuntimeEmitter(sb).emit();
         new StringRuntimeEmitter(sb).emit();
+        new FloatRuntimeEmitter(sb).emit();
         new BytesRuntimeEmitter(sb).emit();
         new TypeRuntimeEmitter(sb).emit();
         new IoRuntimeEmitter(sb).emit();
@@ -35,6 +36,8 @@ public final class RuntimeEmitter {
         sb.append("declare ptr @memset(ptr noundef, i32 noundef, i64 noundef)\n");
         sb.append("declare ptr @memcpy(ptr noundef, ptr noundef, i64 noundef)\n");
         sb.append("declare i32 @printf(ptr noundef, ...)\n");
+        sb.append("declare i32 @snprintf(ptr noundef, i64 noundef, ptr noundef, ...)\n");
+        sb.append("declare double @strtod(ptr noundef, ptr noundef)\n");
         sb.append("declare i32 @puts(ptr noundef)\n");
         sb.append("declare void @exit(i32 noundef)\n");
         sb.append("declare void @abort()\n");

@@ -8,6 +8,7 @@ import io.jnative.ir.IrValue;
 
 import java.nio.charset.StandardCharsets;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -23,22 +24,44 @@ public final class BrowserWatEmitter {
         collectStrings(ir);
         WebUiIrToWat lowering = new WebUiIrToWat(ir, stringData);
         lowering.collect();
+        WasmMetaRegistry meta = lowering.meta();
 
         StringBuilder wat = new StringBuilder();
         wat.append("(module\n");
+        for (Map.Entry<String, String> e : lowering.indirectTypes().entrySet()) {
+            wat.append("  (type $").append(e.getKey()).append(" ").append(e.getValue()).append(")\n");
+        }
         emitImports(wat);
-        wat.append("  (memory (export \"memory\") 256 1024)\n");
+        wat.append("  (memory (export \"memory\") ")
+                .append(WasmLayout.MEMORY_INITIAL_PAGES).append(' ')
+                .append(WasmLayout.MEMORY_MAX_PAGES).append(")\n");
+        int tableSize = Math.max(1, meta.funcrefSymbols().size());
+        wat.append("  (table $jn_funcref ").append(tableSize).append(" funcref)\n");
         wat.append("  (global $heap (mut i32) (i32.const ").append(dataCursor + 64).append("))\n");
+        wat.append("  (global $jn_pending_exc (mut i32) (i32.const 0))\n");
+        wat.append("  (global $jn_cb_next (mut i32) (i32.const 1))\n");
+        // callback id → callable ptr (fixed slots in linear memory via globals array would be large;
+        // use a small bump table of i32 pairs in reserved low memory — see jn_register_dom_callback)
         for (String g : lowering.staticGlobals()) {
             String gt = lowering.globalWatType(g);
-            String zero = "i64".equals(gt) ? "i64.const 0" : "i32.const 0";
+            String zero = switch (gt) {
+                case "i64" -> "i64.const 0";
+                case "f32" -> "f32.const 0x0p0";
+                case "f64" -> "f64.const 0x0p0";
+                default -> "i32.const 0";
+            };
             wat.append("  (global $").append(WebUiIrToWat.sanitizeGlobal(g))
                     .append(" (mut ").append(gt).append(") (").append(zero).append("))\n");
         }
         emitData(wat);
         emitRuntime(wat);
         lowering.emitAll(wat);
+        emitFuncrefElem(wat, meta, lowering);
+        emitCallbackExport(wat, meta, lowering);
         wat.append("  (func (export \"jnative_start\")\n");
+        if (lowering.emittedFunctions().contains("jnative_clinit")) {
+            wat.append("    call $jnative_clinit\n");
+        }
         if (lowering.emittedFunctions().contains("jn_main")) {
             wat.append("    i32.const 0\n");
             wat.append("    call $jn_main\n");
@@ -46,10 +69,94 @@ public final class BrowserWatEmitter {
         wat.append("  )\n");
         wat.append("  (func (export \"jn_bump\") (param $n i32) (result i32)\n");
         wat.append("    local.get $n\n");
-        wat.append("    call $jn_alloc\n");
+        wat.append("    call $jn_alloc_zeroed\n");
+        wat.append("  )\n");
+        wat.append("  (func (export \"jn_release_callback\") (param $id i32)\n");
+        wat.append("    local.get $id\n");
+        wat.append("    call $jn_unregister_dom_callback\n");
         wat.append("  )\n");
         wat.append(")\n");
         return wat.toString();
+    }
+
+    private void emitFuncrefElem(StringBuilder wat, WasmMetaRegistry meta, WebUiIrToWat lowering) {
+        List<String> syms = meta.funcrefSymbols();
+        if (syms.isEmpty()) {
+            return;
+        }
+        wat.append("  (elem (table $jn_funcref) (i32.const 0)");
+        for (String sym : syms) {
+            if (!lowering.emittedFunctions().contains(sym)) {
+                throw new IllegalStateException(
+                        "wasm32-browser: MakeCallable code not emitted: " + sym);
+            }
+            wat.append(" $").append(WebUiIrToWat.sanitize(sym));
+        }
+        wat.append(")\n");
+    }
+
+    private void emitCallbackExport(StringBuilder wat, WasmMetaRegistry meta, WebUiIrToWat lowering) {
+        int jsHandleTid = meta.typeIdOrNull("meta.JsHandle") == null ? 0 : meta.typeId("meta.JsHandle");
+        int eventTid = meta.typeIdOrNull("meta.BrowserEvent") == null ? 0 : meta.typeId("meta.BrowserEvent");
+        // jnative_callback(cbId, eventHandle) — invoke BrowserEventHandler.handle(event)
+        wat.append("  (func (export \"jnative_callback\") (param $id i32) (param $ev i32)\n");
+        wat.append("    (local $callable i32) (local $env i32) (local $idx i32)\n");
+        wat.append("    (local $hobj i32) (local $eobj i32)\n");
+        wat.append("    local.get $id\n");
+        wat.append("    call $jn_lookup_dom_callback\n");
+        wat.append("    local.set $callable\n");
+        wat.append("    local.get $callable\n");
+        wat.append("    i32.eqz\n");
+        wat.append("    if\n");
+        wat.append("      return\n");
+        wat.append("    end\n");
+        wat.append("    local.get $callable\n");
+        wat.append("    i32.const ").append(WasmLayout.CALLABLE_ENV_OFFSET).append("\n");
+        wat.append("    i32.add\n");
+        wat.append("    i32.load\n");
+        wat.append("    local.set $env\n");
+        wat.append("    local.get $callable\n");
+        wat.append("    i32.const ").append(WasmLayout.CALLABLE_CODE_OFFSET).append("\n");
+        wat.append("    i32.add\n");
+        wat.append("    i64.load\n");
+        wat.append("    i32.wrap_i64\n");
+        wat.append("    local.set $idx\n");
+        // JsHandle { typeId, id }
+        wat.append("    i32.const 8\n");
+        wat.append("    call $jn_alloc_zeroed\n");
+        wat.append("    local.set $hobj\n");
+        wat.append("    local.get $hobj\n");
+        wat.append("    i32.const ").append(jsHandleTid).append("\n");
+        wat.append("    i32.store\n");
+        wat.append("    local.get $hobj\n");
+        wat.append("    i32.const 4\n");
+        wat.append("    i32.add\n");
+        wat.append("    local.get $ev\n");
+        wat.append("    i32.store\n");
+        // BrowserEvent { typeId, handle* }
+        wat.append("    i32.const 8\n");
+        wat.append("    call $jn_alloc_zeroed\n");
+        wat.append("    local.set $eobj\n");
+        wat.append("    local.get $eobj\n");
+        wat.append("    i32.const ").append(eventTid).append("\n");
+        wat.append("    i32.store\n");
+        wat.append("    local.get $eobj\n");
+        wat.append("    i32.const 4\n");
+        wat.append("    i32.add\n");
+        wat.append("    local.get $hobj\n");
+        wat.append("    i32.store\n");
+        wat.append("    local.get $env\n");
+        wat.append("    local.get $eobj\n");
+        wat.append("    local.get $idx\n");
+        String domType = "jn_sig_0";
+        for (Map.Entry<String, String> e : lowering.indirectTypes().entrySet()) {
+            if ("(func (param i32) (param i32))".equals(e.getValue())) {
+                domType = e.getKey();
+                break;
+            }
+        }
+        wat.append("    call_indirect $jn_funcref (type $").append(domType).append(")\n");
+        wat.append("  )\n");
     }
 
     private void collectStrings(IrModule ir) {
@@ -98,7 +205,12 @@ public final class BrowserWatEmitter {
         wat.append("  (import \"jnative\" \"delegate_event\" (func $js_delegate_event (param i32 i32 i32 i32)))\n");
         wat.append("  (import \"jnative\" \"init_delegation\" (func $js_init_delegation (param i32)))\n");
         wat.append("  (import \"jnative\" \"register_callback\" (func $js_register_callback (param i32) (result i32)))\n");
+        wat.append("  (import \"jnative\" \"unregister_callback\" (func $js_unregister_callback (param i32)))\n");
         wat.append("  (import \"jnative\" \"set_count_label\" (func $js_set_count_label (param i32 i32)))\n");
+        wat.append("  (import \"jnative\" \"document_body\" (func $js_document_body (result i32)))\n");
+        wat.append("  (import \"jnative\" \"input_value\" (func $js_input_value (param i32) (result i32)))\n");
+        wat.append("  (import \"jnative\" \"input_set_value\" (func $js_input_set_value (param i32 i32 i32)))\n");
+        wat.append("  (import \"jnative\" \"memory_grew\" (func $js_memory_grew))\n");
     }
 
     private void emitData(StringBuilder wat) {
@@ -114,18 +226,87 @@ public final class BrowserWatEmitter {
 
     private void emitRuntime(StringBuilder wat) {
         wat.append("""
+                  ;; bump allocator with memory.grow; no GC
                   (func $jn_alloc (param $n i32) (result i32)
-                    (local $p i32)
+                    (local $p i32) (local $end i32) (local $need i32) (local $pages i32) (local $cur i32)
+                    local.get $n
+                    i32.const 0
+                    i32.le_s
+                    if
+                      i32.const 1
+                      local.set $n
+                    end
                     global.get $heap
                     local.set $p
-                    global.get $heap
+                    local.get $p
                     local.get $n
                     i32.const 7
                     i32.add
                     i32.const -8
                     i32.and
                     i32.add
+                    local.set $end
+                    ;; overflow?
+                    local.get $end
+                    local.get $p
+                    i32.lt_u
+                    if
+                      unreachable
+                    end
+                    memory.size
+                    i32.const 16
+                    i32.shl
+                    local.set $cur
+                    local.get $end
+                    local.get $cur
+                    i32.gt_u
+                    if
+                      local.get $end
+                      local.get $cur
+                      i32.sub
+                      i32.const 65535
+                      i32.add
+                      i32.const 16
+                      i32.shr_u
+                      local.set $pages
+                      local.get $pages
+                      memory.grow
+                      i32.const -1
+                      i32.eq
+                      if
+                        unreachable
+                      end
+                      call $js_memory_grew
+                    end
+                    local.get $end
                     global.set $heap
+                    local.get $p
+                  )
+                  (func $jn_alloc_zeroed (param $n i32) (result i32)
+                    (local $p i32) (local $i i32)
+                    local.get $n
+                    call $jn_alloc
+                    local.set $p
+                    i32.const 0
+                    local.set $i
+                    (block $done
+                      (loop $z
+                        local.get $i
+                        local.get $n
+                        i32.ge_u
+                        br_if $done
+                        local.get $p
+                        local.get $i
+                        i32.add
+                        i32.const 0
+                        i32.store8
+                        local.get $i
+                        i32.const 1
+                        i32.add
+                        local.set $i
+                        br $z
+                      )
+                    )
                     local.get $p
                   )
                   (func $jn_str (param $off i32) (param $len i32) (result i32)
@@ -180,13 +361,12 @@ public final class BrowserWatEmitter {
                     i32.const 4
                     i32.add
                   )
-                  ;; Browser string layout: [i32 len][bytes...] (matches jn_str)
                   (func $jn_string_length (param $s i32) (result i32)
                     local.get $s
                     call $jn_str_len
                   )
                   (func $jn_string_char_at (param $s i32) (param $index i32) (result i32)
-                    (local $len i32) (local $p i32)
+                    (local $len i32)
                     local.get $s
                     i32.eqz
                     if
@@ -232,6 +412,16 @@ public final class BrowserWatEmitter {
                     call $jn_str_len
                     call $js_get_by_id
                   )
+                  (func $jn_create_element (param $s i32) (result i32)
+                    local.get $s
+                    call $jn_str_data
+                    local.get $s
+                    call $jn_str_len
+                    call $js_create_element
+                  )
+                  (func $jn_document_body (result i32)
+                    call $js_document_body
+                  )
                   (func $jn_set_text (param $h i32) (param $s i32)
                     local.get $h
                     local.get $s
@@ -239,6 +429,293 @@ public final class BrowserWatEmitter {
                     local.get $s
                     call $jn_str_len
                     call $js_set_text
+                  )
+                  (func $jn_append_child (param $p i32) (param $c i32)
+                    local.get $p
+                    local.get $c
+                    call $js_append_child
+                  )
+                  (func $jn_delegate_event (param $node i32) (param $typeStr i32) (param $cbId i32)
+                    local.get $node
+                    local.get $typeStr
+                    call $jn_str_data
+                    local.get $typeStr
+                    call $jn_str_len
+                    local.get $cbId
+                    call $js_delegate_event
+                  )
+                  ;; callback table in reserved memory [256..768): 64 slots × 8 bytes (id,ptr) — simple map
+                  (func $jn_register_dom_callback (param $callable i32) (result i32)
+                    (local $id i32) (local $slot i32)
+                    global.get $jn_cb_next
+                    local.set $id
+                    global.get $jn_cb_next
+                    i32.const 1
+                    i32.add
+                    global.set $jn_cb_next
+                    local.get $id
+                    i32.const 63
+                    i32.and
+                    i32.const 8
+                    i32.mul
+                    i32.const 256
+                    i32.add
+                    local.set $slot
+                    local.get $slot
+                    local.get $id
+                    i32.store
+                    local.get $slot
+                    i32.const 4
+                    i32.add
+                    local.get $callable
+                    i32.store
+                    local.get $id
+                    call $js_register_callback
+                    drop
+                    local.get $id
+                  )
+                  (func $jn_lookup_dom_callback (param $id i32) (result i32)
+                    (local $slot i32)
+                    local.get $id
+                    i32.const 63
+                    i32.and
+                    i32.const 8
+                    i32.mul
+                    i32.const 256
+                    i32.add
+                    local.set $slot
+                    local.get $slot
+                    i32.load
+                    local.get $id
+                    i32.ne
+                    if (result i32)
+                      i32.const 0
+                    else
+                      local.get $slot
+                      i32.const 4
+                      i32.add
+                      i32.load
+                    end
+                  )
+                  (func $jn_unregister_dom_callback (param $id i32)
+                    (local $slot i32)
+                    local.get $id
+                    i32.const 63
+                    i32.and
+                    i32.const 8
+                    i32.mul
+                    i32.const 256
+                    i32.add
+                    local.set $slot
+                    local.get $slot
+                    i32.load
+                    local.get $id
+                    i32.eq
+                    if
+                      local.get $slot
+                      i32.const 0
+                      i32.store
+                      local.get $slot
+                      i32.const 4
+                      i32.add
+                      i32.const 0
+                      i32.store
+                    end
+                    local.get $id
+                    call $js_unregister_callback
+                  )
+                  (func $jn_input_value (param $h i32) (result i32)
+                    local.get $h
+                    call $js_input_value
+                  )
+                  (func $jn_input_set_value (param $h i32) (param $s i32)
+                    local.get $h
+                    local.get $s
+                    call $jn_str_data
+                    local.get $s
+                    call $jn_str_len
+                    call $js_input_set_value
+                  )
+                  (func $jn_string_concat (param $a i32) (param $b i32) (result i32)
+                    (local $la i32) (local $lb i32) (local $p i32) (local $i i32)
+                    local.get $a
+                    call $jn_str_len
+                    local.set $la
+                    local.get $b
+                    call $jn_str_len
+                    local.set $lb
+                    local.get $la
+                    local.get $lb
+                    i32.add
+                    i32.const 4
+                    i32.add
+                    call $jn_alloc
+                    local.set $p
+                    local.get $p
+                    local.get $la
+                    local.get $lb
+                    i32.add
+                    i32.store
+                    i32.const 0
+                    local.set $i
+                    (block $da
+                      (loop $ca
+                        local.get $i
+                        local.get $la
+                        i32.ge_u
+                        br_if $da
+                        local.get $p
+                        i32.const 4
+                        i32.add
+                        local.get $i
+                        i32.add
+                        local.get $a
+                        call $jn_str_data
+                        local.get $i
+                        i32.add
+                        i32.load8_u
+                        i32.store8
+                        local.get $i
+                        i32.const 1
+                        i32.add
+                        local.set $i
+                        br $ca
+                      )
+                    )
+                    i32.const 0
+                    local.set $i
+                    (block $db
+                      (loop $cb
+                        local.get $i
+                        local.get $lb
+                        i32.ge_u
+                        br_if $db
+                        local.get $p
+                        i32.const 4
+                        i32.add
+                        local.get $la
+                        i32.add
+                        local.get $i
+                        i32.add
+                        local.get $b
+                        call $jn_str_data
+                        local.get $i
+                        i32.add
+                        i32.load8_u
+                        i32.store8
+                        local.get $i
+                        i32.const 1
+                        i32.add
+                        local.set $i
+                        br $cb
+                      )
+                    )
+                    local.get $p
+                  )
+                  ;; decimal int → string (for money display helpers)
+                  (func $jn_string_value_of_i32 (param $v i32) (result i32)
+                    (local $neg i32) (local $n i32) (local $tmp i32) (local $len i32) (local $p i32) (local $i i32)
+                    local.get $v
+                    i32.const 0
+                    i32.lt_s
+                    local.set $neg
+                    local.get $v
+                    local.get $v
+                    i32.const 31
+                    i32.shr_s
+                    i32.xor
+                    local.get $v
+                    i32.const 31
+                    i32.shr_s
+                    i32.sub
+                    local.set $n
+                    local.get $n
+                    i32.eqz
+                    if (result i32)
+                      i32.const 1
+                      local.set $len
+                      i32.const 0
+                    else
+                      i32.const 0
+                      local.set $len
+                      local.get $n
+                      local.set $tmp
+                      (loop $cnt
+                        local.get $len
+                        i32.const 1
+                        i32.add
+                        local.set $len
+                        local.get $tmp
+                        i32.const 10
+                        i32.div_u
+                        local.set $tmp
+                        local.get $tmp
+                        br_if $cnt
+                      )
+                      i32.const 0
+                    end
+                    drop
+                    local.get $len
+                    local.get $neg
+                    i32.add
+                    i32.const 4
+                    i32.add
+                    call $jn_alloc
+                    local.set $p
+                    local.get $p
+                    local.get $len
+                    local.get $neg
+                    i32.add
+                    i32.store
+                    local.get $neg
+                    if
+                      local.get $p
+                      i32.const 4
+                      i32.add
+                      i32.const 45
+                      i32.store8
+                    end
+                    local.get $n
+                    i32.eqz
+                    if
+                      local.get $p
+                      i32.const 4
+                      i32.add
+                      local.get $neg
+                      i32.add
+                      i32.const 48
+                      i32.store8
+                      local.get $p
+                      return
+                    end
+                    local.get $len
+                    local.set $i
+                    (loop $dig
+                      local.get $i
+                      i32.const 1
+                      i32.sub
+                      local.set $i
+                      local.get $p
+                      i32.const 4
+                      i32.add
+                      local.get $neg
+                      i32.add
+                      local.get $i
+                      i32.add
+                      local.get $n
+                      i32.const 10
+                      i32.rem_u
+                      i32.const 48
+                      i32.add
+                      i32.store8
+                      local.get $n
+                      i32.const 10
+                      i32.div_u
+                      local.set $n
+                      local.get $i
+                      br_if $dig
+                    )
+                    local.get $p
                   )
                 """);
     }

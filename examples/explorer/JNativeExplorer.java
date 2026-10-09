@@ -1,5 +1,3 @@
-import jnative.ui.*;
-import jnative.io.*;
 
 /**
  * JNative Explorer — native desktop file manager.
@@ -250,7 +248,9 @@ class ExplorerActions {
         NavNode n = win.tree.getSelectionModel().getSelectedItem();
         if (n != null && n.path != null && n.kind != 0) {
             pendingNav = n;
-            Application.invokeLater(() -> {
+            /* Always enqueue: invokeLater runs sync on the UI thread, and
+               SELECT used to fire nested inside AppKit selection (crash). */
+            UiTaskQueue.enqueue(() -> {
                 ExplorerActions.finishTreeOpen();
             });
         }
@@ -288,7 +288,7 @@ class ExplorerActions {
             return;
         }
         pendingNav = win.tree.getSelectionModel().getSelectedItem();
-        Application.invokeLater(() -> {
+        UiTaskQueue.enqueue(() -> {
             ExplorerActions.finishTreeOpen();
         });
     }

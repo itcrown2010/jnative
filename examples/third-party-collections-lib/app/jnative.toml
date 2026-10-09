@@ -1,0 +1,10 @@
+[package]
+name = "stats-app"
+namespace = "acme"
+version = "0.1.0"
+description = "Consumer of acme/stats source package"
+license = "MIT"
+type = "source"
+
+[dependencies]
+"acme/stats" = "1.0.0"

@@ -49,3 +49,9 @@ Capturing variables must be **effectively final**. Assignment after capture is r
 - No generic SAM inference beyond builtin SAMs.
 - No serializable / MethodHandle API.
 - HttpHandler uses `Object → Object`; stdlib casts to `HttpResponse`.
+- Constructor / array constructor method references: not supported (hard error).
+- wasm32-browser: callables rejected (see `docs/jnative-closures.md`).
+
+## Closure reliability (2026-10-09)
+
+Nested lambda frames, `this` capture, escape+GC, unbound instance refs, and invoke-runtime coverage are documented in **[jnative-closures.md](jnative-closures.md)**.

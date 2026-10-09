@@ -70,6 +70,62 @@ interface JnFutureCallback {
     void invoke(JnFuture future);
 }
 
+/**
+ * Cancellable wrapper around {@link JnFutureCallback}.
+ * cancel() is idempotent; a cancelled callback is skipped (at most once otherwise).
+ * Does not force-stop a callback already running on the event loop thread.
+ */
+class FutureSubscription {
+    int cancelled;
+    JnFutureCallback inner;
+
+    FutureSubscription() {
+        cancelled = 0;
+        inner = null;
+    }
+
+    boolean isCancelled() {
+        return cancelled != 0;
+    }
+
+    void cancel() {
+        cancelled = 1;
+        inner = null;
+    }
+}
+
+class CancellableFutureCallback implements JnFutureCallback {
+    FutureSubscription sub;
+    JnFutureCallback inner;
+    /** 0=pending, 1=claimed (at most one invoke of inner). */
+    int claimed;
+
+    CancellableFutureCallback() {
+        sub = null;
+        inner = null;
+        claimed = 0;
+    }
+
+    public void invoke(JnFuture future) {
+        if (sub == null || sub.cancelled != 0) {
+            return;
+        }
+        if (claimed != 0) {
+            return;
+        }
+        claimed = 1;
+        if (sub.cancelled != 0) {
+            return;
+        }
+        JnFutureCallback cb = inner;
+        inner = null;
+        if (cb == null) {
+            return;
+        }
+        cb.invoke(future);
+    }
+}
+
 interface BlockingSupplier {
     Object get();
 }
@@ -262,7 +318,7 @@ class JnFuture {
 
     void onComplete(JnFutureCallback cb) {
         if (cb == null) {
-            return;
+            throw new NullPointerException("callback");
         }
         lock.lock();
         if (state != PENDING) {
@@ -274,8 +330,50 @@ class JnFuture {
         lock.unlock();
     }
 
+    /**
+     * Register a cancellable completion callback.
+     * If already done, the callback is scheduled/invoked immediately (unless cancelled first).
+     * Thread: when {@code loop} is running, callbacks run on that event-loop thread; otherwise
+     * they run on the completing thread.
+     */
+    FutureSubscription subscribe(JnFutureCallback cb) {
+        if (cb == null) {
+            throw new NullPointerException("callback");
+        }
+        FutureSubscription sub = new FutureSubscription();
+        CancellableFutureCallback wrap = new CancellableFutureCallback();
+        wrap.sub = sub;
+        wrap.inner = cb;
+        sub.inner = wrap;
+        onComplete(wrap);
+        return sub;
+    }
+
+    /** Success path only; failures/cancel skip the consumer. */
+    FutureSubscription onSuccess(Consumer<Object> consumer) {
+        if (consumer == null) {
+            throw new NullPointerException("consumer");
+        }
+        SuccessCallback cb = new SuccessCallback();
+        cb.consumer = consumer;
+        return subscribe(cb);
+    }
+
+    /** Failure path only (FAILED state); SUCCESS/CANCELLED skip. */
+    FutureSubscription onFailure(Consumer<Object> consumer) {
+        if (consumer == null) {
+            throw new NullPointerException("consumer");
+        }
+        FailureCallback cb = new FailureCallback();
+        cb.consumer = consumer;
+        return subscribe(cb);
+    }
+
     void dispatchOneCallback(JnFutureCallback cb) {
-        if (loop != null && loop.running != 0) {
+        // Always queue onto the associated loop when present so completions that race
+        // before run() still execute on the loop thread once it starts (or during the
+        // stop-before-run drain). No loop → invoke on the completing thread.
+        if (loop != null) {
             RunCallbackTask t = new RunCallbackTask();
             t.cb = cb;
             t.future = this;
@@ -392,6 +490,34 @@ class JnFuture {
         fire.ms = ms;
         loop.scheduleTimer(ms, fire);
         return out;
+    }
+}
+
+class SuccessCallback implements JnFutureCallback {
+    Consumer<Object> consumer;
+
+    SuccessCallback() {
+        consumer = null;
+    }
+
+    public void invoke(JnFuture future) {
+        if (future.getState() == JnFuture.SUCCESS) {
+            consumer.accept(future.getValue());
+        }
+    }
+}
+
+class FailureCallback implements JnFutureCallback {
+    Consumer<Object> consumer;
+
+    FailureCallback() {
+        consumer = null;
+    }
+
+    public void invoke(JnFuture future) {
+        if (future.getState() == JnFuture.FAILED) {
+            consumer.accept(future.getError());
+        }
     }
 }
 
@@ -657,6 +783,8 @@ class EventLoop {
     NativePtr poll;
     int pollInit;
     int running;
+    /** Sticky: stop() before run() must not be overwritten by run(). */
+    int stopRequested;
     int activeConnections;
     int pollWakeups;
     long loopThreadId;
@@ -668,6 +796,7 @@ class EventLoop {
         poll = NativePtr.NULL;
         pollInit = 0;
         running = 0;
+        stopRequested = 0;
         activeConnections = 0;
         pollWakeups = 0;
         loopThreadId = 0;
@@ -826,14 +955,28 @@ class EventLoop {
 
     void run() {
         loopThreadId = Thread.currentThread().id();
+        if (stopRequested != 0) {
+            // stop() won the race before run(); drain queued completions once.
+            processReady();
+            loopThreadId = 0;
+            return;
+        }
         running = 1;
         while (running != 0) {
             tick();
         }
+        // After stop(): drain already-queued ready tasks once (timers not auto-fired).
+        processReady();
         loopThreadId = 0;
     }
 
+    /**
+     * Request loop exit. Does not cancel in-flight callback bodies.
+     * Queued ready tasks are drained once when {@link #run()} observes the stop.
+     * Safe if called before {@link #run()} (sticky stopRequested).
+     */
     void stop() {
+        stopRequested = 1;
         running = 0;
         if (pollInit != 0) {
             PollNative.wakeup(poll);
@@ -958,6 +1101,39 @@ class Async {
         sharedPool.execute(task);
         return f;
     }
+
+    /**
+     * Run {@code work} on the shared thread pool; complete {@code JnFuture} on {@code loop}.
+     * This is a <b>blocking adapter</b> path (worker thread), not non-blocking I/O.
+     * Cancel via {@link JnFuture#tryCancel} only affects observers — does not stop {@code work}.
+     */
+    static JnFuture submit(EventLoop loop, BlockingSupplier work) {
+        return blockingOnLoop(loop, work);
+    }
+
+    /** Post {@code task} onto {@code loop} (same thread as other loop callbacks). */
+    static void runOnLoop(EventLoop loop, LoopTask task) {
+        if (loop == null) {
+            throw new NullPointerException("loop");
+        }
+        if (task == null) {
+            throw new NullPointerException("task");
+        }
+        loop.execute(task);
+    }
+
+    /**
+     * Shut down the shared blocking pool and join workers.
+     * Call before process exit so {@code jn_thread_join_remaining} does not hang
+     * on non-daemon pool threads blocked in {@code Condition.await}.
+     */
+    static void shutdownSharedPool() {
+        if (poolInit == 0 || sharedPool == null) {
+            return;
+        }
+        sharedPool.shutdown();
+        sharedPool.join();
+    }
 }
 
 class SleepCompleteTask implements LoopTask {
@@ -995,7 +1171,9 @@ class BlockingRunTask implements PoolTask {
     }
 
     void completeBlockingFuture(Object value, Exception error) {
-        if (loop != null && loop.running != 0) {
+        // Always hand completion to the loop queue when a loop is bound — avoids
+        // stop()/callback races when the worker finishes before EventLoop.run().
+        if (loop != null) {
             BlockingCompleteTask done = new BlockingCompleteTask();
             done.future = future;
             done.value = value;

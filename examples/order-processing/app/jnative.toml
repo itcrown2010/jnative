@@ -1,0 +1,10 @@
+[package]
+name = "order-app"
+namespace = "demo"
+version = "0.1.0"
+description = "Capability-integration order processing demo"
+license = "MIT"
+type = "source"
+
+[dependencies]
+"acme/moneykit" = "1.0.0"

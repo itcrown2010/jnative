@@ -178,41 +178,86 @@ public final class Lexer {
     }
 
     private void number() {
+        // First digit already consumed in scanToken. Detect 0x… from that digit.
+        // Hex floats (0x1.0p0) and hex ints — hard error (language-support).
+        if (source.charAt(start) == '0' && (peek() == 'x' || peek() == 'X')) {
+            advance();
+            while (isHexDigit(peek()) || peek() == '.' || peek() == 'p' || peek() == 'P'
+                    || peek() == '+' || peek() == '-' || peek() == '_') {
+                advance();
+            }
+            if (peek() == 'f' || peek() == 'F' || peek() == 'd' || peek() == 'D') {
+                advance();
+            }
+            errorToken("hexadecimal numeric literals are not supported");
+            return;
+        }
+
         while (isDigit(peek())) {
             advance();
         }
+        if (peek() == '_') {
+            errorToken("numeric digit separators are not supported");
+            return;
+        }
 
-        boolean isDouble = false;
+        boolean isFloating = false;
         if (peek() == '.' && isDigit(peekNext())) {
-            isDouble = true;
+            isFloating = true;
             advance();
             while (isDigit(peek())) {
                 advance();
+            }
+            if (peek() == '_') {
+                errorToken("numeric digit separators are not supported");
+                return;
             }
         }
 
         if (peek() == 'e' || peek() == 'E') {
-            isDouble = true;
+            isFloating = true;
             advance();
             if (peek() == '+' || peek() == '-') {
                 advance();
             }
+            if (!isDigit(peek())) {
+                errorToken("exponent has no digits");
+                return;
+            }
             while (isDigit(peek())) {
                 advance();
             }
+            if (peek() == '_') {
+                errorToken("numeric digit separators are not supported");
+                return;
+            }
         }
 
-        if (!isDouble && (peek() == 'L' || peek() == 'l')) {
+        if (peek() == 'f' || peek() == 'F') {
+            advance();
+            addToken(TokenType.FLOAT_LITERAL);
+            return;
+        }
+        if (peek() == 'd' || peek() == 'D') {
+            advance();
+            addToken(TokenType.DOUBLE_LITERAL);
+            return;
+        }
+        if (!isFloating && (peek() == 'L' || peek() == 'l')) {
             advance();
             addToken(TokenType.LONG_LITERAL);
             return;
         }
 
-        if (isDouble) {
+        if (isFloating) {
             addToken(TokenType.DOUBLE_LITERAL);
         } else {
             addToken(TokenType.INT_LITERAL);
         }
+    }
+
+    private boolean isHexDigit(char c) {
+        return (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F');
     }
 
     private void identifier() {

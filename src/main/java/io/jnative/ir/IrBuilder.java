@@ -137,8 +137,9 @@ public final class IrBuilder {
     public IrValue binary(IrInstruction.BinOp op, IrValue left, IrValue right) {
         IrValue.Temp t = temp(left.type());
         emit(new IrInstruction.Binary(t, op, left, right));
+        // Integer div/mod may throw ArithmeticException; float/double do not.
         if ((op == IrInstruction.BinOp.DIV || op == IrInstruction.BinOp.MOD)
-                && left.type() != IrType.DOUBLE) {
+                && left.type() != IrType.DOUBLE && left.type() != IrType.FLOAT) {
             maybeCheckPending();
         }
         return t;

@@ -417,14 +417,17 @@ public final class NetworkRuntimeEmitter {
                 entry:
                   call void @jnative_null_check(ptr %text)
                   %h = call i64 @jnative_net_require_handle(ptr %sock)
-                  %len = call i32 @jnative_string_length(ptr %text)
-                  %src = getelementptr i8, ptr %text, i64 16
+                  %len = call i32 @jnative_string_utf8_length(ptr %text)
+                  %len64 = sext i32 %len to i64
+                  %buf = call ptr @malloc(i64 %len64)
+                  %enc = call i32 @jnative_string_encode_utf8(ptr %text, ptr %buf, i32 %len)
                   %err = alloca [256 x i8], align 1
                   %errp = getelementptr [256 x i8], ptr %err, i64 0, i64 0
                   store i8 0, ptr %errp, align 1
                   call void @jn_enter_native()
-                  %rc = call i32 @jnative_plat_tcp_write_all(i64 %h, ptr %src, i32 %len, ptr %errp, i64 256)
+                  %rc = call i32 @jnative_plat_tcp_write_all(i64 %h, ptr %buf, i32 %len, ptr %errp, i64 256)
                   call void @jn_leave_native()
+                  call void @free(ptr %buf)
                   %ok = icmp eq i32 %rc, 0
                   br i1 %ok, label %done, label %fail
                 fail:

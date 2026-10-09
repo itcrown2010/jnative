@@ -49,8 +49,16 @@ public final class IoRuntimeEmitter {
                 define void @jnative_println_string(ptr %s) {
                 entry:
                   call void @jnative_null_check(ptr %s)
-                  %data = getelementptr i8, ptr %s, i64 16
-                  call i32 @puts(ptr %data)
+                  %ulen = call i32 @jnative_string_utf8_length(ptr %s)
+                  %len64 = sext i32 %ulen to i64
+                  %n64 = add i64 %len64, 1
+                  %buf = call ptr @malloc(i64 %n64)
+                  %enc = call i32 @jnative_string_encode_utf8(ptr %s, ptr %buf, i32 %ulen)
+                  %nul = getelementptr i8, ptr %buf, i32 %ulen
+                  store i8 0, ptr %nul, align 1
+                  ; puts stops at embedded NUL; use File/TCP APIs for binary text.
+                  call i32 @puts(ptr %buf)
+                  call void @free(ptr %buf)
                   ret void
                 }
 

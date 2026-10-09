@@ -1,0 +1,19 @@
+[package]
+name = "sudoku"
+namespace = "examples"
+version = "0.1.0"
+description = "Cross-platform Sudoku — shared JNative core + desktop / web / mobile UIs"
+license = "MIT"
+
+[mobile]
+app_name = "JNative Sudoku"
+android_application_id = "io.jnative.examples.mobile.sudoku"
+ios_bundle_id = "io.jnative.examples.mobile.sudoku"
+version = "0.1.0"
+build_number = "1"
+entry = "core/SudokuCore.java"
+web_root = "mobile/web"
+web_entry = "mobile/web/index.html"
+platforms_root = "mobile"
+targets = ["web", "android", "ios"]
+capabilities = ["platform.getName", "storage.get", "storage.set", "storage.remove", "lifecycle"]

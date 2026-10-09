@@ -80,18 +80,119 @@ class StringEndToEndTest {
     }
 
     @Test
-    void unicodeLengthIsUtf8Bytes() throws Exception {
-        /* Documented: length() counts UTF-8 bytes, not Unicode code points. */
-        assertEquals("6\n4\n", run("""
+    void unicodeLengthIsUtf16CodeUnits() throws Exception {
+        /* length() = UTF-16 code units; utf8Length() = UTF-8 bytes. "中文😀" → 4 / 10. */
+        assertEquals("2\n2\n4\n6\n4\n10\n", run("""
                 public class Main {
                     public static void main(String[] args) {
                         String cn = "你好";
                         System.out.println(cn.length());
                         String emoji = "😀";
                         System.out.println(emoji.length());
+                        String mix = "中文😀";
+                        System.out.println(mix.length());
+                        System.out.println(cn.utf8Length());
+                        System.out.println(emoji.utf8Length());
+                        System.out.println(mix.utf8Length());
                     }
                 }
-                """, "StrUtf8"));
+                """, "StrUtf16"));
+    }
+
+    @Test
+    void charAtAndSubstringSurrogate() throws Exception {
+        assertEquals("1\n2\n1\n", run("""
+                public class Main {
+                    public static void main(String[] args) {
+                        String e = "😀";
+                        char hi = e.charAt(0);
+                        char lo = e.charAt(1);
+                        if (hi >= 55296 && hi <= 56319) {
+                            System.out.println(1);
+                        } else {
+                            System.out.println(0);
+                        }
+                        if (lo >= 56320 && lo <= 57343) {
+                            System.out.println(2);
+                        } else {
+                            System.out.println(0);
+                        }
+                        String alone = e.substring(0, 1);
+                        System.out.println(alone.length());
+                    }
+                }
+                """, "StrSurr"));
+    }
+
+    @Test
+    void equalsHashCodeJavaCompatible() throws Exception {
+        assertEquals("1\n1\n", run("""
+                public class Main {
+                    public static void main(String[] args) {
+                        String a = "中文😀";
+                        String b = "中" + "文" + "😀";
+                        if (a.equals(b)) {
+                            System.out.println(1);
+                        } else {
+                            System.out.println(0);
+                        }
+                        if (a.hashCode() == b.hashCode()) {
+                            System.out.println(1);
+                        } else {
+                            System.out.println(0);
+                        }
+                    }
+                }
+                """, "StrEq"));
+    }
+
+    @Test
+    void embeddedNulRoundTrip() throws Exception {
+        assertEquals("3\n0\n", run("""
+                public class Main {
+                    public static void main(String[] args) {
+                        byte[] b = new byte[3];
+                        b[0] = 97;
+                        b[1] = 0;
+                        b[2] = 98;
+                        String s = String.fromBytes(b);
+                        System.out.println(s.length());
+                        System.out.println((int) s.charAt(1));
+                    }
+                }
+                """, "StrNul"));
+    }
+
+    @Test
+    void getBytesUtf8RoundTrip() throws Exception {
+        assertEquals("10\n中文😀\n", run("""
+                public class Main {
+                    public static void main(String[] args) {
+                        String s = "中文😀";
+                        byte[] b = s.getBytes();
+                        System.out.println(b.length);
+                        System.out.println(String.fromBytes(b));
+                    }
+                }
+                """, "StrBytes"));
+    }
+
+    @Test
+    void gcKeepsUnicode() throws Exception {
+        assertEquals("中文😀\n", run("""
+                public class Main {
+                    public static void main(String[] args) {
+                        String s = "中文😀";
+                        int i = 0;
+                        while (i < 2000) {
+                            String t = "x" + i;
+                            i = i + 1;
+                        }
+                        System.gc();
+                        System.out.println(s);
+                    }
+                }
+                """, "StrGc"));
     }
 
     @Test

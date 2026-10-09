@@ -19,15 +19,8 @@ public final class FfiRuntimeEmitter {
                 retnull:
                   ret ptr null
                 copy:
-                  %lptr = getelementptr i8, ptr %s, i64 8
-                  %len = load i32, ptr %lptr, align 4
-                  %len64 = sext i32 %len to i64
-                  %n = add i64 %len64, 1
-                  %buf = call ptr @malloc(i64 %n)
-                  %src = getelementptr i8, ptr %s, i64 16
-                  call ptr @memcpy(ptr %buf, ptr %src, i64 %len64)
-                  %nul = getelementptr i8, ptr %buf, i64 %len64
-                  store i8 0, ptr %nul, align 1
+                  ; UTF-8 encode; rejects embedded U+0000 (IllegalArgumentException).
+                  %buf = call ptr @jnative_string_to_cstr(ptr %s)
                   ret ptr %buf
                 }
 

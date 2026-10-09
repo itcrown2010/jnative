@@ -1,7 +1,8 @@
-// JNative Math stdlib (0.33)
+// JNative Math stdlib (0.33+)
 // Floating Math uses IEEE 754 / libm semantics (NaN/Infinity, not domain exceptions).
 // Integer abs(MIN_VALUE) follows two's-complement Java-compatible wrap.
-// float overloads: deferred — language lacks float literals / primitive float casts (see Math report).
+// float abs/min/max overloads are provided; other float Math.* remain double-only
+// (callers widen with (double) or use float literals + promotion).
 
 class Math {
     static double PI = 3.141592653589793;
@@ -22,8 +23,16 @@ class Math {
         return a;
     }
 
+    static float abs(float a) {
+        // <= so -0.0f becomes +0.0f (Java Math.abs); NaN stays NaN.
+        if (a <= 0.0f) {
+            return 0.0f - a;
+        }
+        return a;
+    }
+
     static double abs(double a) {
-        if (a < 0.0) {
+        if (a <= 0.0) {
             return 0.0 - a;
         }
         return a;
@@ -37,6 +46,19 @@ class Math {
     }
 
     static long min(long a, long b) {
+        if (a <= b) {
+            return a;
+        }
+        return b;
+    }
+
+    static float min(float a, float b) {
+        if (isNaN((double) a)) {
+            return b;
+        }
+        if (isNaN((double) b)) {
+            return a;
+        }
         if (a <= b) {
             return a;
         }
@@ -64,6 +86,19 @@ class Math {
     }
 
     static long max(long a, long b) {
+        if (a >= b) {
+            return a;
+        }
+        return b;
+    }
+
+    static float max(float a, float b) {
+        if (isNaN((double) a)) {
+            return b;
+        }
+        if (isNaN((double) b)) {
+            return a;
+        }
         if (a >= b) {
             return a;
         }
@@ -135,11 +170,15 @@ class Math {
     static native double hypot(double x, double y);
 
     /**
-     * Java-compatible Math.round(double) → long.
-     * Uses libm llround because JNative has no primitive cast (double→long) yet.
+     * Java-compatible Math.round(double) → long: floor(a + 0.5) with cast saturation.
+     * Special cases follow java.lang.Math.round (NaN→0, extremes saturate).
      */
-    @Native(symbol = "llround")
-    static native long round(double a);
+    static long round(double a) {
+        if (isNaN(a)) {
+            return 0L;
+        }
+        return (long) Math.floor(a + 0.5);
+    }
 
     static double toRadians(double deg) {
         return deg * 0.017453292519943295;

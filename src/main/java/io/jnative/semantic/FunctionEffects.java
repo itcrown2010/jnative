@@ -89,7 +89,7 @@ public final class FunctionEffects {
 
     public boolean isDeterministic() {
         return !mayAllocate() && !maySafepoint() && !mayThrow() && !mayBlock()
-                && !maySuspend() && !isUnknown();
+                && !maySuspend() && !isUnknown() && !has(WRITES_GLOBAL);
     }
 
     /** Effects forbidden by @NoGC. */

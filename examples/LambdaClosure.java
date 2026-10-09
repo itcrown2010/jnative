@@ -1,12 +1,28 @@
+interface IntUnary {
+    int apply(int value);
+}
+
+/** Escape + capture env + GC smoke (see docs/jnative-closures.md). */
 public class LambdaClosure {
-    static IntUnaryFunction create(int base) {
-        return x -> x + base;
+    static IntUnary addBy(int base) {
+        return value -> value + base;
+    }
+
+    static IntUnary nest(int a) {
+        int b = 10;
+        return x -> {
+            IntUnary inner = y -> y + a + b;
+            return inner.apply(x);
+        };
     }
 
     public static void main(String[] args) {
-        IntUnaryFunction f = create(100);
+        IntUnary f = addBy(100);
         System.gc();
         System.out.println(f.apply(23));
+        IntUnary g = nest(5);
+        System.gc();
+        System.out.println(g.apply(1));
         Thread t = new Thread(() -> System.out.println(f.apply(23)));
         t.start();
         t.join();

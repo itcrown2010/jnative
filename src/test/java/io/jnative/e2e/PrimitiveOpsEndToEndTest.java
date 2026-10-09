@@ -58,16 +58,19 @@ class PrimitiveOpsEndToEndTest {
     }
 
     @Test
-    void floatCastRejected() {
+    void floatCastAllowed() {
         DiagnosticReporter r = analyze("""
                 public class T {
-                    public static void f(double d) {
+                    public static void f(double d, float f) {
                         int x = (int) d;
+                        long y = (long) f;
+                        float a = (float) d;
+                        double b = (double) f;
+                        byte c = (byte) d;
                     }
                 }
                 """);
-        assertTrue(r.hasErrors());
-        assertTrue(messages(r).toLowerCase().contains("float"), messages(r));
+        assertFalse(r.hasErrors(), messages(r));
     }
 
     @Test

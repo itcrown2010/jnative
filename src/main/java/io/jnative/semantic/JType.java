@@ -31,6 +31,9 @@ public sealed interface JType
         if (left == PrimitiveType.DOUBLE || right == PrimitiveType.DOUBLE) {
             return PrimitiveType.DOUBLE;
         }
+        if (left == PrimitiveType.FLOAT || right == PrimitiveType.FLOAT) {
+            return PrimitiveType.FLOAT;
+        }
         if (left == PrimitiveType.LONG || right == PrimitiveType.LONG) {
             return PrimitiveType.LONG;
         }

@@ -39,6 +39,10 @@ public final class ClassSymbol implements ReferenceTypeSymbol {
     private FunctionType functionType;
     private final boolean builtin;
     private boolean isAbstract;
+    private boolean isFinal;
+    /** Basic language enum (managed objects; not java.lang.Enum subclass). */
+    private boolean isEnum;
+    private List<String> enumConstants = List.of();
     /** True if this is a compiler-generated specialization (e.g. Box$P_i32). */
     private boolean specialized;
     private ClassSymbol genericOrigin;
@@ -111,6 +115,34 @@ public final class ClassSymbol implements ReferenceTypeSymbol {
 
     public void setAbstract(boolean isAbstract) {
         this.isAbstract = isAbstract;
+    }
+
+    public boolean isFinal() {
+        return isFinal;
+    }
+
+    public void setFinal(boolean isFinal) {
+        this.isFinal = isFinal;
+    }
+
+    public boolean isEnum() {
+        return isEnum;
+    }
+
+    public void setEnum(boolean isEnum) {
+        this.isEnum = isEnum;
+    }
+
+    public List<String> enumConstants() {
+        return enumConstants;
+    }
+
+    public void setEnumConstants(List<String> enumConstants) {
+        this.enumConstants = enumConstants == null ? List.of() : List.copyOf(enumConstants);
+    }
+
+    public int enumOrdinal(String constantName) {
+        return enumConstants.indexOf(constantName);
     }
 
     public ClassType asType() {

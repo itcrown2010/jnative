@@ -164,6 +164,7 @@ public final class GenericLowering {
                 typed.arrayMetadatas(),
                 typed.catchTypes(),
                 typed.resourceCloseCalls(),
+                typed.enhancedForDesugars(),
                 typed.nativeLibraries(),
                 typed.targetAbi());
     }
@@ -244,6 +245,16 @@ public final class GenericLowering {
             return existing;
         }
 
+        // Register placeholder first so mutual deps (HashMap ↔ EntryIterator) do not recurse.
+        ClassSymbol spec = new ClassSymbol(name, origin.location(), false);
+        spec.setGenericOrigin(origin);
+        spec.setSpecializationArgs(args);
+        spec.setSpecialized(true);
+        spec.setAbstract(origin.isAbstract());
+        origin.superClass().ifPresent(spec::setSuperClass);
+        spec.setImplementedInterfaces(origin.implementedInterfaces());
+        classes.put(name, spec);
+
         TypeSubstitution sub = TypeSubstitution.zip(origin.typeParameters(), args);
         // Pre-specialize nested parameterized types so lowerType can resolve them.
         for (FieldSymbol field : origin.declaredFields()) {
@@ -260,14 +271,6 @@ public final class GenericLowering {
                 preSpecializeDeps(sub.apply(p.type()), classes);
             }
         }
-
-        ClassSymbol spec = new ClassSymbol(name, origin.location(), false);
-        spec.setGenericOrigin(origin);
-        spec.setSpecializationArgs(args);
-        spec.setSpecialized(true);
-        spec.setAbstract(origin.isAbstract());
-        origin.superClass().ifPresent(spec::setSuperClass);
-        spec.setImplementedInterfaces(origin.implementedInterfaces());
 
         ClassSymbol objectClass = classes.get("Object");
         int index = 0;
@@ -324,7 +327,6 @@ public final class GenericLowering {
                 iface.addImplementor(spec);
             }
         }
-        classes.put(name, spec);
         stats.specializedCount++;
         stats.specializedNames.add(name);
         return spec;

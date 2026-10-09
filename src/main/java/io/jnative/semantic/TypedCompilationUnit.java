@@ -2,6 +2,7 @@ package io.jnative.semantic;
 
 import io.jnative.ast.CatchClause;
 import io.jnative.ast.CompilationUnit;
+import io.jnative.ast.EnhancedForStatement;
 import io.jnative.ast.Expression;
 import io.jnative.ast.MethodCallExpression;
 import io.jnative.ast.ProgramAst;
@@ -28,6 +29,8 @@ public record TypedCompilationUnit(
         Map<CatchClause, ClassSymbol> catchTypes,
         /** Synthetic {@code close()} calls for try-with-resources, already in reverse close order. */
         Map<TryStatement, List<MethodCallExpression>> resourceCloseCalls,
+        /** Iterable enhanced-for desugaring (arrays omit an entry). */
+        Map<EnhancedForStatement, EnhancedForDesugar> enhancedForDesugars,
         List<String> nativeLibraries,
         TargetAbi targetAbi
 ) {
@@ -35,6 +38,7 @@ public record TypedCompilationUnit(
         units = units == null || units.isEmpty()
                 ? List.of(unit)
                 : List.copyOf(units);
+        enhancedForDesugars = enhancedForDesugars == null ? Map.of() : Map.copyOf(enhancedForDesugars);
     }
 
     /** Legacy single-unit constructor. */
@@ -54,7 +58,7 @@ public record TypedCompilationUnit(
     ) {
         this(unit, List.of(unit), classes, interfaces, nativeStructs, expressionTypes,
                 resolvedSymbols, callableBindings, arrayMetadatas, catchTypes, resourceCloseCalls,
-                nativeLibraries, targetAbi);
+                Map.of(), nativeLibraries, targetAbi);
     }
 
     public ProgramAst program() {

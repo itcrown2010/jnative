@@ -1,0 +1,7 @@
+[package]
+name = "stats"
+namespace = "acme"
+version = "1.0.0"
+min_compiler = "0.30"
+type = "source"
+

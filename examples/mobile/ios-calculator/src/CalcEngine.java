@@ -352,33 +352,92 @@ public class CalcEngine {
         return true;
     }
 
-    /** Round-half-away-from-zero: (a * b) / scale(). */
+    /**
+     * Round-half-away-from-zero: (a * b) / scale().
+     * Do not form a*b in one multiply — scaled operands (e.g. 123e6 * 456e6)
+     * overflow signed long even when the fixed-point result fits.
+     */
     private static long mulFixed(long a, long b) {
         if (a == 0L || b == 0L) {
             return 0L;
         }
-        if (canMul(a, b) == false) {
+        int sign = 1;
+        long aa = a;
+        long bb = b;
+        if (aa < 0L) {
+            aa = 0L - aa;
+            sign = 0 - sign;
+        }
+        if (bb < 0L) {
+            bb = 0L - bb;
+            sign = 0 - sign;
+        }
+        long s = scale();
+        long aInt = aa / s;
+        long aFrac = aa % s;
+        long bInt = bb / s;
+        long bFrac = bb % s;
+        long r = 0L;
+
+        /* (aInt*s+aFrac)*(bInt*s+bFrac)/s = aInt*bInt*s + aInt*bFrac + aFrac*bInt + aFrac*bFrac/s */
+        if (aInt != 0L && bInt != 0L) {
+            if (canMul(aInt, bInt) == false) {
+                setError(2);
+                return 0L;
+            }
+            long ab = aInt * bInt;
+            if (canMul(ab, s) == false) {
+                setError(2);
+                return 0L;
+            }
+            r = ab * s;
+        }
+        if (aInt != 0L && bFrac != 0L) {
+            if (canMul(aInt, bFrac) == false) {
+                setError(2);
+                return 0L;
+            }
+            long t = aInt * bFrac;
+            if (canAdd(r, t) == false) {
+                setError(2);
+                return 0L;
+            }
+            r = r + t;
+        }
+        if (aFrac != 0L && bInt != 0L) {
+            if (canMul(aFrac, bInt) == false) {
+                setError(2);
+                return 0L;
+            }
+            long t = aFrac * bInt;
+            if (canAdd(r, t) == false) {
+                setError(2);
+                return 0L;
+            }
+            r = r + t;
+        }
+        if (aFrac != 0L && bFrac != 0L) {
+            if (canMul(aFrac, bFrac) == false) {
+                setError(2);
+                return 0L;
+            }
+            long prod = aFrac * bFrac;
+            long half = s / 2L;
+            long q = (prod + half) / s;
+            if (canAdd(r, q) == false) {
+                setError(2);
+                return 0L;
+            }
+            r = r + q;
+        }
+        if (abs(r) > maxAbs()) {
             setError(2);
             return 0L;
         }
-        long prod = a * b;
-        long half = scale() / 2L;
-        long q;
-        if (prod >= 0L) {
-            if (canAdd(prod, half) == false) {
-                setError(2);
-                return 0L;
-            }
-            q = (prod + half) / scale();
-        } else {
-            long nh = 0L - half;
-            if (canAdd(prod, nh) == false) {
-                setError(2);
-                return 0L;
-            }
-            q = (prod - half) / scale();
+        if (sign < 0) {
+            return 0L - r;
         }
-        return q;
+        return r;
     }
 
     /** Round-half-away-from-zero: (a * scale()) / b. */

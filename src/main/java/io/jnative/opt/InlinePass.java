@@ -55,7 +55,13 @@ public final class InlinePass implements OptimizationPass {
                     continue;
                 }
                 FunctionEffects fx = ctx.effects(call.function());
-                if (!fx.isPure() && !fx.isDeterministic() && calleeAllocates(callee)) {
+                // Only inline pure callees. Deterministic-but-impure (e.g. WRITES_GLOBAL)
+                // must not be inlined until static load/store remap is fully proven in all
+                // shapes — incorrect remap previously collided with caller temps (%t0).
+                if (!fx.isPure()) {
+                    continue;
+                }
+                if (calleeAllocates(callee)) {
                     continue;
                 }
                 if (!inlineCallSite(ctx, caller, block, i, call, callee)) {

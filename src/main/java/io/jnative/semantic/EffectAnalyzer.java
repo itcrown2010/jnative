@@ -291,6 +291,20 @@ public final class EffectAnalyzer {
                 }
                 yield e;
             }
+            case EnhancedForStatement ef -> {
+                FunctionEffects e = inferExpression(ef.array(), ms, contribs);
+                e.union(inferStatement(ef.body(), ms, contribs));
+                yield e;
+            }
+            case SwitchStatement s -> {
+                FunctionEffects e = inferExpression(s.selector(), ms, contribs);
+                for (SwitchSection sec : s.sections()) {
+                    for (Statement st : sec.statements()) {
+                        e.union(inferStatement(st, ms, contribs));
+                    }
+                }
+                yield e;
+            }
             case ReturnStatement r -> r.value() != null
                     ? inferExpression(r.value(), ms, contribs)
                     : FunctionEffects.none();
@@ -446,6 +460,16 @@ public final class EffectAnalyzer {
             }
             e.union(instanceNullCheck(fa.receiver(), contribs));
             e.union(inferExpression(fa.receiver(), ms, contribs));
+        } else if (a.target() instanceof VariableExpression ve) {
+            // Unqualified `staticField = …` resolves to a FieldSymbol, not a local.
+            Object sym = typed.resolvedSymbols().get(ve);
+            if (sym instanceof FieldSymbol fs && fs.isStatic()) {
+                e.with(FunctionEffects.WRITES_GLOBAL);
+                contribs.add("write " + fs.owner().name() + "." + fs.name());
+            }
+        }
+        if (a.value() != null) {
+            e.union(inferExpression(a.value(), ms, contribs));
         }
         return e;
     }
@@ -651,6 +675,11 @@ public final class EffectAnalyzer {
                     || (f.condition() != null && containsAwaitExpr(f.condition()))
                     || containsAwait(f.body())
                     || (f.update() != null && containsAwaitExpr(f.update()));
+            case EnhancedForStatement ef ->
+                    containsAwaitExpr(ef.array()) || containsAwait(ef.body());
+            case SwitchStatement s -> containsAwaitExpr(s.selector())
+                    || s.sections().stream().anyMatch(sec ->
+                    sec.statements().stream().anyMatch(EffectAnalyzer::containsAwait));
             case BreakStatement ignored -> false;
             case ContinueStatement ignored -> false;
             case ReturnStatement r -> r.value() != null && containsAwaitExpr(r.value());

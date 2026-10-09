@@ -502,6 +502,68 @@ class ActionEvent extends UiEvent {
     }
 }
 
+/**
+ * Cancellable registration for Component event handlers.
+ * cancel() is idempotent; after cancel the closure is dropped from the live list
+ * and this subscription releases its handler references.
+ * Dispatch snapshots the list at fire time — a handler cancelled mid-dispatch may still
+ * run for the current event if it was already snapshotted; it will not run for later events.
+ * Adding/removing other subscriptions during dispatch affects later events only (snapshot).
+ * Handler exceptions propagate to the fire* caller (not swallowed).
+ * Component.dispose() cancels all outstanding subscriptions owned by that component.
+ */
+class UiSubscription {
+    Component owner;
+    int kind;
+    EventHandler<ActionEvent> actionHandler;
+    EventHandler<UiEvent> changeHandler;
+    Runnable clickHandler;
+    int cancelled;
+
+    static int KIND_ACTION = 1;
+    static int KIND_CLICK = 2;
+    static int KIND_CHANGE = 3;
+
+    UiSubscription() {
+        owner = null;
+        kind = 0;
+        actionHandler = null;
+        changeHandler = null;
+        clickHandler = null;
+        cancelled = 0;
+    }
+
+    boolean isCancelled() {
+        return cancelled != 0;
+    }
+
+    void cancel() {
+        if (cancelled != 0) {
+            return;
+        }
+        cancelled = 1;
+        Component c = owner;
+        EventHandler<ActionEvent> ah = actionHandler;
+        EventHandler<UiEvent> ch = changeHandler;
+        Runnable rh = clickHandler;
+        owner = null;
+        actionHandler = null;
+        changeHandler = null;
+        clickHandler = null;
+        if (c == null) {
+            return;
+        }
+        c.detachSubscription(this);
+        if (kind == KIND_ACTION) {
+            c.removeActionHandler(ah);
+        } else if (kind == KIND_CLICK) {
+            c.clearClickListener(rh);
+        } else if (kind == KIND_CHANGE) {
+            c.removeChangeHandler(ch);
+        }
+    }
+}
+
 class ValueChangeEvent<T> extends UiEvent {
     T oldValue;
     T newValue;
@@ -872,6 +934,8 @@ class Component {
     ArrayList<EventHandler<MouseEvent>> mouseHandlers;
     ArrayList<EventHandler<FocusEvent>> focusHandlers;
     ArrayList<EventHandler<UiEvent>> changeHandlers;
+    /** Live cancellable subscriptions; cleared/cancelled on dispose. */
+    ArrayList<UiSubscription> liveSubscriptions;
     ContextMenu contextMenu;
     int isCanvasPeer;
     int mousePressedFlag;
@@ -922,6 +986,7 @@ class Component {
         mouseHandlers = new ArrayList<EventHandler<MouseEvent>>();
         focusHandlers = new ArrayList<EventHandler<FocusEvent>>();
         changeHandlers = new ArrayList<EventHandler<UiEvent>>();
+        liveSubscriptions = new ArrayList<UiSubscription>();
     }
 
     void ensureAlive(String op) {
@@ -1139,10 +1204,105 @@ class Component {
         clickListener = listener;
     }
 
+    /** Register click listener; returned subscription cancels and clears the capture. */
+    UiSubscription subscribeClick(Runnable listener) {
+        ensureAlive("Component.subscribeClick");
+        if (listener == null) {
+            throw new NullPointerException("listener");
+        }
+        clickListener = listener;
+        UiSubscription sub = new UiSubscription();
+        sub.owner = this;
+        sub.kind = UiSubscription.KIND_CLICK;
+        sub.clickHandler = listener;
+        liveSubscriptions.add(sub);
+        return sub;
+    }
+
     void onAction(EventHandler<ActionEvent> handler) {
         ensureAlive("Component.onAction");
         if (handler != null) {
             actionHandlers.add(handler);
+        }
+    }
+
+    /**
+     * Register an action handler and return a cancellable subscription.
+     * Multiple subscribers run in registration order (snapshot at fire).
+     */
+    UiSubscription subscribeAction(EventHandler<ActionEvent> handler) {
+        ensureAlive("Component.subscribeAction");
+        if (handler == null) {
+            throw new NullPointerException("handler");
+        }
+        actionHandlers.add(handler);
+        UiSubscription sub = new UiSubscription();
+        sub.owner = this;
+        sub.kind = UiSubscription.KIND_ACTION;
+        sub.actionHandler = handler;
+        liveSubscriptions.add(sub);
+        return sub;
+    }
+
+    UiSubscription subscribeChange(EventHandler<UiEvent> handler) {
+        ensureAlive("Component.subscribeChange");
+        if (handler == null) {
+            throw new NullPointerException("handler");
+        }
+        changeHandlers.add(handler);
+        UiSubscription sub = new UiSubscription();
+        sub.owner = this;
+        sub.kind = UiSubscription.KIND_CHANGE;
+        sub.changeHandler = handler;
+        liveSubscriptions.add(sub);
+        return sub;
+    }
+
+    void detachSubscription(UiSubscription sub) {
+        if (sub == null || liveSubscriptions == null) {
+            return;
+        }
+        int i = 0;
+        while (i < liveSubscriptions.size()) {
+            if (liveSubscriptions.get(i) == sub) {
+                liveSubscriptions.removeAt(i);
+                return;
+            }
+            i = i + 1;
+        }
+    }
+
+    void removeActionHandler(EventHandler<ActionEvent> handler) {
+        if (handler == null) {
+            return;
+        }
+        int i = 0;
+        while (i < actionHandlers.size()) {
+            if (actionHandlers.get(i) == handler) {
+                actionHandlers.removeAt(i);
+                return;
+            }
+            i = i + 1;
+        }
+    }
+
+    void removeChangeHandler(EventHandler<UiEvent> handler) {
+        if (handler == null) {
+            return;
+        }
+        int i = 0;
+        while (i < changeHandlers.size()) {
+            if (changeHandlers.get(i) == handler) {
+                changeHandlers.removeAt(i);
+                return;
+            }
+            i = i + 1;
+        }
+    }
+
+    void clearClickListener(Runnable listener) {
+        if (clickListener == listener) {
+            clickListener = null;
         }
     }
 
@@ -1218,14 +1378,25 @@ class Component {
             return;
         }
         ActionEvent ev = new ActionEvent(this);
-        int n = actionHandlers.size();
+        ArrayList<EventHandler<ActionEvent>> snap = snapshotActionHandlers();
         int i = 0;
-        while (i < n) {
+        while (i < snap.size()) {
             if (!ev.isConsumed()) {
-                actionHandlers.get(i).handle(ev);
+                snap.get(i).handle(ev);
             }
             i = i + 1;
         }
+    }
+
+    ArrayList<EventHandler<ActionEvent>> snapshotActionHandlers() {
+        ArrayList<EventHandler<ActionEvent>> snap = new ArrayList<EventHandler<ActionEvent>>();
+        int n = actionHandlers.size();
+        int i = 0;
+        while (i < n) {
+            snap.add(actionHandlers.get(i));
+            i = i + 1;
+        }
+        return snap;
     }
 
     void fireChange() {
@@ -1233,10 +1404,16 @@ class Component {
             return;
         }
         UiEvent ev = new UiEvent(this);
+        ArrayList<EventHandler<UiEvent>> snap = new ArrayList<EventHandler<UiEvent>>();
         int n = changeHandlers.size();
         int i = 0;
         while (i < n) {
-            changeHandlers.get(i).handle(ev);
+            snap.add(changeHandlers.get(i));
+            i = i + 1;
+        }
+        i = 0;
+        while (i < snap.size()) {
+            snap.get(i).handle(ev);
             i = i + 1;
         }
     }
@@ -1327,6 +1504,10 @@ class Component {
             return;
         }
         disposed = 1;
+        // Cancel subscriptions first so each releases its closure refs (idempotent cancel).
+        while (liveSubscriptions.size() > 0) {
+            liveSubscriptions.get(0).cancel();
+        }
         clickListener = null;
         actionHandlers.clear();
         keyHandlers.clear();
@@ -1391,6 +1572,23 @@ class Container extends Component {
         prefHeight = 300;
     }
 
+    void ensureChildCapacity(int need) {
+        if (need <= children.length) {
+            return;
+        }
+        int cap = children.length;
+        while (cap < need) {
+            cap = cap * 2;
+        }
+        Component[] grown = new Component[cap];
+        int i = 0;
+        while (i < childCount) {
+            grown[i] = children[i];
+            i = i + 1;
+        }
+        children = grown;
+    }
+
     void add(Component child) {
         ensureAlive("Container.add");
         if (child == null) {
@@ -1399,9 +1597,7 @@ class Container extends Component {
         if (child.parent != null) {
             throw new UiException("component already has a parent; remove before reparenting");
         }
-        if (childCount >= children.length) {
-            throw new UiException("container child capacity exceeded");
-        }
+        ensureChildCapacity(childCount + 1);
         children[childCount] = child;
         childCount = childCount + 1;
         child.parent = this;
@@ -1698,9 +1894,36 @@ class GridPane extends Container {
         addAtSpan(child, col, row, 1, 1);
     }
 
+    void ensureGridMetaCapacity(int need) {
+        if (need <= cols.length) {
+            return;
+        }
+        int cap = cols.length;
+        while (cap < need) {
+            cap = cap * 2;
+        }
+        int[] nc = new int[cap];
+        int[] nr = new int[cap];
+        int[] ncs = new int[cap];
+        int[] nrs = new int[cap];
+        int i = 0;
+        while (i < childCount) {
+            nc[i] = cols[i];
+            nr[i] = rows[i];
+            ncs[i] = colSpans[i];
+            nrs[i] = rowSpans[i];
+            i = i + 1;
+        }
+        cols = nc;
+        rows = nr;
+        colSpans = ncs;
+        rowSpans = nrs;
+    }
+
     void addAtSpan(Component child, int col, int row, int colSpan, int rowSpan) {
         ensureAlive("GridPane.addAt");
         int idx = childCount;
+        ensureGridMetaCapacity(idx + 1);
         add(child);
         cols[idx] = col;
         rows[idx] = row;

@@ -4,52 +4,77 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Resolves overloaded callables by exact then widening match.
+ * Resolves overloaded callables: exact → primitive widening → boxing/unboxing.
+ * Does not let boxing steal calls that already match via widening (int→long beats int→Long).
  */
 public final class CallableResolver {
 
     public record Candidate(List<JType> parameterTypes, Object symbol) {
     }
 
+    private enum Phase {
+        EXACT,
+        WIDENING,
+        BOXING
+    }
+
     private CallableResolver() {
     }
 
     public static Object resolve(List<Candidate> candidates, List<JType> argTypes) {
-        List<Candidate> exact = new ArrayList<>();
-        List<Candidate> compatible = new ArrayList<>();
+        Object exact = resolvePhase(candidates, argTypes, Phase.EXACT);
+        if (exact != null) {
+            return exact;
+        }
+        Object widen = resolvePhase(candidates, argTypes, Phase.WIDENING);
+        if (widen != null) {
+            return widen;
+        }
+        return resolvePhase(candidates, argTypes, Phase.BOXING);
+    }
+
+    private static Object resolvePhase(List<Candidate> candidates, List<JType> argTypes, Phase phase) {
+        List<Candidate> matches = new ArrayList<>();
         for (Candidate c : candidates) {
             if (c.parameterTypes().size() != argTypes.size()) {
                 continue;
             }
-            boolean exactMatch = true;
-            boolean ok = true;
-            for (int i = 0; i < argTypes.size(); i++) {
-                JType expected = c.parameterTypes().get(i);
-                JType actual = argTypes.get(i);
-                if (!expected.isAssignableFrom(actual)) {
-                    ok = false;
-                    break;
-                }
-                if (!sameType(expected, actual)) {
-                    exactMatch = false;
-                }
-            }
-            if (!ok) {
-                continue;
-            }
-            if (exactMatch) {
-                exact.add(c);
-            } else {
-                compatible.add(c);
+            if (matchesPhase(c.parameterTypes(), argTypes, phase)) {
+                matches.add(c);
             }
         }
-        if (exact.size() == 1) {
-            return exact.getFirst().symbol();
+        if (matches.size() == 1) {
+            return matches.getFirst().symbol();
         }
-        if (exact.isEmpty() && compatible.size() == 1) {
-            return compatible.getFirst().symbol();
+        return null;
+    }
+
+    private static boolean matchesPhase(List<JType> params, List<JType> args, Phase phase) {
+        for (int i = 0; i < args.size(); i++) {
+            JType expected = params.get(i);
+            JType actual = args.get(i);
+            if (!argMatches(expected, actual, phase)) {
+                return false;
+            }
         }
-        return null; // ambiguous or none
+        return true;
+    }
+
+    private static boolean argMatches(JType expected, JType actual, Phase phase) {
+        return switch (phase) {
+            case EXACT -> sameType(expected, actual);
+            case WIDENING -> expected.isAssignableFrom(actual) && !needsBoxing(expected, actual);
+            case BOXING -> Boxing.assignableOrBoxing(expected, actual);
+        };
+    }
+
+    /** True when compatibility requires a boxing conversion (not plain subtype/widen). */
+    private static boolean needsBoxing(JType expected, JType actual) {
+        if (expected.isAssignableFrom(actual)) {
+            return false;
+        }
+        Boxing.Kind k = Boxing.boxingKind(expected, actual);
+        return k != null && k != Boxing.Kind.NONE;
     }
 
     private static boolean sameType(JType a, JType b) {

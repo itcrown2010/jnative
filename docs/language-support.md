@@ -39,7 +39,8 @@ Levels: L0–L4 per readiness audit.
 | same-package + FQN type refs | SUPPORTED | L2 | Expression-position dotted FQN receivers not yet |
 | multi-file / third-party (multi-CU) | SUPPORTED | L2 | Independent parse + project symbols; see `docs/jnative-multi-cu-architecture.md` |
 | `.jn` / `.java` suffixes | SUPPORTED | L2 | Same language; `jnative new` defaults to `.jn` |
-| `final` (fields/locals) | **NOT SUPPORTED IN 1.0** | L0–L1 | Unverified / incomplete |
+| `final` locals / params / class / methods | SUPPORTED | L2 | DA + constraints; see `jnative-final-da-foreach.md` |
+| `final` fields | **NOT SUPPORTED IN 1.0** | L0 | Hard error (not silently ignored) |
 | method overload | SUPPORTED | L2–L3 | Ambiguity diagnosed; `OverloadEndToEndTest` |
 | constructor overload | SUPPORTED | L2 | |
 | `override` (virtual dispatch) | SUPPORTED | L3 | Dynamic dispatch e2e |
@@ -49,7 +50,7 @@ Levels: L0–L4 per readiness audit.
 | lambda / SAM | SUPPORTED | L2–L3 | `CallableEndToEndTest` |
 | method reference `::` | SUPPORTED | L2–L3 | Same |
 | annotations (compile-time / meta) | SUPPORTED | L2 | Meta032 processors; limited native app loop |
-| `enum` | **NOT SUPPORTED IN 1.0** | L0 | No language keyword |
+| `enum` | SUPPORTED | L2 | Basic constants + name/ordinal/values/valueOf; see `jnative-switch-enum.md` |
 | `record` | **NOT SUPPORTED IN 1.0** | L0 | |
 | pattern matching / switch patterns | **NOT SUPPORTED IN 1.0** | L0 | Classic `instanceof` only |
 
@@ -61,16 +62,22 @@ Levels: L0–L4 per readiness audit.
 |---|---|---|---|
 | `if` / `else` | SUPPORTED | L3 | |
 | `while` / `do`/`while` / `for` | SUPPORTED | L2–L3 | |
-| enhanced `for` | **NOT SUPPORTED IN 1.0** | L0 | |
-| `switch` / `case` | **NOT SUPPORTED IN 1.0** | L0 | No tokens/AST |
+| enhanced `for` (arrays) | SUPPORTED | L2 | Index-loop lowering; `FinalDaForeachEndToEndTest` |
+| enhanced `for` (Iterable) | SUPPORTED | L2 | `iterator`/`hasNext`/`next`; `GenericsIterableEndToEndTest` |
+| local definite assignment | SUPPORTED | L2 | CFG merge; backend zero-init ≠ DA |
+| generics (erase + primitive specialize) | SUPPORTED | L2 | See `generics.md` / `jnative-generics-iterable.md` |
+| `switch` / `case` | SUPPORTED | L2 | Classic statement; int + enum; `SwitchEnumEndToEndTest` |
 | `break` / `continue` | SUPPORTED | L2–L3 | `LoopControlEndToEndTest`; O0/O2/O3 |
 | labeled break/continue | **NOT SUPPORTED IN 1.0** | L0 | |
 | `return` | SUPPORTED | L3 | |
-| `try` / `catch` / `finally` | SUPPORTED | L2–L3 | `ExceptionEndToEndTest` |
-| try-with-resources | SUPPORTED | L2–L3 | `ResourceEndToEndTest` |
-| `throw` | SUPPORTED | L3 | |
-| multi-catch | **NOT SUPPORTED IN 1.0** | L0–L1 | |
-| checked `throws` enforcement | **NOT SUPPORTED IN 1.0** | L0 | |
+| `try` / `catch` / `finally` | SUPPORTED | L2–L3 | Abrupt completions; see `exceptions.md`; `ExceptionEndToEndTest` |
+| try-with-resources | SUPPORTED | L2–L3 | Decl form; close-before-catch; suppressed; `ResourceEndToEndTest` |
+| `addSuppressed` / `getSuppressed` | SUPPORTED | L2 | On `Throwable`; TWR wiring |
+| `throw` | SUPPORTED | L3 | `throw null` → NPE |
+| multi-catch | **NOT SUPPORTED IN 1.0** | L0–L1 | Parse error |
+| checked `throws` enforcement | **NOT SUPPORTED IN 1.0** | L0 | `throws` not parsed |
+| TWR existing-variable form | **NOT SUPPORTED IN 1.0** | L0 | Decl form only |
+| WASM exceptions | **NOT SUPPORTED** | L0 | Stubs only; native backend required |
 | ternary `?:` (expression) | SUPPORTED | L2 | `PrimitiveOpsEndToEndTest`; unused branch not evaluated |
 | `async` / `await` | SUPPORTED | L2 | Thin e2e; dual Future debt |
 
@@ -85,7 +92,7 @@ Levels: L0–L4 per readiness audit.
 | bitwise `& \| ^ ~` | SUPPORTED | L2 | Integer + boolean non-short-circuit; `PrimitiveOpsEndToEndTest` |
 | shifts `<< >> >>>` | SUPPORTED | L2 | Distance masked 0x1f / 0x3f; ashr/lshr | 
 | varargs `...` | **NOT SUPPORTED IN 1.0** | L0 | |
-| primitive casts `(int)x` | SUPPORTED | L2 | Integer matrix; float/boolean rejected; char zext |
+| primitive casts `(int)x` | SUPPORTED | L2 | Integer + float/double (NaN→0/saturate); boolean rejected; char zext |
 | reference cast / `instanceof` | SUPPORTED | L2–L3 | RuntimeError + Interface e2e |
 | string `+` | SUPPORTED | L2–L3 | |
 
@@ -95,7 +102,7 @@ Levels: L0–L4 per readiness audit.
 |---|---|
 | integer overflow (wrap) | Assumed two's complement via LLVM — **no dedicated suite** |
 | integer division / modulo | Used in e2e — **no edge corpus** |
-| float NaN / Infinity / `-0.0` | **NOT VERIFIED** systematically |
+| float NaN / Infinity / `-0.0` | Verified — `FloatEndToEndTest` + `docs/jnative-float-double.md` |
 | shift masking / signedness | Java-compatible masks; verified vs javac in `PrimitiveOpsEndToEndTest` |
 
 ---
@@ -104,13 +111,18 @@ Levels: L0–L4 per readiness audit.
 
 | API / rule | Semantics |
 |---|---|
-| `length()` | UTF-8 **byte** count (not Unicode code points) |
+| `length()` | UTF-16 **code unit** count (Java-compatible) |
+| `utf8Length()` | UTF-8 **byte** length (protocols / Content-Length) |
+| `charAt` / `substring` / `indexOf` | UTF-16 code unit indices |
+| `getBytes` / `fromBytes` | UTF-8 encode / strict decode |
 | `split(delimiter)` | **Literal** delimiter (NOT regex) |
 | empty delimiter | `[this]` |
 | `"".split(",")` | `[""]` |
 | consecutive / trailing empties | kept |
 | null delimiter | NPE |
+| case folding | ASCII only (`toLowerCase` / `equalsIgnoreCase`) |
 | `StringBuilder` | Present in CollectionsLib — Level **L2** (not full Java parity) |
+| Details | See `docs/string.md` |
 
 ---
 
@@ -129,14 +141,18 @@ Levels: L0–L4 per readiness audit.
 
 Ship as hard errors or absence — **never** silent wrong codegen:
 
-1. `enum`  
-2. `switch`  
-3. floating-point casts / float ternary branches  
-4. hex / binary integer literals (`0x…`)  
-5. varargs  
-6. records / pattern matching  
+1. switch expressions / arrow `case ->`  
+2. string switch / pattern matching  
+3. enum bodies, ctor args, user members  
+4. hex float literals / digit separators in numbers (`0x1.0p0`, `1_000`) — hard error  
+5. hex / binary integer literals (`0x…`)  
+6. varargs / records  
 7. labeled break  
 8. bitwise compound assignment (`&=`, `<<=`, …)  
+9. `final` fields (blank or initialized)  
+10. Wildcard capture / multi-bound generics / full Stream & concurrent collections  
+    (boxing `Integer`/`Long`/`Boolean` + `ArrayList`/`HashMap`: see `docs/jnative-boxing-collections.md`)  
+
 
 ---
 

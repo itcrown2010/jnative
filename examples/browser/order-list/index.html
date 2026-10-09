@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8"/>
+  <title>JNative 订单清单</title>
+  <style>
+    :root { --ink: #1a1f16; --paper: #f3efe6; --accent: #2f6f4e; }
+    body { font-family: "Songti SC", "Noto Serif SC", Georgia, serif; margin: 0; background: linear-gradient(160deg, #e8f0e9, var(--paper)); color: var(--ink); }
+    main { max-width: 40rem; margin: 0 auto; padding: 2.5rem 1.25rem 4rem; }
+    h1 { font-size: 2rem; letter-spacing: 0.04em; margin: 0 0 0.35rem; }
+    p.lead { margin: 0 0 1.5rem; opacity: 0.8; }
+    label { display: block; font-size: 0.9rem; margin: 0.6rem 0 0.2rem; }
+    input { width: 100%; box-sizing: border-box; padding: 0.55rem 0.7rem; border: 1px solid #c5cbbd; background: #fffdf8; font: inherit; }
+    .row { display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; }
+    .actions { display: flex; gap: 0.75rem; margin: 1rem 0 1.5rem; }
+    button { font: inherit; padding: 0.55rem 1rem; border: 0; background: var(--accent); color: #f7fff8; cursor: pointer; }
+    button.secondary { background: #4a5246; }
+    #orderList { white-space: pre-wrap; min-height: 6rem; padding: 1rem; background: rgba(255,255,255,0.65); border: 1px solid #d5d9ce; }
+    .totals { margin-top: 1rem; font-size: 1.05rem; }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>订单清单</h1>
+    <p class="lead">业务逻辑在 JNative WASM 中执行；本页仅提供 DOM 宿主。</p>
+    <label for="itemName">商品名称</label>
+    <input id="itemName" value="龙井茶叶" />
+    <div class="row">
+      <div>
+        <label for="itemQty">数量</label>
+        <input id="itemQty" value="2" />
+      </div>
+      <div>
+        <label for="itemPrice">单价</label>
+        <input id="itemPrice" value="12.5" />
+      </div>
+    </div>
+    <div class="actions">
+      <button id="addBtn" type="button">添加</button>
+      <button id="clearBtn" class="secondary" type="button">删除末行</button>
+    </div>
+    <div id="orderList"></div>
+    <div class="totals">数量合计：<span id="totalQty">0</span>　金额合计：<span id="totalPrice">0.00</span></div>
+  </main>
+  <script type="module">
+    import { jnativeStart } from './app.js';
+    jnativeStart().catch((e) => console.error(e));
+  </script>
+</body>
+</html>

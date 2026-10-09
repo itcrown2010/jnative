@@ -2,13 +2,13 @@ package io.jnative.backend.llvm.runtime;
 
 /**
  * Explicit exception propagation (0.6/0.9). State is thread-local via {@code jn_tls_ex_*}.
- * Throwable layout: {@code { ClassMeta* @0, message* @8, cause* @16 }} (24 bytes).
+ * Throwable layout: {@code { ClassMeta* @0, message* @8, cause* @16, suppressed* @24 }} (32 bytes).
  */
 public final class ExceptionRuntimeEmitter {
     private final StringBuilder sb;
 
-    /** Header + message + cause. */
-    private static final int THROWABLE_SIZE = 24;
+    /** Header + message + cause + suppressed array. */
+    private static final int THROWABLE_SIZE = 32;
 
     public ExceptionRuntimeEmitter(StringBuilder sb) {
         this.sb = sb;
@@ -35,6 +35,7 @@ public final class ExceptionRuntimeEmitter {
         emitPeek();
         emitUncaught();
         emitCompletion();
+        emitSuppressed();
         emitSimpleThrows();
     }
 
@@ -254,6 +255,87 @@ public final class ExceptionRuntimeEmitter {
                 """);
     }
 
+    /**
+     * Suppressed exceptions (try-with-resources). Field at offset 24 is {@code Throwable[]}.
+     * Array meta {@code @meta.array.CThrowable} is emitted with program metadata.
+     */
+    private void emitSuppressed() {
+        sb.append("""
+                define void @jnative_throwable_add_suppressed(ptr %primary, ptr %suppressed) {
+                entry:
+                  %pnull = icmp eq ptr %primary, null
+                  br i1 %pnull, label %done, label %checkSup
+                checkSup:
+                  %snull = icmp eq ptr %suppressed, null
+                  br i1 %snull, label %npe, label %checkSelf
+                npe:
+                  call void @jnative_throw_npe()
+                  ret void
+                checkSelf:
+                  %same = icmp eq ptr %primary, %suppressed
+                  br i1 %same, label %iae, label %loadArr
+                iae:
+                  call void @jnative_throw_illegal_argument()
+                  ret void
+                loadArr:
+                  %arrField = getelementptr i8, ptr %primary, i64 24
+                  %old = load ptr, ptr %arrField, align 8
+                  %has = icmp ne ptr %old, null
+                  br i1 %has, label %grow, label %first
+                first:
+                  %one = call ptr @jnative_array_alloc(i64 8, i32 1, ptr @meta.array.CThrowable)
+                  %ep0 = call ptr @jnative_array_elem_ptr_unchecked(ptr %one, i32 0, i64 8)
+                  store ptr %suppressed, ptr %ep0, align 8
+                  store ptr %one, ptr %arrField, align 8
+                  br label %done
+                grow:
+                  %lenptr = getelementptr i8, ptr %old, i64 8
+                  %olen = load i32, ptr %lenptr, align 4
+                  %nlen = add i32 %olen, 1
+                  %narr = call ptr @jnative_array_alloc(i64 8, i32 %nlen, ptr @meta.array.CThrowable)
+                  %obytes = mul i32 %olen, 8
+                  %obytes64 = zext i32 %obytes to i64
+                  %osrc = getelementptr i8, ptr %old, i64 16
+                  %odst = getelementptr i8, ptr %narr, i64 16
+                  call ptr @memcpy(ptr %odst, ptr %osrc, i64 %obytes64)
+                  %epn = call ptr @jnative_array_elem_ptr_unchecked(ptr %narr, i32 %olen, i64 8)
+                  store ptr %suppressed, ptr %epn, align 8
+                  store ptr %narr, ptr %arrField, align 8
+                  br label %done
+                done:
+                  ret void
+                }
+
+                define ptr @jnative_throwable_get_suppressed(ptr %ex) {
+                entry:
+                  %isnull = icmp eq ptr %ex, null
+                  br i1 %isnull, label %npe, label %load
+                npe:
+                  call void @jnative_throw_npe()
+                  ret ptr null
+                load:
+                  %arrField = getelementptr i8, ptr %ex, i64 24
+                  %arr = load ptr, ptr %arrField, align 8
+                  %has = icmp ne ptr %arr, null
+                  br i1 %has, label %copy, label %empty
+                empty:
+                  %e = call ptr @jnative_array_alloc(i64 8, i32 0, ptr @meta.array.CThrowable)
+                  ret ptr %e
+                copy:
+                  %lenptr = getelementptr i8, ptr %arr, i64 8
+                  %len = load i32, ptr %lenptr, align 4
+                  %out = call ptr @jnative_array_alloc(i64 8, i32 %len, ptr @meta.array.CThrowable)
+                  %bytes = mul i32 %len, 8
+                  %bytes64 = zext i32 %bytes to i64
+                  %src = getelementptr i8, ptr %arr, i64 16
+                  %dst = getelementptr i8, ptr %out, i64 16
+                  call ptr @memcpy(ptr %dst, ptr %src, i64 %bytes64)
+                  ret ptr %out
+                }
+
+                """);
+    }
+
     private void emitSimpleThrows() {
         sb.append("""
                 define void @jnative_throw_simple(ptr %meta, i64 %size) {
@@ -272,6 +354,7 @@ public final class ExceptionRuntimeEmitter {
         emitThrowSimple("jnative_throw_arithmetic", "ArithmeticException");
         emitThrowSimple("jnative_throw_illegal_monitor", "IllegalMonitorStateException");
         emitThrowSimple("jnative_throw_illegal_state", "IllegalStateException");
+        emitThrowSimple("jnative_throw_illegal_argument", "IllegalArgumentException");
     }
 
     private void emitThrowSimple(String name, String meta) {

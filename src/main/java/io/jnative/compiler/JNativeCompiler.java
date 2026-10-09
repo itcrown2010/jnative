@@ -121,7 +121,21 @@ public final class JNativeCompiler {
 
     public CompileResult compile(CompilerOptions options) {
         DiagnosticReporter reporter = new DiagnosticReporter();
+        // Layout must match the target before semantic analysis / IR (field offsets, ptr width).
+        boolean wasmTarget = options.isWasmBrowserTarget();
+        if (wasmTarget) {
+            io.jnative.layout.LayoutConfig.configureWasm32();
+        } else {
+            io.jnative.layout.LayoutConfig.configureNative64();
+        }
+        try {
+            return compileWithLayout(options, reporter);
+        } finally {
+            io.jnative.layout.LayoutConfig.configureNative64();
+        }
+    }
 
+    private CompileResult compileWithLayout(CompilerOptions options, DiagnosticReporter reporter) {
         if (options.sourceFile() == null && (options.programSources() == null || options.programSources().isEmpty())) {
             reporter.error(SourceLocation.UNKNOWN, "no input file");
             return fail(reporter);
@@ -356,7 +370,6 @@ public final class JNativeCompiler {
         // ---- wasm32-browser: skip host LLVM, emit .wasm + JS ----
         if (options.isWasmBrowserTarget()) {
             try {
-                io.jnative.layout.LayoutConfig.configureWasm32();
                 Path outDir = options.outputFile() != null
                         ? options.outputFile()
                         : source.toAbsolutePath().getParent().resolve("dist");
@@ -379,8 +392,6 @@ public final class JNativeCompiler {
             } catch (Exception e) {
                 reporter.error(SourceLocation.UNKNOWN, "wasm backend failed: " + e.getMessage());
                 return new CompileResult(false, ast, ir, null, null, reporter.diagnostics());
-            } finally {
-                io.jnative.layout.LayoutConfig.configureNative64();
             }
         }
 
@@ -500,8 +511,28 @@ public final class JNativeCompiler {
                 linkFlags.add("-Wl,--subsystem,windows");
             }
             options.applySanitizeFlags();
+            /* Merge sanitize extras with earlier linkFlags. Do not treat "-framework"
+             * as a unique flag — it must precede each framework name (Cocoa, AppKit, …). */
             java.util.List<String> finalFlags = new java.util.ArrayList<>(options.extraLinkFlags());
-            for (String f : linkFlags) {
+            for (int i = 0; i < linkFlags.size(); i++) {
+                String f = linkFlags.get(i);
+                if ("-framework".equals(f) && i + 1 < linkFlags.size()) {
+                    String name = linkFlags.get(i + 1);
+                    boolean have = false;
+                    for (int j = 0; j + 1 < finalFlags.size(); j++) {
+                        if ("-framework".equals(finalFlags.get(j))
+                                && name.equals(finalFlags.get(j + 1))) {
+                            have = true;
+                            break;
+                        }
+                    }
+                    if (!have) {
+                        finalFlags.add("-framework");
+                        finalFlags.add(name);
+                    }
+                    i++;
+                    continue;
+                }
                 if (!finalFlags.contains(f)) {
                     finalFlags.add(f);
                 }

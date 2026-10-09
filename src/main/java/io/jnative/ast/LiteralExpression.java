@@ -11,6 +11,7 @@ public record LiteralExpression(
     public enum Kind {
         INT,
         LONG,
+        FLOAT,
         DOUBLE,
         BOOLEAN,
         STRING
@@ -22,6 +23,10 @@ public record LiteralExpression(
 
     public static LiteralExpression ofLong(long value, SourceLocation loc) {
         return new LiteralExpression(Kind.LONG, value, loc);
+    }
+
+    public static LiteralExpression ofFloat(float value, SourceLocation loc) {
+        return new LiteralExpression(Kind.FLOAT, value, loc);
     }
 
     public static LiteralExpression ofDouble(double value, SourceLocation loc) {

@@ -115,6 +115,28 @@ public final class AstPrinter {
                 }
                 printStmt(f.body(), sb, indent + 1);
             }
+            case EnhancedForStatement ef -> {
+                indent(sb, indent).append("Foreach ").append(ef.elementType())
+                        .append(' ').append(ef.variableName())
+                        .append(" : ").append(printExpr(ef.array())).append('\n');
+                printStmt(ef.body(), sb, indent + 1);
+            }
+            case SwitchStatement sw -> {
+                indent(sb, indent).append("Switch ").append(printExpr(sw.selector())).append('\n');
+                for (SwitchSection sec : sw.sections()) {
+                    for (SwitchLabel label : sec.labels()) {
+                        if (label instanceof CaseLabel c) {
+                            indent(sb, indent + 1).append("case ")
+                                    .append(printExpr(c.constant())).append(":\n");
+                        } else {
+                            indent(sb, indent + 1).append("default:\n");
+                        }
+                    }
+                    for (Statement st : sec.statements()) {
+                        printStmt(st, sb, indent + 2);
+                    }
+                }
+            }
             case BreakStatement ignored -> indent(sb, indent).append("Break\n");
             case ContinueStatement ignored -> indent(sb, indent).append("Continue\n");
             case ReturnStatement r -> {

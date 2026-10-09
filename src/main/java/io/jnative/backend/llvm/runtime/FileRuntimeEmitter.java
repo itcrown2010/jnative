@@ -366,16 +366,17 @@ public final class FileRuntimeEmitter {
                   call void @jnative_throw_io_message(ptr %msg)
                   ret void
                 write:
-                  %lptr = getelementptr i8, ptr %text, i64 8
-                  %len = load i32, ptr %lptr, align 4
-                  %len64 = sext i32 %len to i64
-                  %data = getelementptr i8, ptr %text, i64 16
+                  %ulen = call i32 @jnative_string_utf8_length(ptr %text)
+                  %len64 = sext i32 %ulen to i64
                   %empty = icmp eq i64 %len64, 0
                   br i1 %empty, label %closeok, label %dowrite
                 dowrite:
+                  %buf = call ptr @malloc(i64 %len64)
+                  %enc = call i32 @jnative_string_encode_utf8(ptr %text, ptr %buf, i32 %ulen)
                   call void @jn_enter_native()
-                  %n = call i64 @fwrite(ptr %data, i64 1, i64 %len64, ptr %f)
+                  %n = call i64 @fwrite(ptr %buf, i64 1, i64 %len64, ptr %f)
                   call void @jn_leave_native()
+                  call void @free(ptr %buf)
                   %ok = icmp eq i64 %n, %len64
                   br i1 %ok, label %closeok, label %wfail
                 wfail:

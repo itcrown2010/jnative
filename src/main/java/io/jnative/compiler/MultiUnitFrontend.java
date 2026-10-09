@@ -47,7 +47,7 @@ public final class MultiUnitFrontend {
             List<Token> tokens = lexer.tokenize();
             for (int i = 0; i < tokens.size(); i++) {
                 TokenType t = tokens.get(i).type();
-                if ((t == TokenType.CLASS || t == TokenType.INTERFACE)
+                if ((t == TokenType.CLASS || t == TokenType.INTERFACE || t == TokenType.ENUM)
                         && i + 1 < tokens.size()
                         && tokens.get(i + 1).type() == TokenType.IDENTIFIER) {
                     names.add(tokens.get(i + 1).lexeme());

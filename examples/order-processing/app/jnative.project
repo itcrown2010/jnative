@@ -1,0 +1,6 @@
+{
+  "name": "order-app",
+  "source": ["src"],
+  "main": "Main",
+  "output": "build/order-app"
+}

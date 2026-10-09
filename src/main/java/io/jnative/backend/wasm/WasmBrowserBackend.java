@@ -84,17 +84,37 @@ public final class WasmBrowserBackend implements TargetBackend {
 
     private static Path findWat2Wasm() {
         String[] candidates = {
+                // Prefer Cellar / non-PATH natives: npm's wabt ships a Node+wasm
+                // wrapper as /opt/homebrew/bin/wat2wasm that OOMs on large WAT.
+                "/opt/homebrew/opt/wabt/bin/wat2wasm",
+                "/usr/local/opt/wabt/bin/wat2wasm",
                 "/opt/homebrew/bin/wat2wasm",
                 "/usr/local/bin/wat2wasm",
                 "wat2wasm"
         };
         for (String c : candidates) {
             Path p = Path.of(c);
-            if (c.equals("wat2wasm") || Files.isExecutable(p)) {
-                return p;
+            if (!c.equals("wat2wasm") && !Files.isExecutable(p)) {
+                continue;
             }
+            if (!c.equals("wat2wasm") && isNodeWat2WasmShim(p)) {
+                continue;
+            }
+            return p;
         }
         return Path.of("wat2wasm");
+    }
+
+    /** npm `wabt` package installs a Node script that crashes on large modules. */
+    private static boolean isNodeWat2WasmShim(Path p) {
+        try {
+            byte[] bytes = Files.readAllBytes(p);
+            int n = Math.min(240, bytes.length);
+            String head = new String(bytes, 0, n, StandardCharsets.ISO_8859_1);
+            return head.contains("node") || head.contains("/usr/bin/env") || head.contains("wabt/bin");
+        } catch (Exception e) {
+            return false;
+        }
     }
 
     private static String defaultHtml() {

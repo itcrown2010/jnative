@@ -511,6 +511,10 @@ static void *thread_trampoline(void *arg) {
     StartArgs *sa = (StartArgs *)arg;
     jn_mt_init();
     JNThreadState *st = sa->st;
+    /* Parent frees sa after ready handshake. Copy fields, then pin them in
+       registers — clang otherwise reloads sa->entry after unlock (UAF). */
+    void *thread_obj = sa->thread_obj;
+    void (*entry)(void *) = sa->entry;
     pthread_setspecific(tls_key, st);
     st->pthread = pthread_self();
 
@@ -518,11 +522,15 @@ static void *thread_trampoline(void *arg) {
     sa->ready = 1;
     pthread_cond_signal(&sa->ready_cv);
     pthread_mutex_unlock(&sa->ready_mu);
+#if defined(__GNUC__) || defined(__clang__)
+    __asm__ __volatile__("" : "+r"(thread_obj), "+r"(entry) : : "memory");
+#endif
+    /* sa may be freed by jn_thread_start after the ready handshake. */
 
-    st->thread_obj = sa->thread_obj;
+    st->thread_obj = thread_obj;
     st->exec_state = JN_EXEC_MANAGED;
 
-    sa->entry(sa->thread_obj);
+    entry(thread_obj);
 
     jn_thread_mark_terminated();
     return NULL;

@@ -60,7 +60,8 @@ class ResourceEndToEndTest {
                         }
                     }
                 }
-                """, "1\n2\n");
+                // Close runs before catch (JLS §14.20.3).
+                """, "2\n1\n");
     }
 
     @Test
@@ -123,7 +124,143 @@ class ResourceEndToEndTest {
                         System.out.println(ResourceTracker.openCount());
                     }
                 }
-                """, "1\n2\n0\n");
+                // close before catch
+                """, "2\n1\n0\n");
+    }
+
+    @Test
+    void initFailureClosesPriorResources() throws Exception {
+        assertStdout("""
+                class Boom extends RuntimeException {
+                    Boom(String message) { super(message); }
+                }
+                class Box implements AutoCloseable {
+                    int id;
+                    Box(int id) {
+                        this.id = id;
+                        if (id == 2) { throw new Boom("open2"); }
+                    }
+                    void close() { System.out.println(this.id); }
+                }
+                public class Main {
+                    public static void main(String[] args) {
+                        try (Box a = new Box(1); Box b = new Box(2)) {
+                            System.out.println(9);
+                        } catch (Boom e) {
+                            System.out.println(0);
+                        }
+                    }
+                }
+                """, "1\n0\n");
+    }
+
+    @Test
+    void nullResourceSkipped() throws Exception {
+        assertStdout("""
+                class Box implements AutoCloseable {
+                    void close() { System.out.println(1); }
+                }
+                public class Main {
+                    static Box nil() { return null; }
+                    public static void main(String[] args) {
+                        try (Box a = nil(); Box b = new Box()) {
+                            System.out.println(0);
+                        }
+                    }
+                }
+                """, "0\n1\n");
+    }
+
+    @Test
+    void suppressedOnCloseFailure() throws Exception {
+        assertStdout("""
+                class Boom extends RuntimeException {
+                    Boom(String message) { super(message); }
+                }
+                class CloseFail implements AutoCloseable {
+                    void close() { throw new Boom("close"); }
+                }
+                public class Main {
+                    public static void main(String[] args) {
+                        try (CloseFail c = new CloseFail()) {
+                            throw new Boom("body");
+                        } catch (Boom e) {
+                            System.out.println(e.getMessage());
+                            Throwable[] s = e.getSuppressed();
+                            System.out.println(s.length);
+                            System.out.println(s[0].getMessage());
+                        }
+                    }
+                }
+                """, "body\n1\nclose\n");
+    }
+
+    @Test
+    void closeFailureBecomesPrimary() throws Exception {
+        assertStdout("""
+                class Boom extends RuntimeException {
+                    Boom(String message) { super(message); }
+                }
+                class CloseFail implements AutoCloseable {
+                    int id;
+                    CloseFail(int id) { this.id = id; }
+                    void close() { throw new Boom("c" + this.id); }
+                }
+                public class Main {
+                    public static void main(String[] args) {
+                        try (CloseFail a = new CloseFail(1); CloseFail b = new CloseFail(2)) {
+                            System.out.println(0);
+                        } catch (Boom e) {
+                            System.out.println(e.getMessage());
+                            Throwable[] s = e.getSuppressed();
+                            System.out.println(s.length);
+                            System.out.println(s[0].getMessage());
+                        }
+                    }
+                }
+                """, "0\nc2\n1\nc1\n");
+    }
+
+    @Test
+    void twrReturnStillCloses() throws Exception {
+        assertStdout("""
+                class Box implements AutoCloseable {
+                    void close() { System.out.println(2); }
+                }
+                public class Main {
+                    static int go() {
+                        try (Box b = new Box()) {
+                            return 1;
+                        }
+                    }
+                    public static void main(String[] args) {
+                        System.out.println(go());
+                    }
+                }
+                """, "2\n1\n");
+    }
+
+    @Test
+    void userFinallyAfterCloseAndCatch() throws Exception {
+        assertStdout("""
+                class Boom extends RuntimeException {
+                    Boom(String message) { super(message); }
+                }
+                class Box implements AutoCloseable {
+                    void close() { System.out.println(1); }
+                }
+                public class Main {
+                    public static void main(String[] args) {
+                        try (Box b = new Box()) {
+                            throw new Boom("x");
+                        } catch (Boom e) {
+                            System.out.println(2);
+                        } finally {
+                            System.out.println(3);
+                        }
+                    }
+                }
+                """, "1\n2\n3\n");
     }
 
     private void assertStdout(String source, String expected) throws Exception {

@@ -44,59 +44,22 @@ class NetNative {
         NativeMemory.putInt(p, 0L, v);
     }
 
+    /** Same contract as StreamNative.putU8/getU8 — logical shifts, not signed /256. */
     static void putU8(NativePtr p, int index, int value) {
         long base = 0L + ((index / 4) * 4);
+        int shift = (index % 4) * 8;
         int word = NativeMemory.getInt(p, base);
-        int lane = value % 256;
-        if (lane < 0) {
-            lane = lane + 256;
-        }
-        int b0 = word % 256;
-        if (b0 < 0) {
-            b0 = b0 + 256;
-        }
-        int w2 = word / 256;
-        int b1 = w2 % 256;
-        if (b1 < 0) {
-            b1 = b1 + 256;
-        }
-        int w3 = w2 / 256;
-        int b2 = w3 % 256;
-        if (b2 < 0) {
-            b2 = b2 + 256;
-        }
-        int b3 = w3 / 256;
-        if (b3 < 0) {
-            b3 = b3 + 256;
-        }
-        int laneIdx = index % 4;
-        if (laneIdx == 0) {
-            b0 = lane;
-        } else if (laneIdx == 1) {
-            b1 = lane;
-        } else if (laneIdx == 2) {
-            b2 = lane;
-        } else {
-            b3 = lane;
-        }
-        NativeMemory.putInt(p, base, b0 + (b1 * 256) + (b2 * 65536) + (b3 * 16777216));
+        int mask = 255 << shift;
+        int cleared = word & (~mask);
+        int inserted = cleared | ((value & 255) << shift);
+        NativeMemory.putInt(p, base, inserted);
     }
 
     static int getU8(NativePtr p, int index) {
         long base = 0L + ((index / 4) * 4);
+        int shift = (index % 4) * 8;
         int word = NativeMemory.getInt(p, base);
-        int laneIdx = index % 4;
-        int v = word;
-        int i = 0;
-        while (i < laneIdx) {
-            v = v / 256;
-            i = i + 1;
-        }
-        v = v % 256;
-        if (v < 0) {
-            v = v + 256;
-        }
-        return v;
+        return (word >>> shift) & 255;
     }
 }
 

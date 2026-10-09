@@ -88,6 +88,8 @@ public final class NativeRuntimeSources {
         if (platform == Platform.WINDOWS_X86_64) {
             sources.add(copyResource("native/windows/jnative_socket.c", dir.resolve("jnative_socket.c")));
             sources.add(copyResource("native/windows/jnative_fs.c", dir.resolve("jnative_fs.c")));
+            copyResource("native/posix/jnative_string.h", dir.resolve("jnative_string.h"));
+            sources.add(copyResource("native/posix/jnative_string.c", dir.resolve("jnative_string.c")));
         } else {
             sources.add(copyResource("native/posix/jnative_socket.c", dir.resolve("jnative_socket.c")));
             copyResource("native/posix/jnative_crash.h", dir.resolve("jnative_crash.h"));
@@ -102,6 +104,8 @@ public final class NativeRuntimeSources {
             sources.add(copyResource("native/posix/jnative_fs.c", dir.resolve("jnative_fs.c")));
             copyResource("native/posix/jnative_proc.h", dir.resolve("jnative_proc.h"));
             sources.add(copyResource("native/posix/jnative_proc.c", dir.resolve("jnative_proc.c")));
+            copyResource("native/posix/jnative_string.h", dir.resolve("jnative_string.h"));
+            sources.add(copyResource("native/posix/jnative_string.c", dir.resolve("jnative_string.c")));
         }
 
         if (includeTls && platform != Platform.WINDOWS_X86_64) {

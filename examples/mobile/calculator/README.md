@@ -7,7 +7,7 @@ Platform shells do **not** reimplement addition or input validation.
 
 ```text
 examples/mobile/calculator/
-├── src/CalculatorApp.java   # business logic (parse + add)
+├── src/CalculatorApp.java   # business logic (parse + +−×÷ + expression)
 ├── web/                     # HTML shell + bridge client
 ├── dist/                    # fresh build output (generated)
 ├── android/                 # Kotlin WebView container
@@ -37,8 +37,11 @@ cd dist && python3 -m http.server 8765
 # open http://127.0.0.1:8765/
 ```
 
-Expected: inputs `12` and `30` → result `42`. Invalid / empty inputs show clear errors.
-Last successful inputs restore after reload (web: `localStorage` — **not** secure storage).
+Expected:
+- two fields + operator `×`: `123` and `456` → `56088`
+- or expression box: `123*456` → `56088`
+- add path still works: `12` + `30` → `42`
+Invalid / empty / ÷0 show clear errors. Last successful inputs restore after reload (web: `localStorage` — **not** secure storage).
 
 ## Sync + mobile
 

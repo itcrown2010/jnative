@@ -415,12 +415,21 @@ static NSTableCellView *jn_make_cell(NSString *ident, BOOL withIcon) {
     if (![tv isKindOfClass:[NSTableView class]]) {
         return;
     }
+    /* Outline views use outlineViewSelectionDidChange: (model index). */
+    if ([tv isKindOfClass:[NSOutlineView class]]) {
+        return;
+    }
     NSInteger row = tv.selectedRow;
     if (row < 0) {
         return;
     }
-    jnative_ui_set_selected_index(self.peerId, (int32_t)row);
-    jnative_ui_emit_event_ex(self.peerId, JN_UI_EVENT_SELECT, (int32_t)row, 0, 0, 0);
+    int32_t peerId = self.peerId;
+    int32_t idx = (int32_t)row;
+    /* Defer out of AppKit selection posting — sync navigate/reload can SEGV. */
+    dispatch_async(dispatch_get_main_queue(), ^{
+        jnative_ui_set_selected_index(peerId, idx);
+        jnative_ui_emit_event_ex(peerId, JN_UI_EVENT_SELECT, idx, 0, 0, 0);
+    });
 }
 
 /** Activate row (Finder-style double-click). Defer ACTION so reload/open
@@ -446,9 +455,11 @@ static NSTableCellView *jn_make_cell(NSString *ident, BOOL withIcon) {
         }
         idx = (int32_t)[item intValue];
     }
-    jnative_ui_set_selected_index(peerId, idx);
-    jnative_ui_emit_event_ex(peerId, JN_UI_EVENT_SELECT, idx, 0, 0, 0);
+    /* Defer SELECT+ACTION together — sync SELECT nested in AppKit double-click
+       can SEGV the same way as outlineViewSelectionDidChange. */
     dispatch_async(dispatch_get_main_queue(), ^{
+        jnative_ui_set_selected_index(peerId, idx);
+        jnative_ui_emit_event_ex(peerId, JN_UI_EVENT_SELECT, idx, 0, 0, 0);
         jnative_ui_emit_event(peerId, JN_UI_EVENT_ACTION);
     });
 }
@@ -556,9 +567,14 @@ static NSTableCellView *jn_make_cell(NSString *ident, BOOL withIcon) {
     if (item == nil) {
         return;
     }
+    int32_t peerId = self.peerId;
     int32_t idx = (int32_t)[item intValue];
-    jnative_ui_set_selected_index(self.peerId, idx);
-    jnative_ui_emit_event_ex(self.peerId, JN_UI_EVENT_SELECT, idx, 0, 0, 0);
+    /* Defer out of AppKit selection posting (same as double-click ACTION).
+       Explorer navigateTo/reopenWatcher nested here caused SIGSEGV on Home. */
+    dispatch_async(dispatch_get_main_queue(), ^{
+        jnative_ui_set_selected_index(peerId, idx);
+        jnative_ui_emit_event_ex(peerId, JN_UI_EVENT_SELECT, idx, 0, 0, 0);
+    });
 }
 @end
 

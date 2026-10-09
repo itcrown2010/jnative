@@ -36,19 +36,26 @@ public final class TypeSubstitution {
     }
 
     public JType apply(JType type) {
+        return apply(type, new java.util.HashSet<>());
+    }
+
+    private JType apply(JType type, java.util.Set<TypeParameterSymbol> visiting) {
         if (type == null) {
             return null;
         }
         if (type instanceof TypeVariable tv) {
+            if (!visiting.add(tv.symbol())) {
+                return type; // cycle guard (e.g. mistaken T→T maps)
+            }
             JType mapped = map.get(tv.symbol());
             if (mapped != null) {
-                return apply(mapped); // in case of chained vars
+                return apply(mapped, visiting);
             }
             // Match by name+owner if identity differs
             for (var e : map.entrySet()) {
                 if (e.getKey().name().equals(tv.symbol().name())
                         && sameOwner(e.getKey(), tv.symbol())) {
-                    return apply(e.getValue());
+                    return apply(e.getValue(), visiting);
                 }
             }
             return type;

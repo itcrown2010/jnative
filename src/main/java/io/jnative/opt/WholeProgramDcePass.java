@@ -22,7 +22,9 @@ public final class WholeProgramDcePass implements OptimizationPass {
         reachable.addAll(allVtableImplementations(ctx));
         for (IrFunction f : ctx.module().functions()) {
             String n = f.name();
-            if (n.contains("_lambda_") || n.contains("_thunk_") || n.startsWith("jnative_cb_trampoline_")) {
+            if (n.contains("_lambda_") || n.contains("_thunk_")
+                    || n.startsWith("jnative_cb_trampoline_")
+                    || n.endsWith("__async_resume")) {
                 reachable.add(n);
             }
         }

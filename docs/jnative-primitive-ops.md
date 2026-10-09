@@ -15,9 +15,9 @@
 
 ## 类型规则摘要
 
-**Cast（整数）：** byte/short/char/int/long 互转；窄化截断；byte/short 拓宽符号扩展；char 拓宽零扩展。boolean / float/double → 硬错误。
+**Cast：** 整数矩阵 + float/double（朝零、NaN→0、饱和；见 `docs/jnative-float-double.md`）。boolean 硬错误。
 
-**三元：** 条件 boolean；数值分支用二元算术提升；引用/null 取兼容类型；不支持浮点分支。
+**三元：** 条件 boolean；数值分支（含 float/double）用二元算术提升；引用/null 取兼容类型。
 
 **位运算：** 整数提升后运算；boolean `&\|^` 双方求值（非短路）。
 
@@ -45,7 +45,8 @@ WASM 指令 lowering：i32.and/xor/shl/shr_s/shr_u 已覆盖
 
 ## 剩余
 
-- 浮点 cast / 浮点三元分支
-- 十六进制字面量
+- 十六进制整数/浮点字面量
 - 位运算复合赋值
 - 浏览器端可运行（非 println）的完整 e2e
+
+浮点专章：`docs/jnative-float-double.md`。

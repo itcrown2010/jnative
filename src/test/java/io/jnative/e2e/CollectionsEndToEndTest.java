@@ -76,7 +76,9 @@ class CollectionsEndToEndTest {
         String llvm = result.llvmIr();
         assertTrue(llvm.contains("ArrayList$P_i32") || llvm.contains("ArrayList_P_i32"), llvm);
         assertTrue(llvm.contains("@meta.array.i32") || llvm.contains("array.i32"), llvm);
-        assertFalse(llvm.contains("Integer"), "must not box to Integer");
+        // BoxingLib may define Integer.valueOf; specialized add must not call it.
+        assertFalse(llvm.contains("call ptr @_JN_Integer_valueOf"),
+                "ArrayList<int> must not call Integer.valueOf:\n" + llvm);
     }
 
     @Test

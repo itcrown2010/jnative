@@ -206,7 +206,27 @@ public final class StdlibIncluder {
                 || sourceText.contains("new ArrayDeque")
                 || sourceText.contains("new StringBuilder")
                 || sourceText.contains("Collections.")
-                || sourceText.contains("Arrays.");
+                || sourceText.contains("Arrays.")
+                || needsBoxing(sourceText);
+    }
+
+    /** Boxed primitives and types that typically imply autobox. */
+    public static boolean needsBoxing(String sourceText) {
+        if (sourceText == null) {
+            return false;
+        }
+        return sourceText.contains("Integer")
+                || sourceText.contains("Boolean")
+                || sourceText.contains("Float")
+                || sourceText.contains("Double")
+                // "Long" alone is too broad (identifiers); require type-like uses
+                || sourceText.contains("Long ")
+                || sourceText.contains("Long>")
+                || sourceText.contains("Long,")
+                || sourceText.contains("<Long")
+                || sourceText.contains("Long.")
+                || sourceText.contains("(Long)")
+                || sourceText.contains("new Long");
     }
 
     public static boolean needsGraphics(String sourceText) {
@@ -691,7 +711,10 @@ public final class StdlibIncluder {
         boolean wantTlsEarly = needsTls(userSource) || needsHttp(userSource) || needsHttp2(userSource) || wantWeb;
         if (needsCollections(userSource) || wantUi || wantGraphics || wantEditor || wantJson || wantIo || wantStudio
                 || wantAsync || wantDatabase || wantCrypto || wantRpc || wantTime || wantTlsEarly || needsNet(userSource)) {
+            resources.add("stdlib/collections/BoxingLib.java");
             resources.add("stdlib/collections/CollectionsLib.java");
+        } else if (needsBoxing(userSource)) {
+            resources.add("stdlib/collections/BoxingLib.java");
         }
         if (wantMath || needsMath(userSource)) {
             resources.add("stdlib/math/MathLib.java");

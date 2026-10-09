@@ -3,9 +3,11 @@
 //
 // Equality: reference collections use Object.equals / Object.hashCode.
 // Default Object.equals is identity; Object.hashCode is a stable identity hash
-// (survives moving GC2). String overrides both.
-// ArrayList.contains / indexOf use == (identity for refs, value eq for primitives).
-// Null keys are unsupported in HashMap 0.16.
+// (survives moving GC2). String / Integer / Long / Boolean override both.
+// ArrayList.contains / indexOf: identity first, then equals (wrappers / String).
+// Primitive specialization lowers T.equals to value ==.
+// Null keys unsupported in HashMap; null values allowed.
+// Mutable keys: mutating fields that affect hashCode/equals after put is undefined.
 
 /** Resource that can be used in try-with-resources. */
 interface AutoCloseable {
@@ -131,7 +133,10 @@ interface List<T> extends Collection<T> {
     T set(int index, T value);
     void add(T value);
     void addAt(int index, T value);
+    /** Remove by index (not overloaded with value remove — avoids Integer ambiguity). */
     T removeAt(int index);
+    /** Remove first equal element; returns whether an element was removed. */
+    boolean removeValue(T value);
     int indexOf(T value);
 }
 
@@ -206,6 +211,23 @@ interface Supplier<T> {
     T get();
 }
 
+/**
+ * Primitive-specialized SAMs (avoid boxing when targeted).
+ * Note: int→int already exists as builtins {@code IntFunction}/{@code IntUnaryFunction}
+ * (do not redefine here — parallel incompatible SAMs are forbidden).
+ */
+interface IntConsumer {
+    void accept(int value);
+}
+
+interface IntPredicate {
+    boolean test(int value);
+}
+
+interface IntSupplier {
+    int getAsInt();
+}
+
 class ArrayListIterator<T> implements Iterator<T> {
     ArrayList<T> list;
     int index;
@@ -262,7 +284,12 @@ class ArrayList<T> implements List<T> {
         if (oldCapacity <= 0) {
             return 10;
         }
-        return oldCapacity + (oldCapacity / 2);
+        int grown = oldCapacity + (oldCapacity / 2);
+        if (grown < oldCapacity) {
+            // int overflow — refuse rather than leave a corrupted list
+            throw new IllegalStateException("ArrayList capacity overflow");
+        }
+        return grown;
     }
 
     void ensureCapacity(int minCapacity) {
@@ -273,14 +300,18 @@ class ArrayList<T> implements List<T> {
         if (minCapacity <= cap) {
             return;
         }
+        if (minCapacity < 0) {
+            throw new IllegalStateException("ArrayList capacity overflow");
+        }
         int newCap = calculateNewCapacity(cap);
         if (newCap < minCapacity) {
             newCap = minCapacity;
         }
+        T[] old = this.storage;
         T[] neu = new T[newCap];
         int i = 0;
         while (i < this.size) {
-            neu[i] = this.storage[i];
+            neu[i] = old[i];
             i = i + 1;
         }
         this.storage = neu;
@@ -351,7 +382,12 @@ class ArrayList<T> implements List<T> {
     public int indexOf(T value) {
         int i = 0;
         while (i < this.size) {
-            if (this.storage[i] == value) {
+            T cur = this.storage[i];
+            if (cur == value) {
+                return i;
+            }
+            // equals for wrappers/String; primitive specialization lowers equals → ==
+            if (valueEquals(value, cur)) {
                 return i;
             }
             i = i + 1;
@@ -359,8 +395,31 @@ class ArrayList<T> implements List<T> {
         return -1;
     }
 
+    /**
+     * Null-safe equals for reference elements. For primitive specialization,
+     * {@code a.equals(b)} lowers to {@code a == b} (see IrGenerator).
+     */
+    boolean valueEquals(T a, T b) {
+        if (a == b) {
+            return true;
+        }
+        if (a == null) {
+            return false;
+        }
+        return a.equals(b);
+    }
+
     public boolean contains(T value) {
         return indexOf(value) >= 0;
+    }
+
+    public boolean removeValue(T value) {
+        int idx = indexOf(value);
+        if (idx < 0) {
+            return false;
+        }
+        removeAt(idx);
+        return true;
     }
 
     public void clear() {
@@ -375,6 +434,73 @@ class ArrayList<T> implements List<T> {
 
     public Iterator<T> iterator() {
         return new ArrayListIterator<T>(this);
+    }
+
+    /**
+     * Invoke {@code action} for each element in index order.
+     * Structural modification of this list during forEach → ConcurrentModificationException.
+     * Callback exceptions propagate to the caller. {@code action} null → NPE.
+     */
+    public void forEach(Consumer<T> action) {
+        if (action == null) {
+            throw new NullPointerException("action");
+        }
+        int expected = this.modCount;
+        int i = 0;
+        while (i < this.size) {
+            if (expected != this.modCount) {
+                throw new ConcurrentModificationException("ArrayList modified during forEach");
+            }
+            action.accept(this.storage[i]);
+            i = i + 1;
+        }
+    }
+
+    /**
+     * New list of elements for which {@code predicate.test} is true (index order preserved).
+     * Result is independent of this list. Structural modification during filter → CME.
+     */
+    public ArrayList<T> filter(Predicate<T> predicate) {
+        if (predicate == null) {
+            throw new NullPointerException("predicate");
+        }
+        ArrayList<T> out = new ArrayList<T>();
+        int expected = this.modCount;
+        int i = 0;
+        while (i < this.size) {
+            if (expected != this.modCount) {
+                throw new ConcurrentModificationException("ArrayList modified during filter");
+            }
+            T v = this.storage[i];
+            if (predicate.test(v)) {
+                out.add(v);
+            }
+            i = i + 1;
+        }
+        return out;
+    }
+
+    /**
+     * Map each element through {@code mapper} into a new {@code ArrayList<Object>}
+     * (same length, index order). Result is independent. Structural modification → CME.
+     * (Method type-parameter map&lt;R&gt; deferred; use Object results + cast.)
+     */
+    public ArrayList<Object> mapValues(Function<T, Object> mapper) {
+        if (mapper == null) {
+            throw new NullPointerException("mapper");
+        }
+        ArrayList<Object> out = new ArrayList<Object>();
+        int expected = this.modCount;
+        int i = 0;
+        while (i < this.size) {
+            if (expected != this.modCount) {
+                throw new ConcurrentModificationException("ArrayList modified during mapValues");
+            }
+            Object mapped = mapper.apply(this.storage[i]);
+            out.add(mapped);
+            i = i + 1;
+        }
+        return out;
     }
 }
 
@@ -647,7 +773,7 @@ class HashMap<K, V> implements Map<K, V> {
         this.modCount = this.modCount + 1;
     }
 
-    /** Snapshot of occupied keys (iteration support for HashSet). */
+    /** Snapshot of occupied keys (iteration support for HashSet). Unordered. */
     public K[] keysArray() {
         K[] out = new K[this.size];
         int n = 0;
@@ -661,6 +787,76 @@ class HashMap<K, V> implements Map<K, V> {
             i = i + 1;
         }
         return out;
+    }
+
+    /**
+     * Entry iterator (unordered). Fail-fast on structural modification via modCount.
+     * Does not claim concurrent safety.
+     */
+    public HashMapEntryIterator<K, V> entryIterator() {
+        return new HashMapEntryIterator<K, V>(this);
+    }
+}
+
+class HashMapEntry<K, V> implements Entry<K, V> {
+    K key;
+    V value;
+
+    HashMapEntry(K key, V value) {
+        this.key = key;
+        this.value = value;
+    }
+
+    public K getKey() {
+        return this.key;
+    }
+
+    public V getValue() {
+        return this.value;
+    }
+}
+
+class HashMapEntryIterator<K, V> implements Iterator<HashMapEntry<K, V>> {
+    HashMap<K, V> map;
+    int slot;
+    int expectedModCount;
+    HashMapEntry<K, V> nextEntry;
+
+    HashMapEntryIterator(HashMap<K, V> map) {
+        this.map = map;
+        this.slot = 0;
+        this.expectedModCount = map.modCount;
+        this.nextEntry = null;
+        advance();
+    }
+
+    void advance() {
+        this.nextEntry = null;
+        int cap = this.map.capacity();
+        while (this.slot < cap) {
+            int i = this.slot;
+            this.slot = this.slot + 1;
+            if (this.map.states[i] == HashMap.OCCUPIED) {
+                this.nextEntry = new HashMapEntry<K, V>(this.map.keys[i], this.map.values[i]);
+                return;
+            }
+        }
+    }
+
+    public boolean hasNext() {
+        return this.nextEntry != null;
+    }
+
+    public HashMapEntry<K, V> next() {
+        if (this.expectedModCount != this.map.modCount) {
+            throw new ConcurrentModificationException("HashMap modified during entry iteration");
+        }
+        if (this.nextEntry == null) {
+            throw new NoSuchElementException("HashMapEntryIterator");
+        }
+        HashMapEntry<K, V> e = this.nextEntry;
+        advance();
+        return e;
     }
 }
 

@@ -2,6 +2,7 @@ package io.jnative.parser;
 
 import io.jnative.ast.*;
 import io.jnative.diagnostics.DiagnosticReporter;
+import io.jnative.diagnostics.SourceLocation;
 import io.jnative.lexer.Token;
 import io.jnative.lexer.TokenType;
 import io.jnative.semantic.Visibility;
@@ -106,9 +107,16 @@ public final class Parser {
         String name = parseQualifiedName("expected type name after import");
         if (match(TokenType.DOT)) {
             if (match(TokenType.STAR)) {
-                reporter.error(imp.location(),
-                        "wildcard import is not supported; use an explicit type import");
+                // Stdlib / flattened packages: `import jnative.ui.*` is accepted and
+                // resolves against simple type names already known in the CU (UiLib).
+                // Other wildcards remain unsupported.
                 consume(TokenType.SEMICOLON, "expected ';' after import");
+                if (name.startsWith("jnative.")) {
+                    currentImports.add(new ImportDeclaration(name + ".*", imp.location()));
+                } else {
+                    reporter.error(imp.location(),
+                            "wildcard import is not supported; use an explicit type import");
+                }
                 return;
             }
             reporter.error(peek().location(), "expected ';' after import");
@@ -192,6 +200,7 @@ public final class Parser {
         knownClassNames.add("IntCompare");
         knownClassNames.add("HttpHandler");
         knownClassNames.add("NativeCallbackHandle");
+        knownClassNames.add("Future");
         knownClassNames.addAll(programTypeNames);
         int saved = current;
         current = 0;
@@ -204,7 +213,8 @@ public final class Parser {
                 // continue
             }
             match(TokenType.ABSTRACT);
-            if ((match(TokenType.CLASS) || match(TokenType.INTERFACE)) && check(TokenType.IDENTIFIER)) {
+            if ((match(TokenType.CLASS) || match(TokenType.INTERFACE) || match(TokenType.ENUM))
+                    && check(TokenType.IDENTIFIER)) {
                 knownClassNames.add(advance().lexeme());
                 skipTypeParameterTokens();
             } else if (!isAtEnd()) {
@@ -255,15 +265,45 @@ public final class Parser {
             }
         }
         Visibility typeVis = parseVisibilityModifier();
-        boolean isAbstract = match(TokenType.ABSTRACT);
+        boolean isAbstract = false;
+        boolean isFinal = false;
+        for (int i = 0; i < 4; i++) {
+            if (!isAbstract && match(TokenType.ABSTRACT)) {
+                isAbstract = true;
+            } else if (!isFinal && match(TokenType.FINAL)) {
+                isFinal = true;
+            } else {
+                break;
+            }
+        }
+        if (isAbstract && isFinal) {
+            reporter.error(previous().location(), "illegal combination of modifiers: abstract and final");
+        }
         boolean isInterface = false;
+        boolean isEnum = false;
         if (match(TokenType.INTERFACE)) {
             isInterface = true;
             if (nativeStruct) {
                 reporter.error(previous().location(), "@NativeStruct cannot be an interface");
             }
+            if (isFinal) {
+                reporter.error(previous().location(), "interface cannot be final");
+                isFinal = false;
+            }
+        } else if (match(TokenType.ENUM)) {
+            isEnum = true;
+            if (nativeStruct) {
+                reporter.error(previous().location(), "@NativeStruct cannot be an enum");
+            }
+            if (isAbstract) {
+                reporter.error(previous().location(), "enum cannot be abstract");
+            }
+            if (isFinal) {
+                reporter.error(previous().location(), "enum is implicitly final; remove 'final'");
+                isFinal = false;
+            }
         } else {
-            consume(TokenType.CLASS, "expected 'class' or 'interface'");
+            consume(TokenType.CLASS, "expected 'class', 'interface', or 'enum'");
         }
         Token name = consume(TokenType.IDENTIFIER, "expected type name");
         if (typeVis == Visibility.PRIVATE || typeVis == Visibility.PROTECTED) {
@@ -275,6 +315,14 @@ public final class Parser {
         if (!pendingTypeAnns.isEmpty()) {
             typeAnnotations.put(name.lexeme(), List.copyOf(pendingTypeAnns));
         }
+        knownClassNames.add(name.lexeme());
+        String pkg = currentPackage == null ? "" : currentPackage;
+        List<ImportDeclaration> importsSnapshot = List.copyOf(currentImports);
+
+        if (isEnum) {
+            return parseEnumBody(name, pkg, importsSnapshot, typeVis);
+        }
+
         List<TypeParameterDeclaration> typeParams = parseTypeParameterList();
         // Locals/params may use class type parameters as types (e.g. T value = ...).
         for (TypeParameterDeclaration tp : typeParams) {
@@ -317,12 +365,54 @@ public final class Parser {
             parseClassMember(name.lexeme(), fields, methods, nativeStruct, isInterface, isAbstract, typeEffects);
         }
         consume(TokenType.RBRACE, "expected '}'");
-        String pkg = currentPackage == null ? "" : currentPackage;
-        List<ImportDeclaration> importsSnapshot = List.copyOf(currentImports);
         return new ClassDeclaration(
                 name.lexeme(), pkg, importsSnapshot, typeVis, typeParams, superClassName, superClassTypeArgs,
                 implementedInterfaces, fields, methods,
-                nativeStruct, isInterface, isAbstract, name.location());
+                nativeStruct, isInterface, isAbstract, isFinal, name.location());
+    }
+
+    /**
+     * Basic enum: {@code enum Name { A, B, C }}. Rejects bodies, constructors, and members.
+     */
+    private ClassDeclaration parseEnumBody(
+            Token name, String pkg, List<ImportDeclaration> imports, Visibility typeVis) {
+        if (match(TokenType.LT)) {
+            throw error(previous(), "enum type parameters are not supported");
+        }
+        if (match(TokenType.EXTENDS) || match(TokenType.IMPLEMENTS)) {
+            throw error(previous(), "basic enum cannot extend or implement types");
+        }
+        consume(TokenType.LBRACE, "expected '{' after enum name");
+        List<String> constants = new ArrayList<>();
+        if (!check(TokenType.RBRACE)) {
+            do {
+                if (check(TokenType.SEMICOLON) || check(TokenType.RBRACE)) {
+                    break;
+                }
+                Token c = consume(TokenType.IDENTIFIER, "expected enum constant name");
+                if (match(TokenType.LPAREN)) {
+                    throw error(previous(),
+                            "enum constant arguments are not supported in this language profile");
+                }
+                if (match(TokenType.LBRACE)) {
+                    throw error(previous(),
+                            "enum constant class bodies are not supported in this language profile");
+                }
+                constants.add(c.lexeme());
+            } while (match(TokenType.COMMA));
+        }
+        if (match(TokenType.SEMICOLON)) {
+            if (!check(TokenType.RBRACE)) {
+                throw error(peek(),
+                        "enum members, constructors, and methods are not supported in this language profile");
+            }
+        }
+        consume(TokenType.RBRACE, "expected '}' after enum constants");
+        if (constants.isEmpty()) {
+            reporter.error(name.location(), "enum must declare at least one constant");
+        }
+        return ClassDeclaration.enumType(
+                name.lexeme(), pkg, imports, typeVis, constants, name.location());
     }
 
     private Visibility parseVisibilityModifier() {
@@ -424,7 +514,8 @@ public final class Parser {
         boolean isAbstract = false;
         boolean isAsync = false;
         boolean isDefault = false;
-        for (int i = 0; i < 9; i++) {
+        boolean isFinal = false;
+        for (int i = 0; i < 10; i++) {
             if (!isStatic && match(TokenType.STATIC)) {
                 isStatic = true;
             } else if (!isNative && match(TokenType.NATIVE)) {
@@ -437,9 +528,14 @@ public final class Parser {
                 isAsync = true;
             } else if (!isDefault && match(TokenType.DEFAULT)) {
                 isDefault = true;
+            } else if (!isFinal && match(TokenType.FINAL)) {
+                isFinal = true;
             } else {
                 break;
             }
+        }
+        if (isAbstract && isFinal) {
+            reporter.error(previous().location(), "illegal combination of modifiers: abstract and final");
         }
         if (isDefault) {
             reporter.error(previous().location(),
@@ -474,8 +570,11 @@ public final class Parser {
             Token name = advance();
             List<Parameter> params = parseParameterList();
             BlockStatement body = parseBlock();
+            if (isFinal) {
+                reporter.error(name.location(), "constructors cannot be final");
+            }
             methods.add(new MethodDeclaration(
-                    memberVis == Visibility.PUBLIC, false, false, true, false, false, List.of(),
+                    memberVis == Visibility.PUBLIC, false, false, true, false, false, false, List.of(),
                     TypeName.ofVoid(name.location()), false,
                     className, params, body, null, effectContract, memberVis, name.location()));
             return;
@@ -541,6 +640,7 @@ public final class Parser {
             }
             methods.add(new MethodDeclaration(
                     memberVis == Visibility.PUBLIC, isStatic, isNative, false, methodAbstract && !isNative, isAsync,
+                    isFinal && !methodAbstract,
                     methodTypeParams, type, isArray,
                     name.lexeme(), params, body, nativeAnnotation, effectContract, memberVis, name.location()));
             if (!pendingMemberAnns.isEmpty()) {
@@ -550,6 +650,12 @@ public final class Parser {
         }
 
         // field
+        // static final constants are accepted (final is a source-level marker; IR treats
+        // them as ordinary static fields). Instance final fields remain unsupported.
+        if (isFinal && !isStatic) {
+            reporter.error(name.location(),
+                    "instance final fields are not supported in this language profile yet");
+        }
         if (isInterface) {
             reporter.error(name.location(),
                     "interface instance fields are not supported (constants deferred)");
@@ -801,6 +907,7 @@ public final class Parser {
     }
 
     private Parameter parseParameter() {
+        boolean isFinal = match(TokenType.FINAL);
         TypeName type = parseType();
         boolean isArray = false;
         if (match(TokenType.LBRACKET)) {
@@ -812,7 +919,7 @@ public final class Parser {
             consume(TokenType.RBRACKET, "expected ']'");
             isArray = true;
         }
-        return new Parameter(type, name.lexeme(), isArray, name.location());
+        return new Parameter(type, name.lexeme(), isArray, isFinal, name.location());
     }
 
     private TypeName parseType() {
@@ -1025,6 +1132,9 @@ public final class Parser {
             if (match(TokenType.FOR)) {
                 return parseFor();
             }
+            if (match(TokenType.SWITCH)) {
+                return parseSwitch();
+            }
             if (match(TokenType.BREAK)) {
                 return parseBreak();
             }
@@ -1111,8 +1221,9 @@ public final class Parser {
             }
             consume(TokenType.ASSIGN, "try-with-resources variable must be initialized");
             Expression init = parseExpression();
+            // TWR resources are implicitly final (Java §14.20.3).
             resources.add(new VariableDeclaration(
-                    type, isArray, name.lexeme(), init, name.location()));
+                    type, isArray, name.lexeme(), init, false, true, name.location()));
             if (match(TokenType.SEMICOLON)) {
                 if (check(TokenType.RPAREN)) {
                     break;
@@ -1142,26 +1253,38 @@ public final class Parser {
     }
 
     private boolean isVariableDeclarationStart() {
-        if (check(TokenType.AT)
-                && peekAt(1) != null
-                && peekAt(1).type() == TokenType.IDENTIFIER
-                && "Stack".equals(peekAt(1).lexeme())) {
+        int offset = 0;
+        if (check(TokenType.FINAL)) {
+            offset = 1;
+        }
+        return isVariableDeclarationStartAt(offset);
+    }
+
+    private boolean isVariableDeclarationStartAt(int offset) {
+        Token t0 = peekAt(offset);
+        if (t0 == null) {
+            return false;
+        }
+        if (t0.type() == TokenType.AT
+                && peekAt(offset + 1) != null
+                && peekAt(offset + 1).type() == TokenType.IDENTIFIER
+                && "Stack".equals(peekAt(offset + 1).lexeme())) {
             return true;
         }
-        if (isPrimitiveTypeToken(peek())) {
+        if (isPrimitiveTypeToken(t0)) {
             return true;
         }
-        if (check(TokenType.IDENTIFIER) && "NativePtr".equals(peek().lexeme())) {
-            return isNativePtrVariableDeclAhead();
+        if (t0.type() == TokenType.IDENTIFIER && "NativePtr".equals(t0.lexeme())) {
+            return isNativePtrVariableDeclAhead(offset);
         }
-        if (check(TokenType.IDENTIFIER)) {
-            int afterType = indexAfterQualifiedTypeName(0);
+        if (t0.type() == TokenType.IDENTIFIER) {
+            int afterType = indexAfterQualifiedTypeName(offset);
             if (afterType < 0) {
                 return false;
             }
             // Simple name must be a known type; FQN (contains '.') is accepted structurally.
-            boolean fqn = afterType > 1;
-            if (!fqn && !knownClassNames.contains(peek().lexeme())) {
+            boolean fqn = afterType > offset + 1;
+            if (!fqn && !knownClassNames.contains(t0.lexeme())) {
                 return false;
             }
             int afterArgs = indexAfterTypeArguments(afterType);
@@ -1198,7 +1321,11 @@ public final class Parser {
 
     /** {@code NativePtr p} / {@code NativePtr<T> p} / optional {@code []}. */
     private boolean isNativePtrVariableDeclAhead() {
-        int i = 1;
+        return isNativePtrVariableDeclAhead(0);
+    }
+
+    private boolean isNativePtrVariableDeclAhead(int offset) {
+        int i = offset + 1;
         if (peekAt(i) != null && peekAt(i).type() == TokenType.LT) {
             int depth = 0;
             while (true) {
@@ -1216,7 +1343,7 @@ public final class Parser {
                     }
                 }
                 i++;
-                if (i > current + 64) {
+                if (i > offset + 64) {
                     return false;
                 }
             }
@@ -1245,6 +1372,7 @@ public final class Parser {
     }
 
     private VariableDeclaration parseVariableDeclaration() {
+        boolean isFinal = match(TokenType.FINAL);
         boolean stackAllocated = false;
         if (check(TokenType.AT)) {
             ParsedAnnotation ann = parseAnnotation();
@@ -1272,7 +1400,7 @@ public final class Parser {
         }
         consume(TokenType.SEMICOLON, "expected ';' after variable declaration");
         return new VariableDeclaration(
-                type, isArray, name.lexeme(), init, stackAllocated, name.location());
+                type, isArray, name.lexeme(), init, stackAllocated, isFinal, name.location());
     }
 
     private IfStatement parseIf() {
@@ -1308,6 +1436,53 @@ public final class Parser {
         return new DoWhileStatement(body, condition, doTok.location());
     }
 
+    /**
+     * Classic switch statement. Arrow / switch-expression syntax is rejected.
+     */
+    private SwitchStatement parseSwitch() {
+        Token sw = previous();
+        consume(TokenType.LPAREN, "expected '(' after 'switch'");
+        Expression selector = parseExpression();
+        consume(TokenType.RPAREN, "expected ')' after switch selector");
+        consume(TokenType.LBRACE, "expected '{' after switch selector");
+        List<SwitchSection> sections = new ArrayList<>();
+        while (!check(TokenType.RBRACE) && !isAtEnd()) {
+            if (!check(TokenType.CASE) && !check(TokenType.DEFAULT)) {
+                throw error(peek(), "expected 'case' or 'default' in switch");
+            }
+            List<SwitchLabel> labels = new ArrayList<>();
+            SourceLocation sectionLoc = peek().location();
+            while (check(TokenType.CASE) || check(TokenType.DEFAULT)) {
+                if (match(TokenType.CASE)) {
+                    Token caseTok = previous();
+                    if (check(TokenType.ARROW)) {
+                        throw error(peek(),
+                                "switch arrow syntax is not supported; use 'case X:' with statements");
+                    }
+                    Expression constant = parseExpression();
+                    consume(TokenType.COLON, "expected ':' after case label");
+                    labels.add(new CaseLabel(constant, caseTok.location()));
+                } else {
+                    Token defTok = consume(TokenType.DEFAULT, "expected 'default'");
+                    if (check(TokenType.ARROW)) {
+                        throw error(peek(),
+                                "switch arrow syntax is not supported; use 'default:' with statements");
+                    }
+                    consume(TokenType.COLON, "expected ':' after default");
+                    labels.add(new DefaultLabel(defTok.location()));
+                }
+            }
+            List<Statement> stmts = new ArrayList<>();
+            while (!check(TokenType.CASE) && !check(TokenType.DEFAULT)
+                    && !check(TokenType.RBRACE) && !isAtEnd()) {
+                stmts.add(parseStatement());
+            }
+            sections.add(new SwitchSection(labels, stmts, sectionLoc));
+        }
+        consume(TokenType.RBRACE, "expected '}' after switch body");
+        return new SwitchStatement(selector, sections, sw.location());
+    }
+
     private BreakStatement parseBreak() {
         Token tok = previous();
         consume(TokenType.SEMICOLON, "expected ';' after break");
@@ -1320,9 +1495,13 @@ public final class Parser {
         return new ContinueStatement(tok.location());
     }
 
-    private ForStatement parseFor() {
+    private Statement parseFor() {
         Token forTok = previous();
         consume(TokenType.LPAREN, "expected '(' after for");
+
+        if (isEnhancedForAhead()) {
+            return parseEnhancedFor(forTok);
+        }
 
         Statement initializer;
         if (match(TokenType.SEMICOLON)) {
@@ -1348,6 +1527,71 @@ public final class Parser {
         consume(TokenType.RPAREN, "expected ')' after for clauses");
         Statement body = parseStatement();
         return new ForStatement(initializer, condition, update, body, forTok.location());
+    }
+
+    /**
+     * Lookahead for {@code for ( [final] Type name : expr )}.
+     * Rejects Iterable-style when later checked semantically; here only syntax shape.
+     */
+    private boolean isEnhancedForAhead() {
+        int offset = 0;
+        if (peekAt(offset) != null && peekAt(offset).type() == TokenType.FINAL) {
+            offset++;
+        }
+        if (!isVariableDeclarationStartAt(offset)) {
+            return false;
+        }
+        // Walk type + optional [] + name, then require ':'
+        if (peekAt(offset) != null && peekAt(offset).type() == TokenType.AT) {
+            return false; // @Stack not used in enhanced-for
+        }
+        int afterType;
+        Token t0 = peekAt(offset);
+        if (t0 != null && isPrimitiveTypeToken(t0)) {
+            afterType = offset + 1;
+        } else if (t0 != null && t0.type() == TokenType.IDENTIFIER) {
+            afterType = indexAfterQualifiedTypeName(offset);
+            if (afterType < 0) {
+                return false;
+            }
+            int afterArgs = indexAfterTypeArguments(afterType);
+            if (afterArgs >= 0) {
+                afterType = afterArgs;
+            }
+        } else {
+            return false;
+        }
+        if (peekAt(afterType) != null && peekAt(afterType).type() == TokenType.LBRACKET
+                && peekAt(afterType + 1) != null && peekAt(afterType + 1).type() == TokenType.RBRACKET) {
+            afterType += 2;
+        }
+        Token name = peekAt(afterType);
+        if (name == null || name.type() != TokenType.IDENTIFIER) {
+            return false;
+        }
+        Token colon = peekAt(afterType + 1);
+        return colon != null && colon.type() == TokenType.COLON;
+    }
+
+    private EnhancedForStatement parseEnhancedFor(Token forTok) {
+        boolean isFinal = match(TokenType.FINAL);
+        TypeName type = parseType();
+        boolean isArray = false;
+        if (match(TokenType.LBRACKET)) {
+            consume(TokenType.RBRACKET, "expected ']'");
+            isArray = true;
+        }
+        Token name = consume(TokenType.IDENTIFIER, "expected loop variable name");
+        if (!isArray && match(TokenType.LBRACKET)) {
+            consume(TokenType.RBRACKET, "expected ']'");
+            isArray = true;
+        }
+        consume(TokenType.COLON, "expected ':' in enhanced for");
+        Expression array = parseExpression();
+        consume(TokenType.RPAREN, "expected ')' after enhanced for");
+        Statement body = parseStatement();
+        return new EnhancedForStatement(
+                type, isArray, isFinal, name.lexeme(), array, body, forTok.location());
     }
 
     private ReturnStatement parseReturn() {
@@ -1616,7 +1860,13 @@ public final class Parser {
                 continue;
             }
             if (match(TokenType.COLON_COLON)) {
-                Token methodTok = consume(TokenType.IDENTIFIER, "expected method name after '::'");
+                Token methodTok;
+                if (match(TokenType.NEW)) {
+                    // Type::new — accepted in parse, rejected in semantic (not supported yet).
+                    methodTok = previous();
+                } else {
+                    methodTok = consume(TokenType.IDENTIFIER, "expected method name after '::'");
+                }
                 if (expr instanceof VariableExpression v && knownClassNames.contains(v.name())) {
                     expr = new MethodReferenceExpression(
                             TypeName.ofClass(v.name(), v.location()), null, methodTok.lexeme(),
@@ -1659,9 +1909,21 @@ public final class Parser {
             }
             return LiteralExpression.ofLong(Long.parseLong(lex), t.location());
         }
+        if (match(TokenType.FLOAT_LITERAL)) {
+            Token t = previous();
+            String lex = t.lexeme();
+            if (lex.endsWith("f") || lex.endsWith("F") || lex.endsWith("d") || lex.endsWith("D")) {
+                lex = lex.substring(0, lex.length() - 1);
+            }
+            return LiteralExpression.ofFloat(Float.parseFloat(lex), t.location());
+        }
         if (match(TokenType.DOUBLE_LITERAL)) {
             Token t = previous();
-            return LiteralExpression.ofDouble(Double.parseDouble(t.lexeme()), t.location());
+            String lex = t.lexeme();
+            if (lex.endsWith("d") || lex.endsWith("D") || lex.endsWith("f") || lex.endsWith("F")) {
+                lex = lex.substring(0, lex.length() - 1);
+            }
+            return LiteralExpression.ofDouble(Double.parseDouble(lex), t.location());
         }
         if (match(TokenType.STRING_LITERAL)) {
             Token t = previous();
@@ -1797,7 +2059,7 @@ public final class Parser {
             return false;
         }
         return switch (after.type()) {
-            case IDENTIFIER, INT_LITERAL, LONG_LITERAL, DOUBLE_LITERAL, STRING_LITERAL,
+            case IDENTIFIER, INT_LITERAL, LONG_LITERAL, FLOAT_LITERAL, DOUBLE_LITERAL, STRING_LITERAL,
                  TRUE, FALSE, NULL, THIS, SUPER, NEW, LPAREN, NOT, BIT_NOT -> true;
             case MINUS, PLUS -> primitive;
             default -> false;

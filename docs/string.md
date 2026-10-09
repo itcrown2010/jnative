@@ -1,36 +1,49 @@
 # String
 
-## Status (0.4)
+## Public contract (current)
 
-`String` is a reference/object type with ClassMetadata, not a println-only
-special LLVM `i8*`.
+| API | Semantics |
+|-----|-----------|
+| `length()` | **UTF-16 code unit** count (Java-compatible) |
+| `charAt(i)` / `substring` / `indexOf` | UTF-16 code unit indices |
+| `utf8Length()` | UTF-8 **byte** length of the content (no trailing NUL) |
+| `getBytes()` | UTF-8 encode → `byte[]` (lone surrogates → U+FFFD) |
+| `String.fromBytes(byte[])` | **Strict** UTF-8 decode (invalid → `IllegalArgumentException`) |
+| `equals` / `hashCode` | UTF-16 content / Java `31*h+char` over code units |
+| `toLowerCase` / `toUpperCase` / `equalsIgnoreCase` | **ASCII only** (not full Unicode case folding) |
 
-## Layout (runtime)
+Example: `"中文😀"` → `length()==4`, `utf8Length()==10`.
+
+Protocol sizes (HTTP Content-Length, TCP/File writes, PG buffers) must use
+`utf8Length()` or `getBytes().length`, **never** `length()` alone.
+
+## Internal representation
 
 ```text
-JNativeString
-  ClassMetadata*
-  i32 length          // UTF-8 byte length in 0.4
-  ptr data            // UTF-8 bytes
+{ ClassMetadata* @0, i32 utf16Len @8, uint16_t data[utf16Len] @16 }
 ```
 
-**Encoding choice:** UTF-8 for 0.4 simplicity. Frontend must not bake in
-encoding assumptions; all access goes through `jnative_string_*`. Future
-releases may migrate payload to UTF-16 code units.
+Implemented in `native/posix/jnative_string.c`. Immutable content; GC owns the object.
 
-## Operations
+## Encoding rules
 
-| Feature | Status |
-|---------|--------|
-| Literals → String objects | Yes |
-| `+` concatenation | `jnative_string_concat` |
-| `length()` | Yes |
-| `charAt(int)` | Yes (`char` as `i16`) |
-| `==` | Reference identity |
-| `equals(String)` | Content compare (runtime) |
+| Case | Rule |
+|------|------|
+| Invalid UTF-8 in `fromBytes` / literals from wire | Reject (`IllegalArgumentException`) |
+| Overlong / surrogate code points in UTF-8 | Reject |
+| Lone surrogates in String (e.g. mid-pair `substring`) | Allowed in UTF-16 storage |
+| Encode lone surrogate to UTF-8 (`getBytes` / write) | Replace with U+FFFD |
+| Embedded U+0000 in String | Preserved; `getBytes` includes `0x00` |
+| `string → CString` (FFI) | Rejects embedded U+0000 |
 
-## `char`
+## WASM / browser
 
-`PrimitiveType.CHAR` → LLVM `i16`. `println(char)` prints the character when it
-is printable ASCII; otherwise integer-like behavior may apply — documented as
-minimal for 0.4.
+Browser string layout remains UTF-8 byte buffers for JS `TextDecoder` interop.
+`length`/`charAt` on wasm32-browser are **not** yet on the UTF-16 contract — use the
+native LLVM backend for Java-compatible indexing. Migration of WAT builtins is follow-up.
+
+## Migration from prior UTF-8-`length` era
+
+- Replace `s.length()` used as byte count with `s.utf8Length()` or `s.getBytes().length`.
+- `charAt` / `substring` on non-ASCII now follow UTF-16 (was byte index).
+- `hashCode` now matches Java UTF-16 hashing for BMP + supplementary pairs.

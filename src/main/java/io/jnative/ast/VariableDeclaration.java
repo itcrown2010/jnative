@@ -8,6 +8,7 @@ public record VariableDeclaration(
         String name,
         Expression initializer,
         boolean stackAllocated,
+        boolean isFinal,
         SourceLocation location
 ) implements Statement {
     public VariableDeclaration(
@@ -17,6 +18,17 @@ public record VariableDeclaration(
             Expression initializer,
             SourceLocation location
     ) {
-        this(type, isArray, name, initializer, false, location);
+        this(type, isArray, name, initializer, false, false, location);
+    }
+
+    public VariableDeclaration(
+            TypeName type,
+            boolean isArray,
+            String name,
+            Expression initializer,
+            boolean stackAllocated,
+            SourceLocation location
+    ) {
+        this(type, isArray, name, initializer, stackAllocated, false, location);
     }
 }

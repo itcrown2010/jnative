@@ -1,0 +1,8 @@
+[package]
+name = "stats"
+namespace = "acme"
+version = "1.0.0"
+description = "Third-party source helpers using ArrayList/HashMap + boxing"
+license = "MIT"
+type = "source"
+min_compiler = "0.33"

@@ -15,12 +15,13 @@ public final class VariableSymbol {
     private final Kind kind;
     private final SourceLocation location;
     private final boolean stackAllocated;
+    private final boolean isFinal;
     private PointerProvenance provenance = PointerProvenance.UNKNOWN;
     private boolean assignedAfterInit;
     private boolean capturedByLambda;
 
     public VariableSymbol(String name, JType type, Kind kind, SourceLocation location) {
-        this(name, type, kind, location, false);
+        this(name, type, kind, location, false, false);
     }
 
     public VariableSymbol(
@@ -30,16 +31,32 @@ public final class VariableSymbol {
             SourceLocation location,
             boolean stackAllocated
     ) {
+        this(name, type, kind, location, stackAllocated, false);
+    }
+
+    public VariableSymbol(
+            String name,
+            JType type,
+            Kind kind,
+            SourceLocation location,
+            boolean stackAllocated,
+            boolean isFinal
+    ) {
         this.name = name;
         this.type = type;
         this.kind = kind;
         this.location = location;
         this.stackAllocated = stackAllocated;
+        this.isFinal = isFinal;
         if (stackAllocated) {
             this.provenance = PointerProvenance.STACK;
         } else if (type instanceof NativePtrType) {
             this.provenance = PointerProvenance.UNKNOWN;
         }
+    }
+
+    public boolean isFinal() {
+        return isFinal;
     }
 
     public String name() {

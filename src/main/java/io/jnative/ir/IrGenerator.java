@@ -8,6 +8,7 @@ import io.jnative.layout.ClassLayout;
 import io.jnative.layout.ObjectLayoutBuilder;
 import io.jnative.semantic.ArrayLengthSymbol;
 import io.jnative.semantic.ArrayType;
+import io.jnative.semantic.Boxing;
 import io.jnative.semantic.CallableBinding;
 import io.jnative.generic.TypeSubstitution;
 import io.jnative.mangle.NameMangler;
@@ -28,6 +29,7 @@ import io.jnative.semantic.NativePtrType;
 import io.jnative.semantic.NativeStructFieldSymbol;
 import io.jnative.semantic.NativeStructSymbol;
 import io.jnative.semantic.NativeStructType;
+import io.jnative.semantic.EnhancedForDesugar;
 import io.jnative.semantic.ErrorType;
 import io.jnative.semantic.InterfaceType;
 import io.jnative.semantic.ParameterizedType;
@@ -90,21 +92,41 @@ public final class IrGenerator {
             IrBasicBlock dispatchBlock,
             IrBasicBlock afterBlock,
             IrBasicBlock finallyBlock,
-            List<CatchClause> catches
+            List<CatchClause> catches,
+            /** Exception deferred while running finally; restored if finally completes normally. */
+            IrValue.Local savedException
     ) {
+        private TryFrame(
+                IrBasicBlock dispatchBlock,
+                IrBasicBlock afterBlock,
+                IrBasicBlock finallyBlock,
+                List<CatchClause> catches
+        ) {
+            this(dispatchBlock, afterBlock, finallyBlock, catches, null);
+        }
     }
 
     /**
-     * Control-flow target for break/continue. Architecture uses BreakTarget abstraction
-     * so switch can share break later without hard-coding "loop only forever".
+     * Control-flow target for break/continue.
+     * Loops provide both break and continue; switches provide break only ({@code continueTarget == null}).
      */
     private record LoopFrame(
             IrBasicBlock breakTarget,
             IrBasicBlock continueTarget,
             int breakTargetId,
             int continueTargetId,
-            int tryDepthAtEntry
+            int tryDepthAtEntry,
+            boolean isSwitch
     ) {
+        private LoopFrame(
+                IrBasicBlock breakTarget,
+                IrBasicBlock continueTarget,
+                int breakTargetId,
+                int continueTargetId,
+                int tryDepthAtEntry
+        ) {
+            this(breakTarget, continueTarget, breakTargetId, continueTargetId, tryDepthAtEntry, false);
+        }
     }
 
     public IrModule generate(TypedCompilationUnit typed) {
@@ -209,7 +231,7 @@ public final class IrGenerator {
             }
         }
 
-        // Implicit constructors without AST
+        // Implicit constructors without AST (includes enum synthetic constructors)
         for (ClassSymbol cls : typed.classes().values()) {
             if (cls.isBuiltin()) {
                 continue;
@@ -226,7 +248,14 @@ public final class IrGenerator {
                 IrFunction function = new IrFunction(ctor.mangledName(), IrType.VOID, params, false);
                 module.addFunction(function);
                 functionsByMangled.put(ctor.mangledName(), function);
-                lowerImplicitConstructor(function, ctor);
+                if (cls.isEnum()) {
+                    lowerEnumConstructor(function, ctor);
+                } else {
+                    lowerImplicitConstructor(function, ctor);
+                }
+            }
+            if (cls.isEnum()) {
+                lowerEnumMethods(module, cls);
             }
         }
 
@@ -268,18 +297,41 @@ public final class IrGenerator {
         module.addFunction(clinit);
         builder.beginFunction(clinit);
         for (ClassSymbol cls : typed.classes().values()) {
+            currentClass = cls;
+            currentMethod = null;
+            if (cls.isEnum()) {
+                lowerEnumConstantInit(cls);
+            }
             for (FieldSymbol field : cls.declaredFields()) {
                 if (!field.isStatic() || field.initializer() == null) {
                     continue;
                 }
-                currentClass = cls;
-                currentMethod = null;
                 IrValue value = lowerExpression(field.initializer());
                 IrValue casted = castIfNeeded(value, IrType.from(field.type()));
                 builder.storeStatic(field.staticGlobal(), casted, field.isVolatile());
             }
         }
         builder.retVoid();
+    }
+
+    /** Allocate each enum constant as a managed object and store into its static field (GC root). */
+    private void lowerEnumConstantInit(ClassSymbol cls) {
+        ConstructorSymbol ctor = cls.constructors().getFirst();
+        String llvmType = cls.layout().llvmTypeName();
+        long size = cls.layout().instanceSize();
+        String meta = cls.metadata().globalName();
+        int ordinal = 0;
+        for (String name : cls.enumConstants()) {
+            FieldSymbol field = cls.findField(name).orElseThrow();
+            IrValue obj = builder.newObject(cls.name(), llvmType, size, meta);
+            IrValue.GlobalString gs = builder.stringConstant(name);
+            int len = name.getBytes(java.nio.charset.StandardCharsets.UTF_8).length;
+            IrValue nameStr = builder.stringLiteral(gs, len);
+            builder.constructorCall(ctor.mangledName(),
+                    List.of(obj, nameStr, new IrValue.Const(IrType.I32, ordinal)));
+            builder.storeStatic(field.staticGlobal(), obj, false);
+            ordinal++;
+        }
     }
 
     private void lowerThreadBuiltins(IrModule module, TypedCompilationUnit typed) {
@@ -595,6 +647,37 @@ public final class IrGenerator {
                     causeIdx,
                     IrType.PTR);
             builder.ret(cause);
+        });
+        throwable.findMethod("addSuppressed").ifPresent(ms -> {
+            if (functionsByMangled.containsKey(ms.mangledName())) {
+                return;
+            }
+            IrFunction function = new IrFunction(
+                    ms.mangledName(), IrType.VOID,
+                    List.of(new IrValue.Param("this", IrType.PTR),
+                            new IrValue.Param("exception", IrType.PTR)),
+                    false);
+            module.addFunction(function);
+            functionsByMangled.put(ms.mangledName(), function);
+            builder.beginFunction(function);
+            builder.call("jnative_throwable_add_suppressed", IrType.VOID,
+                    List.of(new IrValue.Param("this", IrType.PTR),
+                            new IrValue.Param("exception", IrType.PTR)),
+                    false);
+            builder.retVoid();
+        });
+        throwable.findMethod("getSuppressed").ifPresent(ms -> {
+            if (functionsByMangled.containsKey(ms.mangledName())) {
+                return;
+            }
+            IrFunction function = new IrFunction(
+                    ms.mangledName(), IrType.PTR, List.of(new IrValue.Param("this", IrType.PTR)), false);
+            module.addFunction(function);
+            functionsByMangled.put(ms.mangledName(), function);
+            builder.beginFunction(function);
+            IrValue arr = builder.call("jnative_throwable_get_suppressed", IrType.PTR,
+                    List.of(new IrValue.Param("this", IrType.PTR)), false);
+            builder.ret(arr);
         });
     }
 
@@ -926,6 +1009,130 @@ public final class IrGenerator {
         builder.retVoid();
     }
 
+    private void lowerEnumConstructor(IrFunction function, ConstructorSymbol ctor) {
+        ClassSymbol cls = ctor.owner();
+        builder.beginFunction(function);
+        IrValue.Local thisLocal = builder.alloca("this", IrType.PTR);
+        builder.store(new IrValue.Param("this", IrType.PTR), thisLocal);
+        IrValue thisPtr = builder.load(thisLocal);
+        FieldSymbol nameField = cls.findField("$name").orElseThrow();
+        FieldSymbol ordinalField = cls.findField("$ordinal").orElseThrow();
+        builder.storeField(thisPtr, cls.name(), cls.layout().llvmTypeName(),
+                nameField.gepIndex(), new IrValue.Param("$name", IrType.PTR));
+        builder.storeField(thisPtr, cls.name(), cls.layout().llvmTypeName(),
+                ordinalField.gepIndex(), new IrValue.Param("$ordinal", IrType.I32));
+        builder.retVoid();
+    }
+
+    private void lowerEnumMethods(IrModule module, ClassSymbol cls) {
+        for (MethodSymbol ms : cls.declaredMethods()) {
+            if (functionsByMangled.containsKey(ms.mangledName())) {
+                continue;
+            }
+            List<IrValue.Param> params = new ArrayList<>();
+            if (!ms.isStatic()) {
+                params.add(new IrValue.Param("this", IrType.PTR));
+            }
+            for (var p : ms.parameters()) {
+                params.add(new IrValue.Param(p.name(), IrType.from(p.type())));
+            }
+            IrFunction function = new IrFunction(
+                    ms.mangledName(), IrType.from(ms.returnType()), params, false);
+            module.addFunction(function);
+            functionsByMangled.put(ms.mangledName(), function);
+            switch (ms.name()) {
+                case "name" -> lowerEnumName(function, cls);
+                case "ordinal" -> lowerEnumOrdinal(function, cls);
+                case "values" -> lowerEnumValues(function, cls);
+                case "valueOf" -> lowerEnumValueOf(function, cls);
+                default -> throw new IllegalStateException("unexpected enum method " + ms.name());
+            }
+        }
+    }
+
+    private void lowerEnumName(IrFunction function, ClassSymbol cls) {
+        builder.beginFunction(function);
+        IrValue.Local thisLocal = builder.alloca("this", IrType.PTR);
+        builder.store(new IrValue.Param("this", IrType.PTR), thisLocal);
+        IrValue thisPtr = builder.load(thisLocal);
+        FieldSymbol nameField = cls.findField("$name").orElseThrow();
+        builder.ret(builder.loadField(
+                thisPtr, cls.name(), cls.layout().llvmTypeName(),
+                nameField.gepIndex(), IrType.PTR));
+    }
+
+    private void lowerEnumOrdinal(IrFunction function, ClassSymbol cls) {
+        builder.beginFunction(function);
+        IrValue.Local thisLocal = builder.alloca("this", IrType.PTR);
+        builder.store(new IrValue.Param("this", IrType.PTR), thisLocal);
+        IrValue thisPtr = builder.load(thisLocal);
+        FieldSymbol ordinalField = cls.findField("$ordinal").orElseThrow();
+        builder.ret(builder.loadField(
+                thisPtr, cls.name(), cls.layout().llvmTypeName(),
+                ordinalField.gepIndex(), IrType.I32));
+    }
+
+    private void lowerEnumValues(IrFunction function, ClassSymbol cls) {
+        builder.beginFunction(function);
+        int n = cls.enumConstants().size();
+        String metaKey = io.jnative.mangle.NameMangler.arrayMetaName(cls.asType());
+        ClassMetadata arrayMeta = typed.arrayMetadatas().get(metaKey);
+        if (arrayMeta == null) {
+            arrayMeta = new ClassMetadata(metaKey, true, cls.asType());
+        }
+        builder.module().addArrayMetadata(arrayMeta);
+        IrValue length = new IrValue.Const(IrType.I32, n);
+        IrValue arr = builder.newArray(IrType.PTR, length, 8, arrayMeta.globalName(), true);
+        for (int i = 0; i < n; i++) {
+            String cname = cls.enumConstants().get(i);
+            FieldSymbol field = cls.findField(cname).orElseThrow();
+            IrValue elem = builder.loadStatic(field.staticGlobal(), IrType.PTR, false);
+            builder.storeElement(arr, new IrValue.Const(IrType.I32, i), elem);
+        }
+        builder.ret(arr);
+    }
+
+    private void lowerEnumValueOf(IrFunction function, ClassSymbol cls) {
+        builder.beginFunction(function);
+        IrValue.Local nameLocal = builder.alloca("name", IrType.PTR);
+        builder.store(new IrValue.Param("name", IrType.PTR), nameLocal);
+        IrValue namePtr = builder.load(nameLocal);
+        IrBasicBlock nullBlock = builder.newBlock("valueOf.null");
+        IrBasicBlock chain = builder.newBlock("valueOf.chain0");
+        IrValue isNull = builder.compare(
+                IrInstruction.CmpOp.EQ, namePtr, new IrValue.Const(IrType.PTR, "null"));
+        builder.condBranch(isNull, nullBlock, chain);
+        builder.setBlock(nullBlock);
+        builder.call("jnative_throw_npe", IrType.VOID, List.of(), false);
+        builder.ret(new IrValue.Const(IrType.PTR, "null"));
+
+        List<String> constants = cls.enumConstants();
+        IrBasicBlock current = chain;
+        for (int i = 0; i < constants.size(); i++) {
+            builder.setBlock(current);
+            String cname = constants.get(i);
+            FieldSymbol field = cls.findField(cname).orElseThrow();
+            IrValue constant = builder.loadStatic(field.staticGlobal(), IrType.PTR, false);
+            FieldSymbol nameField = cls.findField("$name").orElseThrow();
+            IrValue constName = builder.loadField(
+                    constant, cls.name(), cls.layout().llvmTypeName(),
+                    nameField.gepIndex(), IrType.PTR);
+            IrValue eq = i32ToI1(builder.call("jnative_string_equals", IrType.I32,
+                    List.of(builder.load(nameLocal), constName), false));
+            IrBasicBlock matched = builder.newBlock("valueOf.m" + i);
+            IrBasicBlock next = (i + 1 < constants.size())
+                    ? builder.newBlock("valueOf.chain" + (i + 1))
+                    : builder.newBlock("valueOf.nf");
+            builder.condBranch(eq, matched, next);
+            builder.setBlock(matched);
+            builder.ret(constant);
+            current = next;
+        }
+        builder.setBlock(current);
+        builder.call("jnative_throw_illegal_argument", IrType.VOID, List.of(), false);
+        builder.ret(new IrValue.Const(IrType.PTR, "null"));
+    }
+
     private void lowerConstructor(IrFunction function, MethodDeclaration method, ConstructorSymbol ctor) {
         builder.beginFunction(function);
         IrValue.Local thisLocal = builder.alloca("this", IrType.PTR);
@@ -1060,7 +1267,7 @@ public final class IrGenerator {
             if (ms.isAsync()) {
                 IrValue def = defaultValue(IrType.from(ms.logicalReturnType()));
                 builder.emit(new IrInstruction.AsyncComplete(def, IrType.from(ms.logicalReturnType())));
-                builder.ret(new IrValue.Const(IrType.PTR, "null"));
+                builder.block().setTerminated(true);
             } else if (function.returnType() == IrType.VOID) {
                 builder.retVoid();
             } else {
@@ -1142,7 +1349,8 @@ public final class IrGenerator {
                     builder.setLocation(mapLoc(v.initializer().location()));
                     IrValue value = lowerExpression(v.initializer());
                     builder.setLocation(mapLoc(v.location()));
-                    builder.store(castIfNeeded(value, type), local);
+                    JType fromJt = remapType(typed.expressionTypes().get(v.initializer()));
+                    builder.store(convertTo(value, fromJt, jt), local);
                 } else {
                     builder.store(defaultValue(type), local);
                 }
@@ -1155,6 +1363,8 @@ public final class IrGenerator {
             case WhileStatement w -> lowerWhile(w);
             case DoWhileStatement d -> lowerDoWhile(d);
             case ForStatement f -> lowerFor(f);
+            case EnhancedForStatement ef -> lowerEnhancedFor(ef);
+            case SwitchStatement s -> lowerSwitch(s);
             case BreakStatement ignored -> lowerBreak();
             case ContinueStatement ignored -> lowerContinue();
             case ReturnStatement r -> lowerReturn(r);
@@ -1183,12 +1393,18 @@ public final class IrGenerator {
         int breakId = registerAbruptTarget(breakTarget);
         int continueId = registerAbruptTarget(continueTarget);
         loopFrames.push(new LoopFrame(
-                breakTarget, continueTarget, breakId, continueId, tryFrames.size()));
+                breakTarget, continueTarget, breakId, continueId, tryFrames.size(), false));
+    }
+
+    private void pushSwitch(IrBasicBlock breakTarget) {
+        int breakId = registerAbruptTarget(breakTarget);
+        loopFrames.push(new LoopFrame(
+                breakTarget, null, breakId, -1, tryFrames.size(), true));
     }
 
     private void lowerBreak() {
         if (loopFrames.isEmpty()) {
-            throw new IllegalStateException("break without loop frame");
+            throw new IllegalStateException("break without loop/switch frame");
         }
         LoopFrame loop = loopFrames.peek();
         TryFrame finallyTarget = innermostFinallyInsideLoop(loop);
@@ -1201,10 +1417,16 @@ public final class IrGenerator {
     }
 
     private void lowerContinue() {
-        if (loopFrames.isEmpty()) {
+        LoopFrame loop = null;
+        for (LoopFrame frame : loopFrames) {
+            if (!frame.isSwitch()) {
+                loop = frame;
+                break;
+            }
+        }
+        if (loop == null || loop.continueTarget() == null) {
             throw new IllegalStateException("continue without loop frame");
         }
-        LoopFrame loop = loopFrames.peek();
         TryFrame finallyTarget = innermostFinallyInsideLoop(loop);
         if (finallyTarget != null) {
             builder.setContinueCompletion(loop.continueTargetId());
@@ -1251,24 +1473,33 @@ public final class IrGenerator {
             IrType logical = IrType.from(currentMethod.logicalReturnType());
             IrValue value = r.value() == null
                     ? defaultValue(logical)
-                    : castIfNeeded(lowerExpression(r.value()), logical);
+                    : convertTo(lowerExpression(r.value()),
+                    remapType(typed.expressionTypes().get(r.value())),
+                    currentMethod.logicalReturnType());
             builder.emit(new IrInstruction.AsyncComplete(value, logical));
-            builder.ret(new IrValue.Const(IrType.PTR, "null"));
+            // AsyncLoweringPass turns AsyncComplete into complete + return of the method Future.
+            builder.block().setTerminated(true);
             return;
         }
         if (r.value() == null) {
             builder.retVoid();
         } else {
             IrValue value = lowerExpression(r.value());
-            builder.ret(castIfNeeded(value, builder.function().returnType()));
+            JType retJt = currentMethod != null ? currentMethod.returnType() : null;
+            if (retJt != null) {
+                builder.ret(convertTo(value, remapType(typed.expressionTypes().get(r.value())), retJt));
+            } else {
+                builder.ret(castIfNeeded(value, builder.function().returnType()));
+            }
         }
     }
 
     private TryFrame innermostFinallyFrame() {
         // Skip finally frames we are already inside so `return` in finally does not loop.
+        // frames[0] = innermost (same order as innermostFinallyInsideLoop).
         int skip = finallyDepth;
         TryFrame[] frames = tryFrames.toArray(new TryFrame[0]);
-        for (int i = frames.length - 1; i >= 0; i--) {
+        for (int i = 0; i < frames.length; i++) {
             if (frames[i].finallyBlock() == null) {
                 continue;
             }
@@ -1282,22 +1513,41 @@ public final class IrGenerator {
     }
 
     private void lowerTry(TryStatement t) {
-        // Allocate / initialize try-with-resources locals before the protected region.
+        // Allocate resource slots (null) before the protected region; run initializers inside
+        // so a later open failure still closes earlier resources via finally.
         for (VariableDeclaration resource : t.resources()) {
-            lowerStatement(resource);
+            lowerResourceSlot(resource);
         }
         List<MethodCallExpression> resourceCloses =
                 typed.resourceCloseCalls().getOrDefault(t, List.of());
-        boolean needsCleanup = !resourceCloses.isEmpty() || t.finallyBlock() != null;
+        if (!resourceCloses.isEmpty()) {
+            lowerTryWithResources(t, resourceCloses);
+            return;
+        }
+        lowerTryCatchFinally(t);
+    }
+
+    /**
+     * Plain try/catch/finally (no resources). Abrupt completions enter {@code finally} once;
+     * catch fallthrough also runs finally before resuming the original completion.
+     */
+    private void lowerTryCatchFinally(TryStatement t) {
+        boolean needsCleanup = t.finallyBlock() != null;
 
         IrBasicBlock afterBlock = builder.newBlock("try.after");
         IrBasicBlock dispatchBlock = builder.newBlock("try.dispatch");
         IrBasicBlock finallyBlock = needsCleanup ? builder.newBlock("try.finally") : null;
-        TryFrame frame = new TryFrame(dispatchBlock, afterBlock, finallyBlock, t.catches());
+        IrValue.Local savedEx = needsCleanup ? builder.alloca("finally.savedEx", IrType.PTR) : null;
+        if (savedEx != null) {
+            builder.store(new IrValue.Const(IrType.PTR, "null"), savedEx);
+        }
+        TryFrame frame = new TryFrame(dispatchBlock, afterBlock, finallyBlock, t.catches(), savedEx);
         tryFrames.push(frame);
         builder.pushExceptionHandler(dispatchBlock);
 
-        lowerStatement(t.tryBlock());
+        if (!builder.block().isTerminated()) {
+            lowerStatement(t.tryBlock());
+        }
         if (!builder.block().isTerminated()) {
             branchToFinallyOrAfter(finallyBlock, afterBlock);
         }
@@ -1307,12 +1557,8 @@ public final class IrGenerator {
         // During catch bodies: route new throws to finally (if any), else outer handler.
         if (finallyBlock != null) {
             builder.pushExceptionHandler(finallyBlock);
-        } else if (!tryFrames.isEmpty()) {
-            // Outer try is beneath current frame (still on stack until we pop below).
-            TryFrame[] frames = tryFrames.toArray(new TryFrame[0]);
-            if (frames.length >= 2) {
-                builder.pushExceptionHandler(frames[frames.length - 2].dispatchBlock());
-            }
+        } else {
+            pushOuterExceptionHandler();
         }
 
         builder.setBlock(dispatchBlock);
@@ -1321,46 +1567,195 @@ public final class IrGenerator {
         if (finallyBlock != null) {
             builder.popExceptionHandler();
             builder.setBlock(finallyBlock);
-            // finally itself: exceptions go to outer handler
-            if (!tryFrames.isEmpty()) {
-                TryFrame[] frames = tryFrames.toArray(new TryFrame[0]);
-                if (frames.length >= 2) {
-                    builder.pushExceptionHandler(frames[frames.length - 2].dispatchBlock());
-                }
-            }
+            emitStashPendingForFinally(frame);
+            pushOuterExceptionHandler();
             finallyDepth++;
-            // Close resources first (reverse order), then run user finally.
-            emitResourceCleanup(resourceCloses);
             if (t.finallyBlock() != null) {
                 lowerStatement(t.finallyBlock());
             }
             finallyDepth--;
-            if (!tryFrames.isEmpty()) {
-                TryFrame[] frames = tryFrames.toArray(new TryFrame[0]);
-                if (frames.length >= 2) {
-                    builder.popExceptionHandler();
-                }
-            }
+            popOuterExceptionHandler();
             if (!builder.block().isTerminated()) {
                 emitFinallyEpilogue(frame);
             }
-        } else if (!tryFrames.isEmpty()) {
-            TryFrame[] frames = tryFrames.toArray(new TryFrame[0]);
-            if (frames.length >= 2) {
-                builder.popExceptionHandler();
-            }
+        } else {
+            popOuterExceptionHandler();
         }
 
         tryFrames.pop();
         builder.setBlock(afterBlock);
-        // Uncaught by this try: propagate to outer handler or unwind the function.
+        builder.maybeCheckPendingPublic();
+    }
+
+    /**
+     * try-with-resources as nested frames: inner closes resources before outer catch/finally
+     * (JLS §14.20.3). Body/init exceptions and abrupt completions enter the close frame first.
+     */
+    private void lowerTryWithResources(TryStatement t, List<MethodCallExpression> resourceCloses) {
+        boolean hasCatches = !t.catches().isEmpty();
+        boolean hasUserFinally = t.finallyBlock() != null;
+        boolean hasOuter = hasCatches || hasUserFinally;
+
+        IrBasicBlock afterBlock = builder.newBlock("try.after");
+        IrBasicBlock dispatchBlock = hasCatches ? builder.newBlock("try.dispatch") : null;
+        IrBasicBlock userFinallyBlock = hasUserFinally ? builder.newBlock("try.finally") : null;
+        IrValue.Local outerSavedEx = hasUserFinally ? builder.alloca("finally.savedEx", IrType.PTR) : null;
+        if (outerSavedEx != null) {
+            builder.store(new IrValue.Const(IrType.PTR, "null"), outerSavedEx);
+        }
+
+        TryFrame outer = null;
+        if (hasOuter) {
+            IrBasicBlock outerDispatch = dispatchBlock != null ? dispatchBlock : userFinallyBlock;
+            outer = new TryFrame(outerDispatch, afterBlock, userFinallyBlock, t.catches(), outerSavedEx);
+            tryFrames.push(outer);
+            builder.pushExceptionHandler(outerDispatch);
+        }
+
+        IrBasicBlock closeBlock = builder.newBlock("twr.close");
+        IrBasicBlock afterClose = builder.newBlock("twr.after");
+        // Resource close must observe the body exception for suppress logic — do not stash here.
+        TryFrame inner = new TryFrame(closeBlock, afterClose, closeBlock, List.of(), null);
+        tryFrames.push(inner);
+        builder.pushExceptionHandler(closeBlock);
+
+        for (VariableDeclaration resource : t.resources()) {
+            if (builder.block().isTerminated()) {
+                break;
+            }
+            lowerResourceInit(resource);
+        }
+        if (!builder.block().isTerminated()) {
+            lowerStatement(t.tryBlock());
+        }
+        if (!builder.block().isTerminated()) {
+            builder.branch(closeBlock);
+        }
+
+        builder.popExceptionHandler();
+
+        builder.setBlock(closeBlock);
+        finallyDepth++;
+        emitResourceCleanup(resourceCloses);
+        finallyDepth--;
+        if (!builder.block().isTerminated()) {
+            emitFinallyEpilogue(inner);
+        }
+
+        tryFrames.pop(); // inner — catch/return must not re-close
+
+        builder.setBlock(afterClose);
+        // Outer handler still pushed: pending after close → catch dispatch / user finally.
+        builder.maybeCheckPendingPublic();
+        if (!builder.block().isTerminated()) {
+            if (userFinallyBlock != null) {
+                builder.branch(userFinallyBlock);
+            } else {
+                builder.branch(afterBlock);
+            }
+        }
+
+        if (hasOuter) {
+            builder.popExceptionHandler(); // end outer body protection
+
+            if (hasCatches) {
+                if (userFinallyBlock != null) {
+                    builder.pushExceptionHandler(userFinallyBlock);
+                } else {
+                    pushOuterExceptionHandler();
+                }
+                builder.setBlock(dispatchBlock);
+                emitCatchHandlers(outer,
+                        userFinallyBlock != null ? userFinallyBlock : afterBlock,
+                        afterBlock);
+                if (userFinallyBlock != null) {
+                    builder.popExceptionHandler();
+                } else {
+                    popOuterExceptionHandler();
+                }
+            }
+
+            if (userFinallyBlock != null) {
+                builder.setBlock(userFinallyBlock);
+                emitStashPendingForFinally(outer);
+                pushOuterExceptionHandler();
+                finallyDepth++;
+                lowerStatement(t.finallyBlock());
+                finallyDepth--;
+                popOuterExceptionHandler();
+                if (!builder.block().isTerminated()) {
+                    emitFinallyEpilogue(outer);
+                }
+            }
+
+            tryFrames.pop();
+        }
+
+        builder.setBlock(afterBlock);
+        builder.maybeCheckPendingPublic();
+    }
+
+    /**
+     * Clear pending while running finally so ops inside finally are not diverted by the
+     * try-body exception. Epilogue restores it if finally completes normally.
+     */
+    private void emitStashPendingForFinally(TryFrame frame) {
+        if (frame.savedException() == null) {
+            return;
+        }
+        IrValue pending = builder.call("jnative_exception_pending", IrType.I1, List.of(), false);
+        IrBasicBlock stash = builder.newBlock("finally.stash");
+        IrBasicBlock cont = builder.newBlock("finally.body");
+        builder.condBranch(pending, stash, cont);
+        builder.setBlock(stash);
+        IrValue taken = builder.call("jnative_exception_take", IrType.PTR, List.of(), false);
+        builder.store(taken, frame.savedException());
+        builder.branch(cont);
+        builder.setBlock(cont);
+    }
+
+    /** Handler of the try frame beneath the current top (outer), if any. */
+    private void pushOuterExceptionHandler() {
+        TryFrame[] frames = tryFrames.toArray(new TryFrame[0]);
+        if (frames.length >= 2) {
+            builder.pushExceptionHandler(frames[1].dispatchBlock());
+        }
+    }
+
+    private void popOuterExceptionHandler() {
+        TryFrame[] frames = tryFrames.toArray(new TryFrame[0]);
+        if (frames.length >= 2) {
+            builder.popExceptionHandler();
+        }
+    }
+
+    /** Alloca resource local and store null (initializer runs inside the try). */
+    private void lowerResourceSlot(VariableDeclaration v) {
+        JType jt = resolveDeclType(v);
+        IrType type = IrType.from(jt);
+        IrValue.Local local = builder.alloca(v.name(), type, false, -1, debugTypeName(jt));
+        builder.store(new IrValue.Const(IrType.PTR, "null"), local);
+    }
+
+    private void lowerResourceInit(VariableDeclaration v) {
+        if (v.initializer() == null) {
+            return;
+        }
+        IrValue.Local local = builder.local(v.name());
+        if (local == null) {
+            throw new IllegalStateException("missing resource local " + v.name());
+        }
+        builder.setLocation(mapLoc(v.initializer().location()));
+        IrValue value = lowerExpression(v.initializer());
+        builder.setLocation(mapLoc(v.location()));
+        builder.store(castIfNeeded(value, local.type()), local);
         builder.maybeCheckPendingPublic();
     }
 
     /**
      * Closes try-with-resources in reverse acquisition order.
-     * If the body already threw, keep that exception and ignore close failures
-     * (suppressed exceptions not modeled yet).
+     * Body exception is primary; close failures are {@code addSuppressed} onto it.
+     * With no body exception, the first close failure becomes primary and later ones are suppressed.
      */
     private void emitResourceCleanup(List<MethodCallExpression> closes) {
         if (closes.isEmpty() || builder.block().isTerminated()) {
@@ -1375,14 +1770,15 @@ public final class IrGenerator {
     }
 
     private void emitOneResourceClose(MethodCallExpression close) {
-        IrValue wasPending = builder.call(
+        // Snapshot primary (body or earlier close), then clear so this close can throw.
+        IrValue hadPrimary = builder.call(
                 "jnative_exception_pending", IrType.I1, List.of(), false);
-        IrValue savedEx = builder.call(
+        IrValue primary = builder.call(
                 "jnative_exception_peek", IrType.PTR, List.of(), false);
 
         IrBasicBlock clearPending = builder.newBlock("twr.clear");
         IrBasicBlock afterClear = builder.newBlock("twr.afterclear");
-        builder.condBranch(wasPending, clearPending, afterClear);
+        builder.condBranch(hadPrimary, clearPending, afterClear);
         builder.setBlock(clearPending);
         builder.clearException();
         builder.branch(afterClear);
@@ -1401,20 +1797,40 @@ public final class IrGenerator {
         builder.branch(afterClose);
         builder.setBlock(afterClose);
 
-        // Prefer the body exception when both body and close threw.
-        IrBasicBlock restore = builder.newBlock("twr.restore");
-        IrBasicBlock keep = builder.newBlock("twr.keep");
+        IrValue closeThrew = builder.call(
+                "jnative_exception_pending", IrType.I1, List.of(), false);
+
+        IrBasicBlock closeYes = builder.newBlock("twr.closeYes");
+        IrBasicBlock closeNo = builder.newBlock("twr.closeNo");
         IrBasicBlock done = builder.newBlock("twr.done");
-        builder.condBranch(wasPending, restore, keep);
+        builder.condBranch(closeThrew, closeYes, closeNo);
 
-        builder.setBlock(restore);
-        // Ignore whatever close may have set; restore the original pending exception.
-        builder.call("jnative_exception_throw", IrType.VOID, List.of(savedEx), false);
+        builder.setBlock(closeYes);
+        IrValue closeEx = builder.call("jnative_exception_take", IrType.PTR, List.of(), false);
+        IrBasicBlock suppress = builder.newBlock("twr.suppress");
+        IrBasicBlock primaryIsClose = builder.newBlock("twr.primaryClose");
+        builder.condBranch(hadPrimary, suppress, primaryIsClose);
+
+        builder.setBlock(suppress);
+        builder.call("jnative_throwable_add_suppressed", IrType.VOID,
+                List.of(primary, closeEx), false);
+        builder.call("jnative_exception_throw", IrType.VOID, List.of(primary), false);
         builder.branch(done);
 
-        builder.setBlock(keep);
-        // Close exception (if any) stays pending for the finally epilogue / outer handler.
+        builder.setBlock(primaryIsClose);
+        builder.call("jnative_exception_throw", IrType.VOID, List.of(closeEx), false);
         builder.branch(done);
+
+        builder.setBlock(closeNo);
+        IrBasicBlock restorePrimary = builder.newBlock("twr.restorePrimary");
+        IrBasicBlock noEx = builder.newBlock("twr.noEx");
+        builder.condBranch(hadPrimary, restorePrimary, noEx);
+        builder.setBlock(restorePrimary);
+        builder.call("jnative_exception_throw", IrType.VOID, List.of(primary), false);
+        builder.branch(done);
+        builder.setBlock(noEx);
+        builder.branch(done);
+
         builder.setBlock(done);
     }
 
@@ -1499,11 +1915,28 @@ public final class IrGenerator {
     private void emitFinallyEpilogue(TryFrame frame) {
         IrBasicBlock checkReturn = builder.newBlock("finally.retcheck");
         IrBasicBlock propagate = builder.newBlock("finally.propagate");
+        IrBasicBlock afterPending = builder.newBlock("finally.afterPending");
         IrValue pending = builder.call("jnative_exception_pending", IrType.I1, List.of(), false);
-        builder.condBranch(pending, propagate, checkReturn);
+        builder.condBranch(pending, propagate, afterPending);
 
         builder.setBlock(propagate);
         builder.branch(frame.afterBlock());
+
+        // Restore stashed body/catch exception if finally completed normally.
+        builder.setBlock(afterPending);
+        if (frame.savedException() != null) {
+            IrValue saved = builder.load(frame.savedException());
+            IrValue hasSaved = builder.compare(
+                    IrInstruction.CmpOp.NE, saved, new IrValue.Const(IrType.PTR, "null"));
+            IrBasicBlock restore = builder.newBlock("finally.restore");
+            builder.condBranch(hasSaved, restore, checkReturn);
+            builder.setBlock(restore);
+            builder.call("jnative_exception_throw", IrType.VOID, List.of(saved), false);
+            builder.store(new IrValue.Const(IrType.PTR, "null"), frame.savedException());
+            builder.branch(propagate);
+        } else {
+            builder.branch(checkReturn);
+        }
 
         builder.setBlock(checkReturn);
         IrValue hasReturn = builder.hasReturnCompletion();
@@ -1739,6 +2172,262 @@ public final class IrGenerator {
         builder.setBlock(endBlock);
     }
 
+    /**
+     * Lower enhanced-for: arrays use an index loop; Iterables use iterator()/hasNext()/next().
+     * Collection/array expression and {@code iterator()} are each evaluated once.
+     */
+    private void lowerEnhancedFor(EnhancedForStatement ef) {
+        EnhancedForDesugar desugar = typed.enhancedForDesugars().get(ef);
+        if (desugar != null) {
+            lowerIterableEnhancedFor(ef, desugar);
+            return;
+        }
+        lowerArrayEnhancedFor(ef);
+    }
+
+    private void lowerArrayEnhancedFor(EnhancedForStatement ef) {
+        int id = System.identityHashCode(ef);
+        JType arrJt = remapType(typed.expressionTypes().get(ef.array()));
+        JType arrayElemJt = arrJt instanceof ArrayType at ? at.elementType() : PrimitiveType.INT;
+        JType declared = remapType(resolveTypeNameInOwner(
+                ef.elementType(), ef.elementIsArray(), currentClass));
+        IrType arrayElemIr = IrType.from(arrayElemJt);
+        IrType declaredIr = IrType.from(declared);
+
+        IrValue arrOnce = lowerExpression(ef.array());
+        IrValue.Local arrSlot = builder.alloca("foreach.arr" + id, IrType.PTR);
+        builder.store(arrOnce, arrSlot);
+
+        IrValue.Local idxSlot = builder.alloca("foreach.idx" + id, IrType.I32);
+        builder.store(new IrValue.Const(IrType.I32, 0), idxSlot);
+
+        IrValue.Local elemSlot = builder.alloca(
+                ef.variableName(), declaredIr, false, -1, debugTypeName(declared));
+
+        IrBasicBlock condBlock = builder.newBlock("foreach.cond");
+        IrBasicBlock bodyBlock = builder.newBlock("foreach.body");
+        IrBasicBlock updateBlock = builder.newBlock("foreach.update");
+        IrBasicBlock endBlock = builder.newBlock("foreach.end");
+        pushLoop(endBlock, updateBlock);
+        builder.branch(condBlock);
+
+        builder.setBlock(condBlock);
+        IrValue arr = builder.load(arrSlot);
+        builder.nullCheck(arr);
+        IrValue len = builder.arrayLength(arr);
+        IrValue idx = builder.load(idxSlot);
+        IrValue cmp = builder.compare(IrInstruction.CmpOp.LT, idx, castIfNeeded(len, IrType.I32));
+        builder.condBranch(cmp, bodyBlock, endBlock);
+
+        builder.setBlock(bodyBlock);
+        IrValue arrBody = builder.load(arrSlot);
+        IrValue idxBody = builder.load(idxSlot);
+        IrValue elem = builder.loadElement(arrBody, idxBody, arrayElemIr);
+        builder.store(castIfNeeded(elem, declaredIr), elemSlot);
+        lowerStatement(ef.body());
+        if (!builder.block().isTerminated()) {
+            builder.branch(updateBlock);
+        }
+
+        builder.setBlock(updateBlock);
+        IrValue i = builder.load(idxSlot);
+        IrValue next = builder.binary(
+                IrInstruction.BinOp.ADD, i, new IrValue.Const(IrType.I32, 1));
+        builder.store(next, idxSlot);
+        if (!builder.block().isTerminated()) {
+            if (currentFunction == null || !currentFunction.omitSafepoints()) {
+                builder.safepointPoll();
+            }
+            builder.branch(condBlock);
+        }
+        loopFrames.pop();
+        builder.setBlock(endBlock);
+    }
+
+    private void lowerIterableEnhancedFor(EnhancedForStatement ef, EnhancedForDesugar desugar) {
+        JType declared = remapType(resolveTypeNameInOwner(
+                ef.elementType(), ef.elementIsArray(), currentClass));
+        IrType declaredIr = IrType.from(declared);
+        JType iterJt = remapType(typed.expressionTypes().get(desugar.hasNextCall().receiver()));
+        IrType iterIr = IrType.from(iterJt != null ? iterJt : declared);
+
+        IrValue.Local iterSlot = builder.alloca(
+                desugar.iteratorLocalName(), IrType.PTR, false, -1,
+                iterJt != null ? debugTypeName(iterJt) : "Iterator");
+        IrValue iterator = lowerExpression(desugar.iteratorCall());
+        builder.store(castIfNeeded(iterator, IrType.PTR), iterSlot);
+
+        IrValue.Local elemSlot = builder.alloca(
+                ef.variableName(), declaredIr, false, -1, debugTypeName(declared));
+
+        IrBasicBlock condBlock = builder.newBlock("foreach.cond");
+        IrBasicBlock bodyBlock = builder.newBlock("foreach.body");
+        IrBasicBlock updateBlock = builder.newBlock("foreach.update");
+        IrBasicBlock endBlock = builder.newBlock("foreach.end");
+        pushLoop(endBlock, updateBlock);
+        builder.branch(condBlock);
+
+        builder.setBlock(condBlock);
+        IrValue hasNext = lowerExpression(desugar.hasNextCall());
+        builder.condBranch(hasNext, bodyBlock, endBlock);
+
+        builder.setBlock(bodyBlock);
+        IrValue nextVal = lowerExpression(desugar.nextCall());
+        JType nextJt = remapType(typed.expressionTypes().get(desugar.nextCall()));
+        builder.store(convertTo(nextVal, nextJt, declared), elemSlot);
+        lowerStatement(ef.body());
+        if (!builder.block().isTerminated()) {
+            builder.branch(updateBlock);
+        }
+
+        builder.setBlock(updateBlock);
+        if (!builder.block().isTerminated()) {
+            if (currentFunction == null || !currentFunction.omitSafepoints()) {
+                builder.safepointPoll();
+            }
+            builder.branch(condBlock);
+        }
+        loopFrames.pop();
+        builder.setBlock(endBlock);
+    }
+
+    /**
+     * Cascade switch (no jump table): evaluate selector once, then test each case.
+     * Fall-through links section bodies; {@code break} targets {@code end}.
+     */
+    private void lowerSwitch(SwitchStatement s) {
+        JType selectorJt = typed.expressionTypes().get(s.selector());
+        boolean enumSwitch = selectorJt instanceof ClassType ct && ct.classSymbol().isEnum();
+        ClassSymbol enumSym = enumSwitch ? ((ClassType) selectorJt).classSymbol() : null;
+
+        IrValue selectorVal = lowerExpression(s.selector());
+        IrValue.Local selSlot;
+        if (enumSwitch) {
+            // Null check then load ordinal into an int temp.
+            builder.nullCheck(selectorVal);
+            FieldSymbol ordField = enumSym.findField("$ordinal").orElseThrow();
+            IrValue ordinal = builder.loadField(
+                    selectorVal,
+                    enumSym.name(),
+                    enumSym.layout().llvmTypeName(),
+                    ordField.gepIndex(),
+                    IrType.I32);
+            selSlot = builder.alloca("switch.sel" + System.identityHashCode(s), IrType.I32);
+            builder.store(ordinal, selSlot);
+        } else {
+            IrValue asInt = castIfNeeded(selectorVal, IrType.I32);
+            selSlot = builder.alloca("switch.sel" + System.identityHashCode(s), IrType.I32);
+            builder.store(asInt, selSlot);
+        }
+
+        IrBasicBlock endBlock = builder.newBlock("switch.end");
+        pushSwitch(endBlock);
+
+        List<SwitchSection> sections = s.sections();
+        int n = sections.size();
+        IrBasicBlock[] bodyBlocks = new IrBasicBlock[n];
+        IrBasicBlock[] testBlocks = new IrBasicBlock[n];
+        IrBasicBlock defaultBody = null;
+        for (int i = 0; i < n; i++) {
+            bodyBlocks[i] = builder.newBlock("switch.body" + i);
+            testBlocks[i] = builder.newBlock("switch.test" + i);
+            for (SwitchLabel label : sections.get(i).labels()) {
+                if (label instanceof DefaultLabel) {
+                    defaultBody = bodyBlocks[i];
+                }
+            }
+        }
+        IrBasicBlock defaultOrEnd = defaultBody != null ? defaultBody : endBlock;
+
+        if (n == 0) {
+            builder.branch(endBlock);
+            loopFrames.pop();
+            builder.setBlock(endBlock);
+            return;
+        }
+        builder.branch(testBlocks[0]);
+
+        for (int i = 0; i < n; i++) {
+            builder.setBlock(testBlocks[i]);
+            SwitchSection section = sections.get(i);
+            List<Integer> caseValues = new ArrayList<>();
+            boolean isDefaultOnly = true;
+            for (SwitchLabel label : section.labels()) {
+                if (label instanceof CaseLabel c) {
+                    isDefaultOnly = false;
+                    if (enumSwitch) {
+                        String name = ((VariableExpression) c.constant()).name();
+                        caseValues.add(enumSym.enumOrdinal(name));
+                    } else {
+                        caseValues.add(evalCaseInt(c.constant()));
+                    }
+                }
+            }
+            IrBasicBlock nextTest = (i + 1 < n) ? testBlocks[i + 1] : defaultOrEnd;
+            if (isDefaultOnly) {
+                // Default-only section is not entered via tests; fall to next test or defaultOrEnd.
+                builder.branch(nextTest);
+            } else {
+                emitCaseTests(selSlot, caseValues, bodyBlocks[i], nextTest);
+            }
+        }
+
+        for (int i = 0; i < n; i++) {
+            builder.setBlock(bodyBlocks[i]);
+            for (Statement st : sections.get(i).statements()) {
+                lowerStatement(st);
+            }
+            if (!builder.block().isTerminated()) {
+                if (i + 1 < n) {
+                    builder.branch(bodyBlocks[i + 1]); // fall-through
+                } else {
+                    builder.branch(endBlock);
+                }
+            }
+        }
+
+        loopFrames.pop();
+        builder.setBlock(endBlock);
+    }
+
+    private void emitCaseTests(
+            IrValue.Local selSlot, List<Integer> values, IrBasicBlock body, IrBasicBlock next) {
+        if (values.isEmpty()) {
+            builder.branch(next);
+            return;
+        }
+        IrValue sel = builder.load(selSlot);
+        for (int i = 0; i < values.size(); i++) {
+            IrValue cmp = builder.compare(
+                    IrInstruction.CmpOp.EQ, sel, new IrValue.Const(IrType.I32, values.get(i)));
+            if (i == values.size() - 1) {
+                builder.condBranch(cmp, body, next);
+            } else {
+                IrBasicBlock more = builder.newBlock("switch.case.or");
+                builder.condBranch(cmp, body, more);
+                builder.setBlock(more);
+                sel = builder.load(selSlot);
+            }
+        }
+    }
+
+    private static int evalCaseInt(Expression expr) {
+        return switch (expr) {
+            case LiteralExpression lit -> switch (lit.kind()) {
+                case INT -> (Integer) lit.value();
+                case LONG -> (int) (long) (Long) lit.value();
+                default -> throw new IllegalStateException("non-int case");
+            };
+            case UnaryExpression u -> {
+                int inner = evalCaseInt(u.operand());
+                yield u.operator() == UnaryOp.NEGATE ? -inner : inner;
+            }
+            case GroupingExpression g -> evalCaseInt(g.expression());
+            case CastExpression c -> evalCaseInt(c.expression());
+            default -> throw new IllegalStateException("non-constant case");
+        };
+    }
+
     private IrValue lowerExpression(Expression expr) {
         return switch (expr) {
             case LiteralExpression l -> lowerLiteral(l);
@@ -1797,7 +2486,9 @@ public final class IrGenerator {
             env = envObj;
             hasEnv = true;
         } else if (binding.receiverExpression() != null) {
+            // Bound method reference: evaluate receiver once at creation (Java-compatible).
             env = lowerExpression(binding.receiverExpression());
+            builder.nullCheck(env);
             hasEnv = true;
         }
         ClassSymbol sam = binding.samClass();
@@ -1847,45 +2538,55 @@ public final class IrGenerator {
         IrFunction function = new IrFunction(binding.codeSymbolName(), ret, params, false);
         module.addFunction(function);
         functionsByMangled.put(binding.codeSymbolName(), function);
+        // Block-body `return` must use the lambda/SAM return type, not the enclosing method.
+        MethodSymbol savedMethod = currentMethod;
+        ConstructorSymbol savedCtor = currentConstructor;
+        currentMethod = null;
+        currentConstructor = null;
         builder.beginFunction(function);
-        if (binding.envClass() != null) {
-            for (ClosureCapture cap : binding.captures()) {
-                FieldSymbol field = binding.envClass().findField(cap.fieldName()).orElseThrow();
-                IrValue envPtr = new IrValue.Param("env", IrType.PTR);
-                IrValue val = builder.loadField(
-                        envPtr,
-                        binding.envClass().name(),
-                        binding.envClass().layout().llvmTypeName(),
-                        field.gepIndex(),
-                        IrType.from(field.type()));
-                IrValue.Local capLocal = builder.alloca(cap.variable().name(), IrType.from(cap.type()));
-                builder.store(val, capLocal);
+        try {
+            if (binding.envClass() != null) {
+                for (ClosureCapture cap : binding.captures()) {
+                    FieldSymbol field = binding.envClass().findField(cap.fieldName()).orElseThrow();
+                    IrValue envPtr = new IrValue.Param("env", IrType.PTR);
+                    IrValue val = builder.loadField(
+                            envPtr,
+                            binding.envClass().name(),
+                            binding.envClass().layout().llvmTypeName(),
+                            field.gepIndex(),
+                            IrType.from(field.type()));
+                    IrValue.Local capLocal = builder.alloca(cap.variable().name(), IrType.from(cap.type()));
+                    builder.store(val, capLocal);
+                }
             }
-        }
-        for (int i = 0; i < binding.lambdaParameters().size(); i++) {
-            var lp = binding.lambdaParameters().get(i);
-            IrType pTy = IrType.from(ft.parameterTypes().get(i));
-            IrValue.Local pLocal = builder.alloca(lp.name(), pTy);
-            builder.store(new IrValue.Param("p" + i, pTy), pLocal);
-        }
-        if (binding.bodyBlock() != null) {
-            for (Statement stmt : binding.bodyBlock().statements()) {
-                lowerStatement(stmt);
+            for (int i = 0; i < binding.lambdaParameters().size(); i++) {
+                var lp = binding.lambdaParameters().get(i);
+                IrType pTy = IrType.from(ft.parameterTypes().get(i));
+                IrValue.Local pLocal = builder.alloca(lp.name(), pTy);
+                builder.store(new IrValue.Param("p" + i, pTy), pLocal);
             }
-            if (!builder.currentBlockTerminated()) {
+            if (binding.bodyBlock() != null) {
+                for (Statement stmt : binding.bodyBlock().statements()) {
+                    lowerStatement(stmt);
+                }
+                if (!builder.currentBlockTerminated()) {
+                    if (ret == IrType.VOID) {
+                        builder.retVoid();
+                    } else {
+                        builder.ret(defaultValue(ret));
+                    }
+                }
+            } else {
+                IrValue result = lowerExpression(binding.bodyExpression());
                 if (ret == IrType.VOID) {
                     builder.retVoid();
                 } else {
-                    builder.ret(defaultValue(ret));
+                    builder.ret(castIfNeeded(result, ret));
                 }
             }
-        } else {
-            IrValue result = lowerExpression(binding.bodyExpression());
-            if (ret == IrType.VOID) {
-                builder.retVoid();
-            } else {
-                builder.ret(castIfNeeded(result, ret));
-            }
+        } finally {
+            currentMethod = savedMethod;
+            currentConstructor = savedCtor;
         }
     }
 
@@ -1912,10 +2613,25 @@ public final class IrGenerator {
         if (target.isStatic()) {
             result = builder.call(target.mangledName(), ret, samArgs);
         } else {
-            IrValue receiver = new IrValue.Param("env", IrType.PTR);
+            // Bound: receiver stored in env at creation. Unbound: first SAM arg is receiver.
+            boolean unbound = binding.receiverExpression() == null && binding.boundReceiverType() == null;
+            IrValue receiver;
             List<IrValue> callArgs = new ArrayList<>();
-            callArgs.add(receiver);
-            callArgs.addAll(samArgs);
+            if (unbound) {
+                if (samArgs.isEmpty()) {
+                    throw new IllegalStateException("unbound method ref missing receiver argument");
+                }
+                receiver = samArgs.getFirst();
+                builder.nullCheck(receiver);
+                callArgs.add(receiver);
+                for (int i = 1; i < samArgs.size(); i++) {
+                    callArgs.add(samArgs.get(i));
+                }
+            } else {
+                receiver = new IrValue.Param("env", IrType.PTR);
+                callArgs.add(receiver);
+                callArgs.addAll(samArgs);
+            }
             if (binding.isVirtualMethodRef() && target.vtableSlot() != null) {
                 MethodSymbol slotMethod = target;
                 while (slotMethod.overrides() != null) {
@@ -2046,12 +2762,13 @@ public final class IrGenerator {
 
     private IrValue lowerAssignment(AssignmentExpression a) {
         IrValue value = lowerExpression(a.value());
+        JType fromJt = remapType(typed.expressionTypes().get(a.value()));
         Expression target = a.target();
         if (target instanceof VariableExpression v) {
             Object resolved = typed.resolvedSymbols().get(v);
             if (resolved instanceof FieldSymbol field) {
                 field = remapField(field);
-                IrValue casted = castIfNeeded(value, IrType.from(field.type()));
+                IrValue casted = convertTo(value, fromJt, remapType(field.type()));
                 if (field.isStatic()) {
                     builder.storeStatic(field.staticGlobal(), casted, field.isVolatile());
                 } else {
@@ -2063,7 +2780,10 @@ public final class IrGenerator {
                 return casted;
             }
             IrValue.Local local = builder.local(v.name());
-            IrValue casted = castIfNeeded(value, local.type());
+            JType localJt = resolved instanceof VariableSymbol vs
+                    ? remapType(vs.type())
+                    : fromJt;
+            IrValue casted = convertTo(value, fromJt, localJt != null ? localJt : fromJt);
             builder.store(casted, local);
             return casted;
         }
@@ -2082,7 +2802,7 @@ public final class IrGenerator {
                 return casted;
             }
             FieldSymbol field = remapField((FieldSymbol) resolved);
-            IrValue casted = castIfNeeded(value, IrType.from(field.type()));
+            IrValue casted = convertTo(value, fromJt, remapType(field.type()));
             if (field.isStatic()) {
                 builder.storeStatic(field.staticGlobal(), casted, field.isVolatile());
             } else {
@@ -2097,7 +2817,7 @@ public final class IrGenerator {
             IrValue array = lowerExpression(aexpr.array());
             IrValue index = lowerExpression(aexpr.index());
             JType elemType = remapType(typed.expressionTypes().get(aexpr));
-            IrValue casted = castIfNeeded(value, IrType.from(elemType));
+            IrValue casted = convertTo(value, fromJt, elemType);
             builder.storeElement(array, index, casted);
             return casted;
         }
@@ -2201,7 +2921,9 @@ public final class IrGenerator {
         for (int i = 0; i < n.arguments().size(); i++) {
             IrValue arg = lowerExpression(n.arguments().get(i));
             if (i < ctor.parameters().size()) {
-                arg = castIfNeeded(arg, IrType.from(ctor.parameters().get(i).type()));
+                JType pt = remapType(ctor.parameters().get(i).type());
+                JType from = remapType(typed.expressionTypes().get(n.arguments().get(i)));
+                arg = convertTo(arg, from, pt);
             }
             args.add(arg);
         }
@@ -2263,14 +2985,38 @@ public final class IrGenerator {
     }
 
     /**
-     * Integer casts: narrow by truncation; widen with sext except {@code char} (zext).
+     * Numeric casts. Float/double→integer use runtime helpers (NaN→0, saturate).
+     * Integers: narrow by truncation; widen with sext except {@code char} (zext).
      */
     private IrValue lowerPrimitiveCast(IrValue value, JType source, JType target) {
+        IrType from = value.type();
         IrType to = IrType.from(target);
-        if (value.type() == to) {
+        if (from == to) {
             return value;
         }
-        int fromW = bitWidthOf(value.type());
+        boolean srcFp = source == PrimitiveType.FLOAT || source == PrimitiveType.DOUBLE;
+        boolean dstFp = target == PrimitiveType.FLOAT || target == PrimitiveType.DOUBLE;
+        if (srcFp && target.isNumeric() && !dstFp) {
+            // Emit Cast; LLVM uses jnative_f*_to_i* (NaN→0/saturate), WASM uses trunc_sat.
+            if (target == PrimitiveType.LONG) {
+                return builder.cast(value, IrType.I64);
+            }
+            IrValue i32 = builder.cast(value, IrType.I32);
+            if (target == PrimitiveType.INT) {
+                return i32;
+            }
+            if (target == PrimitiveType.CHAR) {
+                return builder.cast(i32, IrType.I16, IrInstruction.CastMode.ZERO);
+            }
+            return castIfNeeded(i32, to);
+        }
+        if (!srcFp && dstFp) {
+            return castIfNeeded(value, to); // sitofp in backend
+        }
+        if (srcFp && dstFp) {
+            return castIfNeeded(value, to); // fpext / fptrunc
+        }
+        int fromW = bitWidthOf(from);
         int toW = bitWidthOf(to);
         if (fromW < toW && source == PrimitiveType.CHAR) {
             return builder.cast(value, to, IrInstruction.CastMode.ZERO);
@@ -2392,7 +3138,8 @@ public final class IrGenerator {
             for (int i = 0; i < m.arguments().size(); i++) {
                 IrValue arg = lowerExpression(m.arguments().get(i));
                 if (i < paramTypes.size()) {
-                    arg = castIfNeeded(arg, IrType.from(paramTypes.get(i)));
+                    JType from = remapType(typed.expressionTypes().get(m.arguments().get(i)));
+                    arg = convertTo(arg, from, remapType(paramTypes.get(i)));
                 }
                 args.add(arg);
             }
@@ -2433,12 +3180,25 @@ public final class IrGenerator {
             args.add(receiver);
         }
         // Static call may still have a type-name receiver in AST (LibC.puts); ignore it.
+        // Substitute class type args so ArrayList<Integer>.add expects Integer (for boxing).
+        TypeSubstitution recvSub = null;
+        if (m.receiver() != null) {
+            JType recvTy = remapType(typed.expressionTypes().get(m.receiver()));
+            if (recvTy instanceof ParameterizedType pt && pt.raw() instanceof ClassSymbol cs) {
+                recvSub = TypeSubstitution.zip(cs.typeParameters(), pt.typeArguments());
+            }
+        }
         List<JType> paramTypes = ms.parameterTypes();
         for (int i = 0; i < m.arguments().size(); i++) {
             IrValue arg = lowerExpression(m.arguments().get(i));
             if (i < paramTypes.size()) {
-                JType pt = remapType(paramTypes.get(i));
-                arg = castIfNeeded(arg, IrType.from(pt != null ? pt : paramTypes.get(i)));
+                JType pt = paramTypes.get(i);
+                if (recvSub != null) {
+                    pt = recvSub.apply(pt);
+                }
+                pt = remapType(pt);
+                JType from = remapType(typed.expressionTypes().get(m.arguments().get(i)));
+                arg = convertTo(arg, from, pt);
             }
             args.add(arg);
         }
@@ -2449,18 +3209,26 @@ public final class IrGenerator {
         }
 
         ClassSymbol ownerClass = ms.classOwner();
-        if (ownerClass != null && ownerClass.name().equals("Throwable") && receiver != null
-                && (ms.name().equals("getMessage") || ms.name().equals("getCause"))) {
-            ClassLayout layout = ownerClass.layout();
-            int idx = ms.name().equals("getCause")
-                    ? ownerClass.findField("cause").map(f -> f.gepIndex()).orElse(2)
-                    : ownerClass.findField("message").map(f -> f.gepIndex()).orElse(1);
-            return builder.loadField(
-                    receiver,
-                    ownerClass.name(),
-                    layout.llvmTypeName(),
-                    idx,
-                    IrType.PTR);
+        if (ownerClass != null && ownerClass.name().equals("Throwable") && receiver != null) {
+            if (ms.name().equals("getMessage") || ms.name().equals("getCause")) {
+                ClassLayout layout = ownerClass.layout();
+                int idx = ms.name().equals("getCause")
+                        ? ownerClass.findField("cause").map(f -> f.gepIndex()).orElse(2)
+                        : ownerClass.findField("message").map(f -> f.gepIndex()).orElse(1);
+                return builder.loadField(
+                        receiver,
+                        ownerClass.name(),
+                        layout.llvmTypeName(),
+                        idx,
+                        IrType.PTR);
+            }
+            if (ms.name().equals("getSuppressed")) {
+                return builder.call("jnative_throwable_get_suppressed", IrType.PTR,
+                        List.of(receiver), true);
+            }
+            if (ms.name().equals("addSuppressed")) {
+                return builder.call("jnative_throwable_add_suppressed", IrType.VOID, args, true);
+            }
         }
 
         // String intrinsics
@@ -2468,6 +3236,7 @@ public final class IrGenerator {
                 && ownerClass.name().equals("String") && receiver != null) {
             return switch (ms.name()) {
                 case "length" -> builder.call("jnative_string_length", IrType.I32, List.of(receiver));
+                case "utf8Length" -> builder.call("jnative_string_utf8_length", IrType.I32, List.of(receiver));
                 case "charAt" -> builder.call("jnative_string_char_at", IrType.I16, args);
                 case "equals" -> builder.call("jnative_string_equals_object", IrType.I1, args);
                 case "hashCode" -> builder.call("jnative_string_hashcode", IrType.I32, List.of(receiver));
@@ -2475,14 +3244,16 @@ public final class IrGenerator {
                 case "indexOfFrom" -> builder.call("jnative_string_index_of_from", IrType.I32, args);
                 case "substring" -> builder.call("jnative_string_substring", IrType.PTR, args);
                 case "substringFrom" -> builder.call("jnative_string_substring_from", IrType.PTR, args);
-                case "startsWith" -> builder.call("jnative_string_starts_with", IrType.I1, args);
-                case "endsWith" -> builder.call("jnative_string_ends_with", IrType.I1, args);
-                case "equalsIgnoreCase" -> builder.call("jnative_string_equals_ignore_case", IrType.I1, args);
+                case "startsWith" -> i32ToI1(builder.call("jnative_string_starts_with", IrType.I32, args));
+                case "endsWith" -> i32ToI1(builder.call("jnative_string_ends_with", IrType.I32, args));
+                case "equalsIgnoreCase" -> i32ToI1(builder.call(
+                        "jnative_string_equals_ignore_case", IrType.I32, args));
                 case "trim" -> builder.call("jnative_string_trim", IrType.PTR, List.of(receiver));
                 case "getBytes" -> builder.call("jnative_string_get_bytes", IrType.PTR, List.of(receiver));
                 case "toLowerCase" -> builder.call("jnative_string_to_lower", IrType.PTR, List.of(receiver));
-                case "isEmpty" -> builder.call("jnative_string_is_empty", IrType.I1, List.of(receiver));
-                case "contains" -> builder.call("jnative_string_contains", IrType.I1, args);
+                case "isEmpty" -> i32ToI1(builder.call(
+                        "jnative_string_is_empty", IrType.I32, List.of(receiver)));
+                case "contains" -> i32ToI1(builder.call("jnative_string_contains", IrType.I32, args));
                 case "lastIndexOf" -> builder.call("jnative_string_last_index_of", IrType.I32, args);
                 case "lastIndexOfFrom" -> builder.call("jnative_string_last_index_of_from", IrType.I32, args);
                 case "compareTo" -> builder.call("jnative_string_compare_to", IrType.I32, args);
@@ -2743,8 +3514,17 @@ public final class IrGenerator {
     private IrValue lowerFutureIntrinsic(MethodSymbol ms, List<IrValue> args) {
         return switch (ms.name()) {
             case "completed" -> builder.call("jnative_future_completed", IrType.PTR, List.of(args.get(0)), false);
+            case "pending" -> builder.call("jnative_future_pending", IrType.PTR, List.of(), false);
+            case "failed" -> builder.call("jnative_future_failed", IrType.PTR, List.of(args.get(0)), false);
             case "isComplete" -> builder.call("jnative_future_isComplete", IrType.I1, List.of(args.get(0)), false);
+            case "getState" -> builder.call("jnative_future_get_state", IrType.I32, List.of(args.get(0)), false);
             case "getCompleted" -> builder.call("jnative_future_getResult", IrType.PTR, List.of(args.get(0)), false);
+            case "getError" -> builder.call("jnative_future_getError", IrType.PTR, List.of(args.get(0)), false);
+            case "tryComplete" -> builder.call("jnative_future_try_complete", IrType.I1,
+                    List.of(args.get(0), args.get(1)), false);
+            case "tryFail" -> builder.call("jnative_future_try_fail", IrType.I1,
+                    List.of(args.get(0), args.get(1)), false);
+            case "tryCancel" -> builder.call("jnative_future_try_cancel", IrType.I1, List.of(args.get(0)), false);
             case "awaitCooperative" -> {
                 builder.call("jnative_async_awaitCooperative", IrType.VOID, args, true);
                 yield new IrValue.Const(IrType.I32, 0);
@@ -2913,6 +3693,7 @@ public final class IrGenerator {
         return switch (l.kind()) {
             case INT -> new IrValue.Const(IrType.I32, l.value());
             case LONG -> new IrValue.Const(IrType.I64, l.value());
+            case FLOAT -> new IrValue.Const(IrType.FLOAT, l.value());
             case DOUBLE -> new IrValue.Const(IrType.DOUBLE, l.value());
             case BOOLEAN -> new IrValue.Const(IrType.I1, l.value());
             case STRING -> {
@@ -2943,22 +3724,10 @@ public final class IrGenerator {
                 IrValue left = lowerExpression(b.left());
                 IrValue right = lowerExpression(b.right());
                 if (!leftStr && lt != null && lt.isNumeric()) {
-                    if (lt == PrimitiveType.LONG) {
-                        left = builder.call("jnative_string_value_of_i64", IrType.PTR,
-                                List.of(castIfNeeded(left, IrType.I64)), false);
-                    } else {
-                        left = builder.call("jnative_string_value_of_i32", IrType.PTR,
-                                List.of(castIfNeeded(left, IrType.I32)), false);
-                    }
+                    left = numericToString(left, lt);
                 }
                 if (!rightStr && rt != null && rt.isNumeric()) {
-                    if (rt == PrimitiveType.LONG) {
-                        right = builder.call("jnative_string_value_of_i64", IrType.PTR,
-                                List.of(castIfNeeded(right, IrType.I64)), false);
-                    } else {
-                        right = builder.call("jnative_string_value_of_i32", IrType.PTR,
-                                List.of(castIfNeeded(right, IrType.I32)), false);
-                    }
+                    right = numericToString(right, rt);
                 }
                 return builder.call("jnative_string_concat", IrType.PTR, List.of(left, right));
             }
@@ -2983,6 +3752,35 @@ public final class IrGenerator {
 
         IrValue left = lowerExpression(b.left());
         IrValue right = lowerExpression(b.right());
+        // Unbox wrappers for arithmetic / relational / mixed == with primitives.
+        boolean numericOp = b.operator() != BinaryOp.EQ && b.operator() != BinaryOp.NE
+                && b.operator() != BinaryOp.BIT_AND && b.operator() != BinaryOp.BIT_OR
+                && b.operator() != BinaryOp.BIT_XOR;
+        boolean mixedEq = (b.operator() == BinaryOp.EQ || b.operator() == BinaryOp.NE)
+                && ((Boxing.isWrapper(lt) && rt instanceof PrimitiveType)
+                || (Boxing.isWrapper(rt) && lt instanceof PrimitiveType));
+        if (numericOp || mixedEq) {
+            if (Boxing.isWrapper(lt)) {
+                PrimitiveType p = Boxing.primitiveOfWrapper(lt);
+                left = emitUnbox(left, ((ClassType) lt).name(), p);
+                lt = p;
+            }
+            if (Boxing.isWrapper(rt)) {
+                PrimitiveType p = Boxing.primitiveOfWrapper(rt);
+                right = emitUnbox(right, ((ClassType) rt).name(), p);
+                rt = p;
+            }
+        }
+
+        // Specialized generics: `T != null` when T is int — always false/true, never bitcast.
+        if (b.operator() == BinaryOp.EQ || b.operator() == BinaryOp.NE) {
+            boolean leftNull = isNullConst(right) && left.type().isIntegerLike();
+            boolean rightNull = isNullConst(left) && right.type().isIntegerLike();
+            if (leftNull || rightNull) {
+                boolean eq = false; // primitive never equals null
+                return new IrValue.Const(IrType.I1, b.operator() == BinaryOp.EQ ? eq : !eq);
+            }
+        }
 
         if ((b.operator() == BinaryOp.EQ || b.operator() == BinaryOp.NE)
                 && (left.type() == IrType.PTR || left.type() == IrType.NATIVE_PTR)
@@ -3086,6 +3884,13 @@ public final class IrGenerator {
             case NEGATE -> {
                 IrType t = unaryPromoteIr(operand.type());
                 IrValue v = castIfNeeded(operand, t);
+                /* IEEE: (+0)-(+0)=+0; subtract from -0 so sign flip yields -0. */
+                if (t == IrType.FLOAT || t == IrType.DOUBLE) {
+                    IrValue negZero = t == IrType.FLOAT
+                            ? new IrValue.Const(IrType.FLOAT, -0.0f)
+                            : new IrValue.Const(IrType.DOUBLE, -0.0);
+                    yield builder.binary(IrInstruction.BinOp.SUB, negZero, v);
+                }
                 yield builder.binary(IrInstruction.BinOp.SUB, defaultValue(t), v);
             }
             case PLUS -> {
@@ -3108,6 +3913,9 @@ public final class IrGenerator {
         if (a == IrType.DOUBLE || b == IrType.DOUBLE) {
             return IrType.DOUBLE;
         }
+        if (a == IrType.FLOAT || b == IrType.FLOAT) {
+            return IrType.FLOAT;
+        }
         if (a == IrType.I64 || b == IrType.I64) {
             return IrType.I64;
         }
@@ -3126,6 +3934,27 @@ public final class IrGenerator {
         return IrType.I32;
     }
 
+    private IrValue i32ToI1(IrValue v) {
+        return builder.compare(IrInstruction.CmpOp.NE, v, new IrValue.Const(IrType.I32, 0));
+    }
+
+    private IrValue numericToString(IrValue value, JType type) {
+        if (type == PrimitiveType.LONG) {
+            return builder.call("jnative_string_value_of_i64", IrType.PTR,
+                    List.of(castIfNeeded(value, IrType.I64)), false);
+        }
+        if (type == PrimitiveType.DOUBLE) {
+            return builder.call("jnative_string_value_of_f64", IrType.PTR,
+                    List.of(castIfNeeded(value, IrType.DOUBLE)), false);
+        }
+        if (type == PrimitiveType.FLOAT) {
+            return builder.call("jnative_string_value_of_f32", IrType.PTR,
+                    List.of(castIfNeeded(value, IrType.FLOAT)), false);
+        }
+        return builder.call("jnative_string_value_of_i32", IrType.PTR,
+                List.of(castIfNeeded(value, IrType.I32)), false);
+    }
+
     private IrValue castIfNeeded(IrValue value, IrType target) {
         // Specialized bodies may clear slots with null; map to zero for primitive storage.
         if (value instanceof IrValue.Const c
@@ -3136,6 +3965,104 @@ public final class IrGenerator {
             return defaultValue(target);
         }
         return builder.cast(value, target);
+    }
+
+    /**
+     * Apply boxing/unboxing when {@code from}/{@code to} require it; otherwise IR cast.
+     * Null unbox → {@code nullCheck} then NPE at runtime.
+     */
+    private IrValue convertTo(IrValue value, JType from, JType to) {
+        if (to == null || to instanceof ErrorType) {
+            return value;
+        }
+        to = remapType(to);
+        if (from == null || from instanceof ErrorType) {
+            from = jtypeFromIr(value.type());
+        } else {
+            from = remapType(from);
+        }
+        if (from == null) {
+            return castIfNeeded(value, IrType.from(to));
+        }
+        Boxing.Kind kind = Boxing.boxingKind(to, from);
+        if (kind == null || kind == Boxing.Kind.NONE) {
+            if (to.isAssignableFrom(from) || from.isAssignableFrom(to)
+                    || IrType.from(to) == value.type()) {
+                return castIfNeeded(value, IrType.from(to));
+            }
+            return castIfNeeded(value, IrType.from(to));
+        }
+        return switch (kind) {
+            case BOX -> emitBox(value, (PrimitiveType) from, ((ClassType) to).name());
+            case WIDEN_BOX -> {
+                PrimitiveType targetPrim = Boxing.primitiveOfWrapper(to);
+                IrValue widened = castIfNeeded(value, IrType.from(targetPrim));
+                yield emitBox(widened, targetPrim, ((ClassType) to).name());
+            }
+            case UNBOX -> emitUnbox(value, ((ClassType) from).name(), (PrimitiveType) to);
+            case UNBOX_WIDEN -> {
+                PrimitiveType boxed = Boxing.primitiveOfWrapper(from);
+                IrValue unboxed = emitUnbox(value, ((ClassType) from).name(), boxed);
+                yield castIfNeeded(unboxed, IrType.from(to));
+            }
+            case NONE -> castIfNeeded(value, IrType.from(to));
+        };
+    }
+
+    private IrValue emitBox(IrValue primitive, PrimitiveType prim, String wrapperName) {
+        ClassSymbol wrapper = typed.classes().get(wrapperName);
+        if (wrapper == null) {
+            throw new IllegalStateException("missing wrapper class " + wrapperName);
+        }
+        MethodSymbol valueOf = null;
+        for (MethodSymbol ms : wrapper.findMethods("valueOf")) {
+            if (ms.isStatic() && ms.parameterTypes().size() == 1
+                    && ms.parameterTypes().getFirst() == prim) {
+                valueOf = ms;
+                break;
+            }
+        }
+        if (valueOf == null) {
+            throw new IllegalStateException(wrapperName + ".valueOf(" + prim + ") not found");
+        }
+        IrValue arg = castIfNeeded(primitive, IrType.from(prim));
+        return builder.call(valueOf.mangledName(), IrType.PTR, List.of(arg), false);
+    }
+
+    private IrValue emitUnbox(IrValue boxed, String wrapperName, PrimitiveType prim) {
+        ClassSymbol wrapper = typed.classes().get(wrapperName);
+        if (wrapper == null) {
+            throw new IllegalStateException("missing wrapper class " + wrapperName);
+        }
+        String method = Boxing.unboxMethod(wrapperName);
+        MethodSymbol ms = wrapper.findMethod(method).orElse(null);
+        if (ms == null) {
+            throw new IllegalStateException(wrapperName + "." + method + " not found");
+        }
+        builder.nullCheck(boxed);
+        return builder.call(ms.mangledName(), IrType.from(prim), List.of(boxed), false);
+    }
+
+    private static JType jtypeFromIr(IrType t) {
+        if (t == null) {
+            return null;
+        }
+        return switch (t) {
+            case I1 -> PrimitiveType.BOOLEAN;
+            case I8 -> PrimitiveType.BYTE;
+            case I16 -> PrimitiveType.SHORT;
+            case I32 -> PrimitiveType.INT;
+            case I64 -> PrimitiveType.LONG;
+            case FLOAT -> PrimitiveType.FLOAT;
+            case DOUBLE -> PrimitiveType.DOUBLE;
+            default -> null;
+        };
+    }
+
+    private static boolean isNullConst(IrValue v) {
+        return v instanceof IrValue.Const c
+                && (c.type() == IrType.PTR || c.type() == IrType.NATIVE_PTR)
+                && "null".equals(String.valueOf(c.value()));
     }
 
     private IrValue defaultValue(IrType type) {

@@ -7,10 +7,15 @@ import { JNativeBridge, installWebPlatformHost } from './bridge.js';
 
 const KEY_LEFT = 'calc.lastLeft';
 const KEY_RIGHT = 'calc.lastRight';
+const KEY_OP = 'calc.lastOp';
+const KEY_EXPR = 'calc.lastExpr';
 
 const errMessages = {
-  1: 'Input is empty',
-  2: 'Input is not a valid integer',
+  1: '输入为空',
+  2: '不是合法整数或表达式（请用两个整数框，或写 123*456）',
+  3: '除数不能为 0',
+  4: '整数溢出',
+  5: '未知运算符',
 };
 
 function $(id) {
@@ -55,10 +60,16 @@ async function main() {
     throw e;
   }
 
+  const computeOp = findExport('CalculatorApp_computeOp_CString_CString_i32');
+  const evaluate = findExport('CalculatorApp_evaluate_CString');
   const compute = findExport('CalculatorApp_compute_CString_CString');
   const getLastError = findExport('CalculatorApp_getLastError');
-  if (typeof compute !== 'function' || typeof getLastError !== 'function') {
+  if (typeof getLastError !== 'function') {
     setStatus('WASM exports missing (rebuild from source)', true);
+    return;
+  }
+  if (typeof computeOp !== 'function' && typeof evaluate !== 'function' && typeof compute !== 'function') {
+    setStatus('WASM compute exports missing (rebuild from source)', true);
     return;
   }
 
@@ -76,30 +87,70 @@ async function main() {
     $('lifecycle').textContent = 'lifecycle: ' + name;
   });
 
+  let currentOp = 0;
+  const opButtons = Array.from(document.querySelectorAll('.ops [data-op]'));
+  function setOp(op) {
+    currentOp = Number(op) || 0;
+    opButtons.forEach((b) => {
+      b.classList.toggle('active', Number(b.getAttribute('data-op')) === currentOp);
+    });
+  }
+  opButtons.forEach((b) => {
+    b.addEventListener('click', () => setOp(b.getAttribute('data-op')));
+  });
+
   try {
     const left = await bridge.call('storage.get', { key: KEY_LEFT });
     const right = await bridge.call('storage.get', { key: KEY_RIGHT });
+    const op = await bridge.call('storage.get', { key: KEY_OP });
+    const expr = await bridge.call('storage.get', { key: KEY_EXPR });
     if (typeof left === 'string') $('left').value = left;
     if (typeof right === 'string') $('right').value = right;
+    if (typeof expr === 'string') $('expr').value = expr;
+    if (typeof op === 'string' && op.length) setOp(op);
   } catch (e) {
     console.warn('restore failed', e.code || e.message);
   }
 
-  $('sum').addEventListener('click', async () => {
+  $('go').addEventListener('click', async () => {
     try {
+      const expr = $('expr').value.trim();
       const left = $('left').value.trim();
       const right = $('right').value.trim();
-      const result = compute(writeWasmString(left), writeWasmString(right));
-      const code = getLastError() | 0;
+      let result = 0;
+      let code = 0;
+
+      if (expr.length > 0) {
+        if (typeof evaluate !== 'function') {
+          setStatus('当前 WASM 无表达式接口，请重新 build_web', true);
+          return;
+        }
+        result = evaluate(writeWasmString(expr));
+        code = getLastError() | 0;
+      } else if (typeof computeOp === 'function') {
+        result = computeOp(writeWasmString(left), writeWasmString(right), currentOp);
+        code = getLastError() | 0;
+      } else {
+        /* fallback add-only build */
+        result = compute(writeWasmString(left), writeWasmString(right));
+        code = getLastError() | 0;
+        if (code === 0 && currentOp !== 0) {
+          setStatus('当前包仅支持加法，请重新 scripts/build_web.sh', true);
+          return;
+        }
+      }
+
       if (code !== 0) {
         $('result').textContent = '—';
-        setStatus(errMessages[code] || ('Error code ' + code), true);
+        setStatus(errMessages[code] || ('错误码 ' + code), true);
         return;
       }
       $('result').textContent = String(result);
       setStatus('OK', false);
       await bridge.call('storage.set', { key: KEY_LEFT, value: left });
       await bridge.call('storage.set', { key: KEY_RIGHT, value: right });
+      await bridge.call('storage.set', { key: KEY_OP, value: String(currentOp) });
+      await bridge.call('storage.set', { key: KEY_EXPR, value: expr });
     } catch (e) {
       setStatus('Bridge/WASM error: ' + (e.code || '') + ' ' + (e.message || e), true);
     }

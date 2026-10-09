@@ -135,7 +135,16 @@ public final class LlvmIrGenerator {
         for (ClassMetadata meta : module.arrayMetadatas().values()) {
             emitArrayMetadata(meta);
         }
-        if (!module.classMetadatas().isEmpty() || !module.arrayMetadatas().isEmpty()) {
+        // Exception runtime always references Throwable[]; ensure meta exists even when
+        // user IR never materializes Throwable[] (otherwise llvm-as fails).
+        if (emittedMeta.add("meta.array.CThrowable")) {
+            emitCString(".name.array_CThrowable", "[LThrowable;");
+            sb.append("@meta.array.CThrowable = global %jn.ClassMeta { ")
+                    .append("ptr null, ptr null, i64 0, i32 0, ptr @.name.array_CThrowable, ")
+                    .append("i32 0, ptr null, i32 0, ptr null }, align 8\n");
+        }
+        if (!module.classMetadatas().isEmpty() || !module.arrayMetadatas().isEmpty()
+                || emittedMeta.contains("meta.array.CThrowable")) {
             sb.append('\n');
         }
 
@@ -155,11 +164,20 @@ public final class LlvmIrGenerator {
         if (!module.staticFields().isEmpty()) {
             sb.append('\n');
         }
-        emitMarkStaticRoots(module);
 
         boolean hasMain = false;
         boolean hasClinit = false;
+        // Emit async resume thunks first so fnptr constants resolve.
         for (IrFunction f : module.functions()) {
+            if (f.name().endsWith("__async_resume")) {
+                emitFunction(f);
+                sb.append('\n');
+            }
+        }
+        for (IrFunction f : module.functions()) {
+            if (f.name().endsWith("__async_resume")) {
+                continue;
+            }
             if (f.isMain()) {
                 hasMain = true;
             }
@@ -173,12 +191,16 @@ public final class LlvmIrGenerator {
             sb.append("define void @jnative_clinit() {\nentry:\n  ret void\n}\n\n");
         }
 
-        if (hasMain) {
-            emitNativeMain();
-        }
-
+        /* Callback table must exist before static-root visitors reference it. */
         if (needsCallbackTable) {
             emitCallbackTrampolines();
+        }
+        /* After functions so needsCallbackTable is known; include jn.cb.callables
+           so moving GC updates native trampoline slots (Home click / UI dispatch). */
+        emitMarkStaticRoots(module);
+
+        if (hasMain) {
+            emitNativeMain();
         }
 
         if (di.enabled()) {
@@ -201,6 +223,18 @@ public final class LlvmIrGenerator {
                     .append(", align 8\n");
             sb.append("  call void @jnative_gc_mark_push(ptr ").append(v).append(")\n");
         }
+        if (needsCallbackTable) {
+            sb.append("  br label %cb.mark\n");
+            sb.append("cb.mark:\n");
+            sb.append("  %cb.i = phi i64 [ 0, %entry ], [ %cb.next, %cb.mark ]\n");
+            sb.append("  %cb.slot = getelementptr [256 x ptr], ptr @jn.cb.callables, i64 0, i64 %cb.i\n");
+            sb.append("  %cb.v = load ptr, ptr %cb.slot, align 8\n");
+            sb.append("  call void @jnative_gc_mark_push(ptr %cb.v)\n");
+            sb.append("  %cb.next = add i64 %cb.i, 1\n");
+            sb.append("  %cb.done = icmp eq i64 %cb.next, 256\n");
+            sb.append("  br i1 %cb.done, label %cb.mark.done, label %cb.mark\n");
+            sb.append("cb.mark.done:\n");
+        }
         sb.append("  ret void\n");
         sb.append("}\n\n");
 
@@ -213,6 +247,18 @@ public final class LlvmIrGenerator {
             }
             sb.append("  call void %fn(ptr @").append(sf.globalName()).append(", ptr %ctx)\n");
         }
+        if (needsCallbackTable) {
+            sb.append("  br label %cb.visit\n");
+            sb.append("cb.visit:\n");
+            sb.append("  %cb.i = phi i64 [ 0, %entry ], [ %cb.next, %cb.visit ]\n");
+            sb.append("  %cb.slot = getelementptr [256 x ptr], ptr @jn.cb.callables, i64 0, i64 %cb.i\n");
+            sb.append("  call void %fn(ptr %cb.slot, ptr %ctx)\n");
+            sb.append("  %cb.next = add i64 %cb.i, 1\n");
+            sb.append("  %cb.done = icmp eq i64 %cb.next, 256\n");
+            sb.append("  br i1 %cb.done, label %cb.visit.done, label %cb.visit\n");
+            sb.append("cb.visit.done:\n");
+        }
+        sb.append("  call void @jnative_async_visit_roots(ptr %fn, ptr %ctx)\n");
         sb.append("  ret void\n");
         sb.append("}\n\n");
     }
@@ -973,13 +1019,11 @@ public final class LlvmIrGenerator {
 
     private static List<IrType> invokeRuntimeParamTypes(String invokeRuntime) {
         return switch (invokeRuntime) {
-            case "jnative_invoke_void" -> List.of();
+            case "jnative_invoke_void", "jnative_invoke_ptr" -> List.of();
             case "jnative_invoke_i32_i32" -> List.of(IrType.I32);
             case "jnative_invoke_i32_i32_i32" -> List.of(IrType.I32, IrType.I32);
-            case "jnative_invoke_void_ptr" -> List.of(IrType.PTR);
-            case "jnative_invoke_void_ptr_ptr" -> List.of(IrType.PTR, IrType.PTR);
-            case "jnative_invoke_ptr_ptr" -> List.of(IrType.PTR);
-            case "jnative_invoke_i32_ptr_ptr" -> List.of(IrType.PTR, IrType.PTR);
+            case "jnative_invoke_void_ptr", "jnative_invoke_i32_ptr", "jnative_invoke_ptr_ptr" -> List.of(IrType.PTR);
+            case "jnative_invoke_void_ptr_ptr", "jnative_invoke_i32_ptr_ptr" -> List.of(IrType.PTR, IrType.PTR);
             default -> List.of();
         };
     }
@@ -987,7 +1031,7 @@ public final class LlvmIrGenerator {
     private static IrType invokeRuntimeReturnType(String invokeRuntime) {
         return switch (invokeRuntime) {
             case "jnative_invoke_void", "jnative_invoke_void_ptr", "jnative_invoke_void_ptr_ptr" -> IrType.VOID;
-            case "jnative_invoke_ptr_ptr" -> IrType.PTR;
+            case "jnative_invoke_ptr", "jnative_invoke_ptr_ptr" -> IrType.PTR;
             default -> IrType.I32;
         };
     }
@@ -1236,8 +1280,8 @@ public final class LlvmIrGenerator {
     }
 
     private void emitBinary(IrInstruction.Binary b) {
-        if ((b.op() == IrInstruction.BinOp.DIV || b.op() == IrInstruction.BinOp.MOD)
-                && b.dest().type() != IrType.DOUBLE) {
+        boolean fp = b.dest().type() == IrType.DOUBLE || b.dest().type() == IrType.FLOAT;
+        if ((b.op() == IrInstruction.BinOp.DIV || b.op() == IrInstruction.BinOp.MOD) && !fp) {
             int id = scratchId++;
             String zero = scratch();
             String isZero = scratch();
@@ -1263,11 +1307,12 @@ public final class LlvmIrGenerator {
             return;
         }
         String op = switch (b.op()) {
-            case ADD -> b.dest().type() == IrType.DOUBLE ? "fadd" : "add";
-            case SUB -> b.dest().type() == IrType.DOUBLE ? "fsub" : "sub";
-            case MUL -> b.dest().type() == IrType.DOUBLE ? "fmul" : "mul";
-            case DIV -> b.dest().type() == IrType.DOUBLE ? "fdiv" : "sdiv";
-            case MOD -> "srem";
+            case ADD -> fp ? "fadd" : "add";
+            case SUB -> fp ? "fsub" : "sub";
+            case MUL -> fp ? "fmul" : "mul";
+            case DIV -> fp ? "fdiv" : "sdiv";
+            // Java % on float/double is remainder (fmod / frem), not IEEE 754 remainder.
+            case MOD -> fp ? "frem" : "srem";
             case AND -> "and";
             case OR -> "or";
             case XOR -> "xor";
@@ -1280,7 +1325,8 @@ public final class LlvmIrGenerator {
     }
 
     private void emitCompare(IrInstruction.Compare c) {
-        boolean fp = c.left().type() == IrType.DOUBLE || c.right().type() == IrType.DOUBLE;
+        boolean fp = c.left().type() == IrType.DOUBLE || c.right().type() == IrType.DOUBLE
+                || c.left().type() == IrType.FLOAT || c.right().type() == IrType.FLOAT;
         boolean ptr = c.left().type() == IrType.PTR || c.right().type() == IrType.PTR
                 || c.left().type() == IrType.NATIVE_PTR || c.right().type() == IrType.NATIVE_PTR;
         if (ptr) {
@@ -1293,9 +1339,10 @@ public final class LlvmIrGenerator {
                     + llvmOperand(c.left()) + ", " + llvmOperand(c.right()));
             return;
         }
+        // Java: == is ordered (false if NaN); != is unordered (true if NaN).
         String pred = switch (c.op()) {
             case EQ -> fp ? "oeq" : "eq";
-            case NE -> fp ? "one" : "ne";
+            case NE -> fp ? "une" : "ne";
             case LT -> fp ? "olt" : "slt";
             case LE -> fp ? "ole" : "sle";
             case GT -> fp ? "ogt" : "sgt";
@@ -1317,6 +1364,8 @@ public final class LlvmIrGenerator {
                 line("  " + dest + " = bitcast ptr " + src + " to ptr");
             } else if (from == IrType.DOUBLE) {
                 line("  " + dest + " = fadd double " + src + ", 0.0");
+            } else if (from == IrType.FLOAT) {
+                line("  " + dest + " = fadd float " + src + ", 0.0");
             } else {
                 line("  " + dest + " = add " + to.llvm() + " " + src + ", 0");
             }
@@ -1335,11 +1384,34 @@ public final class LlvmIrGenerator {
                 return;
             }
         }
+        // Integer → floating
         if (from.isIntegerLike() && to == IrType.DOUBLE) {
             line("  " + dest + " = sitofp " + from.llvm() + " " + src + " to double");
-        } else if (from == IrType.DOUBLE && to.isIntegerLike()) {
-            line("  " + dest + " = fptosi double " + src + " to " + to.llvm());
-        } else if (from == IrType.I1 && to == IrType.I32) {
+            return;
+        }
+        if (from.isIntegerLike() && to == IrType.FLOAT) {
+            line("  " + dest + " = sitofp " + from.llvm() + " " + src + " to float");
+            return;
+        }
+        // float ↔ double
+        if (from == IrType.FLOAT && to == IrType.DOUBLE) {
+            line("  " + dest + " = fpext float " + src + " to double");
+            return;
+        }
+        if (from == IrType.DOUBLE && to == IrType.FLOAT) {
+            line("  " + dest + " = fptrunc double " + src + " to float");
+            return;
+        }
+        // Floating → integer: Java NaN/saturate helpers (never raw fptosi alone).
+        if (from == IrType.DOUBLE && to.isIntegerLike()) {
+            emitSafeFpToInt(dest, "double", src, to);
+            return;
+        }
+        if (from == IrType.FLOAT && to.isIntegerLike()) {
+            emitSafeFpToInt(dest, "float", src, to);
+            return;
+        }
+        if (from == IrType.I1 && to == IrType.I32) {
             line("  " + dest + " = zext i1 " + src + " to i32");
         } else if (from == IrType.I32 && to == IrType.I1) {
             line("  " + dest + " = icmp ne i32 " + src + ", 0");
@@ -1349,6 +1421,30 @@ public final class LlvmIrGenerator {
             line("  " + dest + " = ptrtoint " + from.llvm() + " " + src + " to i64");
         } else {
             line("  " + dest + " = bitcast " + from.llvm() + " " + src + " to " + to.llvm());
+        }
+    }
+
+    /** Java-compatible float/double → integer; then narrow if needed. */
+    private void emitSafeFpToInt(String dest, String fpTy, String src, IrType to) {
+        boolean isF32 = "float".equals(fpTy);
+        if (to == IrType.I64) {
+            String fn = isF32 ? "jnative_f32_to_i64" : "jnative_f64_to_i64";
+            line("  " + dest + " = call i64 @" + fn + "(" + fpTy + " " + src + ")");
+            return;
+        }
+        String fn = isF32 ? "jnative_f32_to_i32" : "jnative_f64_to_i32";
+        String tmp = scratch();
+        line("  " + tmp + " = call i32 @" + fn + "(" + fpTy + " " + src + ")");
+        if (to == IrType.I32) {
+            line("  " + dest + " = add i32 " + tmp + ", 0");
+        } else if (to == IrType.I16) {
+            line("  " + dest + " = trunc i32 " + tmp + " to i16");
+        } else if (to == IrType.I8) {
+            line("  " + dest + " = trunc i32 " + tmp + " to i8");
+        } else if (to == IrType.I1) {
+            line("  " + dest + " = icmp ne i32 " + tmp + ", 0");
+        } else {
+            line("  " + dest + " = sext i32 " + tmp + " to " + to.llvm());
         }
     }
 
@@ -1387,6 +1483,11 @@ public final class LlvmIrGenerator {
             case I32 -> line("  call void @jnative_println_i32(i32 " + llvmOperand(v) + ")");
             case I64 -> line("  call void @jnative_println_i64(i64 " + llvmOperand(v) + ")");
             case DOUBLE -> line("  call void @jnative_println_f64(double " + llvmOperand(v) + ")");
+            case FLOAT -> {
+                String w = scratch();
+                line("  " + w + " = fpext float " + llvmOperand(v) + " to double");
+                line("  call void @jnative_println_f64(double " + w + ")");
+            }
             case I1 -> line("  call void @jnative_println_bool(i1 " + llvmOperand(v) + ")");
             case I16 -> line("  call void @jnative_println_char(i16 " + llvmOperand(v) + ")");
             case PTR -> line("  call void @jnative_println_string(ptr " + llvmOperand(v) + ")");
@@ -1411,14 +1512,14 @@ public final class LlvmIrGenerator {
     private String llvmOperand(IrValue value) {
         if (value instanceof IrValue.Const c) {
             if (c.type() == IrType.DOUBLE) {
-                return Double.toString(((Number) c.value()).doubleValue());
+                return llvmFloatConst(((Number) c.value()).doubleValue(), true);
             }
             if ((c.type() == IrType.PTR || c.type() == IrType.NATIVE_PTR)
                     && "null".equals(String.valueOf(c.value()))) {
                 return "null";
             }
             if (c.type() == IrType.FLOAT) {
-                return Float.toString(((Number) c.value()).floatValue());
+                return llvmFloatConst(((Number) c.value()).floatValue(), false);
             }
             return c.name();
         }
@@ -1433,6 +1534,28 @@ public final class LlvmIrGenerator {
 
     private static String sanitize(String name) {
         return name.replace('.', '_').replace('-', '_');
+    }
+
+    /**
+     * LLVM float/double immediates: use bit-hex for NaN/Inf/-0 so folding stays bit-faithful.
+     * Ordinary finite values use decimal (LLVM accepts both).
+     */
+    private static String llvmFloatConst(double d, boolean isDouble) {
+        if (isDouble) {
+            long bits = Double.doubleToRawLongBits(d);
+            if (Double.isNaN(d) || Double.isInfinite(d) || bits == 0x8000000000000000L) {
+                return "0x" + Long.toHexString(bits).toUpperCase();
+            }
+            return Double.toString(d);
+        }
+        float f = (float) d;
+        int bits = Float.floatToRawIntBits(f);
+        // LLVM float hex immediates: f32 bits in the high half of a 64-bit word.
+        if (Float.isNaN(f) || Float.isInfinite(f) || bits == 0x80000000) {
+            long llvmBits = ((long) bits) << 32;
+            return "0x" + Long.toHexString(llvmBits).toUpperCase();
+        }
+        return Float.toString(f);
     }
 
     /** LLVM zeroinitializer token appropriate for the given IR type. */

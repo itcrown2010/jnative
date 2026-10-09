@@ -28,11 +28,14 @@ AST
 
 Specialized classes: `Origin$P_<argcodes…>` e.g. `Box$P_i32`, `Pair$P_i32_i64`.
 
-## Limits (0.15)
+## Limits
 
-- Implicit raw types rejected
-- Generic array creation `new T[n]` unsupported
+- Implicit raw types rejected (hard error)
+- Inside generic bodies, only `T`/`null` assign to fields/params of type `T`
+- `new T[n]` in erased bodies lowers as reference arrays (`Object[]`-shaped); prefer specialization for primitives
 - Generic `@NativeStruct` unsupported
 - Parameterized `instanceof` / checked casts are erased (unchecked)
 - Complex interface primitive specialization reuses erased ITable + concrete impl ABI
-- Full javac inference / capture conversion is minimal
+- Full javac inference / capture conversion / wildcards is minimal
+- No `Integer` auto-boxing — use `ArrayList<int>` specialization or reference elements
+- Iterable enhanced-for supported via stdlib (`jnative-generics-iterable.md`)

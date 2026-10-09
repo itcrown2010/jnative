@@ -36,6 +36,7 @@
 | 重复 FQN | 报错 | `duplicateFqnRejected` |
 | 继承环 | 报错 | `inheritanceCycleDiagnosedAcrossFiles` |
 | public/private/protected/package | 支持（L2） | `PackageAndAccessTest` |
+| stdlib 省略 `public` 的类型/成员对命名包可见 | **明确不同**（导出为 PUBLIC） | `SemanticAnalyzer.exportStdlibMember`；订单多包示例 |
 | wildcard / static import | 暂不支持（硬错误） | Parser |
 
 ## 3. 数值与运算
@@ -48,7 +49,8 @@
 | `-O0` 与默认 opt 同结果 | 支持 | `PrimitiveOpsEndToEndTest` |
 | 整数显式 cast（byte/short/char/int/long） | Java-一致 | 同左 vs javac |
 | `char` 16 位；拓宽零扩展 | Java-一致 | `(int)(char)65535 → 65535` |
-| boolean / 浮点 cast | 暂不支持（硬错误） | `booleanCastRejected` / `floatCastRejected` |
+| boolean cast | 硬错误 | `booleanCastRejected` |
+| 浮点 cast / 提升 | 支持（Java 兼容边界） | `FloatEndToEndTest` / `docs/jnative-float-double.md` |
 | 三元 `?:` 右结合；仅求值所选分支 | Java-一致 | 同左 |
 | `& \| ^ ~` 整数；boolean 双方求值 | Java-一致 | 同左 |
 | `<< >> >>>` 距离掩码 5/6 位 | Java-一致 | 同左 |
@@ -60,9 +62,10 @@
 
 | 契约 | 状态 |
 |---|---|
-| `length()` 为 UTF-8 **字节**数 | **明确不同**（相对 Java `length` 码元） |
+| `length()` / 索引为 UTF-16 **码元** | **Java-一致**（`docs/jnative-string-utf16.md`；`StringEndToEndTest`） |
+| `utf8Length()` / `getBytes()` 为 UTF-8 字节 | 支持 |
 | `split` 字面分隔符非正则 | **明确不同** |
-| 索引/切片完整 Unicode | 未验证 |
+| `FileInputStream`→`byte[]` 高位字节完整 | Java-一致（`StreamNative.getU8` 逻辑移位；`OrderProcessingEndToEndTest.fileInputStreamUtf8RoundTrip`） |
 
 ## 5. 其它边界
 

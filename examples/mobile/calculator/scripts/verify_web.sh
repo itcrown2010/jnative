@@ -24,8 +24,11 @@ function w(s){ const enc=new TextEncoder().encode(s); const p=e.jn_bump(enc.leng
 function find(sub){ for (const k of Object.keys(e)) if (k.includes(sub)) return e[k]; throw new Error('missing '+sub); }
 
 const compute = find('CalculatorApp_compute_CString_CString');
+const computeOp = find('CalculatorApp_computeOp_CString_CString_i32');
+const evaluate = find('CalculatorApp_evaluate_CString');
 const getErr = find('CalculatorApp_getLastError');
 const add = find('CalculatorApp_add_i32_i32');
+const mul = find('CalculatorApp_mul_i32_i32');
 
 const sum = compute(w('12'), w('30'));
 const err = getErr()|0;
@@ -43,9 +46,24 @@ console.log('PASS invalid => err', getErr());
 if (add(12,30) !== 42) throw new Error('add mismatch');
 console.log('PASS add export');
 
+const prod = computeOp(w('123'), w('456'), 2);
+if (prod !== 56088 || (getErr()|0) !== 0) throw new Error('expected 123*456=56088, got '+prod+' err='+getErr());
+console.log('PASS computeOp 123*456 =>', prod);
+
+const expr = evaluate(w('123*456'));
+if (expr !== 56088 || (getErr()|0) !== 0) throw new Error('expected evaluate 123*456=56088, got '+expr+' err='+getErr());
+console.log('PASS evaluate 123*456 =>', expr);
+
+const divz = computeOp(w('10'), w('0'), 3);
+if ((getErr()|0) !== 3) throw new Error('expected ERR_DIV0, got '+getErr());
+console.log('PASS div0 => err', getErr());
+
+if (mul(123,456) !== 56088) throw new Error('mul mismatch');
+console.log('PASS mul export');
+
 // Prove not a fixed template: inspect WAT if present, else re-check export names are mangled IR names
 const keys = Object.keys(e).filter(k => k.includes('CalculatorApp'));
-if (keys.length < 3) throw new Error('too few CalculatorApp exports');
+if (keys.length < 5) throw new Error('too few CalculatorApp exports');
 console.log('PASS exports', keys.join(', '));
 console.log('ALL WEB WASM CHECKS PASSED');
 EOF

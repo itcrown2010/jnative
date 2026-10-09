@@ -408,7 +408,7 @@ class PgWire {
     }
 
     static byte[] frontendMsg(int tag, String body) {
-        DbByteBuffer b = new DbByteBuffer(body.length() + 16);
+        DbByteBuffer b = new DbByteBuffer(body.utf8Length() + 16);
         b.putByte(tag);
         b.putInt32(0);
         b.putCString(body);
@@ -422,7 +422,7 @@ class PgWire {
     }
 
     static byte[] extendedQuery(String sql, ArrayList<Object> params) {
-        DbByteBuffer b = new DbByteBuffer(sql.length() + 256);
+        DbByteBuffer b = new DbByteBuffer(sql.utf8Length() + 256);
         int parseOff = b.getLimit();
         b.putByte(PgMsg.PARSE);
         b.putInt32(0);

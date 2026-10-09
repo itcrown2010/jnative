@@ -300,6 +300,253 @@ class ExceptionEndToEndTest {
                 """, "2\n");
     }
 
+    @Test
+    void nestedFinallyOrder() throws Exception {
+        assertStdout("""
+                public class Main {
+                    static int foo() {
+                        try {
+                            try {
+                                return 1;
+                            } finally {
+                                System.out.println(2);
+                            }
+                        } finally {
+                            System.out.println(3);
+                        }
+                    }
+                    public static void main(String[] args) {
+                        System.out.println(foo());
+                    }
+                }
+                """, "2\n3\n1\n");
+    }
+
+    @Test
+    void finallyPreservesException() throws Exception {
+        assertStdout("""
+                class Boom extends RuntimeException {
+                    Boom(String message) { super(message); }
+                }
+                public class Main {
+                    public static void main(String[] args) {
+                        try {
+                            try {
+                                throw new Boom("x");
+                            } finally {
+                                System.out.println(1);
+                            }
+                        } catch (Boom e) {
+                            System.out.println(e.getMessage());
+                        }
+                    }
+                }
+                """, "1\nx\n");
+    }
+
+    @Test
+    void finallyThrowReplacesPending() throws Exception {
+        assertStdout("""
+                class A extends RuntimeException {
+                    A(String message) { super(message); }
+                }
+                class B extends RuntimeException {
+                    B(String message) { super(message); }
+                }
+                public class Main {
+                    public static void main(String[] args) {
+                        try {
+                            try {
+                                throw new A("a");
+                            } finally {
+                                throw new B("b");
+                            }
+                        } catch (RuntimeException e) {
+                            System.out.println(e.getMessage());
+                        }
+                    }
+                }
+                """, "b\n");
+    }
+
+    @Test
+    void throwNullBecomesNpe() throws Exception {
+        assertStdout("""
+                public class Main {
+                    public static void main(String[] args) {
+                        try {
+                            throw null;
+                        } catch (NullPointerException e) {
+                            System.out.println(1);
+                        }
+                    }
+                }
+                """, "1\n");
+    }
+
+    @Test
+    void catchOrderSubtypeFirst() throws Exception {
+        assertStdout("""
+                class Boom extends RuntimeException {
+                    Boom(String message) { super(message); }
+                }
+                public class Main {
+                    public static void main(String[] args) {
+                        try {
+                            throw new Boom("x");
+                        } catch (Boom e) {
+                            System.out.println(1);
+                        } catch (RuntimeException e) {
+                            System.out.println(2);
+                        }
+                    }
+                }
+                """, "1\n");
+    }
+
+    @Test
+    void rethrowFromCatch() throws Exception {
+        assertStdout("""
+                class Boom extends RuntimeException {
+                    Boom(String message) { super(message); }
+                }
+                public class Main {
+                    public static void main(String[] args) {
+                        try {
+                            try {
+                                throw new Boom("x");
+                            } catch (Boom e) {
+                                throw e;
+                            }
+                        } catch (Boom e) {
+                            System.out.println(e.getMessage());
+                        }
+                    }
+                }
+                """, "x\n");
+    }
+
+    @Test
+    void breakThroughFinally() throws Exception {
+        assertStdout("""
+                public class Main {
+                    public static void main(String[] args) {
+                        int i = 0;
+                        while (i < 3) {
+                            try {
+                                i = i + 1;
+                                if (i == 2) { break; }
+                            } finally {
+                                System.out.println(i);
+                            }
+                        }
+                        System.out.println(9);
+                    }
+                }
+                """, "1\n2\n9\n");
+    }
+
+    @Test
+    void returnExprEvaluatedBeforeFinally() throws Exception {
+        assertStdout("""
+                public class Main {
+                    static int side;
+                    static int val() {
+                        side = 1;
+                        return side;
+                    }
+                    static int foo() {
+                        try {
+                            return val();
+                        } finally {
+                            side = 2;
+                            System.out.println(side);
+                        }
+                    }
+                    public static void main(String[] args) {
+                        System.out.println(foo());
+                    }
+                }
+                """, "2\n1\n");
+    }
+
+    @Test
+    void unreachableCatchDiagnosed() throws Exception {
+        Assumptions.assumeTrue(Toolchain.detect().isPresent(), "clang not available");
+        Path javaFile = tempDir.resolve("Unreach.java");
+        Files.writeString(javaFile, """
+                class Boom extends RuntimeException {
+                    Boom(String message) { super(message); }
+                }
+                public class Main {
+                    public static void main(String[] args) {
+                        try {
+                            throw new Boom("x");
+                        } catch (RuntimeException e) {
+                            System.out.println(1);
+                        } catch (Boom e) {
+                            System.out.println(2);
+                        }
+                    }
+                }
+                """, StandardCharsets.UTF_8);
+        Path out = tempDir.resolve("Unreach");
+        CompilerOptions options = new CompilerOptions();
+        options.setSourceFile(javaFile);
+        options.setOutputFile(out);
+        CompileResult result = new JNativeCompiler().compile(options);
+        assertFalse(result.success());
+        assertTrue(result.diagnostics().toString().contains("unreachable catch"),
+                result.diagnostics().toString());
+    }
+
+    @Test
+    void optLevelsAgreeOnFinally() throws Exception {
+        Assumptions.assumeTrue(Toolchain.detect().isPresent(), "clang not available");
+        String src = """
+                public class Main {
+                    static int foo() {
+                        try { return 1; } finally { System.out.println(2); }
+                    }
+                    public static void main(String[] args) {
+                        System.out.println(foo());
+                    }
+                }
+                """;
+        NativeRun o0 = runOpt(src, "FinO0", 0);
+        NativeRun oDef = runOpt(src, "FinODef", -1);
+        assertTrue(o0.compileSuccess, o0.diagnostics);
+        assertTrue(oDef.compileSuccess, oDef.diagnostics);
+        assertEquals("2\n1\n", o0.stdout, o0.stderr);
+        assertEquals(o0.stdout, oDef.stdout);
+    }
+
+    private NativeRun runOpt(String source, String name, int optLevel) throws Exception {
+        Path javaFile = tempDir.resolve(name + ".java");
+        Files.writeString(javaFile, source, StandardCharsets.UTF_8);
+        Path out = tempDir.resolve(name);
+        CompilerOptions options = new CompilerOptions();
+        options.setSourceFile(javaFile);
+        options.setOutputFile(out);
+        if (optLevel >= 0) {
+            options.setOptLevel(optLevel);
+        }
+        CompileResult result = new JNativeCompiler().compile(options);
+        if (!result.success()) {
+            return new NativeRun(false, result.diagnostics().toString(), "", "", 1);
+        }
+        ProcessBuilder pb = new ProcessBuilder(out.toAbsolutePath().toString());
+        Process process = pb.start();
+        String stdout = new String(process.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
+        String stderr = new String(process.getErrorStream().readAllBytes(), StandardCharsets.UTF_8);
+        boolean finished = process.waitFor(15, TimeUnit.SECONDS);
+        if (!finished) {
+            process.destroyForcibly();
+            return new NativeRun(false, "timeout", stdout, stderr, 124);
+        }
+        return new NativeRun(true, "", stdout, stderr, process.exitValue());
+    }
+
     private void assertStdout(String source, String expected) throws Exception {
         assertStdout(source, expected, Map.of());
     }

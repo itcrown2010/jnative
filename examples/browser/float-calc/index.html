@@ -1,0 +1,137 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>JNative FloatCalc (wasm32-browser)</title>
+  <style>
+    :root {
+      --bg: #e8f0ec;
+      --ink: #14231c;
+      --accent: #0d5c3d;
+      --err: #8b1e1e;
+      --card: #f7fbf8;
+    }
+    body {
+      margin: 0;
+      min-height: 100dvh;
+      font-family: "Source Serif 4", "Iowan Old Style", Georgia, serif;
+      color: var(--ink);
+      background:
+        radial-gradient(900px 500px at 0% 0%, #c5e4d4 0%, transparent 55%),
+        radial-gradient(700px 400px at 100% 10%, #d7e0c8 0%, transparent 50%),
+        var(--bg);
+      padding: 1.5rem;
+    }
+    h1 { margin: 0 0 0.35rem; font-size: 1.75rem; letter-spacing: -0.02em; }
+    .sub { opacity: 0.7; margin-bottom: 1.25rem; }
+    label { display: block; margin: 0.75rem 0 0.25rem; font-size: 0.9rem; }
+    input, select {
+      width: min(28rem, 100%);
+      font: inherit;
+      font-size: 1.15rem;
+      padding: 0.55rem 0.7rem;
+      border: 1px solid #b7c7bc;
+      border-radius: 0.3rem;
+      background: var(--card);
+    }
+    button {
+      margin-top: 1rem;
+      font: inherit;
+      font-size: 1.05rem;
+      padding: 0.65rem 1.1rem;
+      border: none;
+      border-radius: 0.35rem;
+      background: var(--accent);
+      color: #f4fff8;
+      cursor: pointer;
+    }
+    .result { margin-top: 1.25rem; font-size: 1.6rem; font-variant-numeric: tabular-nums; }
+    .status { min-height: 1.25rem; margin-top: 0.5rem; }
+    .status.error { color: var(--err); }
+    .note { margin-top: 1.5rem; max-width: 36rem; font-size: 0.85rem; opacity: 0.65; }
+  </style>
+</head>
+<body>
+  <h1>FloatCalc</h1>
+  <p class="sub">Arithmetic runs in WASM (f64). Host only parses/displays.</p>
+
+  <label for="left">Left (decimal, optional sign / exponent)</label>
+  <input id="left" value="123.5" autocomplete="off"/>
+
+  <label for="op">Operator</label>
+  <select id="op">
+    <option value="0">+</option>
+    <option value="1">−</option>
+    <option value="2">×</option>
+    <option value="3">÷</option>
+  </select>
+
+  <label for="right">Right</label>
+  <input id="right" value="456.25" autocomplete="off"/>
+
+  <button id="go" type="button">Compute in WASM</button>
+
+  <div class="result">Result: <span id="result">—</span></div>
+  <div id="status" class="status"></div>
+  <p class="note">
+    Parsing uses ASCII '.' only (not locale commas). Display uses JS Number formatting;
+    bit-identical Java Double.toString is not promised. Change FloatCalc.java and rebuild to prove non-template execution.
+  </p>
+
+  <script type="module">
+    import { jnativeStart } from './app.js';
+
+    const errEl = document.getElementById('status');
+    const resultEl = document.getElementById('result');
+
+    function setStatus(msg, isErr) {
+      errEl.textContent = msg || '';
+      errEl.className = isErr ? 'status error' : 'status';
+    }
+
+    /** ASCII-only float parse; rejects empty / NaN from garbage. */
+    function parseInput(s) {
+      const t = (s ?? '').trim();
+      if (!t) return { ok: false, msg: 'empty input' };
+      if (/[^\d.eE+\-]/.test(t)) return { ok: false, msg: 'illegal characters (use ASCII digits and .)' };
+      if (t.includes(',')) return { ok: false, msg: 'comma decimal not accepted' };
+      const n = Number(t);
+      if (!Number.isFinite(n) && t.toLowerCase() !== 'infinity' && t.toLowerCase() !== '+infinity'
+          && t.toLowerCase() !== '-infinity') {
+        if (t.toLowerCase() === 'nan') return { ok: true, value: NaN };
+        return { ok: false, msg: 'not a number' };
+      }
+      return { ok: true, value: n };
+    }
+
+    function formatOut(n) {
+      if (Object.is(n, -0)) return '-0';
+      if (Number.isNaN(n)) return 'NaN';
+      if (n === Infinity) return 'Infinity';
+      if (n === -Infinity) return '-Infinity';
+      return String(n);
+    }
+
+    const { findExport } = await jnativeStart('./app.wasm', { autoStart: true });
+    const compute = findExport('FloatCalc_compute_f64_f64_i32');
+    if (typeof compute !== 'function') {
+      setStatus('missing FloatCalc_compute export — rebuild from source', true);
+    } else {
+      setStatus('WASM ready', false);
+    }
+
+    document.getElementById('go').addEventListener('click', () => {
+      if (typeof compute !== 'function') return;
+      const a = parseInput(document.getElementById('left').value);
+      const b = parseInput(document.getElementById('right').value);
+      if (!a.ok) { resultEl.textContent = '—'; setStatus(a.msg, true); return; }
+      if (!b.ok) { resultEl.textContent = '—'; setStatus(b.msg, true); return; }
+      const op = Number(document.getElementById('op').value) | 0;
+      const r = compute(a.value, b.value, op);
+      resultEl.textContent = formatOut(r);
+      setStatus('OK (WASM)', false);
+    });
+  </script>
+</body>
+</html>

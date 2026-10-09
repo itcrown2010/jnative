@@ -1,0 +1,8 @@
+[package]
+name = "moneykit"
+namespace = "acme"
+version = "1.0.0"
+description = "Fixed-point money helpers (integer cents) — third-party source package"
+license = "MIT"
+type = "source"
+min_compiler = "0.33"

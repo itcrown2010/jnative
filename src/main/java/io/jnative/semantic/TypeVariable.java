@@ -38,10 +38,25 @@ public record TypeVariable(TypeParameterSymbol symbol) implements JType {
             return true;
         }
         if (other instanceof TypeVariable tv) {
-            return symbol == tv.symbol() || symbol.name().equals(tv.symbol().name());
+            return symbol == tv.symbol()
+                    || (symbol.name().equals(tv.symbol().name())
+                    && sameOwner(symbol, tv.symbol()));
         }
-        // Concrete types assigned into T checked via inference/substitution context.
-        return true;
+        // Inside a generic body, only values of type T (or null) may be stored in T.
+        // Concrete types require substitution at the call site (e.g. Box<String>.set).
+        return false;
+    }
+
+    private static boolean sameOwner(TypeParameterSymbol a, TypeParameterSymbol b) {
+        if (a.ownerType() != null && b.ownerType() != null) {
+            return a.ownerType().name().equals(b.ownerType().name());
+        }
+        if (a.ownerMethod() != null && b.ownerMethod() != null) {
+            return a.ownerMethod().name().equals(b.ownerMethod().name())
+                    && a.ownerMethod().owner().name().equals(b.ownerMethod().owner().name());
+        }
+        return a.ownerType() == null && b.ownerType() == null
+                && a.ownerMethod() == null && b.ownerMethod() == null;
     }
 
     @Override

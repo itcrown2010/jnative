@@ -23,9 +23,10 @@ public final class FunctionalInterfaceAnalyzer {
         Map<String, MethodSymbol> abstractMethods = new LinkedHashMap<>();
         for (InterfaceMethodSlot slot : iface.slots()) {
             MethodSymbol m = slot.method();
-            if (isObjectMethod(m)) {
+            if (!countsAsAbstractSamCandidate(m)) {
                 continue;
             }
+            // Equivalent inherited declarations collapse by signature key.
             abstractMethods.put(sigKey(m), m);
         }
         if (abstractMethods.size() == 1) {
@@ -41,12 +42,25 @@ public final class FunctionalInterfaceAnalyzer {
 
     public static List<MethodSymbol> abstractMethods(InterfaceSymbol iface) {
         List<MethodSymbol> out = new ArrayList<>();
+        Map<String, MethodSymbol> seen = new LinkedHashMap<>();
         for (InterfaceMethodSlot slot : iface.slots()) {
-            if (!isObjectMethod(slot.method())) {
-                out.add(slot.method());
+            MethodSymbol m = slot.method();
+            if (!countsAsAbstractSamCandidate(m)) {
+                continue;
             }
+            seen.putIfAbsent(sigKey(m), m);
         }
+        out.addAll(seen.values());
         return out;
+    }
+
+    /** Abstract candidates only — Object methods excluded; non-abstract defaults (when present) skipped. */
+    private static boolean countsAsAbstractSamCandidate(MethodSymbol m) {
+        if (isObjectMethod(m)) {
+            return false;
+        }
+        // Default/interface bodies are not modeled yet; treat non-abstract as non-SAM-candidate.
+        return m.isAbstract() || m.interfaceOwner() != null;
     }
 
     private static boolean isObjectMethod(MethodSymbol m) {
