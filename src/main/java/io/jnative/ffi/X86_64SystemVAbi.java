@@ -1,3 +1,8 @@
+/*
+ * Copyright (c) 2026 张晓达
+ * SPDX-License-Identifier: MIT
+ */
+
 package io.jnative.ffi;
 
 /** System V AMD64 (Linux/macOS x86_64).

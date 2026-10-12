@@ -1,3 +1,8 @@
+/*
+ * Copyright (c) 2026 张晓达
+ * SPDX-License-Identifier: MIT
+ */
+
 /**
  * Minimal JSON library (0.21) — pure JNative, no compiler intrinsics.
  * @author 张晓达

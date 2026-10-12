@@ -1,3 +1,8 @@
+/*
+ * Copyright (c) 2026 张晓达
+ * SPDX-License-Identifier: MIT
+ */
+
 // JNative Collections Framework (0.16) — library code, NOT compiler intrinsics.
 // Namespace: jnative.collections / jnative.function (flattened; no package system yet).
 //

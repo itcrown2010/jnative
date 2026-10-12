@@ -1,3 +1,8 @@
+/*
+ * Copyright (c) 2026 张晓达
+ * SPDX-License-Identifier: MIT
+ */
+
 package io.jnative.incremental;
 
 import io.jnative.build.BuildTargetSpec;
@@ -378,7 +383,10 @@ public final class CompilerSession {
         }
         Path main = findMainSource(target);
         if (main == null || !Files.isRegularFile(main)) {
-            errors.add("main source not found for target " + target.name());
+            errors.add("main source not found for target " + target.name()
+                    + " (expected " + target.mainClass() + ".jn or "
+                    + target.mainClass() + ".java under module source roots;"
+                    + " check jnative.project \"main\")");
             return;
         }
         String rel = projectRoot.relativize(main).toString().replace('\\', '/');

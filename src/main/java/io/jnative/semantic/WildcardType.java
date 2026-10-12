@@ -1,3 +1,8 @@
+/*
+ * Copyright (c) 2026 张晓达
+ * SPDX-License-Identifier: MIT
+ */
+
 package io.jnative.semantic;
 
 /** Wildcard: {@code ?}, {@code ? extends T}, {@code ? super T}.

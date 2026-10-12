@@ -1,3 +1,8 @@
+/*
+ * Copyright (c) 2026 张晓达
+ * SPDX-License-Identifier: MIT
+ */
+
 // JNative Net addressing / DNS / UDP (Core Completion Round 4).
 // TCP remains compiler builtins (TcpSocket/TcpServer). This unit is library + C ABI.
 

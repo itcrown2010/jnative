@@ -2,6 +2,7 @@
 
 - **对外文档站源码**：`website/`（VitePress，中文为主）
 - **事实与阶段元数据**：本目录（`FACT_INVENTORY.md`、`CAPABILITY_MATRIX.md`、`STAGES.md`、`DIAGNOSTICS.md`、`BUILD_ARTIFACTS.md`）
+- **公开前许可材料**：[`../legal/`](../legal/)（不替代正式法律意见）
 - **本地预览**：`cd website && npm install && npm run dev`
 - **静态构建**：`cd website && npm run build` → `website/.vitepress/dist`
 - **不自动公开部署**；需要时由维护者手动发布静态产物

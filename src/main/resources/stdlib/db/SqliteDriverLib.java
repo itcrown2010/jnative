@@ -1,3 +1,8 @@
+/*
+ * Copyright (c) 2026 张晓达
+ * SPDX-License-Identifier: MIT
+ */
+
 // JNative SQLite driver (0.24) — sqlite3 via @Native FFI, all I/O on worker pool.
 
 /**

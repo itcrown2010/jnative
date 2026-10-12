@@ -1,3 +1,8 @@
+/*
+ * Copyright (c) 2026 张晓达
+ * SPDX-License-Identifier: MIT
+ */
+
 // JNative Database stdlib (0.24) — jnative.db core: URL parsing, pool, metrics, driver SPI.
 
 /**

@@ -54,3 +54,17 @@ jnative lsp: [info] starting (stdio) version=0.32 (extension expects matching jn
 jnative lsp: completion items=1 at 17:13
 jnative lsp: [info] analyzeUnits files=10 ms=444 scope=03-order
 jnative lsp: [info] analyzeUnits files=10 ms=243 scope=03-order fresh
+jnative lsp: [info] starting (stdio) version=0.32 (extension expects matching jnative.jar)
+jnative lsp: completion items=1 at 3:13
+jnative lsp: [info] analyzeUnits files=1 ms=12 scope=01-minimal
+jnative lsp: [info] analyzeUnits files=1 ms=5 scope=01-minimal fresh
+jnative lsp: exit
+jnative lsp: [info] starting (stdio) version=0.32 (extension expects matching jnative.jar)
+jnative lsp: completion items=1 at 10:13
+jnative lsp: [info] analyzeUnits files=7 ms=31 scope=02-multicu
+jnative lsp: [info] analyzeUnits files=7 ms=10 scope=02-multicu fresh
+jnative lsp: exit
+jnative lsp: [info] starting (stdio) version=0.32 (extension expects matching jnative.jar)
+jnative lsp: completion items=1 at 17:13
+jnative lsp: [info] analyzeUnits files=10 ms=394 scope=03-order
+jnative lsp: [info] analyzeUnits files=10 ms=204 scope=03-order fresh

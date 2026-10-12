@@ -1,6 +1,7 @@
 .vscode/**
 .vscode-test/**
 src/**
+!templates/**
 tsconfig.json
 **/*.ts
 **/*.map
@@ -12,6 +13,7 @@ scripts/**
 DELIVERY-*.md
 TROUBLESHOOTING.md
 verify-artifacts/**
+# Keep templates/ and docs/ for scaffolding & welcome fallback
 # Keep production deps (vscode-languageclient); drop the rest of node_modules.
 node_modules/**
 !node_modules/vscode-languageclient/**

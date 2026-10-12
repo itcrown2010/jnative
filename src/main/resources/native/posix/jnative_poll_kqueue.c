@@ -1,3 +1,7 @@
+/* Copyright (c) 2026 张晓达
+ * SPDX-License-Identifier: MIT
+ */
+
 /* Author: 张晓达 */
 /*
  * JNative 0.23 — macOS kqueue poller with EVFILT_USER cross-thread wakeup.

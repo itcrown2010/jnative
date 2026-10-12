@@ -1,3 +1,8 @@
+/*
+ * Copyright (c) 2026 张晓达
+ * SPDX-License-Identifier: MIT
+ */
+
 package io.jnative.ffi;
 
 /** Windows x86_64 ABI stub (same fixed-width mappings for 0.7 primitives).

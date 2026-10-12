@@ -1,3 +1,8 @@
+/*
+ * Copyright (c) 2026 张晓达
+ * SPDX-License-Identifier: MIT
+ */
+
 // JNative Text Engine + CodeEditor (0.20) — library/runtime, NOT compiler intrinsics.
 // Depends on: collections, ui, graphics (prepended by StdlibIncluder).
 

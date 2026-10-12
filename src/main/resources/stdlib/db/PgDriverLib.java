@@ -1,3 +1,8 @@
+/*
+ * Copyright (c) 2026 张晓达
+ * SPDX-License-Identifier: MIT
+ */
+
 // JNative PostgreSQL wire protocol driver (0.24) — AsyncTcpSocket, extended query, MD5 auth.
 // 0.31: TLS reserved via SecureTransport / TlsConnection (sslmode=require foundation).
 

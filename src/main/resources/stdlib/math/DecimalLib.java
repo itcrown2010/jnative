@@ -1,3 +1,8 @@
+/*
+ * Copyright (c) 2026 张晓达
+ * SPDX-License-Identifier: MIT
+ */
+
 // JNative Decimal Core (0.33) — reusable base-10 arithmetic (no BigDecimal JVM type).
 // Value = sign * digits / 10^scale, where digits is an absolute decimal integer string.
 // Rounding: ROUND_HALF_UP. Division uses configurable scale (default 32).

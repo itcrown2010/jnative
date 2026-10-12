@@ -1,3 +1,8 @@
+/*
+ * Copyright (c) 2026 张晓达
+ * SPDX-License-Identifier: MIT
+ */
+
 package io.jnative.lsp;
 
 import io.jnative.ast.ClassDeclaration;

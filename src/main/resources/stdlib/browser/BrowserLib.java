@@ -1,3 +1,8 @@
+/*
+ * Copyright (c) 2026 张晓达
+ * SPDX-License-Identifier: MIT
+ */
+
 // JNative Browser (0.26) — DOM / console / storage via JsHandle.
 // Bodies are stubs for semantic analysis; wasm32-browser backend lowers real calls to JS imports.
 // DOM/fetch are NOT compiler intrinsics.

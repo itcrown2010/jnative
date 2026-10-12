@@ -1,3 +1,8 @@
+/*
+ * Copyright (c) 2026 张晓达
+ * SPDX-License-Identifier: MIT
+ */
+
 // Author: 张晓达
 import * as fs from 'fs';
 import * as path from 'path';
@@ -17,23 +22,20 @@ import {
   spawnToolchain,
   ToolchainInvocation,
 } from './toolchain';
+import { getOutput, disposeOutput } from './output';
+import { detectProjectKind } from './projectKind';
+import { rememberProject } from './recentProjects';
 import { getConfiguredTarget } from './targetContext';
+import { startWebPreview, stopPreview } from './webPreview';
+
+export { getOutput };
 
 const buildLocks = new Map<string, Promise<unknown>>();
 let runProcess: ChildProcess | undefined;
-let output: vscode.OutputChannel | undefined;
-
-export function getOutput(): vscode.OutputChannel {
-  if (!output) {
-    output = vscode.window.createOutputChannel('JNative');
-  }
-  return output;
-}
 
 export function disposeRunner(): void {
   stopRun();
-  output?.dispose();
-  output = undefined;
+  disposeOutput();
 }
 
 async function withProjectLock<T>(root: string, fn: () => Promise<T>): Promise<T> {
@@ -130,6 +132,10 @@ export async function buildProject(project: JNativeProject, debug = false): Prom
   if (!(await saveDirtySources(project.root))) {
     return { success: false };
   }
+  const kind = detectProjectKind(project);
+  if (kind === 'web') {
+    return buildWebArtifact(project);
+  }
   return withProjectLock(project.root, async () => {
     const channel = getOutput();
     channel.show(true);
@@ -137,7 +143,7 @@ export async function buildProject(project: JNativeProject, debug = false): Prom
     const folder = vscode.workspace.getWorkspaceFolder(vscode.Uri.file(project.root));
     const cfg = vscode.workspace.getConfiguration('jnative', folder?.uri);
     const extra = cfg.get<string[]>('buildArguments') ?? [];
-    const target = getConfiguredTarget(folder);
+    const target = kind === 'desktop' ? 'native' : getConfiguredTarget(folder);
     const args = [
       'build',
       '--project',
@@ -290,6 +296,30 @@ export async function buildCurrentFile(filePath: string): Promise<BuildResult> {
 }
 
 export async function runProject(project: JNativeProject): Promise<void> {
+  rememberProject(project.root);
+  const kind = detectProjectKind(project);
+  if (kind === 'web') {
+    await runWebProject(project);
+    return;
+  }
+  if (kind === 'mobile') {
+    const pick = await vscode.window.showQuickPick(
+      [
+        { label: 'Web 预览', description: 'mobile build --target web + 本地预览', id: 'web' },
+        { label: 'Android / iOS', description: '选择设备后安装运行', id: 'device' },
+      ],
+      { title: '移动项目运行方式' }
+    );
+    if (!pick) {
+      return;
+    }
+    if (pick.id === 'web') {
+      await runMobileWebPreview(project);
+      return;
+    }
+    await mobileRun(project);
+    return;
+  }
   const built = await buildProject(project, false);
   if (!built.success || !built.artifact) {
     vscode.window.showErrorMessage('构建失败，未启动运行（不会使用旧产物）。');
@@ -298,10 +328,255 @@ export async function runProject(project: JNativeProject): Promise<void> {
   await runArtifact(built.artifact, project.root);
 }
 
+/** Build wasm32-browser entry and preview dist/ (does not run stale dist on failure). */
+export async function runWebProject(project: JNativeProject): Promise<void> {
+  const inv = await requireToolchain();
+  if (!inv) {
+    return;
+  }
+  if (!(await saveDirtySources(project.root))) {
+    return;
+  }
+  return withProjectLock(project.root, async () => {
+    const channel = getOutput();
+    channel.show(true);
+    const entry = resolveWebEntry(project.root);
+    if (!entry) {
+      vscode.window.showErrorMessage('未找到 Web 入口（src/App.java 或 src/App.jn）');
+      return;
+    }
+    const dist = path.join(project.root, 'dist');
+    // Clear prior preview for this project only after we intend to rebuild
+    fs.mkdirSync(dist, { recursive: true });
+    const stamp = path.join(dist, '.jnative-build-ok');
+    if (fs.existsSync(stamp)) {
+      fs.unlinkSync(stamp);
+    }
+    channel.appendLine(`[web-build] ${entry} → ${dist}`);
+    const result = await runCapture(
+      inv,
+      [entry, '--target', 'wasm32-browser', '-o', dist, '--format', 'json'],
+      { cwd: project.root, timeoutMs: 300000 }
+    );
+    channel.appendLine(result.stdout);
+    if (result.stderr.trim()) {
+      channel.appendLine(result.stderr);
+    }
+    const report = parseBuildReport(result.stdout);
+    if (report && !report.success) {
+      applyJsonDiagnostics(project.root, report.diagnostics, project.root);
+      vscode.window.showErrorMessage('Web 构建失败，未启动预览（不会使用旧 dist）。');
+      return;
+    }
+    if (result.code !== 0 && !report?.success) {
+      vscode.window.showErrorMessage('Web 构建失败，未启动预览。');
+      return;
+    }
+    const wasm = path.join(dist, 'app.wasm');
+    const js = path.join(dist, 'app.js');
+    if (!fs.existsSync(wasm) || !fs.existsSync(js)) {
+      vscode.window.showErrorMessage('构建未产出 app.wasm/app.js，未启动预览。');
+      return;
+    }
+    const indexSrc = path.join(project.root, 'index.html');
+    if (fs.existsSync(indexSrc)) {
+      fs.copyFileSync(indexSrc, path.join(dist, 'index.html'));
+    }
+    if (!fs.existsSync(path.join(dist, 'index.html'))) {
+      vscode.window.showErrorMessage('缺少 index.html，未启动预览。');
+      return;
+    }
+    fs.writeFileSync(stamp, new Date().toISOString(), 'utf8');
+    clearProjectDiagnostics(project.root);
+    const preview = await startWebPreview(dist, channel);
+    if (preview) {
+      vscode.window.showInformationMessage(`Web 预览已启动 ${preview.url}`);
+    }
+  });
+}
+
+async function runMobileWebPreview(project: JNativeProject): Promise<void> {
+  const inv = await requireToolchain();
+  if (!inv) {
+    return;
+  }
+  const channel = getOutput();
+  channel.show(true);
+  const result = await runCapture(
+    inv,
+    ['mobile', 'build', '--target', 'web', '--project', project.root],
+    { cwd: project.root, timeoutMs: 600000 }
+  );
+  channel.appendLine(result.stdout + result.stderr);
+  if (result.code !== 0) {
+    vscode.window.showErrorMessage('移动 Web 构建失败，未启动预览。');
+    return;
+  }
+  const dist = path.join(project.root, 'dist');
+  if (!fs.existsSync(path.join(dist, 'index.html'))) {
+    vscode.window.showErrorMessage(`未找到 ${dist}/index.html`);
+    return;
+  }
+  const preview = await startWebPreview(dist, channel);
+  if (preview) {
+    vscode.window.showInformationMessage(`移动 Web 预览 ${preview.url}`);
+  }
+}
+
+function resolveWebEntry(root: string): string | undefined {
+  for (const rel of ['src/App.java', 'src/App.jn', 'src/Main.java', 'src/Main.jn']) {
+    const p = path.join(root, rel);
+    if (fs.existsSync(p)) {
+      return p;
+    }
+  }
+  return undefined;
+}
+
+/** Explain package artifacts; never auto-publish. */
+export async function packageProject(project: JNativeProject): Promise<void> {
+  const kind = detectProjectKind(project);
+  const channel = getOutput();
+  channel.show(true);
+  channel.appendLine(`[package] kind=${kind} root=${project.root}`);
+  const lines: string[] = [
+    'JNative 打包说明（不会自动发布到商店或注册表）：',
+    '',
+  ];
+  if (kind === 'web') {
+    lines.push(
+      '产物目录: dist/（app.wasm + app.js + index.html）',
+      '分发: 可将 dist/ 部署到任意静态主机。',
+      '限制: 无应用商店签名；依赖浏览器 WASM 支持。'
+    );
+  } else if (kind === 'mobile') {
+    lines.push(
+      'Web: dist/（同上）',
+      'Android: 使用 `jnative mobile build --target android` 得到调试 APK（见 CLI 输出路径）。',
+      'iOS: 模拟器构建；本阶段无商店签名 / TestFlight。',
+      '限制: 移动容器 ≠ 完整原生移动运行时。'
+    );
+  } else {
+    lines.push(
+      '产物: 项目构建输出的原生可执行文件（见 build 成功时的 Output 行）。',
+      '分发: 自行拷贝二进制及依赖的原生库；不提供自动公证/安装包。'
+    );
+  }
+  for (const l of lines) {
+    channel.appendLine(l);
+  }
+  vscode.window.showInformationMessage('打包说明已写入 JNative 输出面板（未自动发布）。');
+}
+
+export async function openTutorial(): Promise<void> {
+  const candidates = [
+    path.resolve(__dirname, '..', '..', '..', 'docs', 'tutorial', 'index.md'),
+    path.resolve(__dirname, '..', '..', '..', 'docs', 'tutorial', 'chapters', '01-jnative-是什么.md'),
+  ];
+  // Also search from workspace folders
+  for (const f of vscode.workspace.workspaceFolders ?? []) {
+    candidates.unshift(
+      path.join(f.uri.fsPath, 'docs', 'tutorial', 'index.md'),
+      path.join(f.uri.fsPath, 'docs', 'tutorial', 'chapters', '01-jnative-是什么.md')
+    );
+  }
+  for (const c of candidates) {
+    if (fs.existsSync(c)) {
+      await vscode.window.showTextDocument(vscode.Uri.file(c));
+      return;
+    }
+  }
+  // Bundled fallback inside extension
+  const bundled = path.join(
+    vscode.extensions.getExtension('jnative.jnative')?.extensionPath || path.resolve(__dirname, '..'),
+    'docs',
+    'GETTING_STARTED.md'
+  );
+  if (fs.existsSync(bundled)) {
+    await vscode.window.showTextDocument(vscode.Uri.file(bundled));
+    return;
+  }
+  vscode.window.showWarningMessage('未找到教程文件。请打开仓库 docs/tutorial/（无虚构在线链接）。');
+}
+
+export async function openExamplesDoc(): Promise<void> {
+  const candidates: string[] = [];
+  for (const f of vscode.workspace.workspaceFolders ?? []) {
+    candidates.push(path.join(f.uri.fsPath, 'examples', 'guide-hello', 'src', 'Main.jn'));
+    candidates.push(path.join(f.uri.fsPath, 'docs', 'tutorial', 'index.md'));
+  }
+  candidates.push(path.resolve(__dirname, '..', '..', '..', 'examples', 'guide-hello', 'src', 'Main.jn'));
+  for (const c of candidates) {
+    if (fs.existsSync(c)) {
+      await vscode.window.showTextDocument(vscode.Uri.file(c));
+      return;
+    }
+  }
+  vscode.window.showWarningMessage('未找到示例路径。');
+}
+
+async function buildWebArtifact(project: JNativeProject): Promise<BuildResult> {
+  const inv = await requireToolchain();
+  if (!inv) {
+    return { success: false };
+  }
+  return withProjectLock(project.root, async () => {
+    const channel = getOutput();
+    channel.show(true);
+    const entry = resolveWebEntry(project.root);
+    if (!entry) {
+      await notifyBuildFailure(channel, '未找到 Web 入口源码', []);
+      return { success: false };
+    }
+    const dist = path.join(project.root, 'dist');
+    fs.mkdirSync(dist, { recursive: true });
+    channel.appendLine(`[web-build] ${entry}`);
+    const result = await runCapture(
+      inv,
+      [entry, '--target', 'wasm32-browser', '-o', dist, '--format', 'json'],
+      { cwd: project.root, timeoutMs: 300000 }
+    );
+    channel.appendLine(result.stdout);
+    if (result.stderr.trim()) {
+      channel.appendLine(result.stderr);
+    }
+    const report = parseBuildReport(result.stdout);
+    if (report && !report.success) {
+      applyJsonDiagnostics(project.root, report.diagnostics, project.root);
+      await notifyBuildFailure(channel, 'Web 构建失败', []);
+      return { success: false };
+    }
+    if (result.code !== 0) {
+      await notifyBuildFailure(channel, 'Web 构建失败', []);
+      return { success: false };
+    }
+    const indexSrc = path.join(project.root, 'index.html');
+    if (fs.existsSync(indexSrc)) {
+      fs.copyFileSync(indexSrc, path.join(dist, 'index.html'));
+    }
+    const wasm = path.join(dist, 'app.wasm');
+    if (!fs.existsSync(wasm)) {
+      await notifyBuildFailure(channel, '未产出 app.wasm', []);
+      return { success: false };
+    }
+    clearProjectDiagnostics(project.root);
+    return { success: true, artifact: wasm };
+  });
+}
+
 /** Build with --debug then launch CodeLLDB (vadimcn.vscode-lldb). */
 export async function debugProject(project: JNativeProject): Promise<void> {
   if (!vscode.workspace.isTrusted) {
     vscode.window.showWarningMessage('工作区未受信任：禁止调试。');
+    return;
+  }
+  const kind = detectProjectKind(project);
+  if (kind === 'web' || kind === 'mobile') {
+    vscode.window.showWarningMessage(
+      kind === 'web'
+        ? 'Web/WASM 当前不支持 CodeLLDB 源码调试。请使用 Problems 与浏览器 Console。'
+        : '移动容器当前不支持扩展内 LLDB 调试。请使用平台日志与 `jnative mobile logs`。'
+    );
     return;
   }
   const { ensureCodeLldb } = await import('./debugConfig');
@@ -369,6 +644,7 @@ export async function runArtifact(artifact: string, cwd: string): Promise<void> 
 }
 
 export function stopRun(): void {
+  // Only stop processes this extension started (native run + web preview).
   if (runProcess && !runProcess.killed) {
     runProcess.kill('SIGTERM');
     const p = runProcess;
@@ -379,104 +655,44 @@ export function stopRun(): void {
     }, 2000);
   }
   runProcess = undefined;
+  stopPreview();
 }
 
-export async function createProject(): Promise<void> {
-  if (!vscode.workspace.isTrusted) {
-    vscode.window.showWarningMessage('工作区未受信任：禁止创建并调用工具链。');
-    return;
-  }
-  const inv = await requireToolchain();
-  if (!inv) {
-    return;
-  }
-  const folderUri = await vscode.window.showOpenDialog({
-    canSelectFiles: false,
-    canSelectFolders: true,
-    canSelectMany: false,
-    openLabel: '选择父目录',
-  });
-  if (!folderUri?.length) {
-    return;
-  }
-  const parent = folderUri[0].fsPath;
-  const name = await vscode.window.showInputBox({
-    prompt: '项目名称',
-    value: 'hello-jnative',
-    validateInput: (v) => (/^[A-Za-z_][A-Za-z0-9_-]*$/.test(v) ? undefined : '非法项目名'),
-  });
-  if (!name) {
-    return;
-  }
-  const target = path.join(parent, name);
-  if (fs.existsSync(path.join(target, 'jnative.project')) || fs.existsSync(path.join(target, 'src', 'Main.java'))) {
-    vscode.window.showErrorMessage(`拒绝覆盖已有文件: ${target}`);
-    return;
-  }
-  const channel = getOutput();
-  channel.show(true);
-  const result = await runCapture(inv, ['new', name, '--dir', parent, '--minimal'], {
-    cwd: parent,
-    timeoutMs: 60000,
-  });
-  channel.appendLine(result.stdout + result.stderr);
-  if (result.code !== 0) {
-    vscode.window.showErrorMessage('创建项目失败，见 JNative 输出。');
-    return;
-  }
-  const open = await vscode.window.showInformationMessage(`已创建 ${target}`, '打开项目');
-  if (open === '打开项目') {
-    await vscode.commands.executeCommand('vscode.openFolder', vscode.Uri.file(target), true);
-  }
+/** Unified create wizard (desktop / web / mobile). */
+export async function createProject(extensionPath?: string): Promise<void> {
+  const { createFromWizard } = await import('./projectWizard');
+  const ext =
+    extensionPath ||
+    vscode.extensions.getExtension('jnative.jnative')?.extensionPath ||
+    path.resolve(__dirname, '..');
+  await createFromWizard(ext);
 }
 
-export async function createMobileProject(): Promise<void> {
-  if (!vscode.workspace.isTrusted) {
-    vscode.window.showWarningMessage('工作区未受信任：禁止创建并调用工具链。');
-    return;
-  }
-  const inv = await requireToolchain();
-  if (!inv) {
-    return;
-  }
-  const folderUri = await vscode.window.showOpenDialog({
-    canSelectFiles: false,
-    canSelectFolders: true,
-    canSelectMany: false,
-    openLabel: '选择父目录',
-  });
-  if (!folderUri?.length) {
-    return;
-  }
-  const parent = folderUri[0].fsPath;
-  const name = await vscode.window.showInputBox({
-    prompt: '移动项目名称',
-    value: 'my-mobile-app',
-    validateInput: (v) => (/^[A-Za-z_][A-Za-z0-9_-]*$/.test(v) ? undefined : '非法项目名'),
-  });
-  if (!name) {
-    return;
-  }
-  const target = path.join(parent, name);
-  if (fs.existsSync(path.join(target, 'jnative.toml')) || fs.existsSync(path.join(target, 'src', 'App.java'))) {
-    vscode.window.showErrorMessage(`拒绝覆盖已有文件: ${target}`);
-    return;
-  }
-  const channel = getOutput();
-  channel.show(true);
-  const result = await runCapture(inv, ['new', name, '--template', 'mobile', '--dir', parent], {
-    cwd: parent,
-    timeoutMs: 120000,
-  });
-  channel.appendLine(result.stdout + result.stderr);
-  if (result.code !== 0) {
-    vscode.window.showErrorMessage('创建移动项目失败，见 JNative 输出。');
-    return;
-  }
-  const open = await vscode.window.showInformationMessage(`已创建移动项目 ${target}`, '打开项目');
-  if (open === '打开项目') {
-    await vscode.commands.executeCommand('vscode.openFolder', vscode.Uri.file(target), true);
-  }
+export async function createDesktopProject(extensionPath?: string): Promise<void> {
+  const { createFromWizard } = await import('./projectWizard');
+  const ext =
+    extensionPath ||
+    vscode.extensions.getExtension('jnative.jnative')?.extensionPath ||
+    path.resolve(__dirname, '..');
+  await createFromWizard(ext, 'desktop');
+}
+
+export async function createWebProject(extensionPath?: string): Promise<void> {
+  const { createFromWizard } = await import('./projectWizard');
+  const ext =
+    extensionPath ||
+    vscode.extensions.getExtension('jnative.jnative')?.extensionPath ||
+    path.resolve(__dirname, '..');
+  await createFromWizard(ext, 'web');
+}
+
+export async function createMobileProject(extensionPath?: string): Promise<void> {
+  const { createFromWizard } = await import('./projectWizard');
+  const ext =
+    extensionPath ||
+    vscode.extensions.getExtension('jnative.jnative')?.extensionPath ||
+    path.resolve(__dirname, '..');
+  await createFromWizard(ext, 'mobile');
 }
 
 export async function mobileDoctor(): Promise<void> {

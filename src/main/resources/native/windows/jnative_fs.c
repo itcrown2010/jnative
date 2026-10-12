@@ -1,3 +1,7 @@
+/* Copyright (c) 2026 张晓达
+ * SPDX-License-Identifier: MIT
+ */
+
 /* Author: 张晓达 */
 /* Windows filesystem ABI for JNative Explorer — UTF-16 Win32 APIs, UTF-8 at boundary. */
 #include "jnative_fs.h"

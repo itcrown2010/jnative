@@ -4,6 +4,14 @@
 
 **JNative** is an experimental ahead-of-time native compiler for a **subset** of the Java language.
 
+## Licensing（公开前说明）
+
+- 许可：**MIT**（[`LICENSE`](LICENSE)）——规定他人获得的**使用权**；不改变第三方组件自身版权。
+- 原创代码版权：权利人**个人** [`张晓达`](COPYRIGHT.md)（非公司）；见 [`NOTICE`](NOTICE)、[`docs/legal/`](docs/legal/)。
+- 第三方：[`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md)、[`third_party_licenses/`](third_party_licenses/)。
+- 贡献：[`CONTRIBUTING.md`](CONTRIBUTING.md)（默认 PR **不**等于版权转让）。
+- 材料索引：[`docs/legal/`](docs/legal/)。
+
 ```text
 Java Source
   → Lexer → Parser → AST → Semantic → JNative IR → LLVM IR → clang

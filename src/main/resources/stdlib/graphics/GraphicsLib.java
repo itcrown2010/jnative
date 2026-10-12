@@ -1,3 +1,8 @@
+/*
+ * Copyright (c) 2026 张晓达
+ * SPDX-License-Identifier: MIT
+ */
+
 // JNative Graphics stdlib (0.19) — library/runtime, NOT compiler intrinsics.
 // Public names match jnative.graphics.* (imports flattened).
 

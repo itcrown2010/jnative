@@ -1,3 +1,8 @@
+/*
+ * Copyright (c) 2026 张晓达
+ * SPDX-License-Identifier: MIT
+ */
+
 // Author: 张晓达
 import * as path from 'path';
 import * as vscode from 'vscode';
@@ -101,8 +106,12 @@ class JNativeBuildPseudoterminal implements vscode.Pseudoterminal {
         return;
       }
       cwd = root;
-      const extra = vscode.workspace.getConfiguration('jnative').get<string[]>('buildArguments') ?? [];
-      args = ['build', '--project', root, '--format', 'json', ...extra];
+      const folder = vscode.workspace.getWorkspaceFolder(vscode.Uri.file(root));
+      const cfg = vscode.workspace.getConfiguration('jnative', folder?.uri);
+      const extra = cfg.get<string[]>('buildArguments') ?? [];
+      const { getConfiguredTarget } = await import('./targetContext');
+      const target = getConfiguredTarget(folder);
+      args = ['build', '--project', root, '--target', target, '--format', 'json', ...extra];
     } else if (this.kind === 'run') {
       // Delegate to extension command for correct "build then run / no stale binary" behavior
       await vscode.commands.executeCommand('jnative.runProject');

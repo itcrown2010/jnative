@@ -1,3 +1,8 @@
+/*
+ * Copyright (c) 2026 张晓达
+ * SPDX-License-Identifier: MIT
+ */
+
 // JNative TLS stdlib (0.31) — transport-layer SecureTransport over OpenSSL backend.
 // NOT a compiler intrinsic. TLS_NATIVE capability. Browser WASM must NOT include this.
 // TLS compiler intrinsics: NONE

@@ -1,3 +1,7 @@
+/* Copyright (c) 2026 张晓达
+ * SPDX-License-Identifier: MIT
+ */
+
 /* Author: 张晓达 */
 /*
  * Windows Winsock foundation stub (0.8.2).

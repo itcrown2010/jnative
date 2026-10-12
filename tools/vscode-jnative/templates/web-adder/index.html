@@ -1,0 +1,53 @@
+<!doctype html>
+<!-- Author: 张晓达 -->
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>{{APP_NAME}} — JNative Web</title>
+  <style>
+    :root { --ink: #14201b; --bg: #eef3f0; --accent: #0f6d4c; --err: #9b2226; }
+    body {
+      margin: 0; font-family: "Songti SC", "Noto Serif SC", Georgia, serif; color: var(--ink);
+      background: radial-gradient(900px 480px at 0% 0%, #cfe8dc, transparent 55%), var(--bg);
+      min-height: 100vh; padding: 2rem 1.25rem;
+    }
+    main { max-width: 28rem; margin: 0 auto; }
+    h1 { margin: 0 0 .35rem; font-size: 1.75rem; }
+    .sub { opacity: .7; margin-bottom: 1.25rem; }
+    label { display: block; margin: .7rem 0 .25rem; font-size: .9rem; }
+    input, button { font: inherit; width: 100%; box-sizing: border-box; }
+    input { padding: .65rem .75rem; border: 1px solid #b9c7bf; border-radius: .35rem; background: #fff; }
+    button {
+      margin-top: 1rem; padding: .75rem; border: 0; border-radius: .4rem;
+      background: var(--accent); color: #f4fff9; cursor: pointer;
+    }
+    .result { margin-top: 1.1rem; font-size: 1.6rem; }
+    #status { margin-top: .75rem; min-height: 1.4em; }
+    #status.error { color: var(--err); }
+    .note { margin-top: 1.5rem; font-size: .8rem; opacity: .55; }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>{{APP_NAME}}</h1>
+    <p class="sub">Web 加法器 — 业务逻辑在 JNative WASM 中执行</p>
+    <label for="left">第一个整数</label>
+    <input id="left" inputmode="numeric" autocomplete="off" value="12"/>
+    <label for="right">第二个整数</label>
+    <input id="right" inputmode="numeric" autocomplete="off" value="30"/>
+    <button id="sum" type="button">相加</button>
+    <div class="result">结果：<span id="result">—</span></div>
+    <div id="status"></div>
+    <p class="note">修改 <code>src/App.java</code> 中的 <code>compute</code> / <code>add</code>，重新构建后刷新页面验证。勿在本 HTML 中重写加法逻辑。</p>
+  </main>
+  <script type="module">
+    import { jnativeStart } from './app.js';
+    jnativeStart().catch((e) => {
+      console.error(e);
+      const s = document.getElementById('status');
+      if (s) { s.textContent = 'WASM 加载失败：' + e; s.classList.add('error'); }
+    });
+  </script>
+</body>
+</html>

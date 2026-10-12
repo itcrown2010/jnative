@@ -1,3 +1,8 @@
+/*
+ * Copyright (c) 2026 张晓达
+ * SPDX-License-Identifier: MIT
+ */
+
 // JNative WebUI (0.27) — reactive components, view tree, batched DOM patches.
 // Namespace: jnative.webui — NOT compiler intrinsics.
 

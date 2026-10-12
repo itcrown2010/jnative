@@ -1,3 +1,8 @@
+/*
+ * Copyright (c) 2026 张晓达
+ * SPDX-License-Identifier: MIT
+ */
+
 // JNative boxed primitives (Integer / Long / Boolean; Float / Double thin).
 // valueOf caches match Java identity for Integer/Long in [-128, 127] and Boolean TRUE/FALSE.
 // Autobox/unbox is applied by the compiler; null unbox → NullPointerException.

@@ -1,3 +1,8 @@
+/*
+ * Copyright (c) 2026 张晓达
+ * SPDX-License-Identifier: MIT
+ */
+
 // JNative Async Runtime (0.23) — EventLoop + JnFuture + native IoPoller.
 // JnFuture is the stdlib promise type (compiler builtin Future is for async/await ABI).
 

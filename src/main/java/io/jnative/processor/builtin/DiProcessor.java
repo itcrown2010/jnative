@@ -1,3 +1,8 @@
+/*
+ * Copyright (c) 2026 张晓达
+ * SPDX-License-Identifier: MIT
+ */
+
 package io.jnative.processor.builtin;
 
 import io.jnative.diagnostics.SourceLocation;

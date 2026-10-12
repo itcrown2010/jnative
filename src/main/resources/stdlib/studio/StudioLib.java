@@ -1,3 +1,8 @@
+/*
+ * Copyright (c) 2026 张晓达
+ * SPDX-License-Identifier: MIT
+ */
+
 // JNative Studio application library (0.21) — ordinary JNative app code.
 // Depends on: collections, ui, graphics, editor, json, io (StdlibIncluder).
 

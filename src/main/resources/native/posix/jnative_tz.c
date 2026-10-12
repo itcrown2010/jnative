@@ -1,3 +1,7 @@
+/* Copyright (c) 2026 张晓达
+ * SPDX-License-Identifier: MIT
+ */
+
 /* Author: 张晓达 */
 /*
  * ZoneId offset lookup via platform IANA zoneinfo (TZ + localtime_r + tm_gmtoff).

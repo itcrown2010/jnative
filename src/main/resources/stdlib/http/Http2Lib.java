@@ -1,3 +1,8 @@
+/*
+ * Copyright (c) 2026 张晓达
+ * SPDX-License-Identifier: MIT
+ */
+
 // JNative HTTP/2 (0.31) — framing + HPACK + multiplexing foundation.
 // NOT a compiler intrinsic. Shares application routes via ALPN / protocol adapter.
 

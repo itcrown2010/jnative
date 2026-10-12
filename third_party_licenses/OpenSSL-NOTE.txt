@@ -1,0 +1,19 @@
+OpenSSL — license note for JNative distributors
+
+JNative does not vendor OpenSSL source code in this repository. When TLS support
+is enabled, the native runtime (`jnative_tls.c`) is compiled and linked against
+an OpenSSL installation provided by the build host (for example via Homebrew or
+the system package manager).
+
+OpenSSL license terms depend on the OpenSSL major version in use (legacy OpenSSL
+License + SSLeay, or Apache License 2.0 for OpenSSL 3.x). Distributors of
+binaries that link OpenSSL must:
+
+1. Identify the OpenSSL version actually linked on each platform build.
+2. Retain any required copyright and license notices from that OpenSSL release.
+3. Not claim OpenSSL as original JNative code.
+
+Canonical reference: https://www.openssl.org/source/license.html
+
+This note is not a substitute for the full OpenSSL license text applicable to
+your linked version.

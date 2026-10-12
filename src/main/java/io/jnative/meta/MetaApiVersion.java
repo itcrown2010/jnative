@@ -1,3 +1,8 @@
+/*
+ * Copyright (c) 2026 张晓达
+ * SPDX-License-Identifier: MIT
+ */
+
 package io.jnative.meta;
 
 /** Stable Compiler Extension API version for annotation processors (0.32).

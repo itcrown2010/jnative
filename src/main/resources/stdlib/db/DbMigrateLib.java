@@ -1,3 +1,8 @@
+/*
+ * Copyright (c) 2026 张晓达
+ * SPDX-License-Identifier: MIT
+ */
+
 // JNative DB migrations foundation (0.24) — SQL-first, no ORM.
 
 /**

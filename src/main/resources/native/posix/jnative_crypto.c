@@ -1,3 +1,7 @@
+/* Copyright (c) 2026 张晓达
+ * SPDX-License-Identifier: MIT
+ */
+
 /* Author: 张晓达 */
 /* JNative crypto runtime (0.25) — CSPRNG + integer bitwise helpers for SHA/HMAC. */
 #include <stdint.h>

@@ -1,0 +1,19 @@
+{
+  "name": "{{APP_NAME}}",
+  "modules": [
+    {
+      "name": "main",
+      "kind": "desktop",
+      "src": "src"
+    }
+  ],
+  "targets": [
+    {
+      "name": "default",
+      "triple": "native",
+      "module": "main",
+      "main": "Main",
+      "output": ".jnative/build/app"
+    }
+  ]
+}

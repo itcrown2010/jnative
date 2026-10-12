@@ -1,3 +1,8 @@
+/*
+ * Copyright (c) 2026 张晓达
+ * SPDX-License-Identifier: MIT
+ */
+
 // JNative Web (0.22) — ordinary library over HttpLib / TcpServer. No compiler web intrinsics.
 
 interface WebHandler {

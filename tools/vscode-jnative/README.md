@@ -2,34 +2,35 @@
 
 作者：张晓达
 
-在 VS Code 中创建、编辑、构建并运行 **JNative** 原生控制台程序。
+在 VS Code 中创建、编辑、构建并运行 **JNative** 桌面 / Web / 移动应用（统一入口）。
 
 > 编译工具需要 Java；生成的应用运行时 **不需要 JVM**。  
-> JNative 只支持语言子集，**不是**完整 Java SE，也不消费任意 JAR。
+> JNative 只支持语言子集，**不是**完整 Java SE，也不消费任意 JAR。  
+> 移动容器编译为 wasm32-browser，**不是**完整原生移动运行时。
 
 ## 安装
 
 1. 构建仓库 CLI：`mvn -q -DskipTests package`（生成 `target/jnative.jar`）。
 2. 安装扩展 VSIX：
 
-先打包（会带上 `vscode-languageclient`，勿加 `--no-dependencies`）：
-
 ```bash
 cd tools/vscode-jnative && npm install && npm run package
+"/Applications/Visual Studio Code.app/Contents/Resources/app/bin/code" \
+  --install-extension tools/vscode-jnative/jnative-0.8.0.vsix --force
 ```
 
-再安装：
+确认扩展版本为 **0.8.0**，且 `jnative.jarPath` 指向当前仓库的 `target/jnative.jar`。  
+入门：命令 **「JNative: 打开入门」**；交付：`DELIVERY-0.8.0.md`；矩阵：`SUPPORT_MATRIX.md`。
 
-```bash
-"/Applications/Visual Studio Code.app/Contents/Resources/app/bin/code" \
-  --uninstall-extension jnative.jnative
-"/Applications/Visual Studio Code.app/Contents/Resources/app/bin/code" \
-  --install-extension tools/vscode-jnative/jnative-0.6.0.vsix --force
-```
+## 统一命令
 
-确认扩展版本为 **0.6.0**，且 `jnative.jarPath` 指向当前仓库的 `target/jnative.jar`（与 LSP 一致）。  
-交付：`DELIVERY-0.6.0.md`；故障排查：`TROUBLESHOOTING.md`。  
-验收：`node scripts/lsp-smoke.mjs`；三类项目：`node scripts/acceptance-e2e.mjs`。
+| 命令 | 作用 |
+|------|------|
+| 打开入门 | 欢迎页（版本 / 工具链 / 创建 / 教程） |
+| 创建项目 | 向导：桌面 / Web / 移动（同一加法业务） |
+| 检查工具链 | SDK + 分目标摘要 |
+| 选择目标 | `native` / `wasm32-browser` |
+| 构建 / 运行 / 调试 / 打包 / 停止 | 按项目类型执行；失败不跑旧产物 |
 
 ## 工具链配置（优先级）
 

@@ -1,0 +1,19 @@
+{
+  "name": "{{APP_NAME}}",
+  "modules": [
+    {
+      "name": "main",
+      "kind": "browser",
+      "src": "src"
+    }
+  ],
+  "targets": [
+    {
+      "name": "web",
+      "triple": "wasm32-browser",
+      "module": "main",
+      "main": "App",
+      "output": "dist"
+    }
+  ]
+}

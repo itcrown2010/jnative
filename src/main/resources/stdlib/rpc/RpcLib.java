@@ -1,3 +1,8 @@
+/*
+ * Copyright (c) 2026 张晓达
+ * SPDX-License-Identifier: MIT
+ */
+
 // JNative RPC Runtime (0.28) — envelopes, HTTP client helper, errors.
 // NOT compiler intrinsics. Generated stubs call into this library.
 // No generic methods — avoid GenericLowering cycles.

@@ -1,3 +1,8 @@
+/*
+ * Copyright (c) 2026 张晓达
+ * SPDX-License-Identifier: MIT
+ */
+
 // JNative Time Core (Round 2) — minimum java.time-compatible profile.
 // Wall clock vs monotonic: Instant/Clock use wall; Duration measurement should use Clock.monotonic / monoNanos.
 // ZoneId named zones resolve offsets via platform IANA zoneinfo (jnative_tz_*).

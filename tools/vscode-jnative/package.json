@@ -1,8 +1,8 @@
 {
   "name": "jnative",
   "displayName": "JNative",
-  "description": "Develop JNative native programs in VS Code (subset of Java → native, no JVM at runtime).",
-  "version": "0.7.0",
+  "description": "JNative 桌面 / Web / 移动统一开发入口（.jn → 原生或 WASM，无 JVM 运行时）。",
+  "version": "0.8.0",
   "publisher": "jnative",
   "engines": {
     "vscode": "^1.85.0"
@@ -14,18 +14,25 @@
   "keywords": [
     "jnative",
     "native",
-    "java"
+    "java",
+    "wasm",
+    "mobile"
   ],
   "activationEvents": [
     "onLanguage:jnative",
     "workspaceContains:**/jnative.project",
+    "workspaceContains:**/jnative.toml",
     "onCommand:jnative.createProject",
+    "onCommand:jnative.createWebProject",
+    "onCommand:jnative.createDesktopProject",
+    "onCommand:jnative.showWelcome",
     "onCommand:jnative.checkToolchain",
     "onCommand:jnative.openAsJNative",
     "onCommand:jnative.debugProject",
     "onCommand:jnative.generateLaunchJson",
     "onCommand:jnative.showLanguageServerLog",
     "onCommand:jnative.restartLanguageServer",
+    "onCommand:jnative.openTutorial",
     "onDebugInitialConfigurations",
     "onDebugDynamicConfigurations:lldb"
   ],
@@ -67,20 +74,44 @@
         "title": "JNative: 检查工具链"
       },
       {
+        "command": "jnative.showWelcome",
+        "title": "JNative: 打开入门"
+      },
+      {
         "command": "jnative.createProject",
         "title": "JNative: 创建项目"
       },
       {
+        "command": "jnative.createDesktopProject",
+        "title": "JNative: 创建桌面项目"
+      },
+      {
+        "command": "jnative.createWebProject",
+        "title": "JNative: 创建 Web 项目"
+      },
+      {
         "command": "jnative.buildProject",
-        "title": "JNative: 构建项目"
+        "title": "JNative: 构建"
       },
       {
         "command": "jnative.runProject",
-        "title": "JNative: 运行项目"
+        "title": "JNative: 运行"
       },
       {
         "command": "jnative.debugProject",
-        "title": "JNative: 调试项目"
+        "title": "JNative: 调试"
+      },
+      {
+        "command": "jnative.packageProject",
+        "title": "JNative: 打包"
+      },
+      {
+        "command": "jnative.openTutorial",
+        "title": "JNative: 打开教程"
+      },
+      {
+        "command": "jnative.openExamples",
+        "title": "JNative: 打开示例"
       },
       {
         "command": "jnative.generateLaunchJson",
@@ -96,7 +127,7 @@
       },
       {
         "command": "jnative.stopRun",
-        "title": "JNative: 停止运行"
+        "title": "JNative: 停止"
       },
       {
         "command": "jnative.showOutput",
@@ -132,9 +163,17 @@
       },
       {
         "command": "jnative.selectTarget",
-        "title": "JNative: 选择编译目标"
+        "title": "JNative: 选择目标"
       }
     ],
+    "menus": {
+      "commandPalette": [
+        {
+          "command": "jnative.resolveDebugProgram",
+          "when": "false"
+        }
+      ]
+    },
     "configuration": {
       "title": "JNative",
       "properties": {

@@ -1,3 +1,8 @@
+/*
+ * Copyright (c) 2026 张晓达
+ * SPDX-License-Identifier: MIT
+ */
+
 package io.jnative.cli;
 
 import io.jnative.Main;
@@ -437,6 +442,14 @@ public final class CliDispatcher {
                                     Integer.parseInt(m.group(2)),
                                     Integer.parseInt(m.group(3))),
                             m.group(5)));
+                } else {
+                    // Session-level messages (e.g. missing main) have no file:line — keep them
+                    // so --format json / VS Code Problems are not empty on failure.
+                    out.add(io.jnative.diagnostics.Diagnostic.error(
+                            io.jnative.diagnostics.DiagnosticCodes.SOURCE_SEMANTIC,
+                            io.jnative.diagnostics.SourceLocation.UNKNOWN,
+                            t,
+                            "Check jnative.project \"main\" and source roots, then rebuild."));
                 }
             }
         }

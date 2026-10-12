@@ -1,3 +1,8 @@
+/*
+ * Copyright (c) 2026 张晓达
+ * SPDX-License-Identifier: MIT
+ */
+
 // JNative Crypto (0.25) — CSPRNG, SHA-1/256, HMAC, Base64, ConstantTime, PBKDF2, JWT HS256.
 // SHA-1 is ONLY for WebSocket handshake. Passwords use PBKDF2-HMAC-SHA256 (Argon2id planned).
 

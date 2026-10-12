@@ -1,3 +1,8 @@
+/*
+ * Copyright (c) 2026 张晓达
+ * SPDX-License-Identifier: MIT
+ */
+
 // JNative HTTP/1.1 stdlib (0.8.3) — pure JNative above TcpSocket. NOT a compiler intrinsic.
 
 class HttpException extends IOException {

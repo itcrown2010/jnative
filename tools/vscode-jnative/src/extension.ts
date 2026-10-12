@@ -1,3 +1,8 @@
+/*
+ * Copyright (c) 2026 张晓达
+ * SPDX-License-Identifier: MIT
+ */
+
 // Author: 张晓达
 import * as vscode from 'vscode';
 import { disposeAllDiagnostics } from './diagnostics';
@@ -22,18 +27,24 @@ import {
 import {
   buildCurrentFile,
   buildProject,
+  createDesktopProject,
   createMobileProject,
   createProject,
+  createWebProject,
   debugProject,
   disposeRunner,
   getOutput,
   mobileBuild,
   mobileDoctor,
   mobileRun,
+  openExamplesDoc,
+  openTutorial,
+  packageProject,
   resolveDebugProgram,
   runProject,
   stopRun,
 } from './runner';
+import { initRecentProjects, rememberProject } from './recentProjects';
 import { registerTaskProvider } from './tasks';
 import { checkToolchain, promptMissingToolchain, resolveToolchain } from './toolchain';
 import {
@@ -41,8 +52,10 @@ import {
   refreshTargetStatus,
   selectTargetCommand,
 } from './targetContext';
+import { maybeShowWelcome, showWelcome } from './welcome';
 
 export async function activate(context: vscode.ExtensionContext): Promise<void> {
+  initRecentProjects(context);
   registerTaskProvider(context);
   await refreshTargetStatus(context);
 
@@ -59,6 +72,8 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     )
   );
 
+  const extPath = context.extensionPath;
+
   context.subscriptions.push(
     vscode.commands.registerCommand('jnative.openAsJNative', async () => {
       const editor = vscode.window.activeTextEditor;
@@ -73,11 +88,22 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         return;
       }
       const result = await checkToolchain(vscode.workspace.workspaceFolders);
+      const { checkToolchainDetailed } = await import('./toolchainDetailed');
+      const detailed = await checkToolchainDetailed(vscode.workspace.workspaceFolders);
       const channel = getOutput();
       channel.clear();
       channel.show(true);
       for (const line of result.lines) {
         channel.appendLine(line);
+      }
+      channel.appendLine('--- 分目标摘要 ---');
+      channel.appendLine(
+        `桌面: ${detailed.okDesktop ? '可用' : '未就绪'} · Web: ${detailed.okWeb ? '可用' : '未就绪'} · Android: ${
+          detailed.okAndroid ? '可用' : '未就绪'
+        } · iOS: ${detailed.okIos ? '可用' : '未就绪'}`
+      );
+      for (const it of detailed.items) {
+        channel.appendLine(`[${it.status}] ${it.name}: ${it.detail || ''}`);
       }
       if (!result.ok) {
         await promptMissingToolchain('工具链检查未通过，请查看 JNative 输出。');
@@ -85,8 +111,10 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         vscode.window.showInformationMessage('JNative 工具链检查完成（见输出面板）。');
       }
     }),
-    vscode.commands.registerCommand('jnative.createProject', () => createProject()),
-    vscode.commands.registerCommand('jnative.createMobileProject', () => createMobileProject()),
+    vscode.commands.registerCommand('jnative.createProject', () => createProject(extPath)),
+    vscode.commands.registerCommand('jnative.createDesktopProject', () => createDesktopProject(extPath)),
+    vscode.commands.registerCommand('jnative.createWebProject', () => createWebProject(extPath)),
+    vscode.commands.registerCommand('jnative.createMobileProject', () => createMobileProject(extPath)),
     vscode.commands.registerCommand('jnative.mobileDoctor', () => mobileDoctor()),
     vscode.commands.registerCommand('jnative.mobileBuild', async () => {
       const editor = vscode.window.activeTextEditor?.document.uri.fsPath;
@@ -110,11 +138,11 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       if (!project) {
         return;
       }
+      rememberProject(project.root);
       const r = await buildProject(project);
       if (r.success) {
         vscode.window.showInformationMessage('构建成功');
       }
-      // failures already notify with Problems / Output actions
     }),
     vscode.commands.registerCommand('jnative.runProject', async () => {
       const editor = vscode.window.activeTextEditor?.document.uri.fsPath;
@@ -124,6 +152,17 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       }
       await runProject(project);
     }),
+    vscode.commands.registerCommand('jnative.packageProject', async () => {
+      const editor = vscode.window.activeTextEditor?.document.uri.fsPath;
+      const project = await pickProject(vscode.workspace.workspaceFolders, editor);
+      if (!project) {
+        return;
+      }
+      await packageProject(project);
+    }),
+    vscode.commands.registerCommand('jnative.openTutorial', () => openTutorial()),
+    vscode.commands.registerCommand('jnative.openExamples', () => openExamplesDoc()),
+    vscode.commands.registerCommand('jnative.showWelcome', () => showWelcome(context)),
     vscode.commands.registerCommand('jnative.showLanguageServerLog', () => {
       getLspLog().show(true);
     }),
@@ -156,7 +195,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     }),
     vscode.commands.registerCommand('jnative.stopRun', () => {
       stopRun();
-      vscode.window.showInformationMessage('已请求停止运行');
+      vscode.window.showInformationMessage('已停止本扩展启动的运行/预览任务');
     }),
     vscode.commands.registerCommand('jnative.showOutput', () => getOutput().show(true)),
     vscode.commands.registerCommand('jnative.openManifest', async () => {
@@ -177,6 +216,10 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       if (e) {
         void maybeSetJNativeLanguage(e.document);
         void refreshTargetStatus(context);
+        const p = findProjectForFile(e.document.fileName);
+        if (p) {
+          rememberProject(p.root);
+        }
       }
     }),
     vscode.workspace.onDidChangeConfiguration((e) => {
@@ -199,6 +242,8 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   if (vscode.workspace.isTrusted) {
     await startLanguageServer(context);
   }
+
+  void maybeShowWelcome(context);
 }
 
 export async function deactivate(): Promise<void> {
@@ -223,7 +268,6 @@ async function maybeSetJNativeLanguage(doc: vscode.TextDocument): Promise<void> 
     return;
   }
   if (isJn) {
-    // .jn is always JNative (contributes.languages also maps it).
     await vscode.languages.setTextDocumentLanguage(doc, 'jnative');
     return;
   }
@@ -234,8 +278,6 @@ async function maybeSetJNativeLanguage(doc: vscode.TextDocument): Promise<void> 
   if (!fileBelongsToProject(doc.fileName, project)) {
     return;
   }
-  // Avoid stealing language from ordinary Java projects: only auto-switch inside
-  // recognized JNative source roots.
   await vscode.languages.setTextDocumentLanguage(doc, 'jnative');
 }
 

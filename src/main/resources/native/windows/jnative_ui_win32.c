@@ -1,3 +1,7 @@
+/* Copyright (c) 2026 张晓达
+ * SPDX-License-Identifier: MIT
+ */
+
 /* Author: 张晓达 */
 /* Win32 UI backend (0.17/0.18). CreateWindowEx + common controls. */
 #include <windows.h>

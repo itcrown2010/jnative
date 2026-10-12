@@ -1,3 +1,8 @@
+/*
+ * Copyright (c) 2026 张晓达
+ * SPDX-License-Identifier: MIT
+ */
+
 // JNative Auth (0.25) — Session, Auth, CSRF, RateLimit, SecurityHeaders.
 
 /**

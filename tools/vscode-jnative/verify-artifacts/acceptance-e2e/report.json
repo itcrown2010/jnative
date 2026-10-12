@@ -1,5 +1,5 @@
 {
-  "when": "2026-10-09T05:33:26.331Z",
+  "when": "2026-10-09T06:05:57.509Z",
   "acceptanceRoot": "/tmp/jnative-acceptance-20261009-132524",
   "jar": "/Users/zhangxiaoda/jnative/target/jnative.jar",
   "results": [
@@ -10,13 +10,13 @@
         {
           "name": "coldInitialize",
           "ok": true,
-          "ms": 345,
+          "ms": 111,
           "detail": "{\"triggerCharacters\":[\".\"],\"resolveProvider\":false}"
         },
         {
           "name": "completion.unsaved",
           "ok": true,
-          "ms": 348,
+          "ms": 113,
           "detail": "__accTmp"
         },
         {
@@ -34,19 +34,19 @@
         {
           "name": "rename",
           "ok": true,
-          "ms": 93,
+          "ms": 16,
           "detail": "edits=1"
         },
         {
           "name": "format",
           "ok": true,
-          "ms": 10,
+          "ms": 4,
           "detail": "edits=0"
         },
         {
           "name": "build",
           "ok": true,
-          "ms": 830,
+          "ms": 169,
           "detail": "exit=0 success=true diags=0 registry=/tmp/jnative-acceptance-20261009-132524/registry-order"
         },
         {
@@ -78,13 +78,13 @@
         {
           "name": "coldInitialize",
           "ok": true,
-          "ms": 204,
+          "ms": 95,
           "detail": "{\"triggerCharacters\":[\".\"],\"resolveProvider\":false}"
         },
         {
           "name": "completion.unsaved",
           "ok": true,
-          "ms": 612,
+          "ms": 105,
           "detail": "__accTmp"
         },
         {
@@ -96,25 +96,25 @@
         {
           "name": "definition",
           "ok": true,
-          "ms": 16,
+          "ms": 6,
           "detail": "file:///tmp/jnative-acceptance-20261009-132524/02-multicu/src/Service.jn"
         },
         {
           "name": "rename",
           "ok": true,
-          "ms": 60,
+          "ms": 21,
           "detail": "edits=1"
         },
         {
           "name": "format",
           "ok": true,
-          "ms": 7,
+          "ms": 2,
           "detail": "edits=0"
         },
         {
           "name": "build",
           "ok": true,
-          "ms": 719,
+          "ms": 325,
           "detail": "exit=1 success=false diags=2 registry=/tmp/jnative-acceptance-20261009-132524/registry-order [knownIssue: upstream example build]",
           "knownIssue": true
         },
@@ -147,13 +147,13 @@
         {
           "name": "coldInitialize",
           "ok": true,
-          "ms": 218,
+          "ms": 94,
           "detail": "{\"triggerCharacters\":[\".\"],\"resolveProvider\":false}"
         },
         {
           "name": "completion.unsaved",
           "ok": true,
-          "ms": 556,
+          "ms": 289,
           "detail": "__accTmp"
         },
         {
@@ -171,19 +171,19 @@
         {
           "name": "rename",
           "ok": true,
-          "ms": 295,
+          "ms": 227,
           "detail": "edits=1"
         },
         {
           "name": "format",
           "ok": true,
-          "ms": 10,
+          "ms": 4,
           "detail": "edits=0"
         },
         {
           "name": "build",
           "ok": true,
-          "ms": 1163,
+          "ms": 715,
           "detail": "exit=1 success=false diags=4 registry=/tmp/jnative-acceptance-20261009-132524/registry-order [knownIssue: upstream example build]",
           "knownIssue": true
         },

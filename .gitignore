@@ -18,3 +18,18 @@ Methods
 # JNative incremental/project caches
 .jnative/
 **/.jnative/
+
+# Secrets / local credentials (does NOT purge git history)
+*.pem
+*.key
+*.p12
+*.pfx
+*.jks
+*.keystore
+id_rsa
+id_rsa.*
+.env
+.env.*
+!**/.env.example
+# Keep tracked demo certs if explicitly force-added; prefer not to add private keys:
+examples/https/certs/*.key

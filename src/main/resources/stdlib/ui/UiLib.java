@@ -1,3 +1,8 @@
+/*
+ * Copyright (c) 2026 张晓达
+ * SPDX-License-Identifier: MIT
+ */
+
 // JNative UI stdlib (0.18) — Advanced controls. Library/runtime, NOT compiler intrinsics.
 // Public names match jnative.ui.* (imports are accepted and flattened).
 // Depends on jnative.collections (ArrayList) when advanced controls are used.

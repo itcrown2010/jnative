@@ -1,3 +1,8 @@
+/*
+ * Copyright (c) 2026 张晓达
+ * SPDX-License-Identifier: MIT
+ */
+
 // JNative FsPath / Files / Process (0.21) — library + thin C ABI, no compiler JSON/FS intrinsics.
 
 class FsNative {

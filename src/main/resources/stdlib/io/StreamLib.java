@@ -1,3 +1,8 @@
+/*
+ * Copyright (c) 2026 张晓达
+ * SPDX-License-Identifier: MIT
+ */
+
 // JNative IO Streams / ByteBuffer (Core Completion Round 4).
 // Contract: InputStream.read → -1 at EOF (never 0 for single-byte read unless byte value 0).
 // Partial native I/O: File streams loop until requested length, EOF, or error.

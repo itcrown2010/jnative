@@ -1,3 +1,8 @@
+/*
+ * Copyright (c) 2026 张晓达
+ * SPDX-License-Identifier: MIT
+ */
+
 // JNative Math stdlib (0.33+)
 // Floating Math uses IEEE 754 / libm semantics (NaN/Infinity, not domain exceptions).
 // Integer abs(MIN_VALUE) follows two's-complement Java-compatible wrap.
