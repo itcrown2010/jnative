@@ -327,6 +327,9 @@ class UiNative {
     @Native(symbol = "jnative_ui_system_dark")
     static native int systemDark();
 
+    @Native(symbol = "jnative_ui_set_appearance_mode")
+    static native void setAppearanceModeNative(int mode);
+
     @Native(symbol = "jnative_ui_context_menu_show")
     static native int contextMenuShow(int menuId, int screenX, int screenY);
 
@@ -871,6 +874,8 @@ class Application {
                 c.firePaint();
             } else if (eventCode == 14) {
                 c.fireTimer();
+            } else if (eventCode == 15) {
+                c.fireHeader(UiNative.eventArg0());
             }
         } catch (RuntimeException ex) {
             System.out.println("Uncaught UI exception: " + ex.getMessage());
@@ -1421,6 +1426,10 @@ class Component {
     }
 
     void fireSelect(int index) {
+    }
+
+    /** Table column header click; arg is column index. Default no-op. */
+    void fireHeader(int colIndex) {
     }
 
     void fireToggle(int selected) {
@@ -2340,8 +2349,18 @@ class Button extends Control {
         ensureAlive("Button.setChromeStyle");
         chromeStyle = style;
         if (style == 1) {
-            prefWidth = 30;
-            width = 30;
+            /* Glyph toolbar icons stay ~30pt; text labels (e.g. 结束进程) size to content. */
+            int n = 0;
+            if (text != null) {
+                n = text.length();
+            }
+            if (n <= 2) {
+                prefWidth = 30;
+                width = 30;
+            } else {
+                prefWidth = buttonPrefWidth(text);
+                width = prefWidth;
+            }
             prefHeight = 28;
             height = 28;
         } else if (style == 2) {
@@ -2374,8 +2393,14 @@ class Button extends Control {
         }
         text = t;
         if (chromeStyle == 1) {
-            prefWidth = 34;
-            width = 34;
+            int n = text.length();
+            if (n <= 2) {
+                prefWidth = 34;
+                width = 34;
+            } else {
+                prefWidth = buttonPrefWidth(text);
+                width = prefWidth;
+            }
         } else {
             prefWidth = buttonPrefWidth(text);
             width = prefWidth;
@@ -2883,6 +2908,7 @@ class TableView<T> extends Control {
     ArrayList<ColumnRenderer<T>> columns;
     SelectionModel<T> selection;
     ArrayList<EventHandler<SelectionEvent<T>>> selectionHandlers;
+    ArrayList<EventHandler<SelectionEvent<T>>> headerHandlers;
     ArrayList<int> sortedIndex;
     int sortColumn;
     int sortAsc;
@@ -2894,6 +2920,7 @@ class TableView<T> extends Control {
         columns = new ArrayList<ColumnRenderer<T>>();
         selection = new SelectionModel<T>();
         selectionHandlers = new ArrayList<EventHandler<SelectionEvent<T>>>();
+        headerHandlers = new ArrayList<EventHandler<SelectionEvent<T>>>();
         sortedIndex = new ArrayList<int>();
         sortColumn = -1;
         sortAsc = 1;
@@ -2906,6 +2933,21 @@ class TableView<T> extends Control {
         nativeId = UiNative.createControl(15, 0, "");
         UiHandleRegistry.put(nativeId, this);
         UiNative.setVisibleRows(nativeId, visibleRows);
+    }
+
+    void onHeaderClick(EventHandler<SelectionEvent<T>> handler) {
+        if (handler != null) {
+            headerHandlers.add(handler);
+        }
+    }
+
+    void fireHeader(int colIndex) {
+        SelectionEvent<T> ev = new SelectionEvent<T>(this, colIndex, null);
+        int i = 0;
+        while (i < headerHandlers.size()) {
+            headerHandlers.get(i).handle(ev);
+            i = i + 1;
+        }
     }
 
     void setIconPathProvider(TableIconPathProvider<T> provider) {
@@ -3459,6 +3501,22 @@ class Dialogs {
     }
 
     /**
+     * Terminate choose sheet: 1 = SIGTERM, 2 = SIGKILL, 0 = cancel.
+     */
+    static int terminateChoose(Window owner, String title, String message) {
+        Application.checkUiThread("Dialogs.terminateChoose");
+        int wid = 0;
+        if (owner != null) {
+            wid = owner.nativeId;
+        }
+        String t = title;
+        if (t == null || t.length() == 0) {
+            t = "结束进程";
+        }
+        return UiNative.dialogMessage(wid, 4, t, message);
+    }
+
+    /**
      * Simple prompt foundation — confirms suggested value (full text dialog TBD).
      * Returns null if cancelled.
      */
@@ -3719,7 +3777,10 @@ class Theme {
     static String TEXT_PRIMARY = "textPrimary";
     static String ACCENT = "accent";
     static String SELECTION = "selection";
-    static void setAppearanceMode(int mode) { appearanceMode = mode; }
+    static void setAppearanceMode(int mode) {
+        appearanceMode = mode;
+        UiNative.setAppearanceModeNative(mode);
+    }
     static int getAppearanceMode() { return appearanceMode; }
     static int isDarkEffective() {
         if (appearanceMode == MODE_DARK) { return 1; }

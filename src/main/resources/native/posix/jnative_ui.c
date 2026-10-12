@@ -99,6 +99,9 @@ __attribute__((weak)) void jnative_ui_platform_timer_disarm(int32_t timerId) {
     (void)timerId;
 }
 
+__attribute__((weak)) void jnative_ui_platform_set_appearance_mode(int32_t mode) {
+    (void)mode;
+}
 __attribute__((weak)) int32_t jnative_ui_platform_available(void) { return 0; }
 __attribute__((weak)) void jnative_ui_platform_init(int32_t headless) { (void)headless; }
 __attribute__((weak)) void jnative_ui_platform_run_loop(void) {}
@@ -813,6 +816,11 @@ int32_t jnative_ui_system_dark(void) {
         return jnative_ui_platform_system_dark();
     }
     return -1;
+}
+void jnative_ui_set_appearance_mode(int32_t mode) {
+    if (g_platform_active && !g_headless) {
+        jnative_ui_platform_set_appearance_mode(mode);
+    }
 }
 int32_t jnative_ui_context_menu_show(int32_t menuId, int32_t screenX, int32_t screenY) {
     if (g_platform_active && !g_headless) {

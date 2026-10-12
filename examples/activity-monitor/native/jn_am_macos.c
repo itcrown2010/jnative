@@ -244,8 +244,10 @@ char *jn_am_snapshot(void) {
         int32_t nthreads = -1;
         char name[PROC_PIDPATHINFO_MAXSIZE];
         char user[64];
+        char path[PROC_PIDPATHINFO_MAXSIZE];
         name[0] = '\0';
         user[0] = '\0';
+        path[0] = '\0';
 
         struct proc_bsdinfo bsd;
         memset(&bsd, 0, sizeof(bsd));
@@ -307,8 +309,16 @@ char *jn_am_snapshot(void) {
             continue;
         }
 
+        int pn = proc_pidpath(pid, path, sizeof(path));
+        if (pn > 0 && path[0] != '\0') {
+            flags |= 128;
+        } else {
+            path[0] = '\0';
+        }
+
         sanitize_field(name);
         sanitize_field(user);
+        sanitize_field(path);
         if (name[0] == '\0') {
             snprintf(name, sizeof(name), "pid-%d", (int)pid);
         }
@@ -317,11 +327,11 @@ char *jn_am_snapshot(void) {
         }
 
         if (append_fmt(&buf, &len, &cap,
-                "P\t%d\t%d\t%d\t%lld\t%d\t%lld\t%lld\t%lld\t%d\t%d\t%s\t%s\n",
+                "P\t%d\t%d\t%d\t%lld\t%d\t%lld\t%lld\t%lld\t%d\t%d\t%s\t%s\t%s\n",
                 (int)pid, (int)ppid, (int)uid,
                 (long long)start_sec, (int)start_usec,
                 (long long)cpu_ns, (long long)rss, (long long)footprint,
-                (int)nthreads, flags, user, name) != 0) {
+                (int)nthreads, flags, user, name, path) != 0) {
             free(pids);
             free(buf);
             return NULL;

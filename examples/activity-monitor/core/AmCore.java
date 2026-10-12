@@ -203,6 +203,7 @@ class AmFlags {
     static int FOOTPRINT = 16;
     static int NTHREADS = 32;
     static int BSD = 64;
+    static int PATH = 128;
 }
 
 class AmSignals {
@@ -224,6 +225,7 @@ class AmProcSample {
     int flags;
     String user;
     String name;
+    String path;
 
     AmProcSample() {
         pid = 0;
@@ -238,6 +240,7 @@ class AmProcSample {
         flags = 0;
         user = "";
         name = "";
+        path = "";
     }
 
     String identityKey() {
@@ -706,13 +709,9 @@ class AmParse {
                     s.flags = intOr(c.get(10), 0);
                     s.user = c.get(11);
                     s.name = c.get(12);
-                    /* name may contain restored fields if more tabs — join rest */
-                    if (c.size() > 13) {
-                        int k = 13;
-                        while (k < c.size()) {
-                            s.name = s.name + " " + c.get(k);
-                            k = k + 1;
-                        }
+                    s.path = "";
+                    if (c.size() >= 14) {
+                        s.path = c.get(13);
                     }
                     snap.procs.add(s);
                     snap.parseOk = 1;
@@ -877,7 +876,7 @@ class AmFormat {
     }
 
     static String waiting() {
-        return "等待采样";
+        return "—";
     }
 
     static String cpuPct(int milli) {

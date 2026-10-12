@@ -24,11 +24,11 @@ void jn_am_free(char *p);
  *     cpu_ticks_user\tcpu_ticks_system\tcpu_ticks_idle\tcpu_ticks_nice\terr
  *
  * Process lines:
- *   P\tpid\tppid\tuid\tstart_sec\tstart_usec\tcpu_ns\trss\tfootprint\tnthreads\tflags\tuser\tname
+ *   P\tpid\tppid\tuid\tstart_sec\tstart_usec\tcpu_ns\trss\tfootprint\tnthreads\tflags\tuser\tname\tpath
  *
  * flags bits:
- *   1 name  2 user  4 cpu_ns  8 rss  16 footprint  32 nthreads  64 bsd_ok
- * Tab/newline in name/user are replaced with space. Missing fields use -1 and clear flag bits.
+ *   1 name  2 user  4 cpu_ns  8 rss  16 footprint  32 nthreads  64 bsd_ok  128 path
+ * Tab/newline in name/user/path are replaced with space. Missing fields use -1 and clear flag bits.
  */
 char *jn_am_snapshot(void);
 

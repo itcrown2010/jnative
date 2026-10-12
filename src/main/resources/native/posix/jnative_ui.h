@@ -46,7 +46,9 @@ enum {
     JN_UI_EVENT_FOCUS = 11,
     JN_UI_EVENT_MENU = 12,
     JN_UI_EVENT_PAINT = 13,
-    JN_UI_EVENT_TIMER = 14
+    JN_UI_EVENT_TIMER = 14,
+    /** Table/outline header click; arg0 = column index. */
+    JN_UI_EVENT_HEADER = 15
 };
 
 /* Mouse / key subtypes packed into event arg0 for KEY/MOUSE/FOCUS. */
@@ -233,6 +235,10 @@ void jnative_ui_canvas_present(int32_t id, int32_t surfaceId);
 /* UI timer (fires JN_UI_EVENT_TIMER on handleId; UI thread). */
 int32_t jnative_ui_timer_start(int32_t intervalMs, int32_t handleId);
 void jnative_ui_timer_stop(int32_t timerId);
+
+/* Appearance: 0=system, 1=light, 2=dark. */
+void jnative_ui_set_appearance_mode(int32_t mode);
+void jnative_ui_platform_set_appearance_mode(int32_t mode);
 
 /* Clipboard (platform + headless buffer). */
 int32_t jnative_clipboard_set_text(const char *text);

@@ -293,7 +293,25 @@ static NSImage *jn_icon_for_kind(NSString *kind, BOOL isGroup) {
     if ([k containsString:@"text"] || [k containsString:@"code"] || [k hasSuffix:@" source"]) {
         return jn_symbol(@"doc.text", NSImageNameFolder);
     }
-    return jn_symbol(@"doc", NSImageNameFolder);
+    /* Activity Monitor: second TSV field is often PID (digits) — use process glyph. */
+    if (k.length > 0) {
+        BOOL digits = YES;
+        NSUInteger i;
+        for (i = 0; i < k.length; i++) {
+            unichar ch = [k characterAtIndex:i];
+            if (ch < '0' || ch > '9') {
+                digits = NO;
+                break;
+            }
+        }
+        if (digits) {
+            return jn_symbol(@"gearshape", NSImageNameApplicationIcon);
+        }
+    }
+    if ([k containsString:@"process"] || [k containsString:@"app"]) {
+        return jn_symbol(@"app.dashed", NSImageNameApplicationIcon);
+    }
+    return jn_symbol(@"gearshape", NSImageNameApplicationIcon);
 }
 
 /** Prefer OS file icon (NSWorkspace); fall back to kind heuristic. */
@@ -402,12 +420,39 @@ static NSTableCellView *jn_make_cell(NSString *ident, BOOL withIcon) {
         [cell.imageView setContentTintColor:nil];
         cell.textField.textColor = [NSColor labelColor];
         cell.textField.font = [NSFont systemFontOfSize:13.0];
+        [cell.textField setAlignment:NSTextAlignmentLeft];
+        [cell.textField setToolTip:value];
     } else {
         cell.imageView.image = nil;
         cell.textField.textColor = [NSColor secondaryLabelColor];
-        cell.textField.font = [NSFont systemFontOfSize:12.0];
+        cell.textField.font = [NSFont monospacedDigitSystemFontOfSize:12.0
+                                                               weight:NSFontWeightRegular];
+        NSString *ctitle = tableColumn.title ?: @"";
+        BOOL right = [ctitle containsString:@"%"]
+                || [ctitle containsString:@"PID"]
+                || [ctitle containsString:@"线程"]
+                || [ctitle containsString:@"Threads"]
+                || [ctitle containsString:@"内存"]
+                || [ctitle containsString:@"Memory"]
+                || [ctitle containsString:@"RSS"]
+                || [ctitle containsString:@"占用"]
+                || [ctitle containsString:@"CPU"];
+        [cell.textField setAlignment:right ? NSTextAlignmentRight : NSTextAlignmentLeft];
+        [cell.textField setToolTip:value];
     }
     return cell;
+}
+
+- (void)tableView:(NSTableView *)tableView didClickTableColumn:(NSTableColumn *)tableColumn {
+    (void)tableView;
+    if (tableColumn == nil || tableColumn.identifier == nil) {
+        return;
+    }
+    int32_t col = (int32_t)[tableColumn.identifier integerValue];
+    int32_t peerId = self.peerId;
+    dispatch_async(dispatch_get_main_queue(), ^{
+        jnative_ui_emit_event_ex(peerId, JN_UI_EVENT_HEADER, col, 0, 0, 0);
+    });
 }
 
 - (void)tableViewSelectionDidChange:(NSNotification *)notification {
@@ -814,6 +859,20 @@ void jnative_ui_platform_wakeup(void) {
     });
 }
 
+void jnative_ui_platform_set_appearance_mode(int32_t mode) {
+    if (!g_cocoa_active) {
+        return;
+    }
+    /* 0=system, 1=light, 2=dark — forces NSApp appearance for screenshots/tests. */
+    if (mode == 1) {
+        [NSApp setAppearance:[NSAppearance appearanceNamed:NSAppearanceNameAqua]];
+    } else if (mode == 2) {
+        [NSApp setAppearance:[NSAppearance appearanceNamed:NSAppearanceNameDarkAqua]];
+    } else {
+        [NSApp setAppearance:nil];
+    }
+}
+
 int32_t jnative_ui_platform_create_window(int32_t peerId, const char *title, int32_t w, int32_t h) {
     if (!g_cocoa_active || peerId <= 0 || peerId >= JN_UI_MAX) {
         return 0;
@@ -968,10 +1027,12 @@ int32_t jnative_ui_platform_create_control(int32_t peerId, int32_t kind, int32_t
         NSTableView *table = [[NSTableView alloc] initWithFrame:scroll.bounds];
         [table setHeaderView:[[NSTableHeaderView alloc] init]];
         [table setUsesAlternatingRowBackgroundColors:YES];
-        [table setColumnAutoresizingStyle:NSTableViewLastColumnOnlyAutoresizingStyle];
-        [table setRowHeight:28.0];
+        /* Compact system-like row height (~22–26pt). */
+        [table setRowHeight:24.0];
         [table setIntercellSpacing:NSMakeSize(6.0, 1.0)];
         [table setGridStyleMask:NSTableViewGridNone];
+        /* Name (first) column absorbs leftover width — Activity Monitor / Finder style. */
+        [table setColumnAutoresizingStyle:NSTableViewFirstColumnOnlyAutoresizingStyle];
         /* Plain/full-width — Inset style looked like gray card rows (demo-ish). */
         if (@available(macOS 11.0, *)) {
             [table setStyle:NSTableViewStylePlain];
@@ -1051,6 +1112,12 @@ int32_t jnative_ui_platform_dialog_message(int32_t windowId, int32_t type,
         [alert addButtonWithTitle:@"Save"];
         [alert addButtonWithTitle:@"Don't Save"];
         [alert addButtonWithTitle:@"Cancel"];
+    } else if (type == 4) {
+        /* Terminate choose: 1=SIGTERM, 2=SIGKILL, 0=cancel */
+        [alert addButtonWithTitle:@"结束进程"];
+        [alert addButtonWithTitle:@"强制结束"];
+        [alert addButtonWithTitle:@"取消"];
+        [alert setAlertStyle:NSAlertStyleWarning];
     } else {
         [alert addButtonWithTitle:@"OK"];
     }
@@ -1058,10 +1125,10 @@ int32_t jnative_ui_platform_dialog_message(int32_t windowId, int32_t type,
         [alert setAlertStyle:NSAlertStyleCritical];
     }
     NSModalResponse r = [alert runModal];
-    if (type == 3) {
-        if (r == NSAlertFirstButtonReturn) return 1;      /* Save */
-        if (r == NSAlertSecondButtonReturn) return 2;     /* Don't Save */
-        return 0;                                        /* Cancel */
+    if (type == 3 || type == 4) {
+        if (r == NSAlertFirstButtonReturn) return 1;
+        if (r == NSAlertSecondButtonReturn) return 2;
+        return 0;
     }
     return (r == NSAlertFirstButtonReturn) ? 1 : 0;
 }
@@ -1403,19 +1470,35 @@ void jnative_ui_platform_table_set_columns(int32_t peerId, const char *titles_ts
         NSTableColumn *col = [[NSTableColumn alloc]
             initWithIdentifier:[NSString stringWithFormat:@"%lu", (unsigned long)i]];
         [col setTitle:title];
+        /* Heuristic widths: name grows; PID/CPU/mem/threads stay compact. */
         if (i == 0) {
             [col setWidth:280.0];
             [col setMinWidth:140.0];
+        } else if ([title containsString:@"PID"]) {
+            [col setWidth:88.0];
+            [col setMinWidth:72.0];
+        } else if ([title containsString:@"用户"] || [title containsString:@"User"]) {
+            [col setWidth:140.0];
+            [col setMinWidth:100.0];
+        } else if ([title containsString:@"CPU"] || [title containsString:@"%"]) {
+            [col setWidth:88.0];
+            [col setMinWidth:72.0];
+        } else if ([title containsString:@"线程"] || [title containsString:@"Threads"]) {
+            [col setWidth:64.0];
+            [col setMinWidth:52.0];
+        } else if ([title containsString:@"内存"] || [title containsString:@"Memory"]
+                || [title containsString:@"RSS"] || [title containsString:@"占用"]) {
+            [col setWidth:108.0];
+            [col setMinWidth:84.0];
         } else if (i == 1) {
-            /* Date Modified — room for "YYYY-MM-DD HH:MM" without ellipsis. */
-            [col setWidth:168.0];
-            [col setMinWidth:140.0];
+            [col setWidth:88.0];
+            [col setMinWidth:72.0];
         } else if (i == 2) {
-            [col setWidth:90.0];
-            [col setMinWidth:60.0];
+            [col setWidth:140.0];
+            [col setMinWidth:100.0];
         } else {
-            [col setWidth:120.0];
-            [col setMinWidth:80.0];
+            [col setWidth:100.0];
+            [col setMinWidth:64.0];
         }
         [tv addTableColumn:col];
     }
