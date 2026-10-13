@@ -128,11 +128,26 @@ gh repo edit itcrown2010/jnative \
 
 ---
 
+## Follow-up rewrite (2026-10-13, second pass)
+
+English pages under `docs/en/` and the root `README.md` were **rewritten from the implementation**, not re-translated:
+
+- Pipeline text matches `JNativeCompiler.compile` (layout → frontend → processors/RPC → effects → generics → IR → async → opt → LLVM|wasm → link).
+- Package map points at real `io.jnative.*` directories.
+- Default `-O2` documented from `CompilerOptions`; project/`-Odev` distinction noted.
+- GC2 / precise roots / NATIVE-mode blocking described from runtime docs + sources.
+- `website/en/index.md` now points at `docs/en/` instead of calling Chinese the only docs.
+
+Hello World re-verified: `guide-hello` → `Hello, JNative!`. Relative links in `docs/en/` OK.
+
+---
+
 ## Recommended Next Steps
 
 1. Enable GitHub Security Advisories + wire `SECURITY.md` contact.
 2. Add CI workflow that builds the JAR and runs a smoke e2e on macOS/Linux.
-3. Expand `website/en/` VitePress locale to mirror `docs/en/`.
+3. Expand `website/en/` VitePress locale to mirror `docs/en/` in-tree (not only GitHub links).
 4. Gradually English-prioritize high-traffic example READMEs without deleting Chinese.
 5. Align `pom.xml` version with CLI `--version` in a dedicated PR.
 6. Run full `mvn test` on a clean agent before calling 1.0 ready.
+7. Commit/push this documentation rewrite when ready.

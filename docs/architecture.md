@@ -2,13 +2,15 @@
 
 作者：张晓达
 
+> **Public English entry:** [`docs/en/architecture.md`](en/architecture.md) (rewritten from the current `JNativeCompiler` pipeline). This file remains a denser subsystem checklist.
+
 ```text
 .java
   → Lexer / Parser / AST
   → Semantic (types, constructors, arrays, String, RTTI, exceptions, effects)
   → High-Level IR
-  → Optimization Pipeline (escape, scalar, stack, CHA/devirt, inline, DCE, …)
-  → Optimized IR
+    → Optimization Pipeline (escape, scalar, stack, CHA/devirt, inline, DCE, …)
+    → Optimized IR
   → LLVM (ClassMetadata, shadow stack, GC + exception runtime)
   → clang -On → native executable
 ```

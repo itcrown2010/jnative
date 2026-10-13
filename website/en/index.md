@@ -1,13 +1,20 @@
 ---
-title: English docs (stub)
+title: JNative (English)
 ---
 
-# JNative documentation (English stub)
+# JNative
 
-The **primary** developer documentation is in **Simplified Chinese** at the site root (`/`).
+JNative is a **Java-like**, **ahead-of-time native compiler**. It lowers a Java-style source subset to LLVM and links a **native executable**. Runtime programs do not need a JVM.
 
-This locale exists so the repository can grow a full English tree later without restructuring.
+This VitePress locale is still thin. The maintained English documentation lives in the repository:
 
-Start here: [Chinese home](/) · [Install (zh)](/guide/install) · [Hello tutorial (zh)](/tutorials/hello/)
+- [Getting Started](https://github.com/itcrown2010/jnative/blob/main/docs/en/getting-started.md)
+- [Architecture](https://github.com/itcrown2010/jnative/blob/main/docs/en/architecture.md)
+- [Language](https://github.com/itcrown2010/jnative/blob/main/docs/en/language.md)
+- [Compiler](https://github.com/itcrown2010/jnative/blob/main/docs/en/compiler.md)
+- [Runtime](https://github.com/itcrown2010/jnative/blob/main/docs/en/runtime.md)
+- [Roadmap](https://github.com/itcrown2010/jnative/blob/main/docs/en/roadmap.md)
 
-JNative is a Java-*style* **independent** native language toolchain. It is **not** a Java SE implementation and does **not** consume arbitrary JARs.
+Chinese site content (tutorials, guides) remains at the [site root](/).
+
+JNative is **not** a Java SE implementation and does **not** consume arbitrary JARs.

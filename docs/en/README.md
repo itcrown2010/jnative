@@ -1,17 +1,24 @@
-# JNative English documentation
+# English documentation
 
-Authoritative public docs for international contributors. Chinese materials remain available under [`docs/zh-CN/`](../zh-CN/README.md) and [`docs/tutorial/`](../tutorial/index.md).
+These pages are the **authoritative public docs** for international readers. They are written from the current compiler and runtime implementation—not machine-translated from Chinese tutorials.
 
-| Document | Description |
-|----------|-------------|
-| [Getting Started](getting-started.md) | Clone → build compiler → compile → run |
-| [Architecture](architecture.md) | Current compiler/runtime architecture |
-| [Language](language.md) | Supported language surface (no fiction) |
-| [Compiler](compiler.md) | CLI, IR, optimization overview |
-| [Runtime](runtime.md) | GC, exceptions, threading, I/O |
-| [Roadmap](roadmap.md) | Completed / current / next / long-term |
-| [I18N inventory](I18N_INVENTORY.md) | Pre-migration audit notes |
+Chinese materials remain available for learners who prefer them ([`../zh-CN/`](../zh-CN/README.md), [`../tutorial/`](../tutorial/index.md), [`../../website/`](../../website/README.md)).
 
-Deeper technical notes (mixed age, often English): parent [`docs/`](../) tree (`architecture.md`, `language-support.md`, `gc2.md`, …).
+| Page | Contents |
+|------|----------|
+| [Getting Started](getting-started.md) | Clone → build JAR → compile → run native binary |
+| [Architecture](architecture.md) | Real pipeline, packages, invariants |
+| [Compiler](compiler.md) | CLI, stages, where to hack |
+| [Language](language.md) | Supported Java-like surface |
+| [Runtime](runtime.md) | GC, exceptions, threads, FFI, I/O |
+| [Roadmap](roadmap.md) | Done / now / next / later |
+| [Migration report](DOCUMENTATION_MIGRATION_REPORT.md) | I18N work log |
 
-Project landing: [`../../README.md`](../../README.md).
+Project home: [`../../README.md`](../../README.md).
+
+### Normative references (may be denser / older)
+
+- [`../language-support.md`](../language-support.md) — feature audit table  
+- [`../architecture.md`](../architecture.md) — subsystem deep dive  
+- [`../1.0-release-blockers.md`](../1.0-release-blockers.md) — release honesty  
+- [`../developer/FACT_INVENTORY.md`](../developer/FACT_INVENTORY.md) — evidence-backed capability list (Chinese maintainer notes)

@@ -1,54 +1,77 @@
 # Runtime
 
-The **native runtime** is linked into programs produced by the compiler. It is not a JVM.
+Compiled JNative programs link against a small **native runtime** (C and platform code under `src/main/resources/native/`). That runtime is not a JVM: there is no bytecode interpreter, classloader, or HotSpot.
 
 ---
 
-## Garbage collection
+## Memory and GC
 
-- Default path: **GC2** generational collector (TLAB allocation, young semi-space copy, old mark-sweep).  
-- Precise rooting via shadow stacks and updatable root slots (compatible with moving GC).  
-- Multi-threaded STW with safepoint polls (allocation, method entry, loop backedges).  
+Default mode is **GC2** (generational):
 
-Docs: [`../gc2.md`](../gc2.md), [`../gc.md`](../gc.md), [`../safepoints.md`](../safepoints.md).
+- Young generation: semi-space copying with TLAB bump allocation
+- Old generation: malloc-backed mark-sweep
+- Large objects may bypass the nursery
+
+Select via environment:
+
+| `JNATIVE_GC` | Meaning |
+|--------------|---------|
+| `generational` (default) | GC2 |
+| `marksweep` | Older non-moving collector path |
+
+Roots are **precise**: shadow-stack slots and other updatable root cells so a moving collector can relocate objects. Managed Java-like references point past a GC header; unmanaged native pointers are ignored by the tracer.
+
+More detail: [`../gc2.md`](../gc2.md), [`../tlab.md`](../tlab.md).
 
 ---
 
 ## Exceptions
 
-Pending-exception style propagation; catch dispatch is encoded in IR CFG before LLVM.  
-WASM uses the same model where exceptions are supported for that target.
+The compiler encodes catch dispatch in IR. At runtime, a pending-exception flag / value propagates; LLVM does not invent Java exception tables on its own. Try-with-resources is lowered in the frontend/IR according to the declaration form supported by the language profile.
 
-Docs: [`../exceptions.md`](../exceptions.md).
-
----
-
-## Threading
-
-POSIX-backed multithreading (`jnative_mt.c` and related). Per-thread state holds roots, exception state, and MANAGED/NATIVE/SAFEPOINT modes.
-
-Docs: [`../threading.md`](../threading.md), [`../runtime-locking.md`](../runtime-locking.md).
+See [`../exceptions.md`](../exceptions.md).
 
 ---
 
-## Native FFI
+## Threads and safepoints
 
-- `@Native` methods and native structs  
-- Managed references vs unmanaged `NativePtr` / `@NativeStruct` / `@Stack`  
-- Effect annotations (`@NoGC`, `@NoThrow`, …) interact with safepoints and contracts  
+On POSIX hosts, `Thread` and locking primitives map to OS threads (`jnative_mt.c`). Each managed thread keeps a `ThreadState` (roots, exception state, MANAGED / NATIVE / SAFEPOINT). GC is stop-the-world and coordinates via safepoint polls (allocation, method entry, loop backedges). Blocking native calls enter **NATIVE** so STW does not sit on a syscall forever.
 
-Docs: [`../ffi.md`](../ffi.md), [`../native-struct.md`](../native-struct.md), [`../effects.md`](../effects.md).
+See [`../threading.md`](../threading.md), [`../safepoints.md`](../safepoints.md).
 
 ---
 
-## I/O and networking
+## Native interop
 
-| Layer | Notes |
-|-------|--------|
-| File | Builtin `File` → runtime emitter (libc-oriented today) |
-| TCP | `TcpSocket` / `TcpServer` → platform socket layer |
-| HTTP | Stdlib on TCP — not compiler intrinsics |
+| Feature | Role |
+|---------|------|
+| `@Native` / `native` methods | Lower to direct C calls (`NativeCall`) with a known ABI |
+| `@NativeStruct` / `NativePtr` | Unmanaged memory; not traced as managed refs |
+| `@Stack` native structs | `alloca`-style; never a GC allocation |
+| Effect annotations | Constrain GC/throwing/blocking behavior for optimization and safety |
 
-Platform stubs (e.g. incomplete Windows/Linux poll backends) are tracked as release blockers — do not assume production parity everywhere.
+See [`../ffi.md`](../ffi.md), [`../native-struct.md`](../native-struct.md), [`../effects.md`](../effects.md).
 
-Docs: [`../file-io.md`](../file-io.md), [`../networking.md`](../networking.md), [`../http.md`](../http.md).
+---
+
+## I/O stack
+
+```text
+Language / stdlib API
+        ↓
+LLVM runtime emitters (File, Network, …)
+        ↓
+Platform C (posix today; windows stubs where incomplete)
+```
+
+- **Files** — no `FILE*` in the public API  
+- **TCP** — no raw socket handles; blocking I/O  
+- **HTTP** — pure stdlib (`stdlib/http`) on TCP  
+
+Treat Linux async poll and Windows networking as **incomplete** until the release-blocker list says otherwise.
+
+---
+
+## Configuration knobs (GC)
+
+Common environment variables (see `gc2.md` for defaults): `JNATIVE_YOUNG_SIZE`, `JNATIVE_TLAB_SIZE`, `JNATIVE_GC_STRESS`, `JNATIVE_GC_LOG`, `JNATIVE_GC_STATS`.

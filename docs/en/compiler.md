@@ -1,59 +1,87 @@
 # Compiler
 
-## Invoking the compiler
+The JNative compiler is a Java program (`target/jnative.jar`). It turns project or single-file sources into a **native executable** (or experimental WASM). This page is a practical map of how to drive it and where the code lives.
 
-After `mvn package`:
+---
 
-```bash
-java -jar target/jnative.jar --help
-java -jar target/jnative.jar --version
-```
+## Install the toolchain first
 
-Common forms:
+You need Java 21+, Maven, and `clang` — see [getting-started.md](getting-started.md).
 
 ```bash
-# Single source → native executable
-java -jar target/jnative.jar path/to/Main.jn -o Main
-java -jar target/jnative.jar path/to/Main.java -O2 -o Main
-
-# Project build
-java -jar target/jnative.jar build --project DIR
-
-# Diagnostics
+mvn -q -DskipTests package
+java -jar target/jnative.jar --version   # e.g. JNative 0.32
 java -jar target/jnative.jar doctor
-java -jar target/jnative.jar analyze file.jn --format json
 ```
 
-Optimization levels: `-O0` … `-O3` (see [`../optimizer.md`](../optimizer.md)). Useful flags include `--opt-report`, `--emit-ir-before-opt`, `--emit-ir-after-opt`, `--verify-ir` where supported by your build.
+---
+
+## Everyday commands
+
+```bash
+# Single file → executable (default -O2)
+java -jar target/jnative.jar path/to/Main.jn -o Main
+./Main
+
+# Optimization / inspection
+java -jar target/jnative.jar Main.java -O0 -o Main
+java -jar target/jnative.jar Main.java -O2 --opt-report
+java -jar target/jnative.jar Main.java --emit-ir-after-opt
+java -jar target/jnative.jar Main.java --debug -O0 -o Main   # DWARF + source mapping
+
+# Frontend only (no link)
+java -jar target/jnative.jar analyze Main.jn --format json
+
+# Project
+java -jar target/jnative.jar new demo
+java -jar target/jnative.jar build --project demo
+```
+
+Full flag surface: `java -jar target/jnative.jar --help`.
 
 ---
 
-## Pipeline stages (developer view)
+## What happens on `compile`
 
-1. **Parse** → AST  
-2. **Semantic** → typed program + class metadata  
-3. **IR build** → high-level IR  
-4. **Opt** → IR passes (skipped/minimal at `-O0`)  
-5. **LLVM** → bitcode/IR text + runtime linkage via `clang`
+Orchestrated by `JNativeCompiler.compile`:
 
-Key packages (Java compiler sources under `src/main/java/io/jnative/`): semantic analysis, layout, IR, `opt`, `backend.llvm`, runtime emitters.
+1. Configure pointer/layout (`LayoutConfig`) for `native` or `wasm32-browser`.
+2. Reject APIs that the **target profile** cannot support.
+3. Load stdlib + user units; lex/parse/typecheck (`MultiUnitFrontend`).
+4. Optionally run annotation processors and/or RPC generators, then re-analyze.
+5. Run `EffectAnalyzer`, then `GenericLowering`.
+6. Build IR (`IrGenerator`), run `AsyncLoweringPass` if needed.
+7. Run `OptimizationPipeline` when `-O` > 0.
+8. Either:
+   - **native:** emit LLVM IR → verify → `clang` link with runtime objects, or
+   - **wasm32-browser:** emit WASM + JS under an output directory.
 
----
-
-## Targets
-
-| Target | Status |
-|--------|--------|
-| Host native (macOS arm64 verified) | Primary |
-| `wasm32-browser` | Experimental export for Web cores |
-| Mobile | WebView shells around WASM/JS samples — not a separate ISA backend |
+Project builds (`jnative build`) go through `CompilerSession` / incremental machinery with their own default opt profile (`-Odev` / release); single-file options default to **`-O2`**.
 
 ---
 
-## Testing the compiler
+## Important modules
 
-- Unit / e2e: `src/test/java/` via `mvn test`  
-- Prefer adding regression tests next to the feature you change  
-- Native e2e depends on `clang` and host OS
+| Concern | Start here |
+|---------|------------|
+| CLI parsing | `io.jnative.cli` |
+| Pipeline driver | `io.jnative.compiler.JNativeCompiler` |
+| Options | `io.jnative.compiler.CompilerOptions` |
+| Frontend | `lexer`, `parser`, `semantic`, `MultiUnitFrontend` |
+| IR / opt | `ir`, `opt` |
+| LLVM | `backend.llvm`, `backend.llvm.runtime.*` |
+| Link | `backend.NativeLinker`, `backend.Toolchain` |
+| WASM | `backend.wasm` |
 
-See [CONTRIBUTING.md](../../CONTRIBUTING.md).
+---
+
+## Testing changes
+
+```bash
+mvn -Dtest=EndToEndTest,ExceptionEndToEndTest test
+# or a single class under src/test/java/io/jnative/e2e/
+```
+
+Prefer an e2e that compiles and runs a tiny program whenever you change observable language or runtime behavior. Host `clang` is required for native e2e.
+
+See [CONTRIBUTING.md](../../CONTRIBUTING.md) and [architecture.md](architecture.md).

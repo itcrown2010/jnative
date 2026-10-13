@@ -1,13 +1,20 @@
-# Language overview
+# Language
 
-JNative accepts Java-like source (`.java` or `.jn`). This page summarizes what is **supported** for contributors and early adopters.
+JNative source looks like a familiar subset of Java. File extensions `.java` and `.jn` are the same language; `jnative new` prefers `.jn`.
 
-**Authoritative audit:** [`../language-support.md`](../language-support.md) (feature × maturity levels).  
-**Rule:** If a feature is not listed as supported there, do not rely on it.
+This page is a **reader’s guide**. For the audited feature matrix (SUPPORTED / EXPERIMENTAL / NOT SUPPORTED), use [`../language-support.md`](../language-support.md). If something is missing there, do not depend on it.
 
 ---
 
-## Entry point
+## Mental model
+
+Write ordinary classes with `main`, fields, methods, and `System.out.println`. The compiler ahead-of-time lowers that program to machine code (or WASM). There is **no** classpath full of `rt.jar`, **no** reflection-based frameworks, and **no** promise that an arbitrary Maven JAR will compile.
+
+Stdlib that ships with JNative is included by the compiler frontend from `src/main/resources/stdlib/`.
+
+---
+
+## Hello World
 
 ```java
 public class Main {
@@ -17,64 +24,56 @@ public class Main {
 }
 ```
 
-`main(String[] args)` receives a real managed argv array on native targets.
+On native targets, `args` is a real managed `String[]` built from process argv.
 
 ---
 
-## Supported (high level)
+## What works well today
 
-| Topic | Notes |
-|-------|--------|
-| Primitives | `byte` `short` `int` `long` `float` `double` `boolean` `char` |
-| Classes | Fields, methods, `static`, constructors, `this` / `super` |
-| Inheritance | `extends`, virtual dispatch |
-| Interfaces | `implements`; **no** default/static interface methods |
-| Visibility | `public` / `private` / `protected` / package |
-| Packages / imports | Explicit type imports; no wildcard / static import |
-| Arrays | Runtime-checked |
-| Generics | Basic + specialized collections; wildcards experimental |
-| Control flow | `if`, loops, classic `switch`, `break`/`continue` (no labeled) |
-| Exceptions | `try`/`catch`/`finally`, `throw`; try-with-resources **declaration** form |
-| Lambdas / `::` | SAM callables |
-| `enum` | Basic constants + `name`/`ordinal`/`values`/`valueOf` |
-| `final` | Locals/params/class/methods; **final fields not supported** (hard error) |
-| Operators | Arithmetic, logical, bitwise, shifts, casts, `instanceof`, string `+` |
-| Annotations | Compile-time / meta subset (`@Native`, effects, …) |
+**Types & OOP** — primitives; classes with inheritance and virtual dispatch; interfaces (`implements`) without default or static interface methods; constructors with `this` / `super`; overloads; visibility modifiers; packages with explicit type imports (no `import foo.*` or static imports).
+
+**Data** — arrays with runtime checks; basic generics (collections path specializes); `enum` with `name` / `ordinal` / `values` / `valueOf`; strings with UTF-16 code-unit indexing (Java-compatible `length` / `charAt`).
+
+**Control & errors** — `if`, `while`, `for`, classic `switch`, `break` / `continue` (not labeled); `try` / `catch` / `finally`; try-with-resources in the **declaration** form; `throw`.
+
+**Modern-ish Java surface (subset)** — lambdas and method references to SAM types; a limited annotation / processor story (`@Native`, effect annotations, builtin processors).
+
+**`final`** — locals, parameters, classes, and methods are supported. **`final` fields are rejected** (hard error), not silently ignored.
 
 ---
 
-## Explicitly not Java SE / not 1.0
+## Deliberate non-goals (examples)
 
-Examples of **not supported** (or not shippable as Stable) — see the audit for the full list:
+Do not expect:
 
-- `record`, pattern matching / switch patterns  
-- Multi-catch, checked `throws` enforcement  
-- Varargs `...`  
-- Full reflection / arbitrary JAR execution  
-- Complete collections/`java.*` compatibility  
+- `record`, pattern matching, or switch patterns  
+- multi-catch or checked `throws` enforcement  
+- varargs (`...`)  
+- full `java.*` compatibility or loading third-party bytecode  
+- wildcards as a stable language feature (parsing exists; treat as experimental)
 
----
-
-## Strings
-
-UTF-16 code-unit indexing for `length` / `charAt` / `substring` (Java-compatible). Encoding helpers for UTF-8 exist for protocols. `split` uses a **literal** delimiter (not regex). Details: [`../string.md`](../string.md).
+The long list lives in the language-support audit.
 
 ---
 
-## Concurrency & async
+## Strings in one paragraph
 
-- **Threads:** `Thread`, mutex/condition/atomics — implemented with OS threads and STW GC.  
-- **`async`/`await`:** present with thin e2e; treat carefully (experimental maturity).  
+`length`, `charAt`, `substring`, and `indexOf` count **UTF-16 code units**. Helpers such as `utf8Length` / `getBytes` exist for protocols. `split(delimiter)` splits on a **literal** delimiter, not a regex.
 
 ---
 
-## Examples
+## Concurrency
 
-| Path | Purpose |
-|------|---------|
-| `examples/guide-hello/` | Minimal project / Hello |
-| `examples/Hello.java` | Single-file sample |
-| `examples/LambdaClosure.java` | Lambdas / closures |
-| `examples/tutorial/` | Tutorial companion sources |
+OS threads (`Thread`, mutexes, atomics) are real and interact with a stop-the-world GC. `async` / `await` exists with limited e2e coverage — useful for experiments, not a claim of full structured concurrency.
 
-Chinese narrative tutorial: [`../tutorial/index.md`](../tutorial/index.md).
+---
+
+## Where to look next
+
+| Resource | Use |
+|----------|-----|
+| [`../language-support.md`](../language-support.md) | Normative support table |
+| [architecture.md](architecture.md) | How the compiler implements the language |
+| `examples/guide-hello/` | Minimal project |
+| `examples/LambdaClosure.java` | Closures / callables |
+| [`../tutorial/`](../tutorial/index.md) | Longer Chinese tutorial track |

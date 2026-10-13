@@ -1,49 +1,44 @@
 # Roadmap
 
-Statuses reflect repository evidence (tests, doctor, documented audits).  
-Speculative items are labeled **planned**.
+Based on what is actually in the repository (compiler sources, e2e tests, release-blocker audits)—not on aspirations alone.
 
 ---
 
-## Completed (0.x foundation)
+## Completed foundation (0.x)
 
-Verified capabilities on at least one host (primarily macOS arm64):
+On at least one verified host (primarily **macOS arm64**):
 
-- Full AOT pipeline: lexer → parser → AST → semantic → IR → LLVM → **native executable**
-- Classes, inheritance, interfaces (without default methods), arrays, casts, overloads
-- Generics (basic), lambdas / method references, enums (basic)
-- Exceptions + try-with-resources (declaration form)
-- IR optimizer (`-O0`…`-O3`)
-- Generational GC2, precise roots, multi-thread STW
-- Native FFI / native structs / effect annotations
-- File I/O, TCP, HTTP stdlib, threading primitives
-- Project CLI (`new`, `build`, `doctor`), `.jn` templates
-- Experimental `wasm32-browser` cores and Web/mobile sample shells (guide-tasks / sudoku)
+- AOT pipeline: lex → parse → semantic → IR → optimize → LLVM → **native executable**
+- Core OOP: classes, inheritance, interfaces (no default methods), arrays, casts, overloads
+- Generics (basic), lambdas / method references, basic enums
+- Exceptions and declaration-form try-with-resources
+- IR optimizer (`-O0`…`-O3`, single-file default `-O2`)
+- Generational GC2, precise roots, multithreaded STW + safepoints
+- Native FFI / structs / effect annotations
+- File I/O, TCP, HTTP stdlib, threading APIs
+- Project CLI (`new`, `build`, `doctor`) and `.jn` templates
+- Experimental `wasm32-browser` cores used by sample apps
 
 ---
 
-## Current
+## Current focus
 
-- Hardening toward a honest **1.0** language profile ([`../language-support.md`](../language-support.md))
-- Closing **P0 release blockers** ([`../1.0-release-blockers.md`](../1.0-release-blockers.md)): CI matrix, incomplete Windows/Linux runtime pieces, security defaults where flagged
-- English-first public documentation (this `docs/en/` tree)
-- Web/mobile sample reliability (WASM + sync demos) without over-claiming store deployment
+- Honest **1.0 language profile** discipline ([`../language-support.md`](../language-support.md))
+- Clearing **P0 blockers** ([`../1.0-release-blockers.md`](../1.0-release-blockers.md)): missing multi-OS CI, incomplete Windows/Linux runtime pieces, unsafe crypto defaults where flagged
+- Keeping **English-first** public docs (`docs/en/`) aligned with the implementation
+- Stabilizing Web/mobile **samples** without claiming app-store pipelines
 
 ---
 
 ## Next
 
-- Multi-platform CI (macOS arm64 + Linux x64 at minimum; Windows when runtime is honest)
-- Package manager workflows beyond experimental CLI surface
-- Stronger LSP/IDE experience (beyond analyze-oriented diagnostics)
-- Broader e2e coverage for numeric edge cases and secondary OS
+- CI matrices that fail the build when native e2e breaks on secondary OS
+- Package-manager workflows beyond “CLI exists”
+- Deeper editor support (today’s LSP/analyze path is intentionally limited)
+- Broader numeric / concurrency edge-case coverage
 
 ---
 
-## Long-term vision (planned)
+## Longer term (planned only)
 
-- Richer standard library maturity (collections, crypto, DB, UI) with per-API verification  
-- Better cross-platform desktop/mobile story without “write once runs everywhere” marketing  
-- Optional ecosystem / registry for reusable packages  
-
-None of the long-term items are promised for a specific date.
+Richer stdlib maturity, cross-platform UI without “write once runs everywhere” marketing, and an optional package ecosystem. None of these have a committed ship date.

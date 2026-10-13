@@ -1,77 +1,51 @@
 # JNative（中文）
 
-**JNative** 是一个实验性的 **类 Java 语法**、**提前编译（AOT）原生编译器**项目。
+**JNative** 是实验性的 **类 Java 语法**、**AOT 原生编译器**。
 
-它将 Java 风格源码子集（`.java` / `.jn`）经 LLVM/`clang` 编译为**原生可执行文件**。生成的程序**运行时不需要** JVM/JRE。
+用熟悉的 Java 风格子集（`.java` / `.jn`）编写程序；编译器本身是 Java 21 程序，经私有 IR 与 LLVM，由 `clang` 链接出**原生可执行文件**。生成的程序**运行时不需要** JVM/JRE。
 
-> **不是完整 Java SE。** 不保证兼容任意第三方 JAR。
+JNative **不是**完整 Java SE，也不加载任意第三方 JAR。
 
-英文主页（默认）：[README.md](README.md) · 入门：[docs/en/getting-started.md](docs/en/getting-started.md) · 中文导航：[docs/zh-CN/](docs/zh-CN/README.md)
-
----
-
-## 为什么做 JNative？
-
-定位：**类 Java 语法 + 原生可执行文件 + 现代编译器架构**。
-
-面向想探索「Java 形状的语言如何做成原生编译器」的开发者与贡献者，而不是宣称替代完整 JDK。
+**英文为公开文档权威版本：** [README.md](README.md) · [docs/en/](docs/en/README.md)
 
 ---
 
-## 现状摘要
+## 定位
 
-CLI：`java -jar target/jnative.jar --version` → **JNative 0.32**（以 CLI 为准）。
-
-| 领域 | 状态 |
-|------|------|
-| 词法 / 语法 / AST / 语义 / IR / LLVM → 原生可执行 | ✅（macOS arm64 已验证） |
-| 类、继承、数组、转型、接口、异常、GC、FFI、线程 | ✅ |
-| `wasm32-browser`、包管理 CLI | 🚧 实验性 |
-| 多平台 CI / 完整 Java SE | 📋 规划中 / 非目标 |
-
-完整英文状态表见 [README.md](README.md)。事实清单：[docs/developer/FACT_INVENTORY.md](docs/developer/FACT_INVENTORY.md)。
+类 Java 语法 + 原生可执行文件 + 可读的编译器实现（精确 GC、效应注解、IR 优化、FFI）。不靠夸张营销；能力以实现与测试为准。
 
 ---
 
-## Hello World
-
-```java
-public class Main {
-    public static void main(String[] args) {
-        System.out.println("Hello, JNative!");
-    }
-}
-```
+## 快速开始
 
 ```bash
 mvn -q -DskipTests package
 java -jar target/jnative.jar examples/guide-hello/src/Main.jn -o Hello
 ./Hello
+# Hello, JNative!
 ```
 
----
+CLI 版本以 `java -jar target/jnative.jar --version` 为准（当前常见为 **0.32**）。
 
-## 构建
-
-```bash
-mvn package
-mvn test
-java -jar target/jnative.jar doctor
-```
-
-依赖：Java 21+、Maven 3.9+、`clang` 在 `PATH` 上。
+完整步骤（英文）：[docs/en/getting-started.md](docs/en/getting-started.md)
 
 ---
 
-## 文档
+## 中文学习路径
 
-- 英文权威文档：[`docs/en/`](docs/en/README.md)
-- 中文教程：[`docs/tutorial/`](docs/tutorial/index.md)
-- 开发者文档站：[`website/`](website/README.md)（目前中文优先）
-- 贡献：[`CONTRIBUTING.zh-CN.md`](CONTRIBUTING.zh-CN.md) / [`CONTRIBUTING.md`](CONTRIBUTING.md)
+| 资源 | 说明 |
+|------|------|
+| [docs/zh-CN/](docs/zh-CN/README.md) | 中文导航 |
+| [docs/tutorial/](docs/tutorial/index.md) | 循序渐进教程 |
+| [website/](website/README.md) | VitePress 文档站（中文界面为主） |
+| [docs/developer/FACT_INVENTORY.md](docs/developer/FACT_INVENTORY.md) | 能力 × 证据清单 |
+
+架构与语言细节请优先读英文权威页，避免与过时中文描述冲突：  
+[architecture](docs/en/architecture.md) · [language](docs/en/language.md)
 
 ---
 
-## 许可
+## 贡献与许可
 
-MIT — 见 [LICENSE](LICENSE)。原创版权说明见 [COPYRIGHT.md](COPYRIGHT.md)、[docs/legal/](docs/legal/)。
+- [CONTRIBUTING.zh-CN.md](CONTRIBUTING.zh-CN.md) / [CONTRIBUTING.md](CONTRIBUTING.md)
+- MIT — [LICENSE](LICENSE)

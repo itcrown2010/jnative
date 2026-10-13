@@ -1,60 +1,53 @@
 # JNative
 
-**JNative** is an experimental **Java-like programming language** and **ahead-of-time (AOT) native compiler**.
+**JNative** is an experimental **Java-like language** and **ahead-of-time native compiler**.
 
-It compiles a **subset** of Java-style source (`.java` / `.jn`) to a **native executable** via LLVM/`clang`. Generated programs do **not** require a JVM or JRE at runtime.
+You write a familiar subset of Java-style source (`.java` or `.jn`). The compiler—itself a Java 21 program—lowers that source through a private IR, emits LLVM IR, and links a **native executable** with `clang`. The resulting program does **not** need a JVM or JRE at runtime.
 
-> **Not Java SE.** JNative is not a complete Java Standard Edition implementation and does not run arbitrary JARs.
+JNative is **not** Java SE: it does not implement the full standard library, does not load arbitrary JARs, and does not claim HotSpot compatibility.
 
-[中文说明](README.zh-CN.md) · [Getting Started](docs/en/getting-started.md) · [Architecture](docs/en/architecture.md) · [Roadmap](docs/en/roadmap.md) · [Contributing](CONTRIBUTING.md)
-
----
-
-## Why JNative?
-
-**Java-like syntax, native executables, and a modern compiler architecture.**
-
-- Familiar `class` / `main` / `System.out.println` style for Java developers
-- AOT pipeline to machine code (no JVM at runtime)
-- Explicit runtime: GC, exceptions, threading, FFI — documented as implemented, not assumed from the JDK
-
-Motivation: explore how far a Java-shaped language can go as a **native compiler** project (LLVM backend, precise GC, effects annotations) without claiming full JDK compatibility.
+[中文](README.zh-CN.md) · [Getting Started](docs/en/getting-started.md) · [Architecture](docs/en/architecture.md) · [Language](docs/en/language.md) · [Contributing](CONTRIBUTING.md)
 
 ---
 
-## Current status
+## Why this project exists
 
-CLI reports **`JNative 0.32`** (`java -jar target/jnative.jar --version`). Maven `pom.xml` may lag; treat the CLI version as authoritative.
+**Java-shaped source, native executables, compiler internals you can read.**
 
-| Area | Status |
-|------|--------|
-| Lexer / Parser / AST | ✅ Implemented |
-| Semantic analysis / type checking | ✅ Implemented |
-| High-level IR + optimizers (`-O0`…`-O3`) | ✅ Implemented |
-| LLVM backend → native executable | ✅ Implemented (verified: **macOS arm64**) |
-| Classes, inheritance, arrays, casts | ✅ Implemented |
-| Interfaces (no default/static interface methods) | ✅ Implemented |
-| Generics (basic; wildcards experimental) | ✅ Implemented / 🚧 Experimental wildcards |
-| Lambdas / method references (SAM) | ✅ Implemented |
-| Exceptions (`try`/`catch`/`finally`, TWR decl form) | ✅ Implemented |
-| Garbage collection (generational GC2 default) | ✅ Implemented |
-| Native FFI (`@Native`, native structs) | ✅ Implemented |
-| File I/O / TCP networking / HTTP stdlib | ✅ Implemented (stdlib; maturity varies) |
-| Multithreading (`Thread`, mutexes, STW GC) | ✅ Implemented |
-| `wasm32-browser` export | 🚧 Experimental |
-| Package manager CLI | 🚧 Experimental |
-| Multi-OS CI (Linux / Windows gates) | 📋 Planned |
-| Full Java SE / arbitrary JARs | 📋 Not a goal |
+The interesting questions are compiler questions: precise GC with shadow stacks, effect annotations, IR optimization before LLVM, FFI that stays outside the managed heap, and how much “Java feel” survives without a JVM. Marketing slogans are intentionally avoided; status tables below track what actually works.
 
-Legend: ✅ Implemented (with tests on at least one host) · 🚧 In progress / experimental · 📋 Planned or out of scope.
+---
 
-Details: [Language overview](docs/en/language.md) · [Fact inventory (ZH)](docs/developer/FACT_INVENTORY.md)
+## Status at a glance
+
+CLI version: **`JNative 0.32`** (`java -jar target/jnative.jar --version`). Prefer that over `pom.xml` if they disagree.
+
+| Capability | State |
+|------------|-------|
+| Lexer, parser, AST, semantic analysis | ✅ |
+| High-level IR + optimizer (`-O0`…`-O3`, default `-O2` for single-file) | ✅ |
+| LLVM backend → native executable | ✅ on **macOS arm64** (primary verified host) |
+| Classes, inheritance, arrays, casts, interfaces* | ✅ |
+| Generics (basic); wildcards | ✅ / 🚧 wildcards |
+| Lambdas & method references (SAM) | ✅ |
+| Exceptions + declaration-form try-with-resources | ✅ |
+| Generational GC (GC2), precise roots | ✅ |
+| Native FFI (`@Native`, native structs) | ✅ |
+| File I/O, TCP, HTTP stdlib, threads | ✅ (maturity varies by API/OS) |
+| `wasm32-browser` | 🚧 experimental |
+| Package manager / mobile CLI | 🚧 experimental |
+| Multi-OS CI (Linux / Windows) | 📋 planned |
+| Full Java SE / arbitrary JARs | ❌ not a goal |
+
+\*Interfaces without default or static methods.
+
+✅ = implemented with tests on at least one host · 🚧 = experimental · 📋 = planned · ❌ = out of scope
 
 ---
 
 ## Hello, World
 
-Actual syntax used by the project templates (verified against the current compiler):
+Verified against the current compiler (`examples/guide-hello/src/Main.jn`):
 
 ```java
 public class Main {
@@ -68,7 +61,7 @@ public class Main {
 mvn -q -DskipTests package
 java -jar target/jnative.jar examples/guide-hello/src/Main.jn -o Hello
 ./Hello
-# → Hello, JNative!
+# Hello, JNative!
 ```
 
 ---
@@ -77,63 +70,47 @@ java -jar target/jnative.jar examples/guide-hello/src/Main.jn -o Hello
 
 ```mermaid
 flowchart TD
-  A[Source .java / .jn] --> B[Lexer]
-  B --> C[Parser]
-  C --> D[AST]
-  D --> E[Semantic analysis]
-  E --> F[High-level IR]
-  F --> G[Optimizer -O0..-O3]
-  G --> H[LLVM IR]
-  H --> I[clang]
-  I --> J[Native executable]
+  A[Source .java / .jn] --> B[Lexer / Parser / AST]
+  B --> C[Semantic analysis]
+  C --> D[JNative IR]
+  D --> E[Optimizer]
+  E --> F[LLVM IR]
+  F --> G[clang + native runtime]
+  G --> H[Native executable]
 ```
 
-In short: the frontend builds an AST and typed program; lowering produces JNative IR; optional optimization passes run; the LLVM backend emits IR that `clang` links into a **native executable**. Runtime support (GC, exceptions, I/O) is linked from the project’s native runtime — not from a JVM.
-
-See [Architecture](docs/en/architecture.md).
+The frontend type-checks a Java-like program; lowering produces JNative IR; optional optimizations run; LLVM emission and `clang` produce a host binary linked with JNative’s GC/exception/I/O runtime. Details: [Architecture](docs/en/architecture.md).
 
 ---
 
-## Requirements
+## Build requirements
 
-- **Java 21+** (to run the compiler JAR)
-- **Maven 3.9+** (to build the compiler)
-- **`clang` on `PATH`** (to produce native executables)
-- Host verification today is strongest on **macOS arm64**. Linux/Windows are not claimed as fully gated in CI yet.
+- Java **21+** (compiler host)
+- Maven **3.9+**
+- **`clang`** on `PATH`
 
 ```bash
-mvn package          # build compiler → target/jnative.jar
-mvn test             # run the Java test suite (can take a while)
+mvn package
+mvn test
 java -jar target/jnative.jar doctor
 ```
-
-Full walkthrough: [Getting Started](docs/en/getting-started.md).
 
 ---
 
 ## Documentation
 
-| Doc | Description |
-|-----|-------------|
+| Link | Role |
+|------|------|
 | [docs/en/](docs/en/README.md) | **English** public docs (authoritative) |
-| [docs/zh-CN/](docs/zh-CN/README.md) | Chinese navigation / links |
+| [docs/zh-CN/](docs/zh-CN/README.md) | Chinese navigation |
 | [docs/tutorial/](docs/tutorial/index.md) | Step-by-step tutorial (Chinese) |
-| [website/](website/README.md) | VitePress doc site (Chinese-first today) |
-| [docs/architecture.md] | Deeper architecture notes |
-| [docs/language-support.md] | Feature support matrix (audit) |
+| [website/](website/README.md) | VitePress site (Chinese-first UI today) |
+| [docs/language-support.md](docs/language-support.md) | Normative feature audit |
 
 ---
 
-## Contributing
+## Contributing & license
 
-See [CONTRIBUTING.md](CONTRIBUTING.md). English-first Issues/PRs preferred. [中文贡献说明](CONTRIBUTING.zh-CN.md).
-
----
-
-## Licensing
-
-- **MIT** — [LICENSE](LICENSE)
-- Copyright holder (original code): individual author — see [COPYRIGHT.md](COPYRIGHT.md), [NOTICE](NOTICE)
-- Third-party: [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md), [docs/legal/](docs/legal/)
-
-Pull requests grant use under MIT; they do **not** by default assign copyright to the maintainer (no CLA today).
+- [CONTRIBUTING.md](CONTRIBUTING.md) · [CONTRIBUTING.zh-CN.md](CONTRIBUTING.zh-CN.md)
+- [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) · [SECURITY.md](SECURITY.md)
+- **MIT** — [LICENSE](LICENSE); copyright notes in [COPYRIGHT.md](COPYRIGHT.md)
