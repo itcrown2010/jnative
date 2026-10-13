@@ -33,3 +33,7 @@ id_rsa.*
 !**/.env.example
 # Keep tracked demo certs if explicitly force-added; prefer not to add private keys:
 examples/https/certs/*.key
+
+# Local project locks / demo build outputs
+**/jnative.lock
+examples/ui-controls-pkg/consumer/build/
