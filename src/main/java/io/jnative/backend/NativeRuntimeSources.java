@@ -92,10 +92,17 @@ public final class NativeRuntimeSources {
         // Filesystem ABI (Explorer / Desktop) — posix + Windows Win32 W APIs.
         copyResource("native/posix/jnative_fs.h", dir.resolve("jnative_fs.h"));
         if (platform == Platform.WINDOWS_X86_64) {
+            /* Host Windows (MinGW/clang): enable GC + MT so managed apps can link.
+             * Crash handler stays POSIX/Mach-only; crypto/proc/TLS remain out of Windows set. */
             sources.add(copyResource("native/windows/jnative_socket.c", dir.resolve("jnative_socket.c")));
             sources.add(copyResource("native/windows/jnative_fs.c", dir.resolve("jnative_fs.c")));
             copyResource("native/posix/jnative_string.h", dir.resolve("jnative_string.h"));
             sources.add(copyResource("native/posix/jnative_string.c", dir.resolve("jnative_string.c")));
+            copyResource("native/posix/jnative_mt.h", dir.resolve("jnative_mt.h"));
+            sources.add(copyResource("native/posix/jnative_mt.c", dir.resolve("jnative_mt.c")));
+            copyResource("native/posix/jnative_gc2.h", dir.resolve("jnative_gc2.h"));
+            sources.add(copyResource("native/posix/jnative_gc2.c", dir.resolve("jnative_gc2.c")));
+            sources.add(copyResource("native/posix/jnative_tz.c", dir.resolve("jnative_tz.c")));
         } else {
             sources.add(copyResource("native/posix/jnative_socket.c", dir.resolve("jnative_socket.c")));
             copyResource("native/posix/jnative_crash.h", dir.resolve("jnative_crash.h"));

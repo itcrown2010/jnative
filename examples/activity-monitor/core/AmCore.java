@@ -596,12 +596,22 @@ class AmKill {
         if (code == 3) {
             return "进程不存在（ESRCH）";
         }
-        return "系统错误 errno=" + String.valueOf(code);
+        /* Windows Win32 errors commonly returned by jn_am_signal */
+        if (code == 5) {
+            return "权限不足（ERROR_ACCESS_DENIED）";
+        }
+        if (code == 87) {
+            return "参数无效（ERROR_INVALID_PARAMETER）";
+        }
+        if (code == 1168) {
+            return "进程不存在（ERROR_NOT_FOUND）";
+        }
+        return "系统错误 code=" + String.valueOf(code);
     }
 }
 
 class AmProtect {
-    /** Protect self, PID 0/1, and kernel_task by name. */
+    /** Protect self, PID 0/1, and known critical system process names (macOS + Windows). */
     static int isProtected(AmProcSample s) {
         if (s == null) {
             return 1;
@@ -613,12 +623,11 @@ class AmProtect {
             return 1;
         }
         if (s.name != null) {
-            if (s.name.equals("kernel_task") || s.name.equals("launchd")) {
-                if (s.pid <= 1 || s.name.equals("kernel_task")) {
-                    return 1;
-                }
-            }
-            if (s.name.equals("kernel_task")) {
+            String n = s.name;
+            if (n.equals("kernel_task") || n.equals("System") || n.equals("Idle")
+                    || n.equals("smss.exe") || n.equals("csrss.exe") || n.equals("wininit.exe")
+                    || n.equals("services.exe") || n.equals("lsass.exe") || n.equals("winlogon.exe")
+                    || n.equals("Registry") || n.equals("Memory Compression")) {
                 return 1;
             }
         }
@@ -635,8 +644,11 @@ class AmProtect {
         if (s.pid == AmNative.selfPid()) {
             return "本监视器进程";
         }
-        if (s.name != null && s.name.equals("kernel_task")) {
-            return "内核任务";
+        if (s.name != null && (s.name.equals("kernel_task") || s.name.equals("System"))) {
+            return "系统内核/System 进程";
+        }
+        if (s.name != null && isProtected(s) != 0) {
+            return "Windows 关键系统进程";
         }
         return "受保护";
     }

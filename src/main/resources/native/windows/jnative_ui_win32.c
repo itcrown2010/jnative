@@ -4,6 +4,12 @@
 
 /* Author: 张晓达 */
 /* Win32 UI backend (0.17/0.18). CreateWindowEx + common controls. */
+#ifndef UNICODE
+#define UNICODE
+#endif
+#ifndef _UNICODE
+#define _UNICODE
+#endif
 #include <windows.h>
 #include <commctrl.h>
 #include <stdint.h>
@@ -51,6 +57,8 @@ static wchar_t *utf8_to_wide(const char *utf8) {
     return w;
 }
 
+static UINT_PTR g_timers[JN_UI_MAX];
+
 static LRESULT CALLBACK JnWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
     int32_t handleId = (int32_t)(intptr_t)GetWindowLongPtr(hwnd, GWLP_USERDATA);
     if (msg == WM_COMMAND) {
@@ -58,6 +66,45 @@ static LRESULT CALLBACK JnWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPa
         int32_t cid = (int32_t)(intptr_t)GetWindowLongPtr(ctrl, GWLP_USERDATA);
         if (cid > 0 && HIWORD(wParam) == BN_CLICKED) {
             jnative_ui_emit_event(cid, JN_UI_EVENT_CLICK);
+        }
+        if (cid > 0 && (HIWORD(wParam) == EN_CHANGE || HIWORD(wParam) == CBN_SELCHANGE)) {
+            jnative_ui_emit_event(cid, JN_UI_EVENT_CHANGE);
+        }
+        return 0;
+    }
+    if (msg == WM_NOTIFY) {
+        LPNMHDR hdr = (LPNMHDR)lParam;
+        if (hdr != NULL) {
+            int32_t cid = (int32_t)(intptr_t)GetWindowLongPtr(hdr->hwndFrom, GWLP_USERDATA);
+            if (cid > 0) {
+                if (hdr->code == LVN_ITEMCHANGED) {
+                    NMLISTVIEW *lv = (NMLISTVIEW *)lParam;
+                    if ((lv->uChanged & LVIF_STATE) != 0
+                            && (lv->uNewState & LVIS_SELECTED) != 0) {
+                        g_selected_index[cid] = lv->iItem;
+                        jnative_ui_emit_event_ex(cid, JN_UI_EVENT_SELECT, lv->iItem, 0, 0, 0);
+                    }
+                } else if (hdr->code == NM_DBLCLK) {
+                    jnative_ui_emit_event(cid, JN_UI_EVENT_ACTION);
+                } else if (hdr->code == LVN_COLUMNCLICK) {
+                    NMLISTVIEW *lv = (NMLISTVIEW *)lParam;
+                    jnative_ui_emit_event_ex(cid, JN_UI_EVENT_HEADER, lv->iSubItem, 0, 0, 0);
+                }
+            }
+        }
+        return 0;
+    }
+    if (msg == WM_SIZE) {
+        if (handleId > 0) {
+            jnative_ui_emit_event_ex(handleId, JN_UI_EVENT_RESIZE,
+                    (int32_t)LOWORD(lParam), (int32_t)HIWORD(lParam), 0, 0);
+        }
+        return 0;
+    }
+    if (msg == WM_TIMER) {
+        int32_t tid = (int32_t)wParam;
+        if (tid > 0 && tid < JN_UI_MAX) {
+            jnative_ui_emit_event(tid, JN_UI_EVENT_TIMER);
         }
         return 0;
     }
@@ -75,6 +122,9 @@ static LRESULT CALLBACK JnWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPa
         return 0;
     }
     if (msg == WM_APP + 1) {
+        if (g_task_queue > 0) {
+            g_task_queue--;
+        }
         jnative_ui_emit_event(0, JN_UI_EVENT_TASK);
         return 0;
     }
@@ -107,10 +157,14 @@ void jnative_ui_init(int32_t headless) {
     int hl = headless != 0 || (env != NULL && env[0] != '\0' && env[0] != '0');
     g_quit = 0;
     g_task_queue = 0;
+    memset(g_timers, 0, sizeof(g_timers));
     if (hl) {
         g_win32_active = 0;
         return;
     }
+#if defined(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2)
+    SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
+#endif
     g_inst = GetModuleHandleW(NULL);
     INITCOMMONCONTROLSEX icc;
     memset(&icc, 0, sizeof(icc));
@@ -312,8 +366,37 @@ void jnative_ui_set_enabled(int32_t id, int32_t enabled) {
     }
 }
 void jnative_ui_set_content(int32_t windowId, int32_t childId) {
-    (void)windowId;
-    (void)childId;
+    if (!g_win32_active) {
+        return;
+    }
+    if (windowId <= 0 || windowId >= JN_UI_MAX || childId <= 0 || childId >= JN_UI_MAX) {
+        return;
+    }
+    HWND parent = g_hwnds[windowId];
+    HWND child = g_hwnds[childId];
+    if (parent == NULL || child == NULL) {
+        return;
+    }
+    SetParent(child, parent);
+    RECT rc;
+    GetClientRect(parent, &rc);
+    MoveWindow(child, 0, 0, rc.right - rc.left, rc.bottom - rc.top, TRUE);
+    ShowWindow(child, SW_SHOW);
+}
+
+void jnative_ui_reparent(int32_t childId, int32_t parentId) {
+    if (!g_win32_active) {
+        return;
+    }
+    if (childId <= 0 || childId >= JN_UI_MAX || parentId <= 0 || parentId >= JN_UI_MAX) {
+        return;
+    }
+    HWND parent = g_hwnds[parentId];
+    HWND child = g_hwnds[childId];
+    if (parent == NULL || child == NULL) {
+        return;
+    }
+    SetParent(child, parent);
 }
 int32_t jnative_ui_live_windows(void) { return g_live_windows; }
 int32_t jnative_ui_live_controls(void) { return g_live_controls; }
@@ -348,7 +431,41 @@ int32_t jnative_ui_item_parent(int32_t id, int32_t index) {
     (void)id; (void)index; return -1;
 }
 void jnative_ui_table_set_columns(int32_t id, const char *titles_tsv) {
-    (void)id; (void)titles_tsv;
+    if (id <= 0 || id >= JN_UI_MAX || g_hwnds[id] == NULL || !g_win32_active) {
+        return;
+    }
+    HWND lv = g_hwnds[id];
+    while (ListView_DeleteColumn(lv, 0)) {
+    }
+    if (titles_tsv == NULL || titles_tsv[0] == '\0') {
+        return;
+    }
+    char *copy = _strdup(titles_tsv);
+    if (copy == NULL) {
+        return;
+    }
+    int col = 0;
+    char *p = copy;
+    while (p != NULL) {
+        char *tab = strchr(p, '\t');
+        if (tab != NULL) {
+            *tab = '\0';
+        }
+        wchar_t *w = utf8_to_wide(p);
+        LVCOLUMNW lc;
+        memset(&lc, 0, sizeof(lc));
+        lc.mask = LVCF_TEXT | LVCF_WIDTH | LVCF_FMT;
+        lc.pszText = w;
+        lc.cx = (col == 0) ? 220 : 100;
+        lc.fmt = (col == 0) ? LVCFMT_LEFT : LVCFMT_RIGHT;
+        ListView_InsertColumn(lv, col, &lc);
+        free(w);
+        col++;
+        p = (tab == NULL) ? NULL : (tab + 1);
+    }
+    free(copy);
+    ListView_SetExtendedListViewStyle(lv,
+            LVS_EX_FULLROWSELECT | LVS_EX_DOUBLEBUFFER | LVS_EX_LABELTIP);
 }
 const char *jnative_ui_table_columns(int32_t id) {
     (void)id; return "";
@@ -365,13 +482,84 @@ void jnative_ui_set_visible_rows(int32_t id, int32_t rows) {
 int32_t jnative_ui_get_visible_rows(int32_t id) {
     return (id > 0 && id < JN_UI_MAX) ? g_visible_rows[id] : 0;
 }
-void jnative_ui_combo_clear(int32_t id) { jnative_ui_set_item_count(id, 0); }
-void jnative_ui_combo_add_item(int32_t id, const char *text) {
-    (void)text;
-    if (id > 0 && id < JN_UI_MAX) g_item_count[id]++;
+void jnative_ui_combo_clear(int32_t id) {
+    if (id > 0 && id < JN_UI_MAX) {
+        g_item_count[id] = 0;
+        if (g_win32_active && g_hwnds[id] != NULL && g_kinds[id] == JN_UI_KIND_COMBOBOX) {
+            SendMessageW(g_hwnds[id], CB_RESETCONTENT, 0, 0);
+        }
+    }
 }
-void jnative_ui_list_clear(int32_t id) { jnative_ui_combo_clear(id); }
-void jnative_ui_list_add_item(int32_t id, const char *text) { jnative_ui_combo_add_item(id, text); }
+void jnative_ui_combo_add_item(int32_t id, const char *text) {
+    if (id <= 0 || id >= JN_UI_MAX) {
+        return;
+    }
+    g_item_count[id]++;
+    if (g_win32_active && g_hwnds[id] != NULL && g_kinds[id] == JN_UI_KIND_COMBOBOX) {
+        wchar_t *w = utf8_to_wide(text);
+        SendMessageW(g_hwnds[id], CB_ADDSTRING, 0, (LPARAM)w);
+        free(w);
+    }
+}
+void jnative_ui_list_clear(int32_t id) {
+    if (id <= 0 || id >= JN_UI_MAX) {
+        return;
+    }
+    g_item_count[id] = 0;
+    if (g_win32_active && g_hwnds[id] != NULL
+            && (g_kinds[id] == JN_UI_KIND_LISTVIEW || g_kinds[id] == JN_UI_KIND_TABLEVIEW)) {
+        ListView_DeleteAllItems(g_hwnds[id]);
+    }
+}
+void jnative_ui_list_add_item(int32_t id, const char *text) {
+    if (id <= 0 || id >= JN_UI_MAX) {
+        return;
+    }
+    if (!g_win32_active || g_hwnds[id] == NULL
+            || (g_kinds[id] != JN_UI_KIND_LISTVIEW && g_kinds[id] != JN_UI_KIND_TABLEVIEW)) {
+        g_item_count[id]++;
+        return;
+    }
+    HWND lv = g_hwnds[id];
+    char *copy = _strdup(text == NULL ? "" : text);
+    if (copy == NULL) {
+        return;
+    }
+    char *p = copy;
+    char *tab = strchr(p, '\t');
+    if (tab != NULL) {
+        *tab = '\0';
+    }
+    int row = ListView_GetItemCount(lv);
+    wchar_t *w0 = utf8_to_wide(p);
+    LVITEMW item;
+    memset(&item, 0, sizeof(item));
+    item.mask = LVIF_TEXT;
+    item.iItem = row;
+    item.iSubItem = 0;
+    item.pszText = w0;
+    ListView_InsertItem(lv, &item);
+    free(w0);
+    int sub = 1;
+    p = (tab == NULL) ? NULL : (tab + 1);
+    while (p != NULL) {
+        tab = strchr(p, '\t');
+        if (tab != NULL) {
+            *tab = '\0';
+        }
+        wchar_t *w = utf8_to_wide(p);
+        LVITEMW subitem;
+        memset(&subitem, 0, sizeof(subitem));
+        subitem.iSubItem = sub;
+        subitem.pszText = w;
+        SendMessageW(lv, LVM_SETITEMTEXT, (WPARAM)row, (LPARAM)&subitem);
+        free(w);
+        sub++;
+        p = (tab == NULL) ? NULL : (tab + 1);
+    }
+    free(copy);
+    g_item_count[id] = ListView_GetItemCount(lv);
+}
 void jnative_ui_tree_clear(int32_t id) { jnative_ui_combo_clear(id); }
 void jnative_ui_tree_add_item(int32_t id, int32_t parentIndex, const char *text) {
     (void)parentIndex; jnative_ui_combo_add_item(id, text);
@@ -531,4 +719,208 @@ void jnative_ui_platform_window_set_min_size(int32_t windowId, int32_t w, int32_
 
 void jnative_ui_platform_button_flash(int32_t id, int32_t pressed) {
     (void)id; (void)pressed;
+}
+
+/* ---- Symbols required by UiLib but previously missing on Win32 ---- */
+
+void jnative_ui_close_window(int32_t id) {
+    if (id > 0 && id < JN_UI_MAX && g_hwnds[id] != NULL) {
+        DestroyWindow(g_hwnds[id]);
+    }
+}
+char *jnative_ui_copy_text(int32_t id) {
+    if (id <= 0 || id >= JN_UI_MAX || g_hwnds[id] == NULL) {
+        return _strdup("");
+    }
+    int n = GetWindowTextLengthW(g_hwnds[id]);
+    wchar_t *w = (wchar_t *)malloc(sizeof(wchar_t) * (size_t)(n + 1));
+    if (w == NULL) {
+        return _strdup("");
+    }
+    GetWindowTextW(g_hwnds[id], w, n + 1);
+    int bytes = WideCharToMultiByte(CP_UTF8, 0, w, -1, NULL, 0, NULL, NULL);
+    char *out = (char *)malloc((size_t)bytes);
+    if (out == NULL) {
+        free(w);
+        return _strdup("");
+    }
+    WideCharToMultiByte(CP_UTF8, 0, w, -1, out, bytes, NULL, NULL);
+    free(w);
+    return out;
+}
+void jnative_ui_request_quit(void) {
+    jnative_ui_emit_event(0, JN_UI_EVENT_QUIT_REQUEST);
+    jnative_ui_quit();
+}
+void jnative_ui_set_app_name(const char *name) { (void)name; }
+void jnative_ui_menu_set_shortcut(int32_t itemId, int32_t keyCode, int32_t mods) {
+    (void)itemId; (void)keyCode; (void)mods;
+}
+void jnative_ui_focus(int32_t id) {
+    if (id > 0 && id < JN_UI_MAX && g_hwnds[id] != NULL) {
+        SetFocus(g_hwnds[id]);
+    }
+}
+void jnative_ui_set_tooltip(int32_t id, const char *tip) { (void)id; (void)tip; }
+void jnative_ui_set_accessible(int32_t id, const char *name, const char *description) {
+    (void)id; (void)name; (void)description;
+}
+void jnative_ui_set_accessible_title_ui(int32_t fieldId, int32_t labelId) {
+    (void)fieldId; (void)labelId;
+}
+void jnative_ui_set_next_key_view(int32_t id, int32_t nextId) { (void)id; (void)nextId; }
+void jnative_ui_set_appearance_mode(int32_t mode) { (void)mode; }
+void jnative_ui_set_button_symbol(int32_t id, const char *symbol) { (void)id; (void)symbol; }
+void jnative_ui_window_set_default_button(int32_t windowId, int32_t buttonId) {
+    (void)windowId; (void)buttonId;
+}
+void jnative_ui_window_set_cancel_button(int32_t windowId, int32_t buttonId) {
+    (void)windowId; (void)buttonId;
+}
+int32_t jnative_ui_features(void) { return 0; }
+int32_t jnative_ui_prefers_reduced_motion(void) { return 0; }
+int32_t jnative_ui_prefers_increased_contrast(void) { return 0; }
+char *jnative_ui_dialog_dir_open(int32_t windowId) {
+    (void)windowId; return NULL;
+}
+void jnative_ui_canvas_invalidate(int32_t id) { (void)id; }
+void jnative_ui_canvas_present(int32_t id, int32_t surfaceId) {
+    (void)id; (void)surfaceId;
+}
+void jnative_ui_headless_paint(int32_t id) { (void)id; }
+void jnative_ui_headless_timer_fire(int32_t id) {
+    jnative_ui_emit_event(id, JN_UI_EVENT_TIMER);
+}
+int32_t jnative_ui_table_get_scroll_y(int32_t id) {
+    if (id <= 0 || id >= JN_UI_MAX || g_hwnds[id] == NULL) {
+        return 0;
+    }
+    return (int32_t)GetScrollPos(g_hwnds[id], SB_VERT);
+}
+void jnative_ui_table_set_scroll_y(int32_t id, int32_t y) {
+    if (id <= 0 || id >= JN_UI_MAX || g_hwnds[id] == NULL) {
+        return;
+    }
+    ListView_Scroll(g_hwnds[id], 0, y - GetScrollPos(g_hwnds[id], SB_VERT));
+}
+int32_t jnative_ui_timer_start(int32_t intervalMs, int32_t handleId) {
+    if (handleId <= 0 || handleId >= JN_UI_MAX || intervalMs <= 0) {
+        return 0;
+    }
+    HWND hwnd = NULL;
+    int i = 1;
+    while (i < JN_UI_MAX) {
+        if (g_kinds[i] == JN_UI_KIND_WINDOW && g_hwnds[i] != NULL) {
+            hwnd = g_hwnds[i];
+            break;
+        }
+        i++;
+    }
+    if (hwnd == NULL) {
+        return 0;
+    }
+    if (g_timers[handleId] != 0) {
+        KillTimer(hwnd, (UINT_PTR)handleId);
+    }
+    g_timers[handleId] = SetTimer(hwnd, (UINT_PTR)handleId, (UINT)intervalMs, NULL);
+    return g_timers[handleId] != 0 ? 1 : 0;
+}
+void jnative_ui_timer_stop(int32_t handleId) {
+    if (handleId <= 0 || handleId >= JN_UI_MAX) {
+        return;
+    }
+    int i = 1;
+    while (i < JN_UI_MAX) {
+        if (g_kinds[i] == JN_UI_KIND_WINDOW && g_hwnds[i] != NULL && g_timers[handleId] != 0) {
+            KillTimer(g_hwnds[i], (UINT_PTR)handleId);
+            break;
+        }
+        i++;
+    }
+    g_timers[handleId] = 0;
+}
+
+void jnative_ui_window_set_min_size(int32_t windowId, int32_t w, int32_t h) {
+    (void)windowId; (void)w; (void)h;
+}
+void jnative_ui_button_flash(int32_t id, int32_t pressed) {
+    (void)id; (void)pressed;
+}
+void jnative_ui_set_visual(int32_t id, int32_t bg_rgba, int32_t fg_rgba,
+                           int32_t corner_radius, int32_t font_size, int32_t text_align) {
+    (void)id; (void)bg_rgba; (void)fg_rgba;
+    (void)corner_radius; (void)font_size; (void)text_align;
+}
+int32_t jnative_ui_get_scale_percent(int32_t windowId) {
+    if (!g_win32_active || windowId <= 0 || windowId >= JN_UI_MAX || g_hwnds[windowId] == NULL) {
+        return 100;
+    }
+    UINT dpi = 96;
+#if defined(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2)
+    dpi = GetDpiForWindow(g_hwnds[windowId]);
+#endif
+    if (dpi == 0) {
+        dpi = 96;
+    }
+    return (int32_t)((dpi * 100) / 96);
+}
+int32_t jnative_ui_system_dark(void) {
+    return jnative_ui_platform_system_dark();
+}
+
+static char *g_clipboard = NULL;
+
+int32_t jnative_clipboard_set_text(const char *text) {
+    free(g_clipboard);
+    g_clipboard = text != NULL ? _strdup(text) : NULL;
+    if (!g_win32_active || text == NULL) {
+        return 1;
+    }
+    if (!OpenClipboard(NULL)) {
+        return 0;
+    }
+    EmptyClipboard();
+    int n = MultiByteToWideChar(CP_UTF8, 0, text, -1, NULL, 0);
+    HGLOBAL h = GlobalAlloc(GMEM_MOVEABLE, (SIZE_T)n * sizeof(wchar_t));
+    if (h == NULL) {
+        CloseClipboard();
+        return 0;
+    }
+    wchar_t *w = (wchar_t *)GlobalLock(h);
+    MultiByteToWideChar(CP_UTF8, 0, text, -1, w, n);
+    GlobalUnlock(h);
+    SetClipboardData(CF_UNICODETEXT, h);
+    CloseClipboard();
+    return 1;
+}
+
+char *jnative_clipboard_get_text(void) {
+    if (!g_win32_active) {
+        return g_clipboard != NULL ? _strdup(g_clipboard) : NULL;
+    }
+    if (!OpenClipboard(NULL)) {
+        return g_clipboard != NULL ? _strdup(g_clipboard) : NULL;
+    }
+    HANDLE h = GetClipboardData(CF_UNICODETEXT);
+    if (h == NULL) {
+        CloseClipboard();
+        return g_clipboard != NULL ? _strdup(g_clipboard) : NULL;
+    }
+    wchar_t *w = (wchar_t *)GlobalLock(h);
+    int bytes = WideCharToMultiByte(CP_UTF8, 0, w, -1, NULL, 0, NULL, NULL);
+    char *out = (char *)malloc((size_t)bytes);
+    if (out != NULL) {
+        WideCharToMultiByte(CP_UTF8, 0, w, -1, out, bytes, NULL, NULL);
+    }
+    GlobalUnlock(h);
+    CloseClipboard();
+    return out;
+}
+
+void jnative_clipboard_free(char *text) {
+    free(text);
+}
+
+void jnative_ui_platform_set_appearance_mode(int32_t mode) {
+    (void)mode;
 }

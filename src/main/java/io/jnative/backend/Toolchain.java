@@ -102,9 +102,21 @@ public final class Toolchain {
         cmd.add("-o");
         cmd.add(output.toAbsolutePath().toString());
         cmd.add("-Wno-override-module");
-        cmd.add("-pthread");
-        /* Export symbols for backtrace/dladdr demangling of _JN_* frames. */
-        cmd.add("-rdynamic");
+        if (platform == Platform.WINDOWS_X86_64) {
+            /* MinGW/clang on Windows: pthreads via winpthread; no ELF -rdynamic. */
+            cmd.add("-pthread");
+            cmd.add("-luser32");
+            cmd.add("-lgdi32");
+            cmd.add("-lcomctl32");
+            cmd.add("-lcomdlg32");
+            cmd.add("-ladvapi32");
+            cmd.add("-lshell32");
+            cmd.add("-lpsapi");
+        } else {
+            cmd.add("-pthread");
+            /* Export symbols for backtrace/dladdr demangling of _JN_* frames. */
+            cmd.add("-rdynamic");
+        }
         return cmd;
     }
 }

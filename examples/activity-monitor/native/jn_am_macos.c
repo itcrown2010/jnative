@@ -1,5 +1,5 @@
 /* Author: 张晓达 */
-#include "jn_am_macos.h"
+#include "jn_am.h"
 
 #include <errno.h>
 #include <libproc.h>

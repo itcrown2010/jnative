@@ -65,7 +65,23 @@ class AmUi {
     static int forceWinH;
     static Window window;
     static Window detailWin;
-    static Label detailBody;
+    static Label detailTitle;
+    static Label detailMeta;
+    static Label detailStatus;
+    static Label detailValName;
+    static Label detailValPid;
+    static Label detailValPpid;
+    static Label detailValUser;
+    static Label detailValCpu;
+    static Label detailValMem;
+    static Label detailValRss;
+    static Label detailValThr;
+    static Label detailValPath;
+    static Label detailValStart;
+    static String detailCopyText;
+    static int detailPid;
+    static long detailStartSec;
+    static int detailStartUsec;
     static Label footPrimary;
     static TrendChart footTrend;
     static Label footStatus;
@@ -172,7 +188,7 @@ class AmWindow {
                 AmUi.scope = null;
             }
             /* Owned auxiliary windows close via Window.fireClose child pass. */
-            AmUi.detailBody = null;
+            AmActions.clearDetailUi();
         });
         Application.onQuit(() -> {
             AmUi.alive = 0;
@@ -511,6 +527,20 @@ class AmI18n {
         if (key.equals("no_sel")) return "请先选择一个进程";
         if (key.equals("detail_title")) return "进程详情";
         if (key.equals("gone")) return "所选进程已退出或身份失效";
+        if (key.equals("d_name")) return "名称";
+        if (key.equals("d_pid")) return "PID";
+        if (key.equals("d_ppid")) return "PPID";
+        if (key.equals("d_user")) return "用户";
+        if (key.equals("d_cpu")) return "CPU";
+        if (key.equals("d_mem")) return "内存";
+        if (key.equals("d_rss")) return "RSS";
+        if (key.equals("d_thr")) return "线程";
+        if (key.equals("d_path")) return "路径";
+        if (key.equals("d_start")) return "启动";
+        if (key.equals("d_copy")) return "复制";
+        if (key.equals("d_copy_tip")) return "复制详情到剪贴板";
+        if (key.equals("d_copied")) return "已复制到剪贴板";
+        if (key.equals("d_protected")) return "受保护：";
         return key;
     }
 
@@ -550,6 +580,20 @@ class AmI18n {
         if (key.equals("no_sel")) return "Select a process first";
         if (key.equals("detail_title")) return "Process";
         if (key.equals("gone")) return "Process exited or identity changed";
+        if (key.equals("d_name")) return "Name";
+        if (key.equals("d_pid")) return "PID";
+        if (key.equals("d_ppid")) return "PPID";
+        if (key.equals("d_user")) return "User";
+        if (key.equals("d_cpu")) return "CPU";
+        if (key.equals("d_mem")) return "Memory";
+        if (key.equals("d_rss")) return "RSS";
+        if (key.equals("d_thr")) return "Threads";
+        if (key.equals("d_path")) return "Path";
+        if (key.equals("d_start")) return "Started";
+        if (key.equals("d_copy")) return "Copy";
+        if (key.equals("d_copy_tip")) return "Copy details to clipboard";
+        if (key.equals("d_copied")) return "Copied to clipboard";
+        if (key.equals("d_protected")) return "Protected: ";
         return key;
     }
 }
@@ -771,8 +815,19 @@ class AmActions {
             }
             if (ActivityMonitor.demoDetail != 0 && AmUi.detailWin == null
                     && AmUi.viewRows != null && AmUi.viewRows.size() > 0) {
-                AmUi.table.select(0);
-                AmActions.onSelect(0);
+                int di = 0;
+                int pick = 0;
+                while (di < AmUi.viewRows.size()) {
+                    AmProcRow rr = AmUi.viewRows.get(di);
+                    if (rr != null && rr.sample != null && rr.sample.name != null
+                            && rr.sample.name.equals("ActivityMonitor")) {
+                        pick = di;
+                        break;
+                    }
+                    di = di + 1;
+                }
+                AmUi.table.select(pick);
+                AmActions.onSelect(pick);
                 AmActions.showDetail();
                 ActivityMonitor.demoDetail = 0;
             }
@@ -923,9 +978,6 @@ class AmActions {
             if (AmUi.table.getSelectedRowId() == null
                     || !want.equals(AmUi.table.getSelectedRowId())) {
                 AmUi.selPid = -1;
-                if (AmUi.detailBody != null) {
-                    AmUi.detailBody.setText(AmI18n.t("gone"));
-                }
             }
         }
         syncToolbarEnabled();
@@ -1092,6 +1144,138 @@ class AmActions {
         return -1;
     }
 
+    static void clearDetailUi() {
+        AmUi.detailTitle = null;
+        AmUi.detailMeta = null;
+        AmUi.detailStatus = null;
+        AmUi.detailValName = null;
+        AmUi.detailValPid = null;
+        AmUi.detailValPpid = null;
+        AmUi.detailValUser = null;
+        AmUi.detailValCpu = null;
+        AmUi.detailValMem = null;
+        AmUi.detailValRss = null;
+        AmUi.detailValThr = null;
+        AmUi.detailValPath = null;
+        AmUi.detailValStart = null;
+        AmUi.detailCopyText = "";
+        AmUi.detailPid = -1;
+        AmUi.detailStartSec = 0;
+        AmUi.detailStartUsec = 0;
+    }
+
+    static Label detailKeyLabel(String text) {
+        Label k = new Label(text);
+        k.setPrefSize(72, 22);
+        Theme.applyStyle(k, Theme.STYLE_SECONDARY);
+        return k;
+    }
+
+    static Label detailValLabel() {
+        Label v = new Label("");
+        v.setPrefSize(320, 22);
+        Theme.applyStyle(v, Theme.STYLE_BODY);
+        return v;
+    }
+
+    static HBox detailRow(Label key, Label val) {
+        HBox row = new HBox();
+        row.spacing = 12;
+        row.padding = 0;
+        row.prefHeight = 24;
+        row.height = 24;
+        row.add(key);
+        row.add(val);
+        return row;
+    }
+
+    static void buildDetailWindow() {
+        AmUi.detailWin = new Window(AmI18n.t("detail_title"), 460, 520);
+        AmUi.detailWin.setMinSize(380, 420);
+        AmUi.detailWin.setOwnerWindow(AmUi.window);
+        AmUi.detailWin.onClose(() -> {
+            AmUi.detailWin = null;
+            clearDetailUi();
+        });
+
+        VBox root = new VBox();
+        root.spacing = 0;
+        root.padding = 0;
+
+        VBox header = new VBox();
+        header.spacing = 2;
+        header.padding = 16;
+        header.prefHeight = 64;
+        header.height = 64;
+        AmUi.detailTitle = new Label("");
+        AmUi.detailTitle.setPrefSize(420, 26);
+        Theme.applyStyle(AmUi.detailTitle, Theme.STYLE_TITLE);
+        AmUi.detailMeta = new Label("");
+        AmUi.detailMeta.setPrefSize(420, 18);
+        Theme.applyStyle(AmUi.detailMeta, Theme.STYLE_SECONDARY);
+        AmUi.detailStatus = new Label("");
+        AmUi.detailStatus.setPrefSize(420, 16);
+        Theme.applyStyle(AmUi.detailStatus, Theme.STYLE_SECONDARY);
+        header.add(AmUi.detailTitle);
+        header.add(AmUi.detailMeta);
+        header.add(AmUi.detailStatus);
+
+        VBox fields = new VBox();
+        fields.spacing = 4;
+        fields.padding = 16;
+        fields.vgrow = 1;
+        AmUi.detailValName = detailValLabel();
+        AmUi.detailValPid = detailValLabel();
+        AmUi.detailValPpid = detailValLabel();
+        AmUi.detailValUser = detailValLabel();
+        AmUi.detailValCpu = detailValLabel();
+        AmUi.detailValMem = detailValLabel();
+        AmUi.detailValRss = detailValLabel();
+        AmUi.detailValThr = detailValLabel();
+        AmUi.detailValPath = detailValLabel();
+        AmUi.detailValPath.setPrefSize(340, 36);
+        AmUi.detailValStart = detailValLabel();
+        fields.add(detailRow(detailKeyLabel(AmI18n.t("d_name")), AmUi.detailValName));
+        fields.add(detailRow(detailKeyLabel(AmI18n.t("d_pid")), AmUi.detailValPid));
+        fields.add(detailRow(detailKeyLabel(AmI18n.t("d_ppid")), AmUi.detailValPpid));
+        fields.add(detailRow(detailKeyLabel(AmI18n.t("d_user")), AmUi.detailValUser));
+        fields.add(detailRow(detailKeyLabel(AmI18n.t("d_cpu")), AmUi.detailValCpu));
+        fields.add(detailRow(detailKeyLabel(AmI18n.t("d_mem")), AmUi.detailValMem));
+        fields.add(detailRow(detailKeyLabel(AmI18n.t("d_rss")), AmUi.detailValRss));
+        fields.add(detailRow(detailKeyLabel(AmI18n.t("d_thr")), AmUi.detailValThr));
+        fields.add(detailRow(detailKeyLabel(AmI18n.t("d_path")), AmUi.detailValPath));
+        fields.add(detailRow(detailKeyLabel(AmI18n.t("d_start")), AmUi.detailValStart));
+
+        HBox footer = new HBox();
+        footer.spacing = 8;
+        footer.padding = 14;
+        footer.prefHeight = 52;
+        footer.height = 52;
+        Label flex = new Label("");
+        flex.prefWidth = 0;
+        flex.width = 0;
+        flex.hgrow = 1;
+        footer.add(flex);
+        Button copyBtn = new Button(AmI18n.t("d_copy"));
+        copyBtn.setChromeStyle(3);
+        copyBtn.setToolTip(AmI18n.t("d_copy_tip"));
+        copyBtn.onClick(() -> {
+            String t = AmUi.detailCopyText;
+            if (t == null) {
+                t = "";
+            }
+            Clipboard.setText(t);
+            Dialogs.info(AmUi.detailWin, AmI18n.t("d_copied"));
+        });
+        footer.add(copyBtn);
+
+        root.add(header);
+        root.add(fields);
+        root.add(footer);
+        AmUi.detailWin.setContent(root);
+        AmUi.detailWin.show();
+    }
+
     static void showDetail() {
         AmProcRow r = selectedRow();
         if (r == null) {
@@ -1099,48 +1283,65 @@ class AmActions {
             return;
         }
         if (AmUi.detailWin == null) {
-            AmUi.detailWin = new Window(AmI18n.t("detail_title"), 420, 360);
-            AmUi.detailWin.setMinSize(320, 240);
-            AmUi.detailWin.setOwnerWindow(AmUi.window);
-            AmUi.detailWin.onClose(() -> {
-                AmUi.detailWin = null;
-                AmUi.detailBody = null;
-            });
-            VBox box = new VBox();
-            box.spacing = 8;
-            box.padding = 16;
-            AmUi.detailBody = new Label("");
-            AmUi.detailBody.setPrefSize(380, 280);
-            Button copyBtn = new Button("复制");
-            copyBtn.onClick(() -> {
-                if (AmUi.detailBody != null) {
-                    /* Clipboard may be unavailable; still show text for manual copy. */
-                    Dialogs.info(AmUi.detailWin, AmUi.detailBody.getText());
-                }
-            });
-            box.add(AmUi.detailBody);
-            box.add(copyBtn);
-            AmUi.detailWin.setContent(box);
-            AmUi.detailWin.show();
+            buildDetailWindow();
         } else {
             AmUi.detailWin.activate();
         }
-        AmUi.detailBody.setText(formatDetail(r));
+        fillDetail(r);
+    }
+
+    static void markDetailGone() {
+        if (AmUi.detailWin == null || AmUi.detailTitle == null) {
+            return;
+        }
+        AmUi.detailStatus.setText(AmI18n.t("gone"));
+        Theme.applyStyle(AmUi.detailStatus, Theme.STYLE_ERROR);
+    }
+
+    static AmProcRow detailTrackedRow() {
+        if (AmUi.detailPid <= 0 || AmUi.state == null) {
+            return null;
+        }
+        return AmUi.state.findByIdentity(AmUi.detailPid, AmUi.detailStartSec, AmUi.detailStartUsec);
     }
 
     static void refreshDetailIfOpen() {
-        if (AmUi.detailWin == null || AmUi.detailBody == null) {
+        if (AmUi.detailWin == null || AmUi.detailTitle == null) {
             return;
         }
-        AmProcRow r = selectedRow();
+        AmProcRow r = detailTrackedRow();
         if (r == null) {
-            AmUi.detailBody.setText(AmI18n.t("gone"));
+            markDetailGone();
             return;
         }
-        AmUi.detailBody.setText(formatDetail(r));
+        fillDetail(r);
     }
 
-    static String formatDetail(AmProcRow r) {
+    static String formatStartTime(long startSec, int startUsec) {
+        if (startSec <= 0) {
+            return AmFormat.na();
+        }
+        Instant inst = Instant.ofEpochSecond(startSec);
+        ZoneId zone = ZoneId.UTC();
+        if (AmI18n.lang == null || AmI18n.lang.equals("zh")) {
+            zone = ZoneId.of("+08:00");
+        }
+        ZonedDateTime zdt = ZonedDateTime.ofInstant(inst, zone);
+        String s = zdt.toLocalDateTime().toString();
+        int t = s.indexOf("T");
+        if (t > 0) {
+            s = s.substring(0, t) + " " + s.substring(t + 1, s.length());
+        }
+        return s;
+    }
+
+    static void fillDetail(AmProcRow r) {
+        if (r == null || r.sample == null || AmUi.detailTitle == null) {
+            return;
+        }
+        AmUi.detailPid = r.sample.pid;
+        AmUi.detailStartSec = r.sample.startSec;
+        AmUi.detailStartUsec = r.sample.startUsec;
         String path = r.sample.path;
         if (path == null || path.length() == 0 || (r.sample.flags & AmFlags.PATH) == 0) {
             path = AmFormat.na();
@@ -1153,21 +1354,49 @@ class AmActions {
         if ((r.sample.flags & AmFlags.FOOTPRINT) != 0) {
             foot = AmFormat.bytes(r.sample.footprint);
         }
+        String name = r.sample.name;
+        if (name == null || name.length() == 0) {
+            name = AmFormat.na();
+        }
+        AmUi.detailTitle.setText(name);
+        AmUi.detailMeta.setText("PID " + String.valueOf(r.sample.pid) + "  ·  "
+                + r.sample.user + "  ·  uid " + String.valueOf(r.sample.uid));
+        if (AmProtect.isProtected(r.sample) != 0) {
+            AmUi.detailStatus.setText(AmI18n.t("d_protected") + AmProtect.reason(r.sample));
+            Theme.applyStyle(AmUi.detailStatus, Theme.STYLE_ERROR);
+        } else {
+            AmUi.detailStatus.setText("");
+            Theme.applyStyle(AmUi.detailStatus, Theme.STYLE_SECONDARY);
+        }
+        AmUi.detailValName.setText(name);
+        AmUi.detailValPid.setText(String.valueOf(r.sample.pid));
+        AmUi.detailValPpid.setText(String.valueOf(r.sample.ppid));
+        AmUi.detailValUser.setText(r.sample.user);
+        AmUi.detailValCpu.setText(AmFormat.cpuPct(r.cpuMilli));
+        AmUi.detailValMem.setText(foot);
+        AmUi.detailValRss.setText(rss);
+        AmUi.detailValThr.setText(AmFormat.threads(r.sample));
+        AmUi.detailValPath.setText(path);
+        AmUi.detailValStart.setText(formatStartTime(r.sample.startSec, r.sample.startUsec));
+        AmUi.detailCopyText = formatDetailPlain(r, name, path, foot, rss);
+    }
+
+    static String formatDetailPlain(AmProcRow r, String name, String path, String foot, String rss) {
         String prot = "";
         if (AmProtect.isProtected(r.sample) != 0) {
-            prot = "\n保护：" + AmProtect.reason(r.sample);
+            prot = "\n" + AmI18n.t("d_protected") + AmProtect.reason(r.sample);
         }
-        return "名称：" + r.sample.name + "\n"
-                + "PID：" + String.valueOf(r.sample.pid) + "\n"
-                + "PPID：" + String.valueOf(r.sample.ppid) + "\n"
-                + "用户：" + r.sample.user + " (uid=" + String.valueOf(r.sample.uid) + ")\n"
-                + "CPU：" + AmFormat.cpuPct(r.cpuMilli) + "（100%=1 逻辑核心）\n"
-                + "物理占用：" + foot + "（ri_phys_footprint）\n"
-                + "RSS：" + rss + "（pti_resident_size）\n"
-                + "线程：" + AmFormat.threads(r.sample) + "\n"
-                + "路径：" + path + "\n"
-                + "启动：" + AmParse.longToString(r.sample.startSec) + "."
-                + String.valueOf(r.sample.startUsec)
+        return AmI18n.t("d_name") + "\t" + name + "\n"
+                + AmI18n.t("d_pid") + "\t" + String.valueOf(r.sample.pid) + "\n"
+                + AmI18n.t("d_ppid") + "\t" + String.valueOf(r.sample.ppid) + "\n"
+                + AmI18n.t("d_user") + "\t" + r.sample.user + "\n"
+                + AmI18n.t("d_cpu") + "\t" + AmFormat.cpuPct(r.cpuMilli) + "\n"
+                + AmI18n.t("d_mem") + "\t" + foot + "\n"
+                + AmI18n.t("d_rss") + "\t" + rss + "\n"
+                + AmI18n.t("d_thr") + "\t" + AmFormat.threads(r.sample) + "\n"
+                + AmI18n.t("d_path") + "\t" + path + "\n"
+                + AmI18n.t("d_start") + "\t"
+                + formatStartTime(r.sample.startSec, r.sample.startUsec)
                 + prot;
     }
 
