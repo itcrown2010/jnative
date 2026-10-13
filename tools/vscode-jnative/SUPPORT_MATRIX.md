@@ -1,12 +1,15 @@
-# VS Code 统一入口 — 支持矩阵（0.8.0）
+# VS Code 统一入口 — 支持矩阵（0.8.1）
 
 | 能力 | 桌面 | Web | Android | iOS |
 |------|------|-----|---------|-----|
-| 创建模板（加法器） | IMPLEMENTED（扩展模板） | IMPLEMENTED（扩展模板） | IMPLEMENTED（CLI mobile） | IMPLEMENTED（CLI mobile） |
-| 构建 | VERIFIED（本机 macOS） | VERIFIED（本机产出 wasm） | IMPLEMENTED（CLI） | IMPLEMENTED（CLI，需 Xcode） |
-| 运行 | VERIFIED（原生可执行） | VERIFIED（构建成功；预览依赖 python3 + Simple Browser） | IMPLEMENTED（需设备 ID） | IMPLEMENTED（需模拟器 ID） |
-| 调试 | IMPLEMENTED（CodeLLDB） | **未支持**（用 Console） | **未支持** LLDB | **未支持** LLDB |
-| 打包说明 | IMPLEMENTED（说明产物） | IMPLEMENTED | IMPLEMENTED（无商店签名） | IMPLEMENTED（无商店签名） |
-| 完整原生移动 UI | **未支持** | — | **未支持**（WebView 容器） | **未支持** |
+| 创建模板 | IMPLEMENTED | IMPLEMENTED | IMPLEMENTED（CLI mobile） | IMPLEMENTED（CLI mobile） |
+| 构建 | VERIFIED | VERIFIED（wasm32-browser） | VERIFIED（guide-tasks APK，本机） | VERIFIED（guide-tasks 模拟器，本机） |
+| 运行 | VERIFIED | VERIFIED（预览） | IMPLEMENTED（需设备；本机无 adb **未验证安装**） | VERIFIED（simctl 安装启动） |
+| 设备选择 | — | — | QuickPick（多设备必选） | QuickPick（多设备必选） |
+| 停止本次会话 | VERIFIED（进程） | VERIFIED（预览） | IMPLEMENTED（`mobile stop`） | IMPLEMENTED（`mobile stop`） |
+| 分层错误日志 | IMPLEMENTED | VERIFIED（diag + 编译层） | IMPLEMENTED | VERIFIED（运行路径） |
+| 源码调试 | IMPLEMENTED（CodeLLDB） | **未支持**（明确拒绝） | **未支持** LLDB/WASM | **未支持** LLDB/WASM |
+| 打包 | IMPLEMENTED | IMPLEMENTED（dist） | IMPLEMENTED（release 路径；未签名） | IMPLEMENTED（模拟器；未签名） |
+| 完整原生移动 UI | **未支持** | — | **未支持**（WebView 容器） | **未支持**（WebView 容器） |
 
-业务主题：三端均为 **整数加法器**，计算在 JNative 中执行。
+业务示例：`examples/guide-tasks`（任务管理）。验收细节见 `docs/developer/VSCODE_MOBILE_ACCEPTANCE.md`。

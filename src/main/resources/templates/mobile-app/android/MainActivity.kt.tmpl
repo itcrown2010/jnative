@@ -38,6 +38,9 @@ class MainActivity : AppCompatActivity() {
         webView.settings.domStorageEnabled = true
         webView.settings.allowFileAccess = false
         webView.settings.allowContentAccess = false
+        val debuggable =
+            (applicationInfo.flags and android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE) != 0
+        WebView.setWebContentsDebuggingEnabled(debuggable)
         webView.addJavascriptInterface(bridgeHost, "JNativeHost")
         val assetLoader = WebViewAssetLoader.Builder()
             .addPathHandler("/", WebViewAssetLoader.AssetsPathHandler(this))

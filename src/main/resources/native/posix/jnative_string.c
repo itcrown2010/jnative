@@ -245,8 +245,11 @@ uint16_t jnative_string_char_at(void *s, int32_t index) {
 }
 
 void *jnative_string_concat(void *a, void *b) {
-    jnative_null_check(a);
-    jnative_null_check(b);
+    /* Soft exceptions return; never fall through into jn_str_len(NULL). */
+    if (a == NULL || b == NULL) {
+        jnative_throw_npe();
+        return NULL;
+    }
     int32_t la = jn_str_len(a);
     int32_t lb = jn_str_len(b);
     int64_t sum64 = (int64_t)la + (int64_t)lb;

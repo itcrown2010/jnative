@@ -1,0 +1,119 @@
+/* Author: 张晓达 — touch overlay for guide-tasks mobile (loads after tasks.css) */
+body.touch {
+  --tap: 48px;
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  padding-bottom: calc(var(--safe-bottom) + 4.5rem);
+}
+body.touch .tabs {
+  position: fixed;
+  left: 0; right: 0; bottom: 0;
+  margin: 0;
+  padding: 0.45rem 0.6rem calc(0.45rem + var(--safe-bottom));
+  background: color-mix(in srgb, var(--panel) 92%, transparent);
+  border-top: 1px solid var(--line);
+  z-index: 5;
+}
+body.touch #app { padding-bottom: 6.5rem; }
+* { box-sizing: border-box; }
+html, body {
+  margin: 0;
+  min-height: 100%;
+  font-family: "Songti SC", "Noto Serif SC", "Iowan Old Style", serif;
+  background: linear-gradient(165deg, #ebe4d8, var(--bg) 45%, #e2ebe6);
+  color: var(--ink);
+  -webkit-tap-highlight-color: transparent;
+}
+body.touch {
+  padding-top: var(--safe-top);
+  padding-bottom: calc(var(--safe-bottom) + 12px);
+}
+main {
+  max-width: 40rem;
+  margin: 0 auto;
+  padding: 1rem 1rem 2.5rem;
+}
+.top h1 { margin: 0; font-size: 1.55rem; font-weight: 600; }
+.sub, .meta { color: var(--muted); font-size: 0.85rem; margin: 0.25rem 0 0; }
+.status { min-height: 1.35rem; margin: 0.75rem 0; font-size: 0.95rem; }
+.status.err { color: var(--err); }
+.form, .tools {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem;
+  margin: 0.65rem 0;
+}
+input[type="text"] {
+  flex: 1 1 12rem;
+  min-height: var(--tap);
+  padding: 0.65rem 0.8rem;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--panel);
+  font: inherit;
+  font-size: 1.05rem;
+}
+button {
+  min-height: var(--tap);
+  min-width: var(--tap);
+  padding: 0.55rem 1rem;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  background: var(--panel);
+  color: var(--ink);
+  font: inherit;
+  font-size: 1rem;
+}
+button.primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+.list { list-style: none; padding: 0; margin: 1rem 0 0; }
+.list li {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 0.75rem;
+  margin-bottom: 0.55rem;
+}
+.list li.task {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+}
+.list li span { flex: 1 1 10rem; font-size: 1.05rem; word-break: break-word; }
+.list li.done span { text-decoration: line-through; color: var(--muted); }
+.list .actions { display: flex; flex-wrap: wrap; gap: 0.4rem; }
+.list li button { flex: 0 0 auto; }
+.list-state, .hint, .empty { color: var(--muted); font-style: italic; padding: 0.35rem 0.1rem; }
+.field-error { color: var(--err); margin: 0.2rem 0 0; }
+.fail { color: var(--err); }
+button.linkish {
+  border: none;
+  background: transparent;
+  color: var(--accent);
+  min-height: 0;
+  padding: 0.25rem 0;
+}
+input[type="search"] {
+  flex: 1 1 10rem;
+  min-height: var(--tap);
+  padding: 0.65rem 0.8rem;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--panel);
+  font: inherit;
+  font-size: 1.05rem;
+}
+.col { display: flex; flex-direction: column; gap: 0.45rem; }
+
+/* Soft keyboard: keep focused field above keyboard when visualViewport shrinks */
+body.keyboard-open main {
+  padding-bottom: calc(var(--safe-bottom) + 8rem);
+}

@@ -377,7 +377,8 @@
           if (!ok) return;
           rb.disabled = true;
           JnData.active.resetDemo().then(function () {
-            JnUI.toast(t("common.demoResetOk", null, "演示账套已重置"), "ok");
+            JnUI.toast(t("common.demoResetOk", null, "演示账套已重置，正在重新加载…"), "ok");
+            setTimeout(function () { location.reload(); }, 1200);
             if (JnData.active.invalidate) JnData.active.invalidate();
             location.reload();
           }).catch(function (err) {

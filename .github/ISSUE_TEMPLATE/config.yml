@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Documentation (English)
+    url: https://github.com/itcrown2010/jnative/blob/main/docs/en/README.md
+    about: Getting started, architecture, language overview
+  - name: Documentation (Chinese tutorial)
+    url: https://github.com/itcrown2010/jnative/blob/main/docs/tutorial/index.md
+    about: Step-by-step tutorial in Chinese

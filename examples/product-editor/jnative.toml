@@ -1,0 +1,15 @@
+# Author: 张晓达
+[package]
+name = "product-editor"
+namespace = "local"
+version = "0.1.0"
+description = "Product editor using local/ui-controls composite widgets"
+license = "MIT"
+type = "source"
+
+[target]
+kind = "desktop"
+triple = "native"
+
+[dependencies]
+"local/ui-controls" = "0.1.0"

@@ -41,6 +41,7 @@ class ErpSeed {
                 companyId = ErpNum.asLong(c);
                 ErpBooks.setBookKind(companyId, BookKind.DEMO);
                 ErpBooks.upgradeDemoSeedIfNeeded(companyId);
+                ErpDemoScenarioSeed.applyIfNeeded(companyId);
                 Object uc = ErpDb.queryOne(
                         "SELECT COUNT(*) FROM users WHERE company_id="
                                 + CryptoParse.longToString(companyId),
@@ -185,36 +186,65 @@ class ErpSeed {
 
     static void seedPartners(long companyId, long now) {
         int c = 1;
-        while (c <= 20) {
-            String kind = PartnerKind.CUSTOMER;
-            if (c <= 10) {
-                kind = PartnerKind.CUSTOMER;
-            } else {
-                kind = PartnerKind.SUPPLIER;
+        while (c <= 10) {
+            String code = "C" + String.valueOf(c);
+            ArrayList<Object> chk = new ArrayList<Object>();
+            chk.add(CryptoParse.longToString(companyId));
+            chk.add(code);
+            Object ex = ErpDb.queryOne("SELECT id FROM business_partners WHERE company_id=? AND code=?", chk,
+                    new LongMapper());
+            if (ex == null) {
+                ArrayList<Object> row = new ArrayList<Object>();
+                row.add(CryptoParse.longToString(companyId));
+                row.add(code);
+                row.add("Customer " + String.valueOf(c));
+                row.add(PartnerKind.CUSTOMER);
+                row.add(CryptoParse.longToString(now));
+                ErpDb.exec("INSERT INTO business_partners(company_id, code, name, kind, created_at) VALUES (?,?,?,?,?)",
+                        row);
             }
-            ArrayList<Object> row = new ArrayList<Object>();
-            row.add(CryptoParse.longToString(companyId));
-            row.add("P" + String.valueOf(c));
-            row.add("Partner " + String.valueOf(c));
-            row.add(kind);
-            row.add(CryptoParse.longToString(now));
-            ErpDb.exec("INSERT INTO business_partners(company_id, code, name, kind, created_at) VALUES (?,?,?,?,?)",
-                    row);
             c = c + 1;
+        }
+        int s = 1;
+        while (s <= 8) {
+            String code = "S" + String.valueOf(s);
+            ArrayList<Object> chk = new ArrayList<Object>();
+            chk.add(CryptoParse.longToString(companyId));
+            chk.add(code);
+            Object ex = ErpDb.queryOne("SELECT id FROM business_partners WHERE company_id=? AND code=?", chk,
+                    new LongMapper());
+            if (ex == null) {
+                ArrayList<Object> row = new ArrayList<Object>();
+                row.add(CryptoParse.longToString(companyId));
+                row.add(code);
+                row.add("Supplier " + String.valueOf(s));
+                row.add(PartnerKind.SUPPLIER);
+                row.add(CryptoParse.longToString(now));
+                ErpDb.exec("INSERT INTO business_partners(company_id, code, name, kind, created_at) VALUES (?,?,?,?,?)",
+                        row);
+            }
+            s = s + 1;
         }
     }
 
     static void seedItems(long companyId, long now) {
         int i = 1;
-        while (i <= 100) {
-            ArrayList<Object> row = new ArrayList<Object>();
-            row.add(CryptoParse.longToString(companyId));
-            row.add("SKU-" + String.valueOf(i));
-            row.add("Item " + String.valueOf(i));
-            row.add(String.valueOf(100 + i));
-            row.add(CryptoParse.longToString(now));
-            ErpDb.exec("INSERT INTO items(company_id, sku, name, unit_price_cents, created_at) VALUES (?,?,?,?,?)",
-                    row);
+        while (i <= 30) {
+            String sku = "SKU-" + String.valueOf(i);
+            ArrayList<Object> chk = new ArrayList<Object>();
+            chk.add(CryptoParse.longToString(companyId));
+            chk.add(sku);
+            Object ex = ErpDb.queryOne("SELECT id FROM items WHERE company_id=? AND sku=?", chk, new LongMapper());
+            if (ex == null) {
+                ArrayList<Object> row = new ArrayList<Object>();
+                row.add(CryptoParse.longToString(companyId));
+                row.add(sku);
+                row.add("Item " + String.valueOf(i));
+                row.add(String.valueOf(1000 + i * 10));
+                row.add(CryptoParse.longToString(now));
+                ErpDb.exec("INSERT INTO items(company_id, sku, name, unit_price_cents, created_at) VALUES (?,?,?,?,?)",
+                        row);
+            }
             i = i + 1;
         }
     }
@@ -222,12 +252,19 @@ class ErpSeed {
     static void seedWarehouses(long companyId, long now) {
         int w = 1;
         while (w <= 3) {
-            ArrayList<Object> row = new ArrayList<Object>();
-            row.add(CryptoParse.longToString(companyId));
-            row.add("WH" + String.valueOf(w));
-            row.add("Warehouse " + String.valueOf(w));
-            row.add(CryptoParse.longToString(now));
-            ErpDb.exec("INSERT INTO warehouses(company_id, code, name, created_at) VALUES (?,?,?,?)", row);
+            String code = "WH" + String.valueOf(w);
+            ArrayList<Object> chk = new ArrayList<Object>();
+            chk.add(CryptoParse.longToString(companyId));
+            chk.add(code);
+            Object ex = ErpDb.queryOne("SELECT id FROM warehouses WHERE company_id=? AND code=?", chk, new LongMapper());
+            if (ex == null) {
+                ArrayList<Object> row = new ArrayList<Object>();
+                row.add(CryptoParse.longToString(companyId));
+                row.add(code);
+                row.add("Warehouse " + String.valueOf(w));
+                row.add(CryptoParse.longToString(now));
+                ErpDb.exec("INSERT INTO warehouses(company_id, code, name, created_at) VALUES (?,?,?,?)", row);
+            }
             w = w + 1;
         }
     }

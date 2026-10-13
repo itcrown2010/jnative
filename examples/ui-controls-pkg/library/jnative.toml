@@ -1,0 +1,12 @@
+# Author: 张晓达
+[package]
+name = "ui-controls"
+namespace = "local"
+version = "0.1.0"
+description = "Composable desktop UI controls: NumericField, SearchableSelect"
+license = "MIT"
+type = "source"
+min_compiler = "0.32"
+requires = ["DESKTOP_UI"]
+
+[dependencies]

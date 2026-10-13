@@ -26,6 +26,15 @@ public class ActivityMonitor {
                     AmUi.forceAppearance = args[ai + 1];
                     ai = ai + 1;
                 }
+                if (args[ai].equals("--view-mode") && ai + 1 < args.length) {
+                    AmUi.forceViewMode = args[ai + 1];
+                    ai = ai + 1;
+                }
+                if (args[ai].equals("--window-size") && ai + 2 < args.length) {
+                    AmUi.forceWinW = AmParse.intOr(args[ai + 1], 1100);
+                    AmUi.forceWinH = AmParse.intOr(args[ai + 2], 720);
+                    ai = ai + 2;
+                }
                 ai = ai + 1;
             }
         }
@@ -39,6 +48,8 @@ public class ActivityMonitor {
         } else if (demo != null && demo.equals("light")) {
             appearance = Theme.MODE_LIGHT;
         }
+        Application.setAppName("活动监视器");
+        Application.setQuitOnLastWindowClose(true);
         Application app = new Application();
         /* Apply after UiNative.init so Cocoa can set NSApp.appearance. */
         Theme.setAppearanceMode(appearance);
@@ -49,19 +60,21 @@ public class ActivityMonitor {
 
 class AmUi {
     static String forceAppearance;
+    static String forceViewMode;
+    static int forceWinW;
+    static int forceWinH;
     static Window window;
     static Window detailWin;
     static Label detailBody;
-    static Label footCpu;
-    static Label footMem;
-    static Label footSpark;
+    static Label footPrimary;
+    static TrendChart footTrend;
     static Label footStatus;
     static SearchField search;
     static Button detailBtn;
     static Button termBtn;
-    static Button cpuModeBtn;
-    static Button memModeBtn;
     static Button moreBtn;
+    static Button infoBtn;
+    static SegmentedControl modeSeg;
     static TableView<AmProcRow> table;
     static AmViewState state;
     static int alive;
@@ -83,14 +96,23 @@ class AmUi {
     static int sortAsc;
     /** 0=CPU page, 1=Memory page */
     static int viewMode;
+    /** 1 = user clicked a column; mode switch still resets to page default. */
+    static int sortUserTouched;
     static ArrayList<AmProcRow> viewRows;
     static long lastTableRebuildNs;
     static int tableDirty;
     static String lastSearchApplied;
     static ArrayList<int> cpuHistory;
+    static ArrayList<int> memHistory;
     static ArrayList<String> iconCacheKeys;
     static ArrayList<String> iconCachePaths;
-    static Label metricsNote;
+    /** Lightweight UI state (not the high-frequency snapshot graph). */
+    static BindingScope scope;
+    static ObservableInt viewModeObs;
+    static ObservableValue<String> searchObs;
+    static ObservableValue<String> selectedIdObs;
+    static ObservableInt pausedObs;
+    static ObservableInt toolEnableObs;
 
     static void ensure() {
         if (state == null) {
@@ -109,28 +131,56 @@ class AmUi {
         sortCol = 3;
         sortAsc = 0;
         viewMode = 0;
+        sortUserTouched = 0;
         viewRows = new ArrayList<AmProcRow>();
         lastTableRebuildNs = 0;
         tableDirty = 0;
         lastSearchApplied = "";
         cpuHistory = new ArrayList<int>();
+        memHistory = new ArrayList<int>();
         iconCacheKeys = new ArrayList<String>();
         iconCachePaths = new ArrayList<String>();
+        scope = new BindingScope();
+        viewModeObs = new ObservableInt(0);
+        searchObs = ObservableValue.ofString("");
+        selectedIdObs = ObservableValue.ofString("");
+        pausedObs = new ObservableInt(0);
+        toolEnableObs = new ObservableInt(0);
     }
 }
 
 class AmWindow {
     static void show() {
         AmUi.ensure();
-        AmUi.window = new Window(AmI18n.t("title"), 1100, 720);
+        int winW = 1100;
+        int winH = 720;
+        if (AmUi.forceWinW >= 720) {
+            winW = AmUi.forceWinW;
+        }
+        if (AmUi.forceWinH >= 420) {
+            winH = AmUi.forceWinH;
+        }
+        AmUi.window = new Window(AmI18n.t("title"), winW, winH);
+        /* Routes to Cocoa contentMinSize (logical points). */
         AmUi.window.setMinSize(720, 420);
         AmUi.window.onClose(() -> {
             AmUi.alive = 0;
             AmUi.sampleToken = AmUi.sampleToken + 1;
             AmUi.refreshGen = AmUi.refreshGen + 1;
-            if (AmUi.detailWin != null) {
-                AmUi.detailWin = null;
-                AmUi.detailBody = null;
+            if (AmUi.scope != null) {
+                AmUi.scope.dispose();
+                AmUi.scope = null;
+            }
+            /* Owned auxiliary windows close via Window.fireClose child pass. */
+            AmUi.detailBody = null;
+        });
+        Application.onQuit(() -> {
+            AmUi.alive = 0;
+            AmUi.sampleToken = AmUi.sampleToken + 1;
+            AmUi.refreshGen = AmUi.refreshGen + 1;
+            if (AmUi.scope != null) {
+                AmUi.scope.dispose();
+                AmUi.scope = null;
             }
         });
 
@@ -166,51 +216,94 @@ class AmWindow {
         root.padding = 0;
 
         Toolbar toolbar = new Toolbar();
-        toolbar.spacing = 4;
-        toolbar.padding = 4;
-        AmUi.termBtn = toolbar.addToolButton(AmI18n.t("term"), () -> {
+        toolbar.spacing = 6;
+        toolbar.padding = 6;
+        AmUi.termBtn = toolbar.addPushToolButton(AmI18n.t("term"), "xmark.circle",
+                AmI18n.t("tip_term"), () -> {
             AmActions.confirmTerminate();
         });
-        AmUi.detailBtn = toolbar.addToolButton(AmI18n.t("detail"), () -> {
+        AmUi.detailBtn = toolbar.addPushToolButton(AmI18n.t("detail"), "info.circle",
+                AmI18n.t("tip_detail"), () -> {
             AmActions.showDetail();
         });
+        Bindings.bindEnabled(AmUi.detailBtn, AmUi.toolEnableObs, AmUi.scope);
         toolbar.addSeparatorGap();
-        AmUi.cpuModeBtn = toolbar.addToolButton(AmI18n.t("mode_cpu"), () -> {
-            AmActions.setViewMode(0);
-        });
-        AmUi.memModeBtn = toolbar.addToolButton(AmI18n.t("mode_mem"), () -> {
-            AmActions.setViewMode(1);
-        });
+        int bootMode = 0;
+        if (AmUi.forceViewMode != null) {
+            if (AmUi.forceViewMode.equals("mem") || AmUi.forceViewMode.equals("memory")
+                    || AmUi.forceViewMode.equals("1")) {
+                bootMode = 1;
+            }
+        }
+        AmUi.viewMode = bootMode;
+        if (bootMode == 0) {
+            AmUi.sortCol = 3;
+            AmUi.sortAsc = 0;
+        } else {
+            AmUi.sortCol = 4;
+            AmUi.sortAsc = 0;
+        }
+        AmUi.modeSeg = new SegmentedControl(AmI18n.t("mode_cpu") + "\t" + AmI18n.t("mode_mem"));
+        AmUi.viewModeObs.set(bootMode);
+        Bindings.bindSegmented(AmUi.modeSeg, AmUi.viewModeObs, AmUi.scope);
+        AmUi.scope.addObs(AmUi.viewModeObs.subscribe((ev) -> {
+            AmActions.setViewMode(ev.newValue);
+        }));
+        toolbar.add(AmUi.modeSeg);
         toolbar.addFlexibleSpace();
         AmUi.search = new SearchField();
         AmUi.search.setPlaceholder(AmI18n.t("search_ph"));
         AmUi.search.setOnQueryChanged(() -> {
             AmActions.onSearchChanged();
         });
-        AmUi.search.prefWidth = 220;
-        AmUi.search.width = 220;
-        AmUi.search.prefHeight = 28;
-        AmUi.search.height = 28;
-        if (AmUi.search.field != null) {
-            AmUi.search.field.setPrefSize(180, 24);
-        }
+        AmUi.search.prefWidth = 200;
+        AmUi.search.width = 200;
         toolbar.add(AmUi.search);
-        AmUi.moreBtn = toolbar.addToolButton(AmI18n.t("more"), () -> {
-            AmActions.showMoreMenu();
+        AmUi.infoBtn = toolbar.addPushToolButton(AmI18n.t("metrics_btn"), "questionmark.circle",
+                AmI18n.t("tip_metrics"), () -> {
+            AmActions.showMetricsInfo();
         });
-        toolbar.prefHeight = Theme.TOOLBAR_HEIGHT;
-        toolbar.height = Theme.TOOLBAR_HEIGHT;
+        Menu moreMenu = new Menu(AmI18n.t("more"));
+        moreMenu.add(new MenuItem(AmI18n.t("pause"), () -> { AmActions.togglePause(); }));
+        moreMenu.add(new MenuItem(AmI18n.t("refresh_now"), () -> {
+            AmUi.tableDirty = 1;
+            AmActions.requestSample(1);
+        }));
+        moreMenu.add(new MenuItem(AmI18n.t("interval_1s"), () -> {
+            AmUi.refreshMs = 1000;
+            AmActions.setFootStatus();
+        }));
+        moreMenu.add(new MenuItem(AmI18n.t("interval_2s"), () -> {
+            AmUi.refreshMs = 2000;
+            AmActions.setFootStatus();
+        }));
+        moreMenu.add(new MenuItem(AmI18n.t("interval_5s"), () -> {
+            AmUi.refreshMs = 5000;
+            AmActions.setFootStatus();
+        }));
+        if (UiPlatform.supports(UiPlatform.FEAT_OVERFLOW_MENU) != 0) {
+            AmUi.moreBtn = toolbar.addOverflowMenu(AmI18n.t("tip_more"), moreMenu);
+        } else {
+            AmUi.moreBtn = toolbar.addPushToolButton(AmI18n.t("more"), "ellipsis.circle",
+                    AmI18n.t("tip_more"), () -> {
+                AmActions.showMoreMenu();
+            });
+        }
+        toolbar.prefHeight = 40;
+        toolbar.height = 40;
 
         AmUi.table = new TableView<AmProcRow>();
         AmUi.table.vgrow = 1;
         AmUi.table.prefHeight = 480;
         AmUi.table.height = 480;
+        AmUi.table.setRowIdProvider(new AmRowIds());
+        AmUi.table.setEmptyMessage(AmI18n.t("status_sampling"));
         AmActions.rebuildColumns();
         AmUi.table.setIconPathProvider(new AmIconPaths());
         AmUi.table.onSelectionChanged((ev) -> {
             AmActions.onSelect(ev.selectedIndex);
         });
-        AmUi.table.onAction((ev) -> {
+        AmUi.table.onDoubleClick((ev) -> {
             AmActions.showDetail();
         });
         AmUi.table.onHeaderClick((ev) -> {
@@ -218,39 +311,37 @@ class AmWindow {
         });
 
         HBox footer = new HBox();
-        footer.spacing = Theme.SPACE_2;
-        footer.padding = 4;
-        footer.prefHeight = 40;
-        footer.height = 40;
-        AmUi.footCpu = new Label(AmI18n.t("foot_cpu_wait"));
-        AmUi.footCpu.setPrefSize(180, 28);
-        AmUi.footMem = new Label(AmI18n.t("foot_mem_wait"));
-        AmUi.footMem.setPrefSize(300, 28);
-        AmUi.footSpark = new Label("");
-        AmUi.footSpark.setPrefSize(120, 28);
+        footer.spacing = 12;
+        footer.padding = 8;
+        footer.prefHeight = 52;
+        footer.height = 52;
+        AmUi.footPrimary = new Label(AmI18n.t("foot_cpu_wait"));
+        AmUi.footPrimary.setPrefSize(280, 36);
+        Theme.applyStyle(AmUi.footPrimary, Theme.STYLE_BODY);
+        AmUi.footTrend = new TrendChart();
+        AmUi.footTrend.setCapacity(32);
+        AmUi.footTrend.setYRange(0.0, 100.0);
+        AmUi.footTrend.setPrefSize(168, 36);
         AmUi.footStatus = new Label(AmI18n.t("status_ready"));
-        AmUi.footStatus.setPrefSize(200, 28);
-        footer.add(AmUi.footCpu);
-        footer.add(AmUi.footMem);
-        footer.add(AmUi.footSpark);
+        AmUi.footStatus.setPrefSize(200, 36);
+        Theme.applyStyle(AmUi.footStatus, Theme.STYLE_SECONDARY);
+        footer.add(AmUi.footPrimary);
+        footer.add(AmUi.footTrend);
         Label flex = new Label("");
         flex.prefWidth = 0;
         flex.width = 0;
+        flex.hgrow = 1;
         footer.add(flex);
         footer.add(AmUi.footStatus);
-
-        AmUi.metricsNote = new Label(AmI18n.t("metrics_hint"));
-        AmUi.metricsNote.setPrefSize(1080, 18);
 
         root.add(toolbar);
         root.add(AmUi.table);
         root.add(footer);
-        root.add(AmUi.metricsNote);
 
         AmUi.window.setContent(root);
         AmUi.window.show();
         AmActions.syncToolbarEnabled();
-        AmActions.syncModeButtons();
+        AmActions.syncModeSeg();
         AmActions.setFootStatus();
 
         AmActions.requestSample(1);
@@ -264,6 +355,18 @@ class AmIconPaths implements TableIconPathProvider<AmProcRow> {
             return "";
         }
         return AmActions.cachedIconPath(row.sample);
+    }
+}
+
+/** Stable process identity — never use view row index as business id. */
+class AmRowIds implements TableRowIdProvider<AmProcRow> {
+    String rowId(AmProcRow row) {
+        if (row == null || row.sample == null) {
+            return "";
+        }
+        return String.valueOf(row.sample.pid) + ":"
+                + AmParse.longToString(row.sample.startSec) + ":"
+                + String.valueOf(row.sample.startUsec);
     }
 }
 
@@ -394,11 +497,17 @@ class AmI18n {
         if (key.equals("col_pid")) return "PID";
         if (key.equals("col_user")) return "用户";
         if (key.equals("col_cpu")) return "CPU %";
-        if (key.equals("col_mem_foot")) return "内存";
+        if (key.equals("col_mem_foot")) return "内存占用";
         if (key.equals("col_thr")) return "线程";
-        if (key.equals("foot_cpu_wait")) return "CPU\n—";
-        if (key.equals("foot_mem_wait")) return "内存\n—";
-        if (key.equals("metrics_hint")) return "内存列 = 物理占用（ri_phys_footprint）；RSS 见详情。CPU 100% = 1 逻辑核心。";
+        if (key.equals("foot_cpu_wait")) return "CPU\n等待采样";
+        if (key.equals("foot_mem_wait")) return "内存\n等待采样";
+        if (key.equals("metrics_btn")) return "说明";
+        if (key.equals("metrics_hint")) return "内存占用 = 物理占用（ri_phys_footprint）；RSS 见进程详情。CPU 100% = 1 逻辑核心。";
+        if (key.equals("tip_term")) return "结束所选进程";
+        if (key.equals("tip_detail")) return "查看进程详情";
+        if (key.equals("tip_more")) return "暂停、刷新与间隔";
+        if (key.equals("tip_metrics")) return "指标口径说明";
+        if (key.equals("spark_wait")) return "等待采样";
         if (key.equals("no_sel")) return "请先选择一个进程";
         if (key.equals("detail_title")) return "进程详情";
         if (key.equals("gone")) return "所选进程已退出或身份失效";
@@ -429,9 +538,15 @@ class AmI18n {
         if (key.equals("col_cpu")) return "CPU %";
         if (key.equals("col_mem_foot")) return "Memory";
         if (key.equals("col_thr")) return "Threads";
-        if (key.equals("foot_cpu_wait")) return "CPU\n—";
-        if (key.equals("foot_mem_wait")) return "Memory\n—";
-        if (key.equals("metrics_hint")) return "Memory column = phys footprint; RSS in Inspect. CPU 100% = 1 logical core.";
+        if (key.equals("foot_cpu_wait")) return "CPU\nWaiting";
+        if (key.equals("foot_mem_wait")) return "Memory\nWaiting";
+        if (key.equals("metrics_btn")) return "Info";
+        if (key.equals("metrics_hint")) return "Memory = phys footprint (ri_phys_footprint); RSS in Inspect. CPU 100% = 1 logical core.";
+        if (key.equals("tip_term")) return "Quit selected process";
+        if (key.equals("tip_detail")) return "Show process details";
+        if (key.equals("tip_more")) return "Pause, refresh, interval";
+        if (key.equals("tip_metrics")) return "Metric definitions";
+        if (key.equals("spark_wait")) return "Waiting";
         if (key.equals("no_sel")) return "Select a process first";
         if (key.equals("detail_title")) return "Process";
         if (key.equals("gone")) return "Process exited or identity changed";
@@ -455,34 +570,39 @@ class AmActions {
             return;
         }
         AmUi.table.columns.clear();
-        AmUi.table.addColumn(new AmColName());
-        AmUi.table.addColumn(new AmColPid());
-        AmUi.table.addColumn(new AmColUser());
-        AmUi.table.addColumn(new AmColCpu());
-        AmUi.table.addColumn(new AmColMem());
-        AmUi.table.addColumn(new AmColThr());
+        AmUi.table.addColumnDef(AmActions.colTitle(0, AmI18n.t("col_name")),
+                new AmColName(), 0, "L", 1);
+        AmUi.table.addColumnDef(AmActions.colTitle(1, AmI18n.t("col_pid")),
+                new AmColPid(), 88, "R", 0);
+        AmUi.table.addColumnDef(AmActions.colTitle(2, AmI18n.t("col_user")),
+                new AmColUser(), 128, "L", 0);
+        AmUi.table.addColumnDef(AmActions.colTitle(3, AmI18n.t("col_cpu")),
+                new AmColCpu(), 84, "R", 0);
+        AmUi.table.addColumnDef(AmActions.colTitle(4, AmI18n.t("col_mem_foot")),
+                new AmColMem(), 100, "R", 0);
+        AmUi.table.addColumnDef(AmActions.colTitle(5, AmI18n.t("col_thr")),
+                new AmColThr(), 64, "R", 0);
     }
 
-    static void syncModeButtons() {
-        /* Visual cue via label prefix — chrome is borderless toolbar. */
-        if (AmUi.cpuModeBtn != null) {
-            if (AmUi.viewMode == 0) {
-                AmUi.cpuModeBtn.setText("● " + AmI18n.t("mode_cpu"));
-            } else {
-                AmUi.cpuModeBtn.setText(AmI18n.t("mode_cpu"));
-            }
-        }
-        if (AmUi.memModeBtn != null) {
-            if (AmUi.viewMode == 1) {
-                AmUi.memModeBtn.setText("● " + AmI18n.t("mode_mem"));
-            } else {
-                AmUi.memModeBtn.setText(AmI18n.t("mode_mem"));
-            }
+    static void syncModeSeg() {
+        if (AmUi.modeSeg != null) {
+            AmUi.modeSeg.setSelectedIndex(AmUi.viewMode);
         }
     }
 
     static void setViewMode(int mode) {
+        if (mode != 0 && mode != 1) {
+            return;
+        }
+        if (AmUi.viewMode == mode) {
+            return;
+        }
         AmUi.viewMode = mode;
+        if (AmUi.viewModeObs != null && AmUi.viewModeObs.get() != mode) {
+            AmUi.viewModeObs.set(mode);
+        }
+        /* Switching page applies that page's default sort (does not stick across pages). */
+        AmUi.sortUserTouched = 0;
         if (mode == 0) {
             AmUi.sortCol = 3;
             AmUi.sortAsc = 0;
@@ -490,11 +610,12 @@ class AmActions {
             AmUi.sortCol = 4;
             AmUi.sortAsc = 0;
         }
-        syncModeButtons();
+        syncModeSeg();
         AmUi.tableDirty = 1;
         rebuildColumns();
         maybeRebuildTable(1);
         updateFooter();
+        setFootStatus();
     }
 
     static void syncToolbarEnabled() {
@@ -504,6 +625,9 @@ class AmActions {
             if (r != null) {
                 on = 1;
             }
+        }
+        if (AmUi.toolEnableObs != null) {
+            AmUi.toolEnableObs.set(on);
         }
         if (AmUi.detailBtn != null) {
             if (on != 0) {
@@ -552,6 +676,9 @@ class AmActions {
         } else {
             AmUi.paused = 1;
         }
+        if (AmUi.pausedObs != null) {
+            AmUi.pausedObs.set(AmUi.paused);
+        }
         setFootStatus();
         if (AmUi.paused == 0) {
             requestSample(0);
@@ -568,6 +695,10 @@ class AmActions {
         }
     }
 
+    static void showMetricsInfo() {
+        Dialogs.info(AmUi.window, AmI18n.t("metrics_hint"));
+    }
+
     static void onSearchChanged() {
         if (AmUi.search == null) {
             return;
@@ -577,6 +708,9 @@ class AmActions {
             q = "";
         }
         AmUi.searchText = q;
+        if (AmUi.searchObs != null) {
+            AmUi.searchObs.set(q);
+        }
         AmUi.tableDirty = 1;
         maybeRebuildTable(1);
     }
@@ -618,6 +752,13 @@ class AmActions {
             AmUi.cpuHistory.add(AmUi.state.sysCpuMilli);
             while (AmUi.cpuHistory.size() > 32) {
                 AmUi.cpuHistory.removeAt(0);
+            }
+        }
+        if (AmUi.state.sysMemUsedBytes >= 0 && AmUi.state.memTotal > 0) {
+            int memMilli = (int)((AmUi.state.sysMemUsedBytes * 10000L) / AmUi.state.memTotal);
+            AmUi.memHistory.add(memMilli);
+            while (AmUi.memHistory.size() > 32) {
+                AmUi.memHistory.removeAt(0);
             }
         }
     }
@@ -725,45 +866,28 @@ class AmActions {
     }
 
     static void updateFooter() {
-        if (AmUi.footCpu == null || AmUi.state == null) {
+        if (AmUi.footPrimary == null || AmUi.state == null) {
             return;
         }
-        String cpu = AmFormat.cpuPct(AmUi.state.sysCpuMilli);
-        AmUi.footCpu.setText("CPU  " + cpu + "\n" + String.valueOf(AmUi.state.ncpu) + " 逻辑核心");
-        String used = AmFormat.bytes(AmUi.state.sysMemUsedBytes);
-        String free = AmFormat.bytes(AmUi.state.sysMemFreeBytes);
-        String total = AmFormat.bytes(AmUi.state.memTotal);
-        AmUi.footMem.setText("内存  已用(页合计) " + used + "\n合计 " + total + " · 空闲页 " + free);
-        AmUi.footSpark.setText("趋势\n" + sparkline());
-    }
-
-    static String sparkline() {
-        if (AmUi.cpuHistory == null || AmUi.cpuHistory.size() < 2) {
-            return "—";
-        }
-        /* ASCII sparkline from real sysCpuMilli samples (0–10000+). */
-        String blocks = " .:-=+*#@";
-        String out = "";
-        int i = 0;
-        while (i < AmUi.cpuHistory.size()) {
-            int m = AmUi.cpuHistory.get(i);
-            if (m < 0) {
-                m = 0;
+        if (AmUi.viewMode == 0) {
+            String cpu = AmFormat.cpuPct(AmUi.state.sysCpuMilli);
+            AmUi.footPrimary.setText("CPU  " + cpu + "\n"
+                    + String.valueOf(AmUi.state.ncpu) + " 逻辑核心");
+            if (AmUi.footTrend != null) {
+                AmUi.footTrend.setYRange(0.0, 100.0);
+                AmUi.footTrend.setSamplesFromMilli(AmUi.cpuHistory, 0.01);
             }
-            int idx = m / 1250;
-            if (idx < 0) {
-                idx = 0;
+        } else {
+            String used = AmFormat.bytes(AmUi.state.sysMemUsedBytes);
+            String total = AmFormat.bytes(AmUi.state.memTotal);
+            String free = AmFormat.bytes(AmUi.state.sysMemFreeBytes);
+            AmUi.footPrimary.setText("内存占用  " + used + " / " + total + "\n"
+                    + "空闲页 " + free);
+            if (AmUi.footTrend != null) {
+                AmUi.footTrend.setYRange(0.0, 100.0);
+                AmUi.footTrend.setSamplesFromMilli(AmUi.memHistory, 0.01);
             }
-            if (idx > 8) {
-                idx = 8;
-            }
-            out = out + blocks.substring(idx, idx + 1);
-            i = i + 1;
         }
-        if (out.length() == 0) {
-            return "—";
-        }
-        return out;
     }
 
     static void applyToTable() {
@@ -789,23 +913,15 @@ class AmActions {
             si = si + 1;
         }
         AmUi.viewRows = shown;
+        /* TableView retains selection by stable row id across setItems. */
         AmUi.table.setItems(AmUi.viewRows);
         if (AmUi.selPid > 0) {
-            int idx = 0;
-            int found = -1;
-            while (idx < AmUi.viewRows.size()) {
-                AmProcRow r = AmUi.viewRows.get(idx);
-                if (r.sample.pid == AmUi.selPid
-                        && r.sample.startSec == AmUi.selStartSec
-                        && r.sample.startUsec == AmUi.selStartUsec) {
-                    found = idx;
-                    break;
-                }
-                idx = idx + 1;
-            }
-            if (found >= 0) {
-                AmUi.table.select(found);
-            } else {
+            String want = String.valueOf(AmUi.selPid) + ":"
+                    + AmParse.longToString(AmUi.selStartSec) + ":"
+                    + String.valueOf(AmUi.selStartUsec);
+            AmUi.table.selectByRowId(want);
+            if (AmUi.table.getSelectedRowId() == null
+                    || !want.equals(AmUi.table.getSelectedRowId())) {
                 AmUi.selPid = -1;
                 if (AmUi.detailBody != null) {
                     AmUi.detailBody.setText(AmI18n.t("gone"));
@@ -886,6 +1002,7 @@ class AmActions {
         if (col < 0 || col > 5) {
             return;
         }
+        AmUi.sortUserTouched = 1;
         if (AmUi.sortCol == col) {
             if (AmUi.sortAsc != 0) {
                 AmUi.sortAsc = 0;
@@ -904,6 +1021,9 @@ class AmActions {
     static void onSelect(int viewIndex) {
         if (viewIndex < 0 || AmUi.viewRows == null || viewIndex >= AmUi.viewRows.size()) {
             AmUi.selPid = -1;
+            if (AmUi.selectedIdObs != null) {
+                AmUi.selectedIdObs.set("");
+            }
             syncToolbarEnabled();
             return;
         }
@@ -911,6 +1031,11 @@ class AmActions {
         AmUi.selPid = r.sample.pid;
         AmUi.selStartSec = r.sample.startSec;
         AmUi.selStartUsec = r.sample.startUsec;
+        if (AmUi.selectedIdObs != null) {
+            AmUi.selectedIdObs.set(String.valueOf(r.sample.pid) + ":"
+                    + AmParse.longToString(r.sample.startSec) + ":"
+                    + String.valueOf(r.sample.startUsec));
+        }
         syncToolbarEnabled();
         refreshDetailIfOpen();
     }
@@ -976,6 +1101,7 @@ class AmActions {
         if (AmUi.detailWin == null) {
             AmUi.detailWin = new Window(AmI18n.t("detail_title"), 420, 360);
             AmUi.detailWin.setMinSize(320, 240);
+            AmUi.detailWin.setOwnerWindow(AmUi.window);
             AmUi.detailWin.onClose(() -> {
                 AmUi.detailWin = null;
                 AmUi.detailBody = null;
@@ -996,6 +1122,8 @@ class AmActions {
             box.add(copyBtn);
             AmUi.detailWin.setContent(box);
             AmUi.detailWin.show();
+        } else {
+            AmUi.detailWin.activate();
         }
         AmUi.detailBody.setText(formatDetail(r));
     }

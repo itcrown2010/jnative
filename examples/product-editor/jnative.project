@@ -1,0 +1,6 @@
+{
+  "name": "product-editor",
+  "source": ["src"],
+  "main": "ProductEditor",
+  "output": "../../build/product-editor/ProductEditor"
+}

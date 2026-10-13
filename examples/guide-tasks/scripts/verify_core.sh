@@ -37,18 +37,40 @@ while i < len(lines):
 smoke = r'''
 public class TaskCoreSmoke {
     public static void main(String[] args) {
-        int id = TaskCore.addTaskString("Buy milk");
         int ok = 1;
-        if (id != 0 || TaskCore.getCount() != 1 || TaskCore.getDone(0) != 0) { ok = 0; }
-        TaskCore.toggleDone(0);
-        if (TaskCore.getDone(0) != 1) { ok = 0; }
+        TaskCore.clearFormDraft();
+        TaskCore.appendTitleChar(66);
+        TaskCore.appendTitleChar(117);
+        TaskCore.appendTitleChar(121);
+        TaskCore.setFormStatus(0);
+        TaskCore.setFormDue(20261013);
+        int id0 = TaskCore.addFromForm();
+        if (id0 != 0 || TaskCore.getCount() != 1) { ok = 0; }
+        if (TaskCore.getDueYmd(0) != 20261013) { ok = 0; }
+        if (TaskCore.setFormDue(20260230) != 0) { ok = 0; }
+        if (TaskCore.getLastError() != 6) { ok = 0; }
+        TaskCore.clearFormDraft();
+        TaskCore.appendTitleChar(87);
+        TaskCore.setFormStatus(1);
+        if (TaskCore.validateForm() != 0 || TaskCore.getLastError() != 7) { ok = 0; }
+        TaskCore.appendNoteChar(110);
+        TaskCore.appendNoteChar(111);
+        TaskCore.appendNoteChar(116);
+        TaskCore.appendNoteChar(101);
+        int id1 = TaskCore.addFromForm();
+        if (id1 != 1) { ok = 0; }
+        TaskCore.removeById(id0);
+        if (TaskCore.getCount() != 1 || TaskCore.getId(0) != 1) { ok = 0; }
         int n = TaskCore.prepareSave();
         String s = "";
         int i = 0;
         while (i < n) { s = s + TaskCore.unitToString(TaskCore.getSaveChar(i)); i = i + 1; }
         TaskCore.clearAll();
         if (TaskCore.loadSave(s) == 0) { ok = 0; }
-        if (TaskCore.getCount() != 1) { ok = 0; }
+        if (TaskCore.getCount() != 1 || TaskCore.getStatus(0) != 1) { ok = 0; }
+        if (SyncCore.mergeDecision(1, 2, 1) != 2) { ok = 0; }
+        if (SyncCore.mergeDecision(1, 3, 1) != 3) { ok = 0; }
+        if (SyncCore.classifyHttpError(503, 0) != 1) { ok = 0; }
         if (ok == 0) {
             System.out.println("FAIL err=" + String.valueOf(TaskCore.getLastError()));
         } else {
@@ -57,7 +79,28 @@ public class TaskCoreSmoke {
     }
 }
 '''
-out.write_text("".join(body) + smoke)
+sync = root.joinpath("core/SyncCore.java").read_text().replace("public class SyncCore", "class SyncCore", 1)
+slines = sync.splitlines(True)
+sbody = []
+i = 0
+while i < len(slines):
+    if slines[i].startswith("    public static void main(String[] args)"):
+        depth = 0
+        started = False
+        while i < len(slines):
+            for ch in slines[i]:
+                if ch == "{":
+                    depth += 1
+                    started = True
+                elif ch == "}":
+                    depth -= 1
+            i += 1
+            if started and depth == 0:
+                break
+        continue
+    sbody.append(slines[i])
+    i += 1
+out.write_text("".join(sbody) + "".join(body) + smoke)
 PY
 
 java -jar "$JAR" "$MERGED" -o "$BIN" -O0

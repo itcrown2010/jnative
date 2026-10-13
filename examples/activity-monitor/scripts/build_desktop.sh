@@ -53,7 +53,16 @@ print(out)
 PY
 
 echo "==> desktop → $OUT"
+# Remove stale .app so a failed compile cannot leave a double-clickable old binary.
+rm -rf "$OUT.app"
 java -jar "$JAR" "$MERGED" -o "$OUT" --app-type gui -O0 \
   -L "$OUT_DIR" -l jn_am
+"$REPO/scripts/macos/pack-app.sh" \
+  --bin "$OUT" \
+  --name "ActivityMonitor" \
+  --id "io.jnative.examples.activity-monitor" \
+  --out "$OUT_DIR" \
+  --version "0.1.0"
 echo "Run: $OUT"
+echo "App:  open $OUT.app"
 echo "Dump: $OUT --dump"

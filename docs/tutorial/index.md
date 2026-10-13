@@ -63,6 +63,24 @@
 29. [GC 与资源](./chapters/29-gc-memory.md)
 30. [综合项目与后续](./chapters/30-capstone.md)
 
+### 桌面 UI（macOS 首期）
+
+- [Web / 移动任务管理闭环](./chapters/web-mobile-tasks.md)
+- [Web / 移动离线同步与冲突](./chapters/web-mobile-sync.md)
+- [Web / 移动：统一 HTTP 与登录提交](./chapters/web-mobile-http-auth.md)
+- [VS Code 移动运行与排错](./chapters/vscode-mobile-toolchain.md)
+- [统一平台能力：文件与分享](./chapters/platform-file-share.md)
+- [桌面 UI 框架公共 API](./chapters/desktop-ui-framework.md)
+- [状态绑定与表单校验](./chapters/desktop-ui-binding.md)
+- [应用壳：菜单、多窗口与打包](./chapters/desktop-ui-app-shell.md)
+- [键盘、无障碍与显示缩放](./chapters/desktop-ui-a11y-keyboard.md)
+- [生命周期、线程与稳定交付](./chapters/desktop-ui-stability.md)
+- [组合控件、打包与跨项目使用](./chapters/desktop-ui-composite-controls.md)
+- 能力矩阵：[desktop-ui-capability-matrix.md](../desktop-ui-capability-matrix.md)
+- 平台矩阵：[desktop-ui-platform-matrix.md](../desktop-ui-platform-matrix.md)
+- 交付说明：[desktop-ui-delivery.md](../desktop-ui-delivery.md)、[desktop-ui-binding-delivery.md](../desktop-ui-binding-delivery.md)、[desktop-ui-app-shell-delivery.md](../desktop-ui-app-shell-delivery.md)、[desktop-ui-a11y-delivery.md](../desktop-ui-a11y-delivery.md)、[desktop-ui-stability-delivery.md](../desktop-ui-stability-delivery.md)、[desktop-ui-composite-controls-delivery.md](../desktop-ui-composite-controls-delivery.md)
+- 示例：`examples/ui-controls-pkg/`、`examples/desktop-sample/`、`examples/ui-workbench/`、`examples/activity-monitor/`、`examples/product-editor/`
+
 ## 贯穿项目：命令行任务管理器
 
 输入方式：**命令行参数**（已验证）。无交互式 stdin 主线。  

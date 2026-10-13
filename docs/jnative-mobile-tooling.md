@@ -66,13 +66,16 @@ MyApp/
 jnative doctor --mobile
 jnative new demo --template mobile
 cd demo
-jnative mobile build --target web
-jnative mobile build --target android
-jnative mobile build --target ios
-jnative mobile devices --target android
+jnative mobile build --target web [--configuration debug|release]
+jnative mobile build --target android [--configuration debug|release]
+jnative mobile build --target ios [--configuration debug|release]
+jnative mobile devices --target android [--format json]
 jnative mobile run --target android --device <id>   # 仅在用户显式 run 后安装启动
+jnative mobile stop --target android --device <id>
 jnative mobile logs --target android --device <id>
 ```
+
+可选 `mobile.web_build_script`：项目相对脚本产出根目录 `dist/`（如 `examples/guide-tasks`）。VS Code 流程见 `docs/developer/VSCODE_MOBILE_RUN.md`。
 
 规则：
 

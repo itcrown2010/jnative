@@ -1,0 +1,35 @@
+# Author: 张晓达
+# guide-tasks：共享 TaskCore+SyncCore → WASM，Web / Android / iOS WebView 容器。
+[package]
+name = "guide-tasks"
+namespace = "examples"
+version = "0.1.0"
+description = "任务管理（Web + 移动 WebView 容器）"
+license = "MIT"
+
+[mobile]
+app_name = "任务管理"
+android_application_id = "io.jnative.examples.mobile.guidetasks"
+ios_bundle_id = "io.jnative.examples.mobile.guidetasks"
+version = "0.1.0"
+build_number = "1"
+# 业务入口说明；实际 WASM 由 web_build_script 合并 TaskCore+SyncCore 后编译。
+entry = "core/TaskCore.java"
+web_build_script = "scripts/cli_web_build.sh"
+web_root = "web"
+web_entry = "web/index.html"
+platforms_root = "mobile"
+targets = ["web", "android", "ios"]
+capabilities = [
+  "platform.getName",
+  "platform.queryCapabilities",
+  "storage.get",
+  "storage.set",
+  "storage.remove",
+  "lifecycle",
+  "file.pick",
+  "file.read",
+  "file.release",
+  "file.export",
+  "share.system",
+]

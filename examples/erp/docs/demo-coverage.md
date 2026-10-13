@@ -21,12 +21,12 @@
 | Purchase requests | `GET /api/erp/purchaseRequests` | purchase_requests | purchase-chain | ≥3 (DRAFT/SUBMITTED/APPROVED) |
 | Purchase orders | `GET /api/erp/purchaseOrders` | purchase_orders | purchase-chain | ≥1 |
 | Goods receipts | `GET /api/erp/goodsReceipts` | goods_receipts | purchase-chain | ≥2 (split) |
-| AP invoices | `GET /api/erp/finance/ap` | ap_invoices | purchase-chain | ≥1 open remainder |
-| Outgoing payments | `GET /api/erp/finance/outgoing-payments` | outgoing_payments | purchase-chain | ≥1 partial |
+| AP invoices | `GET/POST /api/erp/finance/ap`, `POST .../ap/:id/post` | ap_invoices | purchase-chain | ≥1 open remainder |
+| Outgoing payments | `GET/POST /api/erp/finance/outgoing-payments` | outgoing_payments | purchase-chain | ≥1 partial |
 | Sales orders | `GET /api/erp/salesOrders` | sales_orders | sales-chain | ≥1 |
 | Deliveries | `GET /api/erp/deliveries` | deliveries | sales-chain | ≥2 (split) |
-| AR invoices | `GET /api/erp/finance/ar` | ar_invoices | sales-chain | ≥1 |
-| Incoming payments | `GET /api/erp/finance/incoming-payments` | incoming_payments | sales-chain | ≥1 |
+| AR invoices | `GET/POST /api/erp/finance/ar`, `POST .../ar/:id/post` | ar_invoices | sales-chain | ≥1 |
+| Incoming payments | `GET/POST /api/erp/finance/incoming-payments` | incoming_payments | sales-chain | ≥1 |
 | Inventory balance | `GET /api/erp/inventory` | inventory_balances | opening + GR − DL | matches txns |
 | Opening stock | `POST /api/erp/opening/stock*` | opening_stock_* | opening-stock | posted |
 | Inventory txns | `GET /api/erp/inventory/transactions` | inventory_transactions | posting | GR/DL/OS rows |
@@ -45,4 +45,4 @@ Sales quotations/returns · purchase quotations/returns · inventory transfer/co
 
 ## Reset
 
-Admin user menu →「重置演示账套」→ confirm → `POST /api/erp/admin/demo/reset` (DEMO book + `ADMIN.DEMO.RESET` + `ERP_DEMO_MODE=1`). Formal books rejected.
+Admin user menu →「重置演示账套」→ confirm → `POST /api/erp/admin/demo/reset` (DEMO book + `ADMIN.DEMO.RESET` + `ERP_DEMO_MODE=1`). Wipes demo docs/masters, reseeds masters, sets `seed_version=0`, then exits so the process supervisor restarts and boot `applyIfNeeded` restores scenario v2. Formal books rejected.

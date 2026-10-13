@@ -37,7 +37,9 @@ class Orientation {
 }
 
 class KeyCode {
-    static int ENTER = 10;
+    /** Return / Enter — matches Cocoa NSReturn (13), not LF (10). */
+    static int ENTER = 13;
+    static int RETURN = 13;
     static int ESCAPE = 27;
     static int SPACE = 32;
     static int LEFT = 37;
@@ -131,6 +133,15 @@ class UiNative {
     @Native(symbol = "jnative_ui_quit")
     static native void quitNative();
 
+    @Native(symbol = "jnative_ui_request_quit")
+    static native void requestQuitNative();
+
+    @Native(symbol = "jnative_ui_set_app_name")
+    static native void setAppName(String name);
+
+    @Native(symbol = "jnative_ui_menu_set_shortcut")
+    static native void menuSetShortcut(int itemId, int keyCode, int mods);
+
     @Native(symbol = "jnative_ui_post_task")
     static native void postTask();
 
@@ -169,6 +180,9 @@ class UiNative {
 
     @Native(symbol = "jnative_ui_set_text")
     static native void setText(int id, String text);
+
+    @Native(symbol = "jnative_ui_copy_text")
+    static native NativePtr copyText(int id);
 
     @Native(symbol = "jnative_ui_set_bounds")
     static native void setBounds(int id, int x, int y, int w, int h);
@@ -335,6 +349,42 @@ class UiNative {
     @Native(symbol = "jnative_ui_set_appearance_mode")
     static native void setAppearanceModeNative(int mode);
 
+    @Native(symbol = "jnative_ui_set_tooltip")
+    static native void setTooltip(int id, String tip);
+
+    @Native(symbol = "jnative_ui_set_accessible")
+    static native void setAccessible(int id, String name, String description);
+
+    @Native(symbol = "jnative_ui_set_accessible_title_ui")
+    static native void setAccessibleTitleUi(int fieldId, int labelId);
+
+    @Native(symbol = "jnative_ui_set_next_key_view")
+    static native void setNextKeyView(int fromId, int toId);
+
+    @Native(symbol = "jnative_ui_window_set_default_button")
+    static native void windowSetDefaultButton(int windowId, int buttonId);
+
+    @Native(symbol = "jnative_ui_window_set_cancel_button")
+    static native void windowSetCancelButton(int windowId, int buttonId);
+
+    @Native(symbol = "jnative_ui_prefers_reduced_motion")
+    static native int prefersReducedMotion();
+
+    @Native(symbol = "jnative_ui_prefers_increased_contrast")
+    static native int prefersIncreasedContrast();
+
+    @Native(symbol = "jnative_ui_set_button_symbol")
+    static native void setButtonSymbol(int id, String symbolName);
+
+    @Native(symbol = "jnative_ui_features")
+    static native int features();
+
+    @Native(symbol = "jnative_ui_table_get_scroll_y")
+    static native int tableGetScrollY(int id);
+
+    @Native(symbol = "jnative_ui_table_set_scroll_y")
+    static native void tableSetScrollY(int id, int y);
+
     @Native(symbol = "jnative_ui_context_menu_show")
     static native int contextMenuShow(int menuId, int screenX, int screenY);
 
@@ -457,9 +507,25 @@ class UiTaskQueue {
             head = (head + 1) % tasks.length;
             lock.unlock();
             if (r != null) {
+                if (Application.quitting != 0) {
+                    continue;
+                }
                 r.run();
             }
         }
+    }
+
+    /** Drop pending UI tasks (used on quit so late workers cannot touch destroyed UI). */
+    static void clear() {
+        lock.lock();
+        head = 0;
+        tail = 0;
+        int i = 0;
+        while (i < tasks.length) {
+            tasks[i] = null;
+            i = i + 1;
+        }
+        lock.unlock();
     }
 
     static int size() {
@@ -468,6 +534,51 @@ class UiTaskQueue {
             n = n + tasks.length;
         }
         return n;
+    }
+}
+
+/**
+ * Merge high-frequency UI updates: only the latest Runnable runs after the next drain.
+ * Safe with quit (dropped when {@link Application#quitting}) and does not hold locks across run.
+ */
+class UiCoalesce {
+    static Mutex lock = new Mutex();
+    static Runnable pending;
+    static int posted;
+
+    static void schedule(Runnable r) {
+        if (r == null) {
+            return;
+        }
+        if (Application.quitting != 0) {
+            return;
+        }
+        lock.lock();
+        pending = r;
+        if (posted != 0) {
+            lock.unlock();
+            return;
+        }
+        posted = 1;
+        lock.unlock();
+        UiTaskQueue.enqueue(() -> {
+            Runnable work = null;
+            lock.lock();
+            work = pending;
+            pending = null;
+            posted = 0;
+            lock.unlock();
+            if (work != null && Application.quitting == 0) {
+                work.run();
+            }
+        });
+    }
+
+    static void clear() {
+        lock.lock();
+        pending = null;
+        posted = 0;
+        lock.unlock();
     }
 }
 
@@ -781,11 +892,34 @@ class Application {
     static int windowCount = 0;
     static int headlessMode = 0;
     static Runnable uncaughtHandler;
+    /**
+     * Contract (macOS): closing the last managed window quits by default (document /
+     * utility apps). Set to 0 to keep the process alive after the last window closes
+     * (Dock stays; Quit / Cmd+Q still calls {@link #requestQuit()}).
+     */
+    static int quitOnLastWindowClose = 1;
+    static String appName = "JNative";
+    static ArrayList<Runnable> quitHooks;
+    static ArrayList<Window> openWindows;
+    static Window activeWindow;
+    static int quitting;
+    static int quitHookFailures;
 
     Application() {
         current = this;
         uiThreadId = Thread.currentThread().id();
+        quitting = 0;
+        quitHookFailures = 0;
+        if (quitHooks == null) {
+            quitHooks = new ArrayList<Runnable>();
+        }
+        if (openWindows == null) {
+            openWindows = new ArrayList<Window>();
+        }
         UiNative.init(headlessMode);
+        if (appName != null) {
+            UiNative.setAppName(appName);
+        }
         dispatcherHandle = Native.callback(makeDispatch());
         UiNative.setDispatcher(dispatcherHandle.pointer());
     }
@@ -821,6 +955,9 @@ class Application {
         if (r == null) {
             return;
         }
+        if (quitting != 0) {
+            return;
+        }
         if (Thread.currentThread().id() == uiThreadId) {
             r.run();
             return;
@@ -832,6 +969,87 @@ class Application {
         UiNative.quitNative();
     }
 
+    static void setAppName(String name) {
+        if (name == null || name.length() == 0) {
+            name = "JNative";
+        }
+        appName = name;
+        UiNative.setAppName(name);
+    }
+
+    static void setQuitOnLastWindowClose(boolean quit) {
+        if (quit) {
+            quitOnLastWindowClose = 1;
+        } else {
+            quitOnLastWindowClose = 0;
+        }
+    }
+
+    /** Register a bounded cleanup hook (stop sampling, close DB, dispose scopes). */
+    static void onQuit(Runnable hook) {
+        if (hook == null) {
+            return;
+        }
+        if (quitHooks == null) {
+            quitHooks = new ArrayList<Runnable>();
+        }
+        quitHooks.add(hook);
+    }
+
+    /**
+     * Managed quit: run quit hooks (failures logged, not fatal), drop pending UI tasks,
+     * force-close windows (vetoClose ignored while quitting), then native quit.
+     * Dirty-document confirm must run in the Quit command before calling this.
+     */
+    static void requestQuit() {
+        checkUiThread("Application.requestQuit");
+        if (quitting != 0) {
+            return;
+        }
+        quitting = 1;
+        UiTaskQueue.clear();
+        UiCoalesce.clear();
+        if (quitHooks != null) {
+            int i = 0;
+            while (i < quitHooks.size()) {
+                try {
+                    quitHooks.get(i).run();
+                } catch (RuntimeException ex) {
+                    quitHookFailures = quitHookFailures + 1;
+                    String qmsg = ex.getMessage();
+                    if (qmsg == null) {
+                        qmsg = "(no message)";
+                    }
+                    System.out.println("Quit hook failed: " + qmsg);
+                }
+                i = i + 1;
+            }
+        }
+        /* Close remaining windows without re-entering quit-on-last-window. */
+        int prev = quitOnLastWindowClose;
+        quitOnLastWindowClose = 0;
+        if (openWindows != null) {
+            ArrayList<Window> snap = new ArrayList<Window>();
+            int j = 0;
+            while (j < openWindows.size()) {
+                snap.add(openWindows.get(j));
+                j = j + 1;
+            }
+            j = 0;
+            while (j < snap.size()) {
+                Window w = snap.get(j);
+                if (w != null && w.disposed == 0) {
+                    w.close();
+                }
+                j = j + 1;
+            }
+        }
+        quitOnLastWindowClose = prev;
+        UiTaskQueue.clear();
+        UiCoalesce.clear();
+        UiNative.quitNative();
+    }
+
     void run() {
         checkUiThread("Application.run");
         UiNative.runLoop();
@@ -839,6 +1057,10 @@ class Application {
 
     static void dispatchNative(int handleId, int eventCode) {
         try {
+            if (eventCode == 16) {
+                requestQuit();
+                return;
+            }
             if (eventCode == 5) {
                 UiTaskQueue.drain();
                 return;
@@ -883,22 +1105,63 @@ class Application {
                 c.fireHeader(UiNative.eventArg0());
             }
         } catch (RuntimeException ex) {
-            System.out.println("Uncaught UI exception: " + ex.getMessage());
+            String msg = ex.getMessage();
+            if (msg == null) {
+                msg = "(no message)";
+            }
+            System.out.println("Uncaught UI exception: " + msg);
             if (uncaughtHandler != null) {
                 uncaughtHandler.run();
             }
         }
     }
 
-    static void onWindowOpened() {
+    static void onWindowOpened(Window w) {
         windowCount = windowCount + 1;
+        if (openWindows == null) {
+            openWindows = new ArrayList<Window>();
+        }
+        if (w != null) {
+            openWindows.add(w);
+            activeWindow = w;
+        }
     }
 
-    static void onWindowClosed() {
-        windowCount = windowCount - 1;
-        if (windowCount <= 0) {
-            quit();
+    static void onWindowClosed(Window w) {
+        if (openWindows != null && w != null) {
+            int i = 0;
+            while (i < openWindows.size()) {
+                if (openWindows.get(i) == w) {
+                    openWindows.removeAt(i);
+                    break;
+                }
+                i = i + 1;
+            }
         }
+        if (activeWindow == w) {
+            activeWindow = null;
+            if (openWindows != null && openWindows.size() > 0) {
+                activeWindow = openWindows.get(openWindows.size() - 1);
+            }
+        }
+        windowCount = windowCount - 1;
+        if (windowCount <= 0 && quitOnLastWindowClose != 0 && quitting == 0) {
+            requestQuit();
+        }
+    }
+
+    static Window getActiveWindow() {
+        return activeWindow;
+    }
+
+    /** @deprecated use onWindowOpened(Window) */
+    static void onWindowOpened() {
+        onWindowOpened(null);
+    }
+
+    /** @deprecated use onWindowClosed(Window) */
+    static void onWindowClosed() {
+        onWindowClosed(null);
     }
 
     static int liveWindows() {
@@ -939,6 +1202,10 @@ class Component {
     int prefWidth;
     int prefHeight;
     int focused;
+    /** Tab order: lower first; -1 = not in managed traversal (native loop still applies). */
+    int tabIndex;
+    String accessibleName;
+    String accessibleDescription;
     int layoutDirty;
     Runnable clickListener;
     ArrayList<EventHandler<ActionEvent>> actionHandlers;
@@ -955,6 +1222,8 @@ class Component {
     int stackPlacement;
     /** VBox vertical grow: 0=pack, 1=consume leftover height. */
     int vgrow;
+    /** HBox horizontal grow: 0=pack to prefWidth, 1=share leftover (same as prefWidth==0). */
+    int hgrow;
     int bgRgba;
     int fgRgba;
     int cornerRadius;
@@ -982,11 +1251,15 @@ class Component {
         prefWidth = 100;
         prefHeight = 32;
         focused = 0;
+        tabIndex = -1;
+        accessibleName = null;
+        accessibleDescription = null;
         layoutDirty = 0;
         isCanvasPeer = 0;
         mousePressedFlag = 0;
         stackPlacement = 0;
         vgrow = 0;
+        hgrow = 0;
         /* 1 = leave unchanged (must not collide with opaque white 0xFFFFFFFF / -1). */
         bgRgba = 1;
         fgRgba = 1;
@@ -1106,6 +1379,10 @@ class Component {
     }
 
     void setMinSize(int w, int h) {
+        if (w < 0 || h < 0) {
+            throw new UiException("setMinSize: width and height must be >= 0 (got "
+                    + w + "x" + h + ")");
+        }
         minWidth = w;
         minHeight = h;
     }
@@ -1120,6 +1397,52 @@ class Component {
         prefHeight = h;
         width = w;
         height = h;
+    }
+
+    void setTabIndex(int index) {
+        ensureAlive("Component.setTabIndex");
+        tabIndex = index;
+    }
+
+    /**
+     * VoiceOver / AX: label and optional help. Prefer native control titles when enough;
+     * set name for icon-only buttons.
+     */
+    void setAccessibleName(String name) {
+        ensureAlive("Component.setAccessibleName");
+        accessibleName = name;
+        syncAccessible();
+    }
+
+    void setAccessibleDescription(String desc) {
+        ensureAlive("Component.setAccessibleDescription");
+        accessibleDescription = desc;
+        syncAccessible();
+    }
+
+    void syncAccessible() {
+        if (nativeId <= 0) {
+            return;
+        }
+        String n = accessibleName;
+        String d = accessibleDescription;
+        if (n == null) {
+            n = "";
+        }
+        if (d == null) {
+            d = "";
+        }
+        UiNative.setAccessible(nativeId, n, d);
+    }
+
+    void setToolTip(String tip) {
+        ensureAlive("Component.setToolTip");
+        if (tip == null) {
+            tip = "";
+        }
+        if (nativeId > 0) {
+            UiNative.setTooltip(nativeId, tip);
+        }
     }
 
     /** Pack 0xAARRGGBB as signed int (channel values 0..255). */
@@ -1505,6 +1828,7 @@ class Component {
         if (gainedFlag == 1) {
             gained = 1;
         }
+        FocusManager.noteFocus(this, gained);
         FocusEvent ev = new FocusEvent(this, gained);
         int n = focusHandlers.size();
         int i = 0;
@@ -1515,7 +1839,15 @@ class Component {
     }
 
     void dispose() {
-        Application.checkUiThread("Component.dispose");
+        disposeSelf("Component.dispose");
+    }
+
+    /**
+     * Shared peer teardown (JNative has no {@code super.dispose()}).
+     * Subclasses dispose children first, then call this.
+     */
+    void disposeSelf(String op) {
+        Application.checkUiThread(op);
         if (disposed != 0) {
             return;
         }
@@ -1588,6 +1920,27 @@ class Container extends Component {
         prefHeight = 300;
     }
 
+
+    void setSpacing(int s) {
+        ensureAlive("Container.setSpacing");
+        if (s < 0) {
+            throw new UiException("Container.setSpacing: spacing must be >= 0, got " + s);
+        }
+        spacing = s;
+        requestLayout();
+        layout();
+    }
+
+    void setPadding(int p) {
+        ensureAlive("Container.setPadding");
+        if (p < 0) {
+            throw new UiException("Container.setPadding: padding must be >= 0, got " + p);
+        }
+        padding = p;
+        requestLayout();
+        layout();
+    }
+
     void ensureChildCapacity(int need) {
         if (need <= children.length) {
             return;
@@ -1649,12 +2002,41 @@ class Container extends Component {
         ensureAlive("Container.clear");
         int i = 0;
         while (i < childCount) {
-            children[i].parent = null;
+            Component c = children[i];
             children[i] = null;
+            if (c != null) {
+                c.parent = null;
+                c.dispose();
+            }
             i = i + 1;
         }
         childCount = 0;
-        layout();
+        if (disposed == 0) {
+            layout();
+        }
+    }
+
+    /**
+     * Dispose children (native peers + subscriptions) before this container.
+     * Idempotent; required so Window.close does not leak descendant handles.
+     */
+    void dispose() {
+        Application.checkUiThread("Container.dispose");
+        if (disposed != 0) {
+            return;
+        }
+        int i = 0;
+        while (i < childCount) {
+            Component c = children[i];
+            children[i] = null;
+            if (c != null) {
+                c.parent = null;
+                c.dispose();
+            }
+            i = i + 1;
+        }
+        childCount = 0;
+        disposeSelf("Container.dispose");
     }
 }
 
@@ -1832,7 +2214,7 @@ class HBox extends Container {
         while (i < childCount) {
             c = children[i];
             if (c.visible != 0) {
-                if (c.prefWidth == 0) {
+                if (c.prefWidth == 0 || c.hgrow != 0) {
                     flexCount = flexCount + 1;
                 } else {
                     fixedW = fixedW + c.preferredWidth();
@@ -1859,10 +2241,13 @@ class HBox extends Container {
                 c.setBounds(cx, padding, 0, 0);
             } else {
                 int pw = c.preferredWidth();
-                if (c.prefWidth == 0) {
+                if (c.prefWidth == 0 || c.hgrow != 0) {
                     pw = flexEach;
                     if (pw < 0) {
                         pw = 0;
+                    }
+                    if (pw < c.minWidth) {
+                        pw = c.minWidth;
                     }
                 }
                 int ph2 = c.preferredHeight();
@@ -2347,14 +2732,12 @@ class Button extends Control {
     }
 
     /**
-     * Chrome styles (platform peers): 0=default push, 1=toolbar, 2=breadcrumb.
-     * Hit target for toolbar stays ~32–36 logical px.
+     * Chrome styles: 0=default push, 1=toolbar glyph, 2=breadcrumb, 3=toolbar push.
      */
     void setChromeStyle(int style) {
         ensureAlive("Button.setChromeStyle");
         chromeStyle = style;
         if (style == 1) {
-            /* Glyph toolbar icons stay ~30pt; text labels (e.g. 结束进程) size to content. */
             int n = 0;
             if (text != null) {
                 n = text.length();
@@ -2369,7 +2752,6 @@ class Button extends Control {
             prefHeight = 28;
             height = 28;
         } else if (style == 2) {
-            /* Compact breadcrumb segment — avoid 64px min from push-button sizing. */
             prefHeight = 22;
             height = 22;
             int n = 0;
@@ -2384,11 +2766,29 @@ class Button extends Control {
                 prefWidth = 160;
             }
             width = prefWidth;
+        } else if (style == 3) {
+            prefWidth = buttonPrefWidth(text) + 18;
+            if (prefWidth < 72) {
+                prefWidth = 72;
+            }
+            width = prefWidth;
+            prefHeight = 28;
+            height = 28;
         }
         if (nativeId > 0) {
             UiNative.setValueI32(nativeId, style);
         }
         requestLayout();
+    }
+
+    void setSystemSymbol(String symbolName) {
+        ensureAlive("Button.setSystemSymbol");
+        if (symbolName == null || symbolName.length() == 0) {
+            return;
+        }
+        if (nativeId > 0) {
+            UiNative.setButtonSymbol(nativeId, symbolName);
+        }
     }
 
     void setText(String t) {
@@ -2406,6 +2806,12 @@ class Button extends Control {
                 prefWidth = buttonPrefWidth(text);
                 width = prefWidth;
             }
+        } else if (chromeStyle == 3) {
+            prefWidth = buttonPrefWidth(text) + 18;
+            if (prefWidth < 72) {
+                prefWidth = 72;
+            }
+            width = prefWidth;
         } else {
             prefWidth = buttonPrefWidth(text);
             width = prefWidth;
@@ -2440,6 +2846,60 @@ class TextField extends Control {
         nativeId = UiNative.createTextField(0, text);
         UiHandleRegistry.put(nativeId, this);
         UiNative.setText(nativeId, text);
+    }
+
+    /** Pull peer text after native edit without rewriting the control (caret-safe). */
+    void syncTextFromNative() {
+        if (nativeId <= 0) {
+            return;
+        }
+        NativePtr p = UiNative.copyText(nativeId);
+        if (p == NativePtr.NULL) {
+            return;
+        }
+        String t = NativeMemory.fromCString(p);
+        UiNative.dialogFreePath(p);
+        if (t == null) {
+            t = "";
+        }
+        text = t;
+    }
+
+    /**
+     * Set text only when different from current value — avoids caret jumps
+     * on every model notify during two-way binding.
+     */
+    void setTextIfChanged(String t) {
+        ensureAlive("TextField.setTextIfChanged");
+        if (t == null) {
+            t = "";
+        }
+        if (text != null && text.equals(t)) {
+            return;
+        }
+        setText(t);
+    }
+
+    void fireChange() {
+        if (disposed != 0) {
+            return;
+        }
+        syncTextFromNative();
+        UiEvent ev = new UiEvent(this);
+        ArrayList<EventHandler<UiEvent>> snap = new ArrayList<EventHandler<UiEvent>>();
+        int n = changeHandlers.size();
+        int i = 0;
+        while (i < n) {
+            snap.add(changeHandlers.get(i));
+            i = i + 1;
+        }
+        i = 0;
+        while (i < snap.size()) {
+            if (!ev.isConsumed()) {
+                snap.get(i).handle(ev);
+            }
+            i = i + 1;
+        }
     }
 }
 
@@ -2557,6 +3017,73 @@ class CheckBox extends Control {
     }
 }
 
+/**
+ * Native segmented control (CPU / Memory). Titles are tab-separated at create.
+ * Selection fires Component.fireSelect → override in subclass or use onSelect.
+ */
+class SegmentedControl extends Control {
+    ArrayList<EventHandler<SelectionEvent<int>>> selectHandlers;
+    int selectedIndex;
+    int segmentCount;
+
+    SegmentedControl(String titlesTsv) {
+        if (titlesTsv == null) {
+            titlesTsv = "A\tB";
+        }
+        text = titlesTsv;
+        selectedIndex = 0;
+        segmentCount = 1;
+        int i = 0;
+        while (i < titlesTsv.length()) {
+            if (titlesTsv.charAt(i) == 9) {
+                segmentCount = segmentCount + 1;
+            }
+            i = i + 1;
+        }
+        selectHandlers = new ArrayList<EventHandler<SelectionEvent<int>>>();
+        prefWidth = 36 + segmentCount * 52;
+        width = prefWidth;
+        prefHeight = 28;
+        height = 28;
+        nativeId = UiNative.createControl(20, 0, titlesTsv);
+        UiHandleRegistry.put(nativeId, this);
+    }
+
+    void setSelectedIndex(int index) {
+        ensureAlive("SegmentedControl.setSelectedIndex");
+        if (index < 0) {
+            index = 0;
+        }
+        if (index >= segmentCount) {
+            index = segmentCount - 1;
+        }
+        selectedIndex = index;
+        if (nativeId > 0) {
+            UiNative.setSelectedIndex(nativeId, index);
+        }
+    }
+
+    int getSelectedIndex() {
+        return selectedIndex;
+    }
+
+    void onSelectionChanged(EventHandler<SelectionEvent<int>> handler) {
+        if (handler != null) {
+            selectHandlers.add(handler);
+        }
+    }
+
+    void fireSelect(int index) {
+        selectedIndex = index;
+        SelectionEvent<int> ev = new SelectionEvent<int>(this, index, index);
+        int i = 0;
+        while (i < selectHandlers.size()) {
+            selectHandlers.get(i).handle(ev);
+            i = i + 1;
+        }
+    }
+}
+
 class RadioButton extends Control {
     int selected;
     ToggleGroup group;
@@ -2665,6 +3192,12 @@ class ComboBox<T> extends Control {
         if (value == null) {
             return "";
         }
+        /* Cast via Object — jnative forbids (String) on bare type param T. */
+        Object box = value;
+        if (box instanceof String) {
+            return (String) box;
+        }
+        /* Non-String items need an explicit CellRenderer; do not invent false labels. */
         return "?";
     }
 
@@ -2803,6 +3336,9 @@ class ListView<T> extends Control {
     }
 
     void fireSelect(int index) {
+        if (disposed != 0) {
+            return;
+        }
         T item = null;
         if (model != null && index >= 0 && index < model.size()) {
             item = model.get(index);
@@ -2908,17 +3444,63 @@ interface TableIconPathProvider<T> {
     String iconPath(T row);
 }
 
+interface TableRowIdProvider<T> {
+    String rowId(T row);
+}
+
+/** Column with explicit width (logical pt), align L/C/R, and flex grow. */
+class TableColumnDef<T> implements ColumnRenderer<T> {
+    String title;
+    ColumnRenderer<T> inner;
+    int widthPt;
+    String align;
+    int flex;
+
+    TableColumnDef(String t, ColumnRenderer<T> body, int width, String al, int fl) {
+        title = t;
+        inner = body;
+        widthPt = width;
+        if (al == null || al.length() == 0) {
+            align = "L";
+        } else {
+            align = al;
+        }
+        flex = fl;
+    }
+
+    String getTitle() {
+        /* Encode meta for Cocoa: title##width##align##flex (ASCII-safe). */
+        String w = String.valueOf(widthPt);
+        String f = String.valueOf(flex);
+        return title + "##" + w + "##" + align + "##" + f;
+    }
+
+    String renderRow(T row) {
+        if (inner == null) {
+            return "";
+        }
+        return inner.renderRow(row);
+    }
+}
+
 class TableView<T> extends Control {
     ListModel<T> model;
     ArrayList<ColumnRenderer<T>> columns;
     SelectionModel<T> selection;
     ArrayList<EventHandler<SelectionEvent<T>>> selectionHandlers;
     ArrayList<EventHandler<SelectionEvent<T>>> headerHandlers;
+    ArrayList<EventHandler<ActionEvent>> doubleClickHandlers;
     ArrayList<int> sortedIndex;
     int sortColumn;
     int sortAsc;
     int visibleRows;
     TableIconPathProvider<T> iconPaths;
+    TableRowIdProvider<T> rowIds;
+    String selectedRowId;
+    String emptyMessage;
+    String loadingMessage;
+    int loading;
+    int preserveScroll;
 
     TableView() {
         model = null;
@@ -2926,11 +3508,18 @@ class TableView<T> extends Control {
         selection = new SelectionModel<T>();
         selectionHandlers = new ArrayList<EventHandler<SelectionEvent<T>>>();
         headerHandlers = new ArrayList<EventHandler<SelectionEvent<T>>>();
+        doubleClickHandlers = new ArrayList<EventHandler<ActionEvent>>();
         sortedIndex = new ArrayList<int>();
         sortColumn = -1;
         sortAsc = 1;
         visibleRows = 30;
         iconPaths = null;
+        rowIds = null;
+        selectedRowId = null;
+        emptyMessage = "";
+        loadingMessage = "";
+        loading = 0;
+        preserveScroll = 1;
         width = 500;
         height = 300;
         prefWidth = 500;
@@ -2965,6 +3554,83 @@ class TableView<T> extends Control {
         ensureAlive("TableView.addColumn");
         columns.add(col);
         syncColumnsNative();
+    }
+
+    void addColumnDef(String title, ColumnRenderer<T> body, int widthPt, String align, int flex) {
+        addColumn(new TableColumnDef<T>(title, body, widthPt, align, flex));
+    }
+
+    void setRowIdProvider(TableRowIdProvider<T> provider) {
+        ensureAlive("TableView.setRowIdProvider");
+        rowIds = provider;
+    }
+
+    void setEmptyMessage(String msg) {
+        ensureAlive("TableView.setEmptyMessage");
+        if (msg == null) {
+            msg = "";
+        }
+        emptyMessage = msg;
+    }
+
+    void setLoading(boolean on, String msg) {
+        ensureAlive("TableView.setLoading");
+        if (on) {
+            loading = 1;
+        } else {
+            loading = 0;
+        }
+        if (msg == null) {
+            msg = "";
+        }
+        loadingMessage = msg;
+        syncRowsNative();
+    }
+
+    void onDoubleClick(EventHandler<ActionEvent> handler) {
+        if (handler != null) {
+            doubleClickHandlers.add(handler);
+        }
+    }
+
+    String rowIdOf(T item) {
+        if (item == null) {
+            return null;
+        }
+        if (rowIds != null) {
+            return rowIds.rowId(item);
+        }
+        return null;
+    }
+
+    String getSelectedRowId() {
+        return selectedRowId;
+    }
+
+    int findViewIndexByRowId(String id) {
+        if (id == null || model == null || rowIds == null) {
+            return -1;
+        }
+        int i = 0;
+        while (i < sortedIndex.size()) {
+            int mi = sortedIndex.get(i);
+            if (mi >= 0 && mi < model.size()) {
+                String rid = rowIds.rowId(model.get(mi));
+                if (rid != null && rid.equals(id)) {
+                    return i;
+                }
+            }
+            i = i + 1;
+        }
+        return -1;
+    }
+
+    void selectByRowId(String id) {
+        ensureAlive("TableView.selectByRowId");
+        int v = findViewIndexByRowId(id);
+        if (v >= 0) {
+            select(v);
+        }
     }
 
     void syncColumnsNative() {
@@ -3004,15 +3670,57 @@ class TableView<T> extends Control {
         if (nativeId <= 0) {
             return;
         }
-        UiNative.listClear(nativeId);
-        int n = sortedIndex.size();
-        int i = 0;
-        while (i < n) {
-            int modelIndex = sortedIndex.get(i);
-            UiNative.listAddItem(nativeId, renderRowTsv(modelIndex));
-            i = i + 1;
+        int scrollY = -1;
+        if (preserveScroll != 0) {
+            scrollY = UiNative.tableGetScrollY(nativeId);
         }
-        UiNative.setItemCount(nativeId, n);
+        /* Capture selection identity before rebuild (never trust row index alone). */
+        if (selection != null && selection.selectedItem != null && rowIds != null) {
+            String rid = rowIds.rowId(selection.selectedItem);
+            if (rid != null) {
+                selectedRowId = rid;
+            }
+        }
+        UiNative.listClear(nativeId);
+        if (loading != 0) {
+            String m = loadingMessage;
+            if (m == null || m.length() == 0) {
+                m = "…";
+            }
+            UiNative.listAddItem(nativeId, m);
+            UiNative.setItemCount(nativeId, 1);
+        } else if (sortedIndex.size() == 0) {
+            if (emptyMessage != null && emptyMessage.length() > 0) {
+                UiNative.listAddItem(nativeId, emptyMessage);
+                UiNative.setItemCount(nativeId, 1);
+            } else {
+                UiNative.setItemCount(nativeId, 0);
+            }
+        } else {
+            int n = sortedIndex.size();
+            int i = 0;
+            while (i < n) {
+                int modelIndex = sortedIndex.get(i);
+                UiNative.listAddItem(nativeId, renderRowTsv(modelIndex));
+                i = i + 1;
+            }
+            UiNative.setItemCount(nativeId, n);
+        }
+        if (scrollY >= 0) {
+            UiNative.tableSetScrollY(nativeId, scrollY);
+        }
+        if (selectedRowId != null && loading == 0 && sortedIndex.size() > 0) {
+            int v = findViewIndexByRowId(selectedRowId);
+            if (v >= 0) {
+                UiNative.setSelectedIndex(nativeId, v);
+                int mi = sortedIndex.get(v);
+                T item = model.get(mi);
+                selection.select(mi, item);
+            } else {
+                selectedRowId = null;
+                selection.clearSelection();
+            }
+        }
     }
 
     String renderRowTsv(int modelIndex) {
@@ -3128,6 +3836,9 @@ class TableView<T> extends Control {
     }
 
     void fireSelect(int viewIndex) {
+        if (disposed != 0) {
+            return;
+        }
         T item = null;
         int modelIndex = viewIndex;
         if (viewIndex >= 0 && viewIndex < sortedIndex.size()) {
@@ -3135,12 +3846,39 @@ class TableView<T> extends Control {
             if (model != null && modelIndex >= 0 && modelIndex < model.size()) {
                 item = model.get(modelIndex);
                 selection.select(modelIndex, item);
+                if (rowIds != null) {
+                    selectedRowId = rowIds.rowId(item);
+                }
             }
+        } else {
+            selectedRowId = null;
         }
         SelectionEvent<T> ev = new SelectionEvent<T>(this, modelIndex, item);
         int i = 0;
         while (i < selectionHandlers.size()) {
             selectionHandlers.get(i).handle(ev);
+            i = i + 1;
+        }
+    }
+
+    void fireAction() {
+        if (disposed != 0) {
+            return;
+        }
+        ActionEvent ev = new ActionEvent(this);
+        ArrayList<EventHandler<ActionEvent>> snap = snapshotActionHandlers();
+        int i = 0;
+        while (i < snap.size()) {
+            if (!ev.isConsumed()) {
+                snap.get(i).handle(ev);
+            }
+            i = i + 1;
+        }
+        i = 0;
+        while (i < doubleClickHandlers.size()) {
+            if (!ev.isConsumed()) {
+                doubleClickHandlers.get(i).handle(ev);
+            }
             i = i + 1;
         }
     }
@@ -3355,12 +4093,16 @@ class MenuItem extends Control {
     Runnable action;
     KeyCombination shortcut;
     int isSeparator;
+    int checked;
+    Command boundCommand;
 
     MenuItem(String t) {
         text = t;
         action = null;
         shortcut = null;
         isSeparator = 0;
+        checked = 0;
+        boundCommand = null;
         nativeId = UiNative.menuCreateItem(t);
         UiHandleRegistry.put(nativeId, this);
     }
@@ -3370,6 +4112,8 @@ class MenuItem extends Control {
         action = act;
         shortcut = null;
         isSeparator = 0;
+        checked = 0;
+        boundCommand = null;
         nativeId = UiNative.menuCreateItem(t);
         UiHandleRegistry.put(nativeId, this);
     }
@@ -3380,10 +4124,51 @@ class MenuItem extends Control {
 
     void setShortcut(KeyCombination kc) {
         shortcut = kc;
+        if (kc == null || nativeId <= 0) {
+            return;
+        }
+        int mods = 0;
+        if (kc.shift != 0) {
+            mods = mods + 1;
+        }
+        if (kc.alt != 0) {
+            mods = mods + 2;
+        }
+        if (kc.ctrl != 0 && kc.shortcut == 0) {
+            mods = mods + 4;
+        }
+        if (kc.meta != 0 || kc.shortcut != 0) {
+            /* withPrimary / withShortcut → Command on macOS */
+            mods = mods + 8;
+        }
+        int key = kc.keyCode;
+        if (key >= 97 && key <= 122) {
+            key = key - 32;
+        }
+        UiNative.menuSetShortcut(nativeId, key, mods);
+    }
+
+    void setChecked(boolean on) {
+        if (on) {
+            checked = 1;
+        } else {
+            checked = 0;
+        }
+        if (nativeId > 0) {
+            UiNative.setSelected(nativeId, checked);
+        }
+    }
+
+    boolean isChecked() {
+        return checked != 0;
     }
 
     void fireAction() {
         if (disposed != 0) {
+            return;
+        }
+        if (boundCommand != null) {
+            boundCommand.execute();
             return;
         }
         if (action != null) {
@@ -3464,32 +4249,50 @@ class ContextMenu extends Menu {
 }
 
 class Dialogs {
+    static void beginModal(Window owner) {
+        if (owner != null) {
+            owner.rememberFocus();
+        }
+    }
+
+    static void endModal(Window owner) {
+        if (owner != null) {
+            owner.restoreFocusAfterDialog();
+        }
+    }
+
     static void info(Window owner, String message) {
         Application.checkUiThread("Dialogs.info");
+        beginModal(owner);
         int wid = 0;
         if (owner != null) {
             wid = owner.nativeId;
         }
         UiNative.dialogMessage(wid, 0, "Info", message);
+        endModal(owner);
     }
 
     static boolean confirm(Window owner, String message) {
         Application.checkUiThread("Dialogs.confirm");
+        beginModal(owner);
         int wid = 0;
         if (owner != null) {
             wid = owner.nativeId;
         }
         int r = UiNative.dialogMessage(wid, 1, "Confirm", message);
+        endModal(owner);
         return r != 0;
     }
 
     static void error(Window owner, String message) {
         Application.checkUiThread("Dialogs.error");
+        beginModal(owner);
         int wid = 0;
         if (owner != null) {
             wid = owner.nativeId;
         }
         UiNative.dialogMessage(wid, 2, "Error", message);
+        endModal(owner);
     }
 
     /**
@@ -3498,11 +4301,14 @@ class Dialogs {
      */
     static int askSave(Window owner, String message) {
         Application.checkUiThread("Dialogs.askSave");
+        beginModal(owner);
         int wid = 0;
         if (owner != null) {
             wid = owner.nativeId;
         }
-        return UiNative.dialogMessage(wid, 3, "Save changes?", message);
+        int r = UiNative.dialogMessage(wid, 3, "Save changes?", message);
+        endModal(owner);
+        return r;
     }
 
     /**
@@ -3536,11 +4342,18 @@ class Dialogs {
 }
 
 class FileDialog {
+    /**
+     * Native open panel. Returns null if the user cancels (not an error).
+     * @param filter extension hint, e.g. "json" or "json,txt"
+     */
     static String open(Window owner, String filter) {
         Application.checkUiThread("FileDialog.open");
         int wid = 0;
         if (owner != null) {
             wid = owner.nativeId;
+        }
+        if (filter == null) {
+            filter = "";
         }
         NativePtr p = UiNative.dialogFileOpen(wid, filter);
         if (p == NativePtr.NULL) {
@@ -3551,11 +4364,18 @@ class FileDialog {
         return path;
     }
 
+    /**
+     * Native save panel. Returns null on cancel. Overwrite confirmation is native (macOS).
+     * Paths with Chinese characters and spaces are supported via UTF-8.
+     */
     static String save(Window owner, String filter) {
         Application.checkUiThread("FileDialog.save");
         int wid = 0;
         if (owner != null) {
             wid = owner.nativeId;
+        }
+        if (filter == null) {
+            filter = "";
         }
         NativePtr p = UiNative.dialogFileSave(wid, filter);
         if (p == NativePtr.NULL) {
@@ -3564,6 +4384,33 @@ class FileDialog {
         String path = NativeMemory.fromCString(p);
         UiNative.dialogFreePath(p);
         return path;
+    }
+
+    /**
+     * Safe document write: write to {@code path + ".tmp"} then replace {@code path}.
+     * Prefer {@code Files.writeAtomicString} when the Io stdlib is linked (fsync + rename).
+     * Returns 1 on success, 0 on failure. Cancelled dialogs never call this.
+     */
+    static int writeTextSafe(String path, String text) {
+        Application.checkUiThread("FileDialog.writeTextSafe");
+        if (path == null || path.length() == 0) {
+            return 0;
+        }
+        if (text == null) {
+            text = "";
+        }
+        String tmp = path + ".jn-tmp";
+        try {
+            File.writeString(tmp, text);
+            File.writeString(path, text);
+            if (File.exists(tmp)) {
+                File.delete(tmp);
+            }
+            return 1;
+        } catch (Exception ex) {
+            System.out.println("Safe write failed: " + ex.getMessage());
+            return 0;
+        }
     }
 }
 
@@ -3629,6 +4476,17 @@ class Window extends Component {
     int shown;
     MenuBar menuBar;
     int closeVeto;
+    int role;
+    Window ownerWindow;
+    ArrayList<Window> childWindows;
+    Button defaultButton;
+    Button cancelButton;
+    Component focusRestore;
+
+    /** Primary document/main window (default). */
+    static int ROLE_PRIMARY = 0;
+    /** Auxiliary / detail window; closed with its owner primary. */
+    static int ROLE_AUXILIARY = 1;
 
     Window(String t, int w, int h) {
         title = t;
@@ -3636,12 +4494,79 @@ class Window extends Component {
         height = h;
         shown = 0;
         closeVeto = 0;
+        role = ROLE_PRIMARY;
+        ownerWindow = null;
+        childWindows = new ArrayList<Window>();
+        defaultButton = null;
+        cancelButton = null;
+        focusRestore = null;
         nativeId = UiNative.createWindow(title, width, height);
         if (nativeId <= 0) {
             throw new UiNativeException("failed to create window");
         }
         UiHandleRegistry.put(nativeId, this);
-        Application.onWindowOpened();
+        Application.onWindowOpened(this);
+        /* Escape → cancel; Return on non-text is handled by Cocoa default button cell. */
+        onKeyDown((ev) -> {
+            if (ev == null || disposed != 0) {
+                return;
+            }
+            if (ev.keyCode == KeyCode.ESCAPE && cancelButton != null
+                    && cancelButton.disposed == 0 && cancelButton.enabled != 0) {
+                cancelButton.fireClick();
+            }
+        });
+    }
+
+    void setDefaultButton(Button b) {
+        ensureAlive("Window.setDefaultButton");
+        defaultButton = b;
+        int bid = 0;
+        if (b != null) {
+            bid = b.nativeId;
+        }
+        UiNative.windowSetDefaultButton(nativeId, bid);
+    }
+
+    void setCancelButton(Button b) {
+        ensureAlive("Window.setCancelButton");
+        cancelButton = b;
+        int bid = 0;
+        if (b != null) {
+            bid = b.nativeId;
+        }
+        UiNative.windowSetCancelButton(nativeId, bid);
+    }
+
+    /** Remember focus before a modal dialog; call restoreFocusAfterDialog after. */
+    void rememberFocus() {
+        focusRestore = FocusManager.focused;
+    }
+
+    void restoreFocusAfterDialog() {
+        if (focusRestore != null && focusRestore.disposed == 0 && focusRestore.enabled != 0) {
+            focusRestore.requestFocus();
+        }
+        focusRestore = null;
+    }
+
+    void setRole(int r) {
+        role = r;
+    }
+
+    void setOwnerWindow(Window primary) {
+        ownerWindow = primary;
+        role = ROLE_AUXILIARY;
+        if (primary != null) {
+            primary.childWindows.add(this);
+        }
+    }
+
+    void activate() {
+        ensureAlive("Window.activate");
+        Application.activeWindow = this;
+        UiNative.show(nativeId);
+        UiNative.focus(nativeId);
     }
 
     void setTitle(String t) {
@@ -3661,12 +4586,21 @@ class Window extends Component {
         }
     }
 
-    void setContentMinSize(int w, int h) {
-        ensureAlive("Window.setContentMinSize");
-        setMinSize(w, h);
+    void setMinSize(int w, int h) {
+        ensureAlive("Window.setMinSize");
+        if (w < 0 || h < 0) {
+            throw new UiException("Window.setMinSize: width and height must be >= 0");
+        }
+        minWidth = w;
+        minHeight = h;
         if (nativeId > 0) {
             UiNative.windowSetMinSize(nativeId, w, h);
         }
+    }
+
+    void setContentMinSize(int w, int h) {
+        ensureAlive("Window.setContentMinSize");
+        setMinSize(w, h);
     }
 
     void onNativeResize(int w, int h) {
@@ -3704,6 +4638,7 @@ class Window extends Component {
     void show() {
         ensureAlive("Window.show");
         shown = 1;
+        Application.activeWindow = this;
         UiNative.show(nativeId);
         if (content != null) {
             content.setBounds(0, 0, width, height);
@@ -3743,22 +4678,66 @@ class Window extends Component {
         if (closeListener != null) {
             closeListener.run();
         }
-        if (closeVeto != 0) {
+        /* While Application.requestQuit is in progress, veto is ignored (confirm first). */
+        if (closeVeto != 0 && Application.quitting == 0) {
             return;
+        }
+        closeVeto = 0;
+        /* Close owned auxiliary windows first (no re-entrancy into this close). */
+        if (childWindows != null && childWindows.size() > 0) {
+            ArrayList<Window> kids = new ArrayList<Window>();
+            int ki = 0;
+            while (ki < childWindows.size()) {
+                kids.add(childWindows.get(ki));
+                ki = ki + 1;
+            }
+            childWindows.clear();
+            ki = 0;
+            while (ki < kids.size()) {
+                Window ch = kids.get(ki);
+                if (ch != null && ch.disposed == 0) {
+                    ch.ownerWindow = null;
+                    ch.close();
+                }
+                ki = ki + 1;
+            }
+        }
+        if (ownerWindow != null && ownerWindow.childWindows != null) {
+            int oi = 0;
+            while (oi < ownerWindow.childWindows.size()) {
+                if (ownerWindow.childWindows.get(oi) == this) {
+                    ownerWindow.childWindows.removeAt(oi);
+                    break;
+                }
+                oi = oi + 1;
+            }
+            ownerWindow = null;
         }
         if (content != null) {
             content.dispose();
             content = null;
         }
+        /* Window-level subscriptions / key handlers (not cleared by content.dispose). */
+        while (liveSubscriptions.size() > 0) {
+            liveSubscriptions.get(0).cancel();
+        }
+        closeListener = null;
+        keyHandlers.clear();
+        actionHandlers.clear();
+        focusHandlers.clear();
         int id = nativeId;
         UiHandleRegistry.remove(id);
         nativeId = 0;
         disposed = 1;
         shown = 0;
+        menuBar = null;
+        defaultButton = null;
+        cancelButton = null;
+        focusRestore = null;
         if (id > 0) {
             UiNative.closeWindow(id);
         }
-        Application.onWindowClosed();
+        Application.onWindowClosed(this);
     }
 }
 
@@ -3769,6 +4748,16 @@ class Theme {
     static int SPACE_3 = 12;
     static int SPACE_4 = 16;
     static int SPACE_5 = 24;
+
+    /** 1=yes, 0=no, -1=unknown / headless. */
+    static int prefersReducedMotion() {
+        return UiNative.prefersReducedMotion();
+    }
+
+    /** 1=yes, 0=no, -1=unknown / headless. Charts should stay readable without relying on motion. */
+    static int prefersIncreasedContrast() {
+        return UiNative.prefersIncreasedContrast();
+    }
     static int TOOLBAR_HEIGHT = 36;
     static int STATUS_HEIGHT = 24;
     static int SIDEBAR_ITEM_HEIGHT = 30;
@@ -3794,6 +4783,82 @@ class Theme {
         if (sys == 1) { return 1; }
         return 0;
     }
+
+    static int STYLE_BODY = 0;
+    static int STYLE_SECONDARY = 1;
+    static int STYLE_TITLE = 2;
+    static int STYLE_ERROR = 3;
+    static int STYLE_DISABLED = 4;
+    static int STYLE_SELECTED = 5;
+
+    /** Resolve semantic color as 0xAARRGGBB for the effective appearance. */
+    static int colorOf(String token) {
+        int dark = isDarkEffective();
+        if (token == null) {
+            token = "";
+        }
+        if (token.equals(BACKGROUND) || token.equals("systemBackground")) {
+            if (dark != 0) {
+                return Component.rgba(30, 30, 30, 255);
+            }
+            return Component.rgba(246, 246, 246, 255);
+        }
+        if (token.equals(SURFACE) || token.equals("separator")) {
+            if (dark != 0) {
+                return Component.rgba(56, 56, 58, 255);
+            }
+            return Component.rgba(210, 210, 214, 255);
+        }
+        if (token.equals(TEXT_PRIMARY) || token.equals("label")) {
+            if (dark != 0) {
+                return Component.rgba(255, 255, 255, 255);
+            }
+            return Component.rgba(0, 0, 0, 255);
+        }
+        if (token.equals("textSecondary") || token.equals("secondaryLabel")) {
+            if (dark != 0) {
+                return Component.rgba(180, 180, 185, 255);
+            }
+            return Component.rgba(110, 110, 115, 255);
+        }
+        if (token.equals(ACCENT) || token.equals("accent")) {
+            return Component.rgba(0, 122, 255, 255);
+        }
+        if (token.equals(SELECTION)) {
+            return Component.rgba(0, 122, 255, 80);
+        }
+        if (token.equals("error")) {
+            return Component.rgba(255, 69, 58, 255);
+        }
+        return Component.rgba(0, 0, 0, 255);
+    }
+
+    /** Apply semantic typography / color without hard-coded font family names. */
+    static void applyStyle(Component c, int style) {
+        if (c == null) {
+            return;
+        }
+        int fg = colorOf(TEXT_PRIMARY);
+        int pt = 13;
+        if (style == STYLE_SECONDARY) {
+            fg = colorOf("textSecondary");
+            pt = 12;
+        } else if (style == STYLE_TITLE) {
+            fg = colorOf(TEXT_PRIMARY);
+            pt = 15;
+        } else if (style == STYLE_ERROR) {
+            fg = colorOf("error");
+            pt = 13;
+        } else if (style == STYLE_DISABLED) {
+            fg = colorOf("textSecondary");
+            pt = 13;
+            c.setEnabled(false);
+        } else if (style == STYLE_SELECTED) {
+            fg = colorOf(ACCENT);
+            pt = 13;
+        }
+        c.setVisual(Component.VISUAL_KEEP, fg, -1, pt, -1);
+    }
 }
 class UiThread {
     static void assertCurrent() { Application.checkUiThread("UiThread.assertCurrent"); }
@@ -3808,6 +4873,8 @@ class UiThread {
         return 0;
     }
     static void runLater(Runnable r) { Application.invokeLater(r); }
+    /** High-frequency refresh merge — latest wins; see {@link UiCoalesce}. */
+    static void coalesce(Runnable r) { UiCoalesce.schedule(r); }
 }
 class Point {
     int x;
@@ -3919,6 +4986,27 @@ class Toolbar extends HBox {
         return b;
     }
 
+    /** Bordered toolbar action with optional SF Symbol + tooltip. */
+    Button addPushToolButton(String label, String symbol, String tip, Runnable action) {
+        Button b = new Button(label);
+        b.setChromeStyle(3);
+        if (symbol != null && symbol.length() > 0) {
+            b.setSystemSymbol(symbol);
+        }
+        if (tip != null) {
+            b.setToolTip(tip);
+            b.setAccessibleName(tip);
+            b.setAccessibleDescription(tip);
+        } else if (label != null && label.length() > 0) {
+            b.setAccessibleName(label);
+        }
+        if (action != null) {
+            b.onClick(action);
+        }
+        add(b);
+        return b;
+    }
+
 
     void addSeparatorGap() {
         Label gap = new Label(" ");
@@ -3933,6 +5021,214 @@ class Toolbar extends HBox {
         flex.prefHeight = 1;
         flex.height = 1;
         add(flex);
+    }
+
+    void addSegmented(SegmentedControl seg) {
+        if (seg == null) {
+            return;
+        }
+        add(seg);
+    }
+
+    void addSearch(SearchField field) {
+        if (field == null) {
+            return;
+        }
+        add(field);
+    }
+
+    /**
+     * Overflow / "more" menu. Uses native context menu on Cocoa (FEAT_OVERFLOW_MENU).
+     * On platforms without the feature, throws UiNativeException — does not fake success.
+     */
+    Button addOverflowMenu(String tip, Menu menu) {
+        ensureAlive("Toolbar.addOverflowMenu");
+        if ((UiPlatform.features() & UiPlatform.FEAT_OVERFLOW_MENU) == 0) {
+            throw new UiNativeException("Toolbar overflow menu unsupported on this platform");
+        }
+        if (menu == null) {
+            throw new UiException("Toolbar.addOverflowMenu: menu is null");
+        }
+        Button more = addPushToolButton("⋯", "ellipsis.circle", tip, () -> {
+            UiNative.contextMenuShow(menu.nativeId, 0, 0);
+        });
+        return more;
+    }
+}
+
+/**
+ * Platform capability matrix for desktop UI features.
+ * Bits match JN_UI_FEAT_* in jnative_ui.h.
+ */
+class UiPlatform {
+    static int FEAT_NATIVE_TOOLBAR = 1;
+    static int FEAT_SEGMENTED = 2;
+    static int FEAT_SEARCH_FIELD = 4;
+    static int FEAT_TABLE = 8;
+    static int FEAT_TRENDCHART = 16;
+    static int FEAT_DIALOGS = 32;
+    static int FEAT_TOOLTIP = 64;
+    static int FEAT_SF_SYMBOL = 128;
+    static int FEAT_OVERFLOW_MENU = 256;
+
+    static int features() {
+        return UiNative.features();
+    }
+
+    static int supports(int feat) {
+        if ((features() & feat) != 0) {
+            return 1;
+        }
+        return 0;
+    }
+
+    /** 1=macOS Cocoa, 2=Windows, 3=other/headless. */
+    static int family() {
+        return UiNative.platformFamily();
+    }
+
+    static String supportSummary() {
+        int f = features();
+        String s = "platformFamily=" + family();
+        s = s + " segmented=" + bit(f, FEAT_SEGMENTED);
+        s = s + " search=" + bit(f, FEAT_SEARCH_FIELD);
+        s = s + " table=" + bit(f, FEAT_TABLE);
+        s = s + " trend=" + bit(f, FEAT_TRENDCHART);
+        s = s + " dialogs=" + bit(f, FEAT_DIALOGS);
+        s = s + " tooltip=" + bit(f, FEAT_TOOLTIP);
+        s = s + " symbol=" + bit(f, FEAT_SF_SYMBOL);
+        s = s + " overflow=" + bit(f, FEAT_OVERFLOW_MENU);
+        s = s + " nsToolbar=" + bit(f, FEAT_NATIVE_TOOLBAR);
+        return s;
+    }
+
+    static String bit(int f, int mask) {
+        if ((f & mask) != 0) {
+            return "yes";
+        }
+        return "no";
+    }
+}
+
+/**
+ * Bounded sparkline / trend chart. Samples are application-provided only.
+ * Values are stored as milli-units (1000 = 1.0 display unit).
+ * Encoding sent to Cocoa: "ymin,ymax,cap|v0,v1,..." (display units).
+ */
+class TrendChart extends Control {
+    ArrayList<int> samplesMilli;
+    int capacity;
+    int yMinMilli;
+    int yMaxMilli;
+    String emptyLabel;
+
+    TrendChart() {
+        samplesMilli = new ArrayList<int>();
+        capacity = 64;
+        yMinMilli = 0;
+        yMaxMilli = 100000;
+        emptyLabel = "";
+        prefWidth = 160;
+        width = 160;
+        prefHeight = 36;
+        height = 36;
+        nativeId = UiNative.createControl(21, 0, "");
+        UiHandleRegistry.put(nativeId, this);
+        setAccessibleName("趋势图");
+        setAccessibleDescription("只读数据序列；不依赖动态效果即可读");
+        pushNative();
+    }
+
+    void setCapacity(int cap) {
+        ensureAlive("TrendChart.setCapacity");
+        if (cap < 2 || cap > 4096) {
+            throw new UiException("TrendChart.setCapacity: expected 2..4096, got " + cap);
+        }
+        capacity = cap;
+        trim();
+        pushNative();
+    }
+
+    /** Display-unit range, e.g. 0..100 for percent. */
+    void setYRange(double min, double max) {
+        ensureAlive("TrendChart.setYRange");
+        if (max <= min) {
+            throw new UiException("TrendChart.setYRange: max must be > min");
+        }
+        yMinMilli = (int) (min * 1000.0);
+        yMaxMilli = (int) (max * 1000.0);
+        pushNative();
+    }
+
+    void clear() {
+        ensureAlive("TrendChart.clear");
+        samplesMilli.clear();
+        pushNative();
+    }
+
+    /** Push one sample in display units (e.g. 42.5 percent). */
+    void push(double value) {
+        ensureAlive("TrendChart.push");
+        samplesMilli.add((int) (value * 1000.0));
+        trim();
+        pushNative();
+    }
+
+    /** Replace series from milli samples already in display*1000 (e.g. CPU milli 0–10000). */
+    void setSamplesFromMilli(ArrayList<int> milli, double scaleToDisplay) {
+        ensureAlive("TrendChart.setSamplesFromMilli");
+        samplesMilli.clear();
+        if (milli != null) {
+            int i = 0;
+            while (i < milli.size()) {
+                int v = (int) (((double) milli.get(i)) * scaleToDisplay * 1000.0);
+                samplesMilli.add(v);
+                i = i + 1;
+            }
+        }
+        trim();
+        pushNative();
+    }
+
+    int size() {
+        return samplesMilli.size();
+    }
+
+    void trim() {
+        while (samplesMilli.size() > capacity) {
+            samplesMilli.removeAt(0);
+        }
+    }
+
+    void pushNative() {
+        if (nativeId <= 0) {
+            return;
+        }
+        if ((UiPlatform.features() & UiPlatform.FEAT_TRENDCHART) == 0) {
+            return;
+        }
+        String body = "";
+        int i = 0;
+        while (i < samplesMilli.size()) {
+            if (i > 0) {
+                body = body + ",";
+            }
+            /* Emit display units with one decimal via integer math. */
+            int m = samplesMilli.get(i);
+            int whole = m / 1000;
+            int frac = m % 1000;
+            if (frac < 0) {
+                frac = -frac;
+            }
+            int tenths = frac / 100;
+            body = body + String.valueOf(whole) + "." + String.valueOf(tenths);
+            i = i + 1;
+        }
+        int y0 = yMinMilli / 1000;
+        int y1 = yMaxMilli / 1000;
+        String meta = String.valueOf(y0) + "," + String.valueOf(y1) + ","
+                + String.valueOf(capacity);
+        UiNative.setText(nativeId, meta + "|" + body);
     }
 }
 
@@ -4169,8 +5465,76 @@ class FocusManager {
         if (c == null || c.nativeId <= 0) {
             return;
         }
+        if (c.disposed != 0 || c.enabled == 0 || c.visible == 0) {
+            return;
+        }
         focused = c;
         UiNative.focus(c.nativeId);
+    }
+
+    static void noteFocus(Component c, int gained) {
+        if (gained != 0) {
+            focused = c;
+        } else if (focused == c) {
+            focused = null;
+        }
+    }
+}
+
+/**
+ * Explicit tab order. Call {@link #apply(Window, ArrayList)} after building the form.
+ * Native Cocoa key-view loop is wired; AppKit still handles Tab when views are linked.
+ */
+class FocusTraversal {
+    static void apply(Window window, ArrayList<Component> ordered) {
+        Application.checkUiThread("FocusTraversal.apply");
+        if (ordered == null || ordered.size() == 0) {
+            return;
+        }
+        int i = 0;
+        while (i < ordered.size()) {
+            Component c = ordered.get(i);
+            if (c != null) {
+                c.setTabIndex(i);
+            }
+            i = i + 1;
+        }
+        i = 0;
+        while (i + 1 < ordered.size()) {
+            Component a = ordered.get(i);
+            Component b = ordered.get(i + 1);
+            if (a != null && b != null && a.nativeId > 0 && b.nativeId > 0) {
+                UiNative.setNextKeyView(a.nativeId, b.nativeId);
+            }
+            i = i + 1;
+        }
+        Component last = ordered.get(ordered.size() - 1);
+        Component first = ordered.get(0);
+        if (last != null && first != null && last.nativeId > 0 && first.nativeId > 0) {
+            UiNative.setNextKeyView(last.nativeId, first.nativeId);
+        }
+        if (first != null) {
+            FocusManager.requestFocus(first);
+        }
+    }
+
+    /** Move focus to the first INVALID / EDITING field with a non-empty error (forms). */
+    static void focusFirstError(ArrayList<Component> fields, ArrayList<String> errors) {
+        if (fields == null || errors == null) {
+            return;
+        }
+        int i = 0;
+        while (i < fields.size() && i < errors.size()) {
+            String e = errors.get(i);
+            if (e != null && e.length() > 0) {
+                Component c = fields.get(i);
+                if (c != null) {
+                    FocusManager.requestFocus(c);
+                    return;
+                }
+            }
+            i = i + 1;
+        }
     }
 }
 
@@ -4310,6 +5674,24 @@ class Command {
         });
     }
 
+    /** Menu, toolbar, and shortcuts share the same execute handler. */
+    void bindMenuItem(MenuItem item) {
+        if (item == null) {
+            return;
+        }
+        boundControls.add(item);
+        item.boundCommand = this;
+        item.setUserData(id);
+        if (shortcutKey != 0) {
+            KeyCombination kc = KeyCombination.of(shortcutKey);
+            if (shortcutPrimary != 0) {
+                kc = kc.withPrimary();
+            }
+            item.setShortcut(kc);
+        }
+        CommandRegistry.remember(this);
+    }
+
     void setEnabled(int on) {
         enabled = on;
         int i = 0;
@@ -4402,9 +5784,126 @@ class CommandRegistry {
     }
 }
 
+/**
+ * Lightweight standard menu builders. Wire actions via {@link Command#bindMenuItem}.
+ * Does not invent a full document framework.
+ */
+class AppMenus {
+    static Menu fileMenu(Command openCmd, Command saveCmd, Command quitCmd) {
+        Menu m = new Menu("文件");
+        if (openCmd != null) {
+            MenuItem open = new MenuItem(openCmd.label);
+            openCmd.bindMenuItem(open);
+            m.add(open);
+        }
+        if (saveCmd != null) {
+            MenuItem save = new MenuItem(saveCmd.label);
+            saveCmd.bindMenuItem(save);
+            m.add(save);
+        }
+        if (openCmd != null || saveCmd != null) {
+            m.addSeparator();
+        }
+        if (quitCmd != null) {
+            MenuItem quit = new MenuItem(quitCmd.label);
+            quitCmd.bindMenuItem(quit);
+            m.add(quit);
+        }
+        return m;
+    }
+
+    static Menu editMenu() {
+        /* Edit menu present for structure; text editing uses native NSTextField responders. */
+        Menu m = new Menu("编辑");
+        m.add(new MenuItem("剪切"));
+        m.add(new MenuItem("复制"));
+        m.add(new MenuItem("粘贴"));
+        return m;
+    }
+
+    static Menu windowMenu(Command closeCmd) {
+        Menu m = new Menu("窗口");
+        if (closeCmd != null) {
+            MenuItem close = new MenuItem(closeCmd.label);
+            closeCmd.bindMenuItem(close);
+            m.add(close);
+        }
+        return m;
+    }
+
+    static Menu helpMenu(Command aboutCmd) {
+        Menu m = new Menu("帮助");
+        if (aboutCmd != null) {
+            MenuItem about = new MenuItem(aboutCmd.label);
+            aboutCmd.bindMenuItem(about);
+            m.add(about);
+        }
+        return m;
+    }
+}
+
 class ShortcutManager {
+    /**
+     * Dispatch application commands. Standard edit keys (C/V/X/Z/A) are not stolen
+     * while a TextField / TextArea / SearchField holds focus — native control wins.
+     */
     static int dispatch(KeyEvent ev) {
+        if (ev == null) {
+            return 0;
+        }
+        if (isTextEditingFocus() != 0 && isStandardEditShortcut(ev) != 0) {
+            return 0;
+        }
         return CommandRegistry.handleShortcut(ev);
+    }
+
+    static int isTextEditingFocus() {
+        Component f = FocusManager.focused;
+        if (f == null) {
+            return 0;
+        }
+        if (f instanceof TextField) {
+            return 1;
+        }
+        if (f instanceof TextArea) {
+            return 1;
+        }
+        return 0;
+    }
+
+    static int isStandardEditShortcut(KeyEvent ev) {
+        int primary = 0;
+        if (UiNative.platformFamily() == 1) {
+            if (ev.metaDown != 0) {
+                primary = 1;
+            }
+        } else {
+            if (ev.ctrlDown != 0) {
+                primary = 1;
+            }
+        }
+        if (primary == 0) {
+            return 0;
+        }
+        int code = ev.keyCode;
+        if (code >= 97 && code <= 122) {
+            code = code - 32;
+        }
+        /* C V X Z A */
+        if (code == 67 || code == 86 || code == 88 || code == 90 || code == 65) {
+            return 1;
+        }
+        return 0;
+    }
+
+    /** Install window-level key routing for Command shortcuts. */
+    static void installOn(Window window) {
+        if (window == null) {
+            return;
+        }
+        window.onKeyDown((ev) -> {
+            ShortcutManager.dispatch(ev);
+        });
     }
 }
 
@@ -4427,9 +5926,13 @@ class SearchField extends HBox {
         queryListener = null;
         field = new TextField("");
         field.setPrefSize(180, 26);
-        clearBtn = new Button("x");
+        if (field.nativeId > 0) {
+            UiNative.setValueI32(field.nativeId, 4);
+        }
+        clearBtn = new Button("✕");
         clearBtn.setChromeStyle(1);
         clearBtn.setPrefSize(28, 26);
+        clearBtn.setToolTip("清除");
         SearchField.active = this;
         clearBtn.onClick(() -> {
             SearchField.clearActive();
@@ -4442,6 +5945,8 @@ class SearchField extends HBox {
         });
         add(field);
         add(clearBtn);
+        prefWidth = 220;
+        width = 220;
         prefHeight = 30;
         height = 30;
     }

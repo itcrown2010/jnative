@@ -17,20 +17,47 @@ import java.util.Map;
 import java.util.stream.Stream;
 
 /**
- * Builds web (WASM) then optionally Android/iOS debug artifacts.
+ * Builds web (WASM) then optionally Android/iOS artifacts.
  * On failure, does not leave prior successful platform packages as "current".
  * @author 张晓达
  */
 public final class MobileBuilder {
 
+    public enum Configuration {
+        DEBUG,
+        RELEASE;
+
+        public static Configuration parse(String raw) {
+            if (raw == null || raw.isBlank()) {
+                return DEBUG;
+            }
+            return switch (raw.trim().toLowerCase(java.util.Locale.ROOT)) {
+                case "debug" -> DEBUG;
+                case "release" -> RELEASE;
+                default -> throw new IllegalArgumentException(
+                        "configuration must be debug|release, got: " + raw);
+            };
+        }
+    }
+
     private final Path projectRoot;
     private final MobileConfig config;
     private final Path jnativeJar;
+    private Configuration configuration = Configuration.DEBUG;
 
     public MobileBuilder(Path projectRoot, MobileConfig config, Path jnativeJar) {
         this.projectRoot = projectRoot.toAbsolutePath().normalize();
         this.config = config;
         this.jnativeJar = jnativeJar;
+    }
+
+    public MobileBuilder configuration(Configuration configuration) {
+        this.configuration = configuration == null ? Configuration.DEBUG : configuration;
+        return this;
+    }
+
+    public Configuration configuration() {
+        return configuration;
     }
 
     public Path distDir() {
@@ -47,6 +74,10 @@ public final class MobileBuilder {
 
     /** Compile JNative entry → fresh dist/; overlay web shell from web_root. */
     public void buildWeb() throws Exception {
+        if (config.hasWebBuildScript()) {
+            buildWebViaScript();
+            return;
+        }
         Path entry = projectRoot.resolve(config.entry());
         if (!Files.isRegularFile(entry)) {
             throw new IllegalStateException("entry not found: " + entry);
@@ -68,33 +99,64 @@ public final class MobileBuilder {
         }
 
         Path webRoot = projectRoot.resolve(config.webRoot());
-        copyIfExists(webRoot.resolve("index.html"), stage.resolve("index.html"));
-        copyIfExists(webRoot.resolve("bridge.js"), stage.resolve("bridge.js"));
-        copyIfExists(webRoot.resolve("app-shell.js"), stage.resolve("app-shell.js"));
-        // Apply identifiers into a small build-info.js for the shell
-        Files.writeString(stage.resolve("build-info.js"),
-                "export const BUILD_INFO = "
-                        + "{ appName: \"" + escapeJs(config.appName()) + "\", "
-                        + "version: \"" + escapeJs(config.version()) + "\", "
-                        + "buildNumber: \"" + escapeJs(config.buildNumber()) + "\", "
-                        + "androidId: \"" + escapeJs(config.androidApplicationId()) + "\", "
-                        + "iosBundleId: \"" + escapeJs(config.iosBundleId()) + "\" };\n",
-                StandardCharsets.UTF_8);
+        overlayWebRoot(webRoot, stage);
+        writeBuildInfo(stage);
 
         Path dist = distDir();
         deleteRecursively(dist);
         Files.createDirectories(dist);
-        try (Stream<Path> stream = Files.list(stage)) {
-            for (Path p : stream.toList()) {
-                Files.copy(p, dist.resolve(p.getFileName().toString()), StandardCopyOption.REPLACE_EXISTING);
-            }
-        }
+        copyTree(stage, dist);
 
+        writeWebBuildRecord(entry, dist);
+        System.out.println("==> web dist ready: " + dist);
+    }
+
+    /** Run project script that must leave a complete {@code dist/}. */
+    private void buildWebViaScript() throws Exception {
+        Path script = projectRoot.resolve(config.webBuildScript()).normalize();
+        if (!script.startsWith(projectRoot) || !Files.isRegularFile(script)) {
+            throw new IllegalStateException("web_build_script not found: " + config.webBuildScript());
+        }
+        // Invalidate prior platform stamps — only this successful web build may proceed to install.
+        Files.createDirectories(stagingDir());
+        Files.deleteIfExists(stagingDir().resolve("android.ok"));
+        Files.deleteIfExists(stagingDir().resolve("ios.ok"));
+        System.out.println("==> web_build_script " + config.webBuildScript()
+                + " (configuration=" + configuration.name().toLowerCase(java.util.Locale.ROOT) + ")");
+        Map<String, String> env = new HashMap<>();
+        env.put("JNATIVE_MOBILE_CONFIGURATION", configuration.name().toLowerCase(java.util.Locale.ROOT));
+        Path jar = resolveJar();
+        if (jar != null && Files.isRegularFile(jar)) {
+            env.put("JNATIVE_JAR", jar.toString());
+        }
+        List<String> cmd = List.of("bash", script.toString());
+        MobileProcess.Result r = MobileProcess.run(cmd, projectRoot, env, 600);
+        if (r.timedOut()) {
+            throw new IllegalStateException("web_build_script timed out — refusing stale dist");
+        }
+        if (!r.ok()) {
+            throw new IllegalStateException("web_build_script failed — refusing stale dist\n" + r.output());
+        }
+        Path dist = distDir();
+        requireFreshDist(dist);
+        byte[] magic = Files.readAllBytes(dist.resolve("app.wasm"));
+        if (magic.length < 4 || magic[0] != 0 || magic[1] != 'a' || magic[2] != 's' || magic[3] != 'm') {
+            throw new IllegalStateException("app.wasm missing WASM magic — refusing to package");
+        }
+        writeBuildInfo(dist);
+        Path entry = projectRoot.resolve(config.entry());
+        writeWebBuildRecord(Files.isRegularFile(entry) ? entry : script, dist);
+        System.out.println("==> web dist ready (script): " + dist);
+    }
+
+    private void writeWebBuildRecord(Path entryOrScript, Path dist) throws Exception {
         MobileBuildRecord rec = new MobileBuildRecord()
                 .put("timestamp", Instant.now().toString())
                 .put("target", "web")
+                .put("configuration", configuration.name().toLowerCase(java.util.Locale.ROOT))
                 .put("entry", config.entry())
-                .put("entry_sha256", MobileBuildRecord.sha256(entry))
+                .put("web_build_script", config.webBuildScript())
+                .put("entry_sha256", MobileBuildRecord.sha256(entryOrScript))
                 .put("wasm", dist.resolve("app.wasm").toString())
                 .put("wasm_sha256", MobileBuildRecord.sha256(dist.resolve("app.wasm")))
                 .put("js", dist.resolve("app.js").toString())
@@ -103,7 +165,45 @@ public final class MobileBuilder {
                 .put("version", config.version())
                 .put("build_number", config.buildNumber());
         rec.write(buildRecordPath());
-        System.out.println("==> web dist ready: " + dist);
+    }
+
+    private void writeBuildInfo(Path dest) throws IOException {
+        Files.writeString(dest.resolve("build-info.js"),
+                "export const BUILD_INFO = "
+                        + "{ appName: \"" + escapeJs(config.appName()) + "\", "
+                        + "version: \"" + escapeJs(config.version()) + "\", "
+                        + "buildNumber: \"" + escapeJs(config.buildNumber()) + "\", "
+                        + "configuration: \""
+                        + escapeJs(configuration.name().toLowerCase(java.util.Locale.ROOT)) + "\", "
+                        + "androidId: \"" + escapeJs(config.androidApplicationId()) + "\", "
+                        + "iosBundleId: \"" + escapeJs(config.iosBundleId()) + "\" };\n",
+                StandardCharsets.UTF_8);
+    }
+
+    /** Overlay web_root onto stage without replacing freshly compiled wasm/js. */
+    private static void overlayWebRoot(Path webRoot, Path stage) throws IOException {
+        if (!Files.isDirectory(webRoot)) {
+            return;
+        }
+        try (Stream<Path> walk = Files.walk(webRoot)) {
+            for (Path src : walk.toList()) {
+                Path rel = webRoot.relativize(src);
+                if (rel.getNameCount() == 0) {
+                    continue;
+                }
+                String name = rel.toString().replace('\\', '/');
+                if (name.equals("app.wasm") || name.equals("app.js") || name.startsWith("dist/")) {
+                    continue;
+                }
+                Path dest = stage.resolve(rel.toString());
+                if (Files.isDirectory(src)) {
+                    Files.createDirectories(dest);
+                } else if (Files.isRegularFile(src)) {
+                    Files.createDirectories(dest.getParent());
+                    Files.copy(src, dest, StandardCopyOption.REPLACE_EXISTING);
+                }
+            }
+        }
     }
 
     private void buildWebViaJar(Path entry, Path stage) throws Exception {
@@ -159,15 +259,18 @@ public final class MobileBuilder {
         Path androidRoot = projectRoot.resolve(config.platformsRoot()).resolve("android");
         applyAndroidIdentifiers(androidRoot);
 
+        Files.createDirectories(stagingDir());
         Path stamp = stagingDir().resolve("android.ok");
         Files.deleteIfExists(stamp);
 
+        boolean release = configuration == Configuration.RELEASE;
+        String gradleTask = release ? ":app:assembleRelease" : ":app:assembleDebug";
         Path gradlew = androidRoot.resolve("gradlew");
         List<String> cmd;
         if (Files.isExecutable(gradlew)) {
-            cmd = List.of(gradlew.toAbsolutePath().toString(), ":app:assembleDebug");
+            cmd = List.of(gradlew.toAbsolutePath().toString(), gradleTask);
         } else if (MobileToolchain.which("gradle") != null) {
-            cmd = List.of(MobileToolchain.which("gradle"), ":app:assembleDebug");
+            cmd = List.of(MobileToolchain.which("gradle"), gradleTask);
         } else {
             throw new IllegalStateException("neither gradlew nor gradle available under " + androidRoot);
         }
@@ -177,6 +280,8 @@ public final class MobileBuilder {
             env.put("ANDROID_HOME", sdk.toString());
             env.put("ANDROID_SDK_ROOT", sdk.toString());
         }
+        System.out.println("==> android " + gradleTask
+                + " (configuration=" + configuration.name().toLowerCase(java.util.Locale.ROOT) + ")");
         MobileProcess.Result r = MobileProcess.run(cmd, androidRoot, env, 600);
         if (r.timedOut()) {
             throw new IllegalStateException("Android build timed out — not installing any APK");
@@ -184,24 +289,49 @@ public final class MobileBuilder {
         if (!r.ok()) {
             throw new IllegalStateException("Android build failed — not installing any APK\n" + r.output());
         }
-        Path apk = androidRoot.resolve("app/build/outputs/apk/debug/app-debug.apk");
+        Path apk = release
+                ? androidRoot.resolve("app/build/outputs/apk/release/app-release-unsigned.apk")
+                : androidRoot.resolve("app/build/outputs/apk/debug/app-debug.apk");
+        if (!Files.isRegularFile(apk) && release) {
+            Path alt = androidRoot.resolve("app/build/outputs/apk/release/app-release.apk");
+            if (Files.isRegularFile(alt)) {
+                apk = alt;
+            }
+        }
         if (!Files.isRegularFile(apk)) {
-            throw new IllegalStateException("Android build produced no APK at " + apk);
+            throw new IllegalStateException("Android build produced no APK at " + apk
+                    + (release ? " (unsigned release; store signing not performed)" : ""));
         }
         Files.writeString(stamp, apk.toString(), StandardCharsets.UTF_8);
         new MobileBuildRecord()
                 .put("timestamp", Instant.now().toString())
                 .put("target", "android")
-                .put("entry_sha256", MobileBuildRecord.sha256(projectRoot.resolve(config.entry())))
+                .put("configuration", configuration.name().toLowerCase(java.util.Locale.ROOT))
+                .put("entry_sha256", shaEntryOrScript())
                 .put("wasm_sha256", MobileBuildRecord.sha256(distDir().resolve("app.wasm")))
+                .put("js_sha256", MobileBuildRecord.sha256(distDir().resolve("app.js")))
                 .put("apk", apk.toString())
                 .put("apk_sha256", MobileBuildRecord.sha256(apk))
                 .put("android_application_id", config.androidApplicationId())
                 .put("version", config.version())
                 .put("build_number", config.buildNumber())
+                .put("store_ready", "false")
                 .write(buildRecordPath());
         System.out.println("Android APK: " + apk);
+        if (release) {
+            System.out.println("NOTE: release APK is not store-signed; not marked ready for public distribution.");
+        }
         return apk;
+    }
+
+    private String shaEntryOrScript() throws Exception {
+        Path p = config.hasWebBuildScript()
+                ? projectRoot.resolve(config.webBuildScript())
+                : projectRoot.resolve(config.entry());
+        if (Files.isRegularFile(p)) {
+            return MobileBuildRecord.sha256(p);
+        }
+        return "";
     }
 
     public Path buildIosSimulator() throws Exception {
@@ -217,6 +347,7 @@ public final class MobileBuilder {
         }
         Path iosRoot = projectRoot.resolve(config.platformsRoot()).resolve("ios");
         applyIosIdentifiers(iosRoot);
+        Files.createDirectories(stagingDir());
         Path stamp = stagingDir().resolve("ios.ok");
         Files.deleteIfExists(stamp);
 
@@ -234,11 +365,13 @@ public final class MobileBuilder {
                     "-project", xcodeproj.getFileName().toString(),
                     "-scheme", scheme,
                     "-destination", dest,
-                    "-configuration", "Debug",
+                    "-configuration",
+                    configuration == Configuration.RELEASE ? "Release" : "Debug",
                     "CODE_SIGNING_ALLOWED=NO",
                     "build"
             );
-            System.out.println("==> xcodebuild destination: " + dest);
+            System.out.println("==> xcodebuild destination: " + dest
+                    + " configuration=" + configuration.name().toLowerCase(java.util.Locale.ROOT));
             MobileProcess.Result r = MobileProcess.run(cmd, iosRoot, Map.of(), 600);
             if (r.timedOut()) {
                 last = new IllegalStateException("iOS build timed out for " + dest);
@@ -250,18 +383,22 @@ public final class MobileBuilder {
                 new MobileBuildRecord()
                         .put("timestamp", Instant.now().toString())
                         .put("target", "ios-simulator")
-                        .put("entry_sha256", MobileBuildRecord.sha256(projectRoot.resolve(config.entry())))
+                        .put("configuration", configuration.name().toLowerCase(java.util.Locale.ROOT))
+                        .put("entry_sha256", shaEntryOrScript())
                         .put("wasm_sha256", MobileBuildRecord.sha256(distDir().resolve("app.wasm")))
+                        .put("js_sha256", MobileBuildRecord.sha256(distDir().resolve("app.js")))
                         .put("app", app == null ? "" : app.toString())
                         .put("ios_bundle_id", config.iosBundleId())
                         .put("version", config.version())
                         .put("build_number", config.buildNumber())
                         .put("destination", dest)
+                        .put("store_ready", "false")
                         .write(buildRecordPath());
                 System.out.println("iOS build finished (" + dest + ")");
                 if (app != null) {
                     System.out.println("App: " + app);
                 }
+                System.out.println("NOTE: simulator / unsigned build — not marked ready for App Store distribution.");
                 return app;
             }
             last = new IllegalStateException("iOS build failed for " + dest + "\n" + r.output());
@@ -275,10 +412,13 @@ public final class MobileBuilder {
         if (!Files.isDirectory(derived)) {
             return null;
         }
+        String folderHint = configuration == Configuration.RELEASE
+                ? "Release-iphonesimulator"
+                : "Debug-iphonesimulator";
         try (Stream<Path> stream = Files.walk(derived, 6)) {
             return stream
                     .filter(p -> p.getFileName().toString().endsWith(".app"))
-                    .filter(p -> p.toString().contains("Debug-iphonesimulator"))
+                    .filter(p -> p.toString().contains(folderHint))
                     .filter(p -> {
                         try {
                             return Files.isRegularFile(p.resolve("Info.plist"));
@@ -398,10 +538,23 @@ public final class MobileBuilder {
     private static void syncDir(Path dist, Path dest) throws IOException {
         deleteRecursively(dest);
         Files.createDirectories(dest);
-        for (String name : List.of("app.wasm", "app.js", "index.html", "bridge.js", "app-shell.js", "build-info.js")) {
-            Path src = dist.resolve(name);
-            if (Files.isRegularFile(src)) {
-                Files.copy(src, dest.resolve(name), StandardCopyOption.REPLACE_EXISTING);
+        copyTree(dist, dest);
+    }
+
+    private static void copyTree(Path srcRoot, Path destRoot) throws IOException {
+        try (Stream<Path> walk = Files.walk(srcRoot)) {
+            for (Path src : walk.toList()) {
+                Path rel = srcRoot.relativize(src);
+                if (rel.getNameCount() == 0) {
+                    continue;
+                }
+                Path dest = destRoot.resolve(rel.toString());
+                if (Files.isDirectory(src)) {
+                    Files.createDirectories(dest);
+                } else if (Files.isRegularFile(src)) {
+                    Files.createDirectories(dest.getParent());
+                    Files.copy(src, dest, StandardCopyOption.REPLACE_EXISTING);
+                }
             }
         }
     }

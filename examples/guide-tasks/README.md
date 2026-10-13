@@ -1,35 +1,56 @@
-# guide-tasks：小型任务管理器
+# guide-tasks：多页面任务管理器
 
 作者：张晓达
 
-跨目标教学 sample：**共享 `TaskCore`** + 桌面 `jnative.ui` + Web（WASM 核心 + JS DOM 壳）。
+共享 **TaskCore（WASM）** + Web 多页面壳 + 移动触屏覆盖 + 桌面 UI（本轮不扩展桌面控件）。
 
-| 路径 | 说明 | 状态（macOS arm64，2026-10-09） |
-|------|------|----------------------------------|
-| `core/TaskCore.java` | 规则 / 存档格式 | `scripts/verify_core.sh` **PASS**；WASM `verify_web.sh` **PASS** |
-| `desktop/TasksDesktop.java` | 原生窗口 UI | `scripts/build_desktop.sh` **PASS** |
-| `web/` | 浏览器壳 | 构建 **PASS**；浏览器点击可本地预览 |
-| `mobile/` | 触屏壳 + WebView 容器 | assets OK；Android APK OK；iOS Simulator 构建 OK；设备安装另步 |
-
-## 构建
+## 验收（macOS arm64）
 
 ```bash
-./examples/guide-tasks/scripts/build_desktop.sh
-./build/guide-tasks/TasksDesktop
-
-./examples/guide-tasks/scripts/build_web.sh
-cd examples/guide-tasks/web/dist && python3 -m http.server 8767
-
+./examples/guide-tasks/scripts/verify_core.sh
+./examples/guide-tasks/scripts/verify_web.sh
+node examples/guide-tasks/scripts/verify_browser.mjs
+node examples/guide-tasks/scripts/verify_sync.mjs       # 真实 SQLite API + 故障注入
+node examples/guide-tasks/scripts/verify_idb_sync.mjs   # 离线队列→同步→冲突
+node examples/guide-tasks/scripts/verify_dev_web.mjs
 ./examples/guide-tasks/scripts/verify_mobile_assets.sh
-./examples/guide-tasks/scripts/build_android.sh
-./examples/guide-tasks/scripts/build_ios.sh
+./examples/guide-tasks/scripts/verify_upgrade_retention.sh
+node examples/guide-tasks/scripts/verify_platform_backup.mjs
 ```
 
-## 重要边界
+## VS Code / CLI 移动入口
 
-- **不是**「一份 UI 自动适配所有平台」。
-- Web/移动 UI 为 **WASM + JS 壳 / WebView 容器**，不是原生控件 UI，也不是当前可用的 WebUI `Html.*` 全量路径。
-- 桌面：仅 **macOS arm64** 已验证构建；Win/Linux **未验证**。
-- 商店发布：**未支持**。
+项目含 `jnative.toml`（`web_build_script` → 根目录 `dist/`）：
 
-文档：`website/tutorials/desktop|web|mobile/`。
+```bash
+java -jar target/jnative.jar doctor --mobile
+java -jar target/jnative.jar mobile build --target web --project examples/guide-tasks
+java -jar target/jnative.jar mobile build --target ios --project examples/guide-tasks
+java -jar target/jnative.jar mobile run --target ios --device <UDID> --project examples/guide-tasks
+```
+
+扩展：`tools/vscode-jnative` 0.8.1 — 选择目标 / 配置 / 设备 QuickPick / 分层日志 / 停止。  
+说明：`docs/developer/VSCODE_MOBILE_RUN.md` · 验收：`docs/developer/VSCODE_MOBILE_ACCEPTANCE.md`
+
+## 开发：同步服务 + 预览
+
+```bash
+node examples/guide-tasks/server/sync-server.mjs   # http://127.0.0.1:8780/  仅本机
+node examples/guide-tasks/scripts/dev_web.mjs      # http://127.0.0.1:8767/
+```
+
+契约：`docs/SYNC_CONTRACT.md` · 教程：`docs/tutorial/chapters/web-mobile-sync.md`
+
+## 页面
+
+`#/list` · `#/task/:id` · `#/new` · `#/edit/:id` · `#/settings`
+
+## 职责
+
+| 层 | 职责 |
+|----|------|
+| TaskCore | 模型、校验、稳定 ID、存档 v3 |
+| `web/lib/*` | 路由、表单、生命周期、存储适配 |
+| Swift/Kotlin | WebView、桥接白名单、平台 KV |
+
+文档：`docs/developer/WEB_MOBILE_CAPABILITY_MATRIX.md` · `docs/tutorial/chapters/web-mobile-tasks.md`

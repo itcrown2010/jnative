@@ -144,7 +144,13 @@ public final class StdlibIncluder {
                 || sourceText.contains("new Application(")
                 || sourceText.contains("new Canvas(")
                 || sourceText.contains("new UiTimer(")
-                || sourceText.contains("new CodeEditor(");
+                || sourceText.contains("new CodeEditor(")
+                || sourceText.contains("ObservableValue")
+                || sourceText.contains("ObservableInt")
+                || sourceText.contains("BindingScope")
+                || sourceText.contains("Bindings.")
+                || sourceText.contains("FormModel")
+                || sourceText.contains("TrendChart");
     }
 
     public static boolean needsMath(String sourceText) {
@@ -579,6 +585,7 @@ public final class StdlibIncluder {
     public static String prependUiStdlib(String userSource) throws IOException {
         List<String> parts = new ArrayList<>();
         parts.add(load("stdlib/ui/UiLib.java"));
+        parts.add(load("stdlib/ui/BindingLib.java"));
         parts.add(userSource);
         return String.join("\n\n", parts);
     }
@@ -755,6 +762,10 @@ public final class StdlibIncluder {
         }
         if (wantUi || needsUi(userSource)) {
             resources.add("stdlib/ui/UiLib.java");
+            resources.add("stdlib/ui/BindingLib.java");
+            /* BindingLib DecimalFieldModel */
+            resources.add("stdlib/math/MathLib.java");
+            resources.add("stdlib/math/DecimalLib.java");
         }
         if (wantGraphics || needsGraphics(userSource)) {
             resources.add("stdlib/graphics/GraphicsLib.java");

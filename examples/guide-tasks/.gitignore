@@ -1,5 +1,6 @@
 .build-staging/
 web/dist/app.wat
+web/dist/merged-core.java
 mobile/android/.gradle/
 mobile/android/**/build/
 mobile/ios/**/DerivedData/

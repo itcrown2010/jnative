@@ -34,6 +34,7 @@ import java.util.regex.Pattern;
  * web_root = "web"
  * web_entry = "web/index.html"
  * platforms_root = "platforms"
+ * web_build_script = ""          # optional: project-relative script that fills dist/
  * targets = ["web", "android", "ios"]
  * capabilities = ["platform.getName", "storage.get", "storage.set", "storage.remove"]
  * </pre>
@@ -44,10 +45,16 @@ public final class MobileConfig {
     public static final Set<String> KNOWN_TARGETS = Set.of("web", "android", "ios");
     public static final Set<String> KNOWN_CAPABILITIES = Set.of(
             "platform.getName",
+            "platform.queryCapabilities",
             "storage.get",
             "storage.set",
             "storage.remove",
-            "lifecycle"
+            "lifecycle",
+            "file.pick",
+            "file.read",
+            "file.release",
+            "file.export",
+            "share.system"
     );
 
     private final String appName;
@@ -59,6 +66,8 @@ public final class MobileConfig {
     private final String webRoot;
     private final String webEntry;
     private final String platformsRoot;
+    /** Optional project-relative script that produces {@code dist/} (app.wasm/app.js/index.html). */
+    private final String webBuildScript;
     private final List<String> targets;
     private final List<String> capabilities;
 
@@ -75,6 +84,24 @@ public final class MobileConfig {
             List<String> targets,
             List<String> capabilities
     ) {
+        this(appName, androidApplicationId, iosBundleId, version, buildNumber,
+                entry, webRoot, webEntry, platformsRoot, "", targets, capabilities);
+    }
+
+    public MobileConfig(
+            String appName,
+            String androidApplicationId,
+            String iosBundleId,
+            String version,
+            String buildNumber,
+            String entry,
+            String webRoot,
+            String webEntry,
+            String platformsRoot,
+            String webBuildScript,
+            List<String> targets,
+            List<String> capabilities
+    ) {
         this.appName = appName;
         this.androidApplicationId = androidApplicationId;
         this.iosBundleId = iosBundleId;
@@ -84,6 +111,7 @@ public final class MobileConfig {
         this.webRoot = webRoot;
         this.webEntry = webEntry;
         this.platformsRoot = platformsRoot;
+        this.webBuildScript = webBuildScript == null ? "" : webBuildScript;
         this.targets = List.copyOf(targets);
         this.capabilities = List.copyOf(capabilities);
     }
@@ -122,6 +150,15 @@ public final class MobileConfig {
 
     public String platformsRoot() {
         return platformsRoot;
+    }
+
+    /** Empty when the default jar wasm compile path is used. */
+    public String webBuildScript() {
+        return webBuildScript;
+    }
+
+    public boolean hasWebBuildScript() {
+        return webBuildScript != null && !webBuildScript.isBlank();
     }
 
     public List<String> targets() {
@@ -172,6 +209,7 @@ public final class MobileConfig {
         String webRoot = unquote(m.getOrDefault("web_root", "web"));
         String webEntry = unquote(m.getOrDefault("web_entry", webRoot + "/index.html"));
         String platformsRoot = unquote(m.getOrDefault("platforms_root", "platforms"));
+        String webBuildScript = unquote(m.getOrDefault("web_build_script", ""));
         List<String> targets = m.containsKey("targets")
                 ? parseStringArray(m.get("targets"))
                 : List.of("web", "android", "ios");
@@ -186,7 +224,7 @@ public final class MobileConfig {
 
         MobileConfig cfg = new MobileConfig(
                 appName, androidId, iosId, version, buildNumber,
-                entry, webRoot, webEntry, platformsRoot, targets, caps);
+                entry, webRoot, webEntry, platformsRoot, webBuildScript, targets, caps);
         cfg.validate(projectRoot);
         return cfg;
     }
@@ -209,9 +247,17 @@ public final class MobileConfig {
         if (!buildNumber.matches("\\d+")) {
             errors.add("mobile.build_number must be an integer string: " + buildNumber);
         }
+        if (webBuildScript.contains("..") || webBuildScript.startsWith("/") || webBuildScript.startsWith("\\")) {
+            errors.add("mobile.web_build_script must be a project-relative path: " + webBuildScript);
+        } else if (hasWebBuildScript() && projectRoot != null
+                && !Files.isRegularFile(projectRoot.resolve(webBuildScript))) {
+            errors.add("mobile.web_build_script does not exist: " + webBuildScript);
+        }
         if (entry.isBlank() || entry.contains("..")) {
             errors.add("mobile.entry invalid: " + entry);
-        } else if (projectRoot != null && !Files.isRegularFile(projectRoot.resolve(entry))) {
+        } else if (!hasWebBuildScript()
+                && projectRoot != null
+                && !Files.isRegularFile(projectRoot.resolve(entry))) {
             errors.add("mobile.entry does not exist: " + entry);
         }
         if (webEntry.isBlank() || webEntry.contains("..")) {
@@ -293,6 +339,9 @@ public final class MobileConfig {
         sb.append("web_root = \"").append(escape(webRoot)).append("\"\n");
         sb.append("web_entry = \"").append(escape(webEntry)).append("\"\n");
         sb.append("platforms_root = \"").append(escape(platformsRoot)).append("\"\n");
+        if (hasWebBuildScript()) {
+            sb.append("web_build_script = \"").append(escape(webBuildScript)).append("\"\n");
+        }
         sb.append("targets = [");
         for (int i = 0; i < targets.size(); i++) {
             if (i > 0) {

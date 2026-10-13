@@ -1,42 +1,46 @@
 # 活动监视器 UI 说明（交付）
 
-## 布局
+## 布局（公共 API）
 
-三区自适应（默认约 1100×720，最小 720×420）：
+三区自适应（默认约 1100×720，最小 720×420 逻辑点）：
 
-1. **顶栏** `Toolbar`：结束进程 / 详情｜CPU·内存 模式｜搜索｜更多  
-2. **中部** `TableView` + `NSScrollView`：进程表为主体（`vgrow`）  
-3. **底栏**：CPU / 内存页合计 / ASCII 趋势 / 采样状态 + 指标脚注  
+1. **顶栏** `Toolbar`：结束/详情（SF Symbol）｜`SegmentedControl`｜搜索｜说明｜溢出菜单  
+2. **中部** `TableView`：稳定行 ID（pid:startSec:startUsec）；列宽/对齐经 `addColumnDef`  
+3. **底栏** 指标文案 + **`TrendChart` 真实采样曲线** + 状态  
 
-未实现的磁盘 / 网络 / 能耗页签不展示。
+`Window.setMinSize` 已落到 Cocoa `contentMinSize`。
 
-## 原生控件
+## 相对旧版的框架化改动
 
-基于现有 Cocoa/AppKit 后端（`jnative_ui_cocoa.m` + `UiLib`）：
+| 旧做法 | 现公共能力 |
+|--------|------------|
+| 应用层 ASCII sparkline | `TrendChart` |
+| 应用层按行号重绑选中 | `TableRowIdProvider` + `selectByRowId` |
+| Dialog 冒充「更多」 | `Toolbar.addOverflowMenu`（Cocoa context menu） |
+| 列宽仅靠 Cocoa 标题启发式 | `TableColumnDef`（`title##w##align##flex`） |
 
-- 工具栏按钮（chrome style）、`SearchField`、`NSTableView`、菜单栏、确认 Sheet（`Dialogs.terminateChoose`）
-- 系统字体 / 标签色 / 交替行 / 选中与滚动条；`--appearance light|dark` 强制 `NSApp.appearance`
-- 列头点击排序（`JN_UI_EVENT_HEADER`）；名称列自动伸展
+采样 / 杀进程仍在 `jn_am_macos.c`（非 UI）。
 
-业务采样与终止仍在 `AmCore` / `AmActions`，未另建平行 UI 运行时。
+## CLI
 
-## 采样与刷新
-
-- 后台线程 warmup：**连续两次** `jn_am_snapshot`，再 **一次** `invokeLater` 回写（避免第二次 TASK 丢失）
-- 周期性刷新：`armRefresh` 短线程 sleep 后回 UI 再挂下一拍（长 `while` 循环在 Cocoa 下会提前退出）
-- 首次 CPU 为「—」/「正在采样」；第二次起显示真实值
-- 进程表在 `sampleCount >= 2` 后重建；刷新保持选中身份键
+```bash
+./build/activity-monitor/ActivityMonitor
+./build/activity-monitor/ActivityMonitor --appearance dark
+./build/activity-monitor/ActivityMonitor --view-mode mem
+./build/activity-monitor/ActivityMonitor --window-size 780 480
+./build/activity-monitor/ActivityMonitor --demo-detail --appearance light
+```
 
 ## 截图
 
 | 文件 | 说明 |
 |------|------|
-| `docs/screenshots/activity-monitor-light.png` | 浅色主窗口 |
-| `docs/screenshots/activity-monitor-dark.png` | 深色主窗口 |
-| `docs/screenshots/activity-monitor-detail.png` | 进程详情 |
+| `activity-monitor-light.png` | 浅色 + 趋势图 |
+| `activity-monitor-dark.png` | 深色 |
+| `activity-monitor-detail.png` | 详情 |
+| `activity-monitor-cpu.png` / `mem.png` | 分段页 |
 
-## 验证（本机）
+## 验证
 
-- `run_verify.sh`：采样、身份、SIGTERM/SIGKILL、自保护 — **PASSED**
-- GUI：默认尺寸、Retina、浅/深色、列排序、详情窗口、关闭后 `alive`/token 作废
-- 终止仅对 `am_*` 测试进程验证
+`scripts/run_verify.sh`：采样、身份、SIGTERM/SIGKILL、自保护 — **已通过**。  
+GUI 需人工确认缩放 / 深浅色 / Retina / 选中稳定（非仅 headless）。

@@ -38,6 +38,21 @@
 | 进阶调试与性能 | 完成 | `website/reference/debugging.md` 扩充 |
 | `verify-phase3.sh` | 完成 | 含 APK + iOS sim（耗时） |
 
+## Web / 移动闭环（2026-10-13 转向）
+
+| 项 | 状态 | 证据 |
+|----|------|------|
+| 核实 WASM 用户代码 / 存档 / JS 壳 | 完成 | `verify_web.sh`；`storage_get` 已修 |
+| M1 Web 本地任务 + 持久化 | 完成 | Chrome restore |
+| M2 最小网络 + 生命周期 | 完成 | hint.json；AbortController |
+| M3 移动触屏 assets | 完成（资产） | `verify_mobile_assets.sh`；Sim/APK 构建 |
+| 多页面导航 + 表单 v3 | 完成 | Chrome `invalid-route…bad-date…` |
+| 开发预览可靠刷新 | 完成 | `verify_dev_web.mjs`（非 HMR） |
+| 离线队列 + SQLite 同步 | 完成 | `verify_sync` / `verify_idb_sync` |
+| 版本冲突 UI | 完成 | 记录级；非字段合并 |
+| SW 离线壳 | 完成（基础） | `sw.js` 整包版本；不缓存 API |
+| 桌面控件扩展 | **暂停** | 不在本阶段扩大 |
+
 ## 验收标准（最终）
 
 开发者无需阅读编译器内部实现，仅按文档完成：安装 → 学习 → 查 API → 在已标注支持的平台上构建与调试 sample。未验证平台不得写成「已支持」。

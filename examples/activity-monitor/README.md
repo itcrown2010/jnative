@@ -65,11 +65,11 @@
 
 ## 布局（GUI）
 
-1. **顶栏** 紧凑工具栏：结束进程 / 详情｜CPU·内存 模式｜搜索｜更多（暂停/刷新见「显示」菜单）  
-2. **中部** 进程表为主体（列头排序；名称 + 图标；CPU/内存页切换默认排序）  
-3. **底栏** CPU / 内存页合计 / 趋势 / 采样状态；详情为独立窗口  
+1. **顶栏** 边框按钮（SF Symbol）+ CPU/内存分段控件 + 搜索 + 说明/更多  
+2. **中部** 进程表为主体（名称列伸展；数值列紧凑右对齐；列头排序；应用图标缓存）  
+3. **底栏** 当前页指标 + 真实采样历史 + 状态；口径说明在「说明」弹窗  
 
 默认约 1100×720（最小 720×420）。默认中文；`LANG=en*` 英文化。  
-`--appearance light|dark` 强制外观；`--demo-detail` 打开首行详情（截图用）。
+`--appearance light|dark`、`--view-mode mem`、`--window-size W H`、`--demo-detail`。
 
-**刷新策略：** warmup 双采样后填充表格；之后自动采样更新底栏概览，表格在搜索/排序/「立即刷新」时重建（见 `docs/LIMITATIONS.md`）。更多 UI 说明见 [docs/UI_NOTES.md](./docs/UI_NOTES.md)。
+**刷新策略：** warmup 双采样后填充表格；之后自动采样更新底栏，表格在搜索/排序/立即刷新时重建（见 `docs/LIMITATIONS.md`）。详见 [docs/UI_NOTES.md](./docs/UI_NOTES.md)。

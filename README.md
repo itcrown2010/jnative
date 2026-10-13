@@ -1,115 +1,139 @@
 # JNative
 
-作者：张晓达
+**JNative** is an experimental **Java-like programming language** and **ahead-of-time (AOT) native compiler**.
 
-**JNative** is an experimental ahead-of-time native compiler for a **subset** of the Java language.
+It compiles a **subset** of Java-style source (`.java` / `.jn`) to a **native executable** via LLVM/`clang`. Generated programs do **not** require a JVM or JRE at runtime.
 
-## Licensing（公开前说明）
+> **Not Java SE.** JNative is not a complete Java Standard Edition implementation and does not run arbitrary JARs.
 
-- 许可：**MIT**（[`LICENSE`](LICENSE)）——规定他人获得的**使用权**；不改变第三方组件自身版权。
-- 原创代码版权：权利人**个人** [`张晓达`](COPYRIGHT.md)（非公司）；见 [`NOTICE`](NOTICE)、[`docs/legal/`](docs/legal/)。
-- 第三方：[`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md)、[`third_party_licenses/`](third_party_licenses/)。
-- 贡献：[`CONTRIBUTING.md`](CONTRIBUTING.md)（默认 PR **不**等于版权转让）。
-- 材料索引：[`docs/legal/`](docs/legal/)。
+[中文说明](README.zh-CN.md) · [Getting Started](docs/en/getting-started.md) · [Architecture](docs/en/architecture.md) · [Roadmap](docs/en/roadmap.md) · [Contributing](CONTRIBUTING.md)
 
-```text
-Java Source
-  → Lexer → Parser → AST → Semantic → JNative IR → LLVM IR → clang
-  → Native Executable
+---
+
+## Why JNative?
+
+**Java-like syntax, native executables, and a modern compiler architecture.**
+
+- Familiar `class` / `main` / `System.out.println` style for Java developers
+- AOT pipeline to machine code (no JVM at runtime)
+- Explicit runtime: GC, exceptions, threading, FFI — documented as implemented, not assumed from the JDK
+
+Motivation: explore how far a Java-shaped language can go as a **native compiler** project (LLVM backend, precise GC, effects annotations) without claiming full JDK compatibility.
+
+---
+
+## Current status
+
+CLI reports **`JNative 0.32`** (`java -jar target/jnative.jar --version`). Maven `pom.xml` may lag; treat the CLI version as authoritative.
+
+| Area | Status |
+|------|--------|
+| Lexer / Parser / AST | ✅ Implemented |
+| Semantic analysis / type checking | ✅ Implemented |
+| High-level IR + optimizers (`-O0`…`-O3`) | ✅ Implemented |
+| LLVM backend → native executable | ✅ Implemented (verified: **macOS arm64**) |
+| Classes, inheritance, arrays, casts | ✅ Implemented |
+| Interfaces (no default/static interface methods) | ✅ Implemented |
+| Generics (basic; wildcards experimental) | ✅ Implemented / 🚧 Experimental wildcards |
+| Lambdas / method references (SAM) | ✅ Implemented |
+| Exceptions (`try`/`catch`/`finally`, TWR decl form) | ✅ Implemented |
+| Garbage collection (generational GC2 default) | ✅ Implemented |
+| Native FFI (`@Native`, native structs) | ✅ Implemented |
+| File I/O / TCP networking / HTTP stdlib | ✅ Implemented (stdlib; maturity varies) |
+| Multithreading (`Thread`, mutexes, STW GC) | ✅ Implemented |
+| `wasm32-browser` export | 🚧 Experimental |
+| Package manager CLI | 🚧 Experimental |
+| Multi-OS CI (Linux / Windows gates) | 📋 Planned |
+| Full Java SE / arbitrary JARs | 📋 Not a goal |
+
+Legend: ✅ Implemented (with tests on at least one host) · 🚧 In progress / experimental · 📋 Planned or out of scope.
+
+Details: [Language overview](docs/en/language.md) · [Fact inventory (ZH)](docs/developer/FACT_INVENTORY.md)
+
+---
+
+## Hello, World
+
+Actual syntax used by the project templates (verified against the current compiler):
+
+```java
+public class Main {
+    public static void main(String[] args) {
+        System.out.println("Hello, JNative!");
+    }
+}
 ```
 
-Generated programs do **not** require a JVM/JRE at runtime.
+```bash
+mvn -q -DskipTests package
+java -jar target/jnative.jar examples/guide-hello/src/Main.jn -o Hello
+./Hello
+# → Hello, JNative!
+```
 
-> **Important:** JNative is **not** a complete Java SE implementation.
-> Current release: **0.12 — Optimizing Compiler**.
+---
+
+## From source to native executable
+
+```mermaid
+flowchart TD
+  A[Source .java / .jn] --> B[Lexer]
+  B --> C[Parser]
+  C --> D[AST]
+  D --> E[Semantic analysis]
+  E --> F[High-level IR]
+  F --> G[Optimizer -O0..-O3]
+  G --> H[LLVM IR]
+  H --> I[clang]
+  I --> J[Native executable]
+```
+
+In short: the frontend builds an AST and typed program; lowering produces JNative IR; optional optimization passes run; the LLVM backend emits IR that `clang` links into a **native executable**. Runtime support (GC, exceptions, I/O) is linked from the project’s native runtime — not from a JVM.
+
+See [Architecture](docs/en/architecture.md).
+
+---
 
 ## Requirements
 
-- Java 21+
-- Maven 3.9+
-- `clang` on `PATH`
-
-## Build
-
-```bash
-mvn package
-mvn test
-```
-
-## Use
+- **Java 21+** (to run the compiler JAR)
+- **Maven 3.9+** (to build the compiler)
+- **`clang` on `PATH`** (to produce native executables)
+- Host verification today is strongest on **macOS arm64**. Linux/Windows are not claimed as fully gated in CI yet.
 
 ```bash
-java -jar target/jnative.jar examples/Hello.java -o Hello
-./Hello
-
-java -jar target/jnative.jar examples/LambdaClosure.java -o LambdaClosure
-./LambdaClosure
+mvn package          # build compiler → target/jnative.jar
+mvn test             # run the Java test suite (can take a while)
+java -jar target/jnative.jar doctor
 ```
 
-## What's new in 0.12
+Full walkthrough: [Getting Started](docs/en/getting-started.md).
 
-- IR optimization pipeline (`-O0`…`-O3`, default **-O2**)
-- Scalar replacement for non-escaping primitive objects (e.g. `Point`)
-- Escape analysis, devirtualization (exact-type), constant folding, DCE
-- Null/bounds/safepoint check elimination (conservative)
-- `--opt-report`, `--emit-ir-before-opt`, `--emit-ir-after-opt`, `--verify-ir`
-- Docs: [optimizer.md](docs/optimizer.md), [0.12 build report](docs/jnative-0.12-build-report.md)
-
-## What's new in 0.11
-
-- `EffectAnalyzer` — bitset effects, call-graph propagation, contract verification
-- `@NoGC`, `@NoThrow`, `@NoBlock`, `@Deterministic`, `@Native(effects=...)`
-- `--emit-effects` report; `@NoGC` omits loop safepoints + runtime alloc guard
-- `Mutex.tryLock()`
-
-## What's new in 0.10
-
-- Lambdas, closures, and method references (SAM callables)
-- `Native.callback()` — export managed SAMs as C function pointers
-- `HttpServer.get()` / `serveOne()` route dispatch
-- `CompilerOptions.extraNativeSources` for custom C linkage in tests/tools
-- Examples: `LambdaClosure.java`, `NativeCallback.java`
-
-## What's new in 0.9
-
-- Multithreading: `Thread`, `Mutex`, `Condition`, `AtomicInt`/`AtomicLong`/`AtomicBool`
-- STW GC with multi-thread root scan
+---
 
 ## Documentation
 
-**开发者文档站（中文优先，VitePress）**：见 [`website/`](website/README.md)。
+| Doc | Description |
+|-----|-------------|
+| [docs/en/](docs/en/README.md) | **English** public docs (authoritative) |
+| [docs/zh-CN/](docs/zh-CN/README.md) | Chinese navigation / links |
+| [docs/tutorial/](docs/tutorial/index.md) | Step-by-step tutorial (Chinese) |
+| [website/](website/README.md) | VitePress doc site (Chinese-first today) |
+| [docs/architecture.md] | Deeper architecture notes |
+| [docs/language-support.md] | Feature support matrix (audit) |
 
-**语言教程（循序渐进）**：[`docs/tutorial/`](docs/tutorial/index.md) · 示例 [`examples/tutorial/`](examples/tutorial/README.md)
+---
 
-```bash
-cd website && npm install && npm run dev
-# 静态构建：npm run build
-# 语言教程验收：./scripts/docs/verify-tutorial.sh
-# 文档站分阶段验收：./scripts/docs/verify-phase1.sh …
-```
+## Contributing
 
-事实清单与阶段覆盖：[`docs/developer/`](docs/developer/README.md)。
+See [CONTRIBUTING.md](CONTRIBUTING.md). English-first Issues/PRs preferred. [中文贡献说明](CONTRIBUTING.zh-CN.md).
 
-内部/专题文档：
+---
 
-- [Optimizer](docs/optimizer.md)
-- [Effects](docs/effects.md)
-- [@NoGC](docs/no-gc.md)
-- [@Deterministic](docs/deterministic-code.md)
-- [Native effect contracts](docs/native-effect-contracts.md)
-- [Callables / Lambdas](docs/callable.md)
-- [Native callbacks](docs/native-callback.md)
-- [HTTP](docs/http.md)
-- [Networking](docs/networking.md)
-- [File I/O](docs/file-io.md)
-- [Architecture](docs/architecture.md)
-- [Language support](docs/language-support.md)
-- [FFI](docs/ffi.md)
-- [Native struct](docs/native-struct.md)
-- [GC](docs/gc.md)
-- [Exceptions](docs/exceptions.md)
-- [Threading](docs/threading.md)
+## Licensing
 
-## License
+- **MIT** — [LICENSE](LICENSE)
+- Copyright holder (original code): individual author — see [COPYRIGHT.md](COPYRIGHT.md), [NOTICE](NOTICE)
+- Third-party: [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md), [docs/legal/](docs/legal/)
 
-MIT — see [LICENSE](LICENSE).
+Pull requests grant use under MIT; they do **not** by default assign copyright to the maintainer (no CLA today).

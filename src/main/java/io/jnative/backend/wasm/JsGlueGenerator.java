@@ -279,10 +279,25 @@ public final class JsGlueGenerator {
                       if (el && 'value' in el) el.value = readUtf8(ptr, len);
                     },
                     storage_set(h, kPtr, kLen, vPtr, vLen) {
-                      const store = getHandle(h) || localStorage;
-                      store.setItem(readUtf8(kPtr, kLen), readUtf8(vPtr, vLen));
+                      try {
+                        const store = getHandle(h) || localStorage;
+                        store.setItem(readUtf8(kPtr, kLen), readUtf8(vPtr, vLen));
+                      } catch (e) {
+                        raiseHostError('Storage.set', e && e.message);
+                      }
                     },
-                    storage_get(h, kPtr, kLen) { return 0; },
+                    storage_get(h, kPtr, kLen) {
+                      try {
+                        const store = getHandle(h) || localStorage;
+                        const v = store.getItem(readUtf8(kPtr, kLen));
+                        // Missing key → empty string (same as BrowserNative stub contract).
+                        return writeWasmString(v == null ? '' : String(v));
+                      } catch (e) {
+                        raiseHostError('Storage.get', e && e.message);
+                        return writeWasmString('');
+                      }
+                    },
+                    // BrowserNative.fetch is not wired: returns empty. Use JS adapter fetch for real HTTP.
                     fetch_get(ptr, len) { return 0; },
                     timer_sleep(ms) {},
                     invoke_callback(id) { return id | 0; },

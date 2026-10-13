@@ -31,7 +31,7 @@ class ErpPosting {
 
     static PostResultDto runPostingWork(DbTransactionWork work) {
         int attempt = 0;
-        while (attempt < 2) {
+        while (attempt < 4) {
             try {
                 JnFuture f = Erp.db.transaction(work);
                 FutureBlocker.blockingWait(f);
@@ -48,7 +48,13 @@ class ErpPosting {
                 }
                 return (PostResultDto) v;
             } catch (Exception ex) {
-                if (attempt == 0 && isPgWireError(ex) != 0) {
+                String msg = "";
+                if (ex.getMessage() != null) {
+                    msg = ex.getMessage();
+                }
+                if (attempt < 3 && (isPgWireError(ex) != 0 || msg.length() == 0)) {
+                    System.out.println("POST_RETRY attempt=" + CryptoParse.longToString(attempt)
+                            + " msg=" + msg);
                     ErpDb.reconnect();
                     attempt = attempt + 1;
                     continue;
@@ -56,8 +62,8 @@ class ErpPosting {
                 PostResultDto bad = new PostResultDto();
                 bad.ok = 0;
                 bad.code = "POST_FAILED";
-                if (ex.getMessage() != null) {
-                    bad.message = ex.getMessage();
+                if (msg.length() > 0) {
+                    bad.message = msg;
                 } else {
                     bad.message = "post failed";
                 }

@@ -1,49 +1,87 @@
-# Contributing to JNative（草案）
+# Contributing to JNative
 
-本文说明贡献前的来源、测试与许可预期。  
-**尚未**引入要求转让版权或授予「重新许可权」的 CLA；是否采用 DCO/CLA 见文末「待决定事项」。
+Thank you for considering a contribution.  
+**English is preferred** for Issues, Pull Requests, and new public documentation. Chinese notes are welcome as supplements — see [CONTRIBUTING.zh-CN.md](CONTRIBUTING.zh-CN.md).
 
-## 许可预期
+---
 
-- 仓库根许可证目前为 **MIT**（见 `LICENSE`）。项目**原创**代码的版权主体为权利人**个人**（非公司）；对外署名姓名以维护者确认的公开名为准（见 `COPYRIGHT.md`）。
-- **默认提交 Pull Request 不等于把版权转让给该个人。** 贡献者保留版权，并按 MIT 向项目授权使用、修改与再分发（除非另有书面 CLA——目前**没有**）。
-- 若未来要求「新贡献也转让版权」，须单独、明确的贡献协议并建议专业复核；模糊条款无效。
-- **不要**提交你无权开源的代码，或无法满足 MIT 兼容性的依赖拷贝。
-- **不要**删除或覆盖第三方文件中已有的版权与许可声明。
-- **不要**在 MIT 旁添加「禁止商用」等冲突限制。
+## License expectations
 
-## 来源与归属
+- Root license: **MIT** ([LICENSE](LICENSE)).
+- Original project code copyright is held by an **individual** author (not a company) — [COPYRIGHT.md](COPYRIGHT.md), [NOTICE](NOTICE).
+- **Opening a PR does not assign copyright** to the maintainer. Contributors retain copyright and license their contribution under MIT unless a separate CLA is introduced (none today).
+- Do not submit code you lack rights to open-source, or dependencies incompatible with MIT.
+- Do not strip third-party copyright/license headers.
+- Do not add “non-commercial only” terms that conflict with MIT.
 
-提交时请说明：
+When adding third-party material, update [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) and [docs/legal/THIRD_PARTY_SOURCES.md](docs/legal/THIRD_PARTY_SOURCES.md).
 
-1. 代码是否完全由你原创；
-2. 若包含移植/修改的第三方代码：上游项目、版本、许可证 URL、你做了哪些修改；
-3. 是否包含不可再分发的数据、字体、图标或专有 SDK 片段。
+---
 
-新增第三方材料时，同步更新 `THIRD_PARTY_NOTICES.md` 与 `docs/legal/THIRD_PARTY_SOURCES.md`。
+## Development setup
 
-## 测试
+See [docs/en/getting-started.md](docs/en/getting-started.md).
 
-- 至少保证与你的改动相关的单元测试或示例构建通过。
-- 涉及原生链接、TLS、WASM、移动的改动，请注明本机工具链与验证范围。
+```bash
+mvn -q -DskipTests package
+java -jar target/jnative.jar doctor
+mvn test   # full suite; use -Dtest=… while iterating
+```
 
-## 敏感信息
+Requirements: Java 21+, Maven 3.9+, `clang` on `PATH`.
 
-- 禁止提交私钥、令牌、生产密码、真实个人数据。
-- 演示密钥使用文档生成步骤；不要把 `*.key` 加入版本库。
+---
 
-## 行为与沟通
+## How to add a language / compiler feature
 
-- 问题与 PR 描述尽量可复现。
-- 不在未确认的情况下批量改写许可证或 Git 历史。
+1. Implement in the appropriate package under `src/main/java/io/jnative/` (frontend, semantic, IR, opt, LLVM backend, runtime emitters as needed).
+2. Add or extend tests under `src/test/java/` (prefer e2e when behavior is user-visible).
+3. Update **English** docs under `docs/en/` first if the public surface changes; keep Chinese tutorials in sync when they would otherwise contradict.
+4. Do **not** document unsupported Java SE features as working.
 
-## 待决定事项（需维护者确认）
+---
 
-| 选项 | 含义 | 本草案默认 |
-|------|------|------------|
-| 仅 MIT 贡献默认 | 提交即按 MIT 贡献，保留贡献者版权 | **采用（草案）** |
-| Developer Certificate of Origin (DCO) | `Signed-off-by` 证明有权提交 | 未强制 |
-| CLA（版权转让或额外再许可权） | 可能要求转让版权或授予再许可 | **未引入；未经确认不添加** |
-| 公司贡献 | 需公司授权声明 | 待流程 |
+## How to add compiler tests
 
-确认后可把本节改为最终政策，而不改变根 `LICENSE` 文本（除非单独决定换证）。
+- Unit tests for isolated passes/utilities.
+- End-to-end tests that compile and run a small program when possible.
+- Note host OS / toolchain in the PR if the test is platform-specific.
+
+---
+
+## Reporting bugs
+
+Use the GitHub bug report template (`.github/ISSUE_TEMPLATE/bug_report.md`). Include:
+
+- JNative version (`--version`)
+- OS / architecture
+- LLVM / clang version
+- Java version
+- Minimal source
+- Expected vs actual behavior
+- Reproduction steps and logs
+
+---
+
+## Pull requests
+
+Use `.github/pull_request_template.md`. Keep PRs focused; avoid unrelated refactors. Ensure:
+
+- [ ] Relevant tests pass
+- [ ] Documentation updated (English-first)
+- [ ] No secrets committed
+
+---
+
+## Coding & documentation conventions
+
+- Prefer clear, small commits with English messages.
+- Public docs: accurate, concise, no unsupported claims.
+- Source comments for complex compiler/runtime code: prefer English.
+- Status language: **Implemented** / **Experimental** / **Planned** / **Unsupported** — match [docs/developer/FACT_INVENTORY.md](docs/developer/FACT_INVENTORY.md) evidence.
+
+---
+
+## Sensitive data
+
+No private keys, tokens, production passwords, or real personal data in the tree. Use documented demo credentials only.

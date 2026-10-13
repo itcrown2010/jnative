@@ -1,0 +1,6 @@
+{
+  "name": "ui-controls-demo",
+  "source": ["src"],
+  "main": "Main",
+  "output": "build/UiControlsDemo"
+}

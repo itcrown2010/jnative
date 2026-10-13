@@ -36,7 +36,9 @@
 | 数据库 | IMPLEMENTED | **未支持** | **未支持** / 未验证桥接 |
 | TLS / HTTP2 原生 | IMPLEMENTED | **未支持** | **未支持** |
 | 桌面 UI | IMPLEMENTED | **未支持** | **未支持** |
-| 浏览器 DOM / JS / fetch | **未支持** | VERIFIED (hello-dom 等) | IMPLEMENTED 壳；设备交互 **未验证** |
+| 浏览器 DOM / JS | **未支持** | VERIFIED (guide-tasks 壳 + Chrome e2e) | IMPLEMENTED 壳；设备交互 **未验证** |
+| WASM `storage_get` | — | IMPLEMENTED（需新 JAR） | 同 wasm |
+| WASM `fetch_get` | — | **未支持**（JS 适配器 fetch） | 同 wasm |
 | 原生 FFI | IMPLEMENTED | **未支持** | **未支持** |
 | 原生移动控件 UI | **未支持** | — | **未支持** |
 

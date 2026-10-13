@@ -16,6 +16,9 @@ static NSApplication *g_app = nil;
 static id g_peers[JN_UI_MAX];
 static int g_cocoa_active = 0;
 
+static int32_t jn_cocoa_key_code(NSEvent *event);
+static int32_t jn_cocoa_key_mods(NSEvent *event);
+
 @interface JnUiAppDelegate : NSObject <NSApplicationDelegate>
 @end
 @implementation JnUiAppDelegate
@@ -35,9 +38,43 @@ static int g_cocoa_active = 0;
         jnative_ui_emit_event(hid, JN_UI_EVENT_ACTION);
     }
 }
+- (void)jnAppQuit:(id)sender {
+    (void)sender;
+    /* Managed quit: Java Application.requestQuit → hooks → quitNative. */
+    jnative_ui_request_quit();
+}
 @end
 
 static JnUiMenuTarget *g_menu_target = nil;
+
+static void jn_apply_menu_shortcut(NSMenuItem *item, int32_t itemId) {
+    int32_t key = jnative_ui_menu_get_shortcut_key(itemId);
+    int32_t mods = jnative_ui_menu_get_shortcut_mods(itemId);
+    if (key <= 0) {
+        [item setKeyEquivalent:@""];
+        return;
+    }
+    unichar ch = (unichar)key;
+    if (ch >= 'A' && ch <= 'Z') {
+        ch = (unichar)(ch - 'A' + 'a');
+    }
+    NSString *ke = [NSString stringWithCharacters:&ch length:1];
+    [item setKeyEquivalent:ke];
+    NSUInteger mask = NSEventModifierFlagCommand;
+    if ((mods & 4) != 0) {
+        mask = NSEventModifierFlagControl;
+    }
+    if ((mods & 8) != 0) {
+        mask = NSEventModifierFlagCommand;
+    }
+    if ((mods & 1) != 0) {
+        mask |= NSEventModifierFlagShift;
+    }
+    if ((mods & 2) != 0) {
+        mask |= NSEventModifierFlagOption;
+    }
+    [item setKeyEquivalentModifierMask:mask];
+}
 
 @interface JnUiWindow : NSWindow <NSWindowDelegate>
 @property(nonatomic, assign) int32_t jnHandleId;
@@ -60,6 +97,23 @@ static JnUiMenuTarget *g_menu_target = nil;
     jnative_ui_emit_event_ex(self.jnHandleId, JN_UI_EVENT_RESIZE,
                              (int32_t)(sz.width + 0.5), (int32_t)(sz.height + 0.5), 0, 0);
 }
+- (void)keyDown:(NSEvent *)event {
+    NSResponder *fr = [self firstResponder];
+    /* Let text editing keep native Return/Tab/edit keys; still notify managed for Escape. */
+    int32_t code = jn_cocoa_key_code(event);
+    int32_t mods = jn_cocoa_key_mods(event);
+    int inText = 0;
+    if ([fr isKindOfClass:[NSTextView class]] || [fr isKindOfClass:[NSTextField class]]) {
+        inText = 1;
+    }
+    if (inText == 0 || code == 27) {
+        if (self.jnHandleId > 0) {
+            jnative_ui_emit_event_ex(self.jnHandleId, JN_UI_EVENT_KEY, JN_UI_KEY_DOWN,
+                                     code, mods, 0);
+        }
+    }
+    [super keyDown:event];
+}
 @end
 
 @interface JnUiButton : NSButton
@@ -73,6 +127,19 @@ static JnUiMenuTarget *g_menu_target = nil;
 - (void)jnApplyFilledVisual;
 @end
 @implementation JnUiButton
+- (BOOL)becomeFirstResponder {
+    BOOL ok = [super becomeFirstResponder];
+    if (ok && self.jnHandleId > 0) {
+        jnative_ui_emit_event_ex(self.jnHandleId, JN_UI_EVENT_FOCUS, 1, 0, 0, 0);
+    }
+    return ok;
+}
+- (BOOL)resignFirstResponder {
+    if (self.jnHandleId > 0) {
+        jnative_ui_emit_event_ex(self.jnHandleId, JN_UI_EVENT_FOCUS, 2, 0, 0, 0);
+    }
+    return [super resignFirstResponder];
+}
 - (void)jnClicked:(id)sender {
     (void)sender;
     jnative_ui_emit_event(self.jnHandleId, JN_UI_EVENT_CLICK);
@@ -162,6 +229,200 @@ static int32_t jn_lighten_rgba(int32_t rgba, int delta) {
     [self setAlignment:NSTextAlignmentCenter];
 }
 @end
+
+@interface JnUiSegmented : NSSegmentedControl
+@property(nonatomic, assign) int32_t jnHandleId;
+- (void)jnChanged:(id)sender;
+@end
+@implementation JnUiSegmented
+- (void)jnChanged:(id)sender {
+    (void)sender;
+    int32_t idx = (int32_t)[self selectedSegment];
+    jnative_ui_set_selected_index(self.jnHandleId, idx);
+    jnative_ui_emit_event_ex(self.jnHandleId, JN_UI_EVENT_SELECT, idx, 0, 0, 0);
+}
+@end
+
+@interface JnUiCheck : NSButton
+@property(nonatomic, assign) int32_t jnHandleId;
+- (void)jnToggled:(id)sender;
+@end
+@implementation JnUiCheck
+- (BOOL)becomeFirstResponder {
+    BOOL ok = [super becomeFirstResponder];
+    if (ok && self.jnHandleId > 0) {
+        jnative_ui_emit_event_ex(self.jnHandleId, JN_UI_EVENT_FOCUS, 1, 0, 0, 0);
+    }
+    return ok;
+}
+- (BOOL)resignFirstResponder {
+    if (self.jnHandleId > 0) {
+        jnative_ui_emit_event_ex(self.jnHandleId, JN_UI_EVENT_FOCUS, 2, 0, 0, 0);
+    }
+    return [super resignFirstResponder];
+}
+- (void)jnToggled:(id)sender {
+    (void)sender;
+    int32_t sel = ([self state] == NSControlStateValueOn) ? 1 : 0;
+    jnative_ui_set_selected(self.jnHandleId, sel);
+    jnative_ui_emit_event_ex(self.jnHandleId, JN_UI_EVENT_TOGGLE, sel, 0, 0, 0);
+}
+@end
+
+@interface JnUiTextField : NSTextField <NSTextFieldDelegate>
+@property(nonatomic, assign) int32_t jnHandleId;
+@end
+@implementation JnUiTextField
+- (BOOL)becomeFirstResponder {
+    BOOL ok = [super becomeFirstResponder];
+    if (ok && self.jnHandleId > 0) {
+        jnative_ui_emit_event_ex(self.jnHandleId, JN_UI_EVENT_FOCUS, 1, 0, 0, 0);
+    }
+    return ok;
+}
+- (BOOL)resignFirstResponder {
+    if (self.jnHandleId > 0) {
+        jnative_ui_emit_event_ex(self.jnHandleId, JN_UI_EVENT_FOCUS, 2, 0, 0, 0);
+    }
+    return [super resignFirstResponder];
+}
+- (void)controlTextDidChange:(NSNotification *)obj {
+    (void)obj;
+    if (self.jnHandleId <= 0) {
+        return;
+    }
+    NSString *s = [self stringValue];
+    const char *utf8 = s.UTF8String;
+    /* Store only — avoid set_text→platform rewrite that can move the caret. */
+    jnative_ui_store_text(self.jnHandleId, utf8 ? utf8 : "");
+    jnative_ui_emit_event(self.jnHandleId, JN_UI_EVENT_CHANGE);
+}
+@end
+
+@interface JnUiCombo : NSComboBox
+@property(nonatomic, assign) int32_t jnHandleId;
+@end
+@implementation JnUiCombo
+- (void)jnSelectionChanged:(NSNotification *)note {
+    (void)note;
+    if (self.jnHandleId <= 0) {
+        return;
+    }
+    int32_t idx = (int32_t)[self indexOfSelectedItem];
+    jnative_ui_set_selected_index(self.jnHandleId, idx);
+    jnative_ui_emit_event_ex(self.jnHandleId, JN_UI_EVENT_SELECT, idx, 0, 0, 0);
+    jnative_ui_emit_event(self.jnHandleId, JN_UI_EVENT_CHANGE);
+}
+@end
+
+@interface JnTrendView : NSView
+@property(nonatomic, assign) int32_t jnHandleId;
+@property(nonatomic, strong) NSMutableArray<NSNumber *> *samples;
+@property(nonatomic, assign) double yMin;
+@property(nonatomic, assign) double yMax;
+@property(nonatomic, assign) NSInteger capacity;
+- (void)jnSetCsv:(NSString *)csv;
+@end
+@implementation JnTrendView
+- (instancetype)initWithFrame:(NSRect)frameRect {
+    self = [super initWithFrame:frameRect];
+    if (self) {
+        _samples = [NSMutableArray array];
+        _yMin = 0.0;
+        _yMax = 100.0;
+        _capacity = 64;
+        self.wantsLayer = YES;
+    }
+    return self;
+}
+- (BOOL)isFlipped { return YES; }
+- (void)jnSetCsv:(NSString *)csv {
+    [self.samples removeAllObjects];
+    if (csv == nil || csv.length == 0) {
+        [self setNeedsDisplay:YES];
+        return;
+    }
+    /* Optional header: ymin,ymax,cap|v0,v1,...  or plain v0,v1,... */
+    NSString *body = csv;
+    NSRange bar = [csv rangeOfString:@"|"];
+    if (bar.location != NSNotFound) {
+        NSString *meta = [csv substringToIndex:bar.location];
+        body = [csv substringFromIndex:bar.location + 1];
+        NSArray *mp = [meta componentsSeparatedByString:@","];
+        if (mp.count >= 2) {
+            self.yMin = [mp[0] doubleValue];
+            self.yMax = [mp[1] doubleValue];
+        }
+        if (mp.count >= 3) {
+            NSInteger c = [mp[2] integerValue];
+            if (c > 0 && c <= 4096) {
+                self.capacity = c;
+            }
+        }
+    }
+    NSArray *parts = [body componentsSeparatedByString:@","];
+    for (NSString *p in parts) {
+        if (p.length == 0) continue;
+        [self.samples addObject:@([p doubleValue])];
+        while ((NSInteger)self.samples.count > self.capacity) {
+            [self.samples removeObjectAtIndex:0];
+        }
+    }
+    [self setNeedsDisplay:YES];
+}
+- (void)drawRect:(NSRect)dirtyRect {
+    (void)dirtyRect;
+    NSRect b = self.bounds;
+    NSColor *bg = [NSColor controlBackgroundColor];
+    NSColor *grid = [NSColor separatorColor];
+    NSColor *line = [NSColor systemBlueColor];
+    NSColor *empty = [NSColor secondaryLabelColor];
+    [bg setFill];
+    NSRectFill(b);
+    [grid setStroke];
+    NSBezierPath *border = [NSBezierPath bezierPathWithRoundedRect:NSInsetRect(b, 0.5, 0.5)
+                                                           xRadius:4 yRadius:4];
+    [border setLineWidth:1.0];
+    [border stroke];
+    if (self.samples.count < 2) {
+        NSString *msg = @"无数据";
+        NSDictionary *attrs = @{
+            NSFontAttributeName: [NSFont systemFontOfSize:11.0],
+            NSForegroundColorAttributeName: empty
+        };
+        NSSize sz = [msg sizeWithAttributes:attrs];
+        NSPoint pt = NSMakePoint((b.size.width - sz.width) * 0.5,
+                                 (b.size.height - sz.height) * 0.5);
+        [msg drawAtPoint:pt withAttributes:attrs];
+        return;
+    }
+    double ymin = self.yMin;
+    double ymax = self.yMax;
+    if (ymax <= ymin) {
+        ymax = ymin + 1.0;
+    }
+    NSBezierPath *path = [NSBezierPath bezierPath];
+    [path setLineWidth:1.5];
+    [path setLineJoinStyle:NSLineJoinStyleRound];
+    NSInteger n = (NSInteger)self.samples.count;
+    for (NSInteger i = 0; i < n; i++) {
+        double v = [self.samples[i] doubleValue];
+        double t = (v - ymin) / (ymax - ymin);
+        if (t < 0) t = 0;
+        if (t > 1) t = 1;
+        double x = 4.0 + (b.size.width - 8.0) * ((double)i / (double)(n - 1));
+        double y = (b.size.height - 4.0) - t * (b.size.height - 8.0);
+        if (i == 0) {
+            [path moveToPoint:NSMakePoint(x, y)];
+        } else {
+            [path lineToPoint:NSMakePoint(x, y)];
+        }
+    }
+    [line setStroke];
+    [path stroke];
+}
+@end
+
 
 /** Bridges C peer item arrays into AppKit table/outline views. */
 @interface JnTableBridge : NSObject <NSTableViewDataSource, NSTableViewDelegate,
@@ -318,16 +579,36 @@ static NSImage *jn_icon_for_kind(NSString *kind, BOOL isGroup) {
     return jn_symbol(@"gearshape", NSImageNameApplicationIcon);
 }
 
-/** Prefer OS file icon (NSWorkspace); fall back to kind heuristic. */
+/** Prefer app-bundle icons; generic processes use a quiet SF Symbol (not doc/exec). */
+static BOOL jn_path_is_app_bundle(NSString *path) {
+    if (path == nil || path.length == 0) {
+        return NO;
+    }
+    if ([path hasSuffix:@".app"]) {
+        return YES;
+    }
+    NSRange r = [path rangeOfString:@".app/" options:0];
+    return r.location != NSNotFound;
+}
+
 static NSImage *jn_icon_for_row(NSString *path, NSString *kind, NSSize logical) {
-    if (path != nil && path.length > 0) {
-        NSImage *img = [[NSWorkspace sharedWorkspace] iconForFile:path];
+    if (jn_path_is_app_bundle(path)) {
+        NSString *appPath = path;
+        NSRange r = [path rangeOfString:@".app/" options:0];
+        if (r.location != NSNotFound) {
+            appPath = [path substringToIndex:(r.location + 4)];
+        }
+        NSImage *img = [[NSWorkspace sharedWorkspace] iconForFile:appPath];
         if (img != nil) {
             [img setSize:logical];
             return img;
         }
     }
-    NSImage *fallback = jn_icon_for_kind(kind, NO);
+    /* Quiet generic process glyph — avoid black exec / blank document icons. */
+    NSImage *fallback = jn_symbol(@"gearshape", NSImageNameApplicationIcon);
+    if (fallback == nil) {
+        fallback = jn_icon_for_kind(kind, NO);
+    }
     if (fallback != nil) {
         [fallback setSize:logical];
     }
@@ -418,14 +699,21 @@ static NSTableCellView *jn_make_cell(NSString *ident, BOOL withIcon) {
     if (cell == nil) {
         cell = jn_make_cell(ident, col == 0);
     }
-    cell.textField.stringValue = value;
+        cell.textField.stringValue = value;
     if (col == 0) {
-        cell.imageView.image = jn_icon_for_row(iconPath, kind, NSMakeSize(16, 16));
+        if (iconPath != nil && iconPath.length > 0) {
+            cell.imageView.image = jn_icon_for_row(iconPath, kind, NSMakeSize(16, 16));
+        } else {
+            cell.imageView.image = nil;
+        }
         [cell.imageView setContentTintColor:nil];
+        /* labelColor tracks selection / key-window focus via cell view. */
         cell.textField.textColor = [NSColor labelColor];
-        cell.textField.font = [NSFont systemFontOfSize:13.0];
+        cell.textField.font = [NSFont systemFontOfSize:[NSFont systemFontSize]];
+        cell.textField.lineBreakMode = NSLineBreakByTruncatingTail;
         [cell.textField setAlignment:NSTextAlignmentLeft];
         [cell.textField setToolTip:value];
+        cell.toolTip = value;
     } else {
         cell.imageView.image = nil;
         cell.textField.textColor = [NSColor secondaryLabelColor];
@@ -945,8 +1233,10 @@ int32_t jnative_ui_platform_create_control(int32_t peerId, int32_t kind, int32_t
         return 1;
     }
     if (kind == JN_UI_KIND_TEXTFIELD) {
-        NSTextField *tf = [[NSTextField alloc] initWithFrame:NSMakeRect(20, 100, 200, 24)];
+        JnUiTextField *tf = [[JnUiTextField alloc] initWithFrame:NSMakeRect(20, 100, 200, 24)];
+        tf.jnHandleId = peerId;
         [tf setStringValue:jn_nsstring(text)];
+        [tf setDelegate:tf];
         if (parentView != nil) {
             [parentView addSubview:tf];
         }
@@ -973,7 +1263,10 @@ int32_t jnative_ui_platform_create_control(int32_t peerId, int32_t kind, int32_t
         return 1;
     }
     if (kind == JN_UI_KIND_CHECKBOX) {
-        NSButton *btn = [NSButton checkboxWithTitle:jn_nsstring(text) target:nil action:NULL];
+        JnUiCheck *btn = [JnUiCheck checkboxWithTitle:jn_nsstring(text) target:nil action:NULL];
+        btn.jnHandleId = peerId;
+        [btn setTarget:btn];
+        [btn setAction:@selector(jnToggled:)];
         [btn setFrame:NSMakeRect(20, 20, 160, 28)];
         if (parentView != nil) {
             [parentView addSubview:btn];
@@ -982,7 +1275,10 @@ int32_t jnative_ui_platform_create_control(int32_t peerId, int32_t kind, int32_t
         return 1;
     }
     if (kind == JN_UI_KIND_RADIO) {
-        NSButton *btn = [NSButton radioButtonWithTitle:jn_nsstring(text) target:nil action:NULL];
+        JnUiCheck *btn = [JnUiCheck radioButtonWithTitle:jn_nsstring(text) target:nil action:NULL];
+        btn.jnHandleId = peerId;
+        [btn setTarget:btn];
+        [btn setAction:@selector(jnToggled:)];
         [btn setFrame:NSMakeRect(20, 20, 160, 28)];
         if (parentView != nil) {
             [parentView addSubview:btn];
@@ -991,7 +1287,12 @@ int32_t jnative_ui_platform_create_control(int32_t peerId, int32_t kind, int32_t
         return 1;
     }
     if (kind == JN_UI_KIND_COMBOBOX) {
-        NSComboBox *box = [[NSComboBox alloc] initWithFrame:NSMakeRect(20, 20, 180, 26)];
+        JnUiCombo *box = [[JnUiCombo alloc] initWithFrame:NSMakeRect(20, 20, 180, 26)];
+        box.jnHandleId = peerId;
+        [[NSNotificationCenter defaultCenter] addObserver:box
+                                                 selector:@selector(jnSelectionChanged:)
+                                                     name:NSComboBoxSelectionDidChangeNotification
+                                                   object:box];
         if (parentView != nil) {
             [parentView addSubview:box];
         }
@@ -1020,6 +1321,41 @@ int32_t jnative_ui_platform_create_control(int32_t peerId, int32_t kind, int32_t
         g_peers[peerId] = bar;
         return 1;
     }
+    if (kind == JN_UI_KIND_SEGMENTED) {
+        JnUiSegmented *seg = [[JnUiSegmented alloc] initWithFrame:NSMakeRect(0, 0, 160, 28)];
+        seg.jnHandleId = peerId;
+        [seg setSegmentStyle:NSSegmentStyleRounded];
+        [seg setTrackingMode:NSSegmentSwitchTrackingSelectOne];
+        [seg setTarget:seg];
+        [seg setAction:@selector(jnChanged:)];
+        NSArray<NSString *> *parts = [jn_nsstring(text) componentsSeparatedByString:@"\t"];
+        if (parts.count == 0) {
+            parts = @[ @"A", @"B" ];
+        }
+        [seg setSegmentCount:(NSInteger)parts.count];
+        NSUInteger si;
+        for (si = 0; si < parts.count; si++) {
+            [seg setLabel:parts[si] forSegment:(NSInteger)si];
+            [seg setWidth:0 forSegment:(NSInteger)si];
+        }
+        [seg setSelectedSegment:0];
+        [seg sizeToFit];
+        if (parentView != nil) {
+            [parentView addSubview:seg];
+        }
+        g_peers[peerId] = seg;
+        return 1;
+    }
+    if (kind == JN_UI_KIND_TRENDCHART) {
+        JnTrendView *tv = [[JnTrendView alloc] initWithFrame:NSMakeRect(0, 0, 160, 36)];
+        tv.jnHandleId = peerId;
+        [tv jnSetCsv:jn_nsstring(text)];
+        if (parentView != nil) {
+            [parentView addSubview:tv];
+        }
+        g_peers[peerId] = tv;
+        return 1;
+    }
     if (kind == JN_UI_KIND_LISTVIEW || kind == JN_UI_KIND_TABLEVIEW) {
         NSScrollView *scroll = [[NSScrollView alloc] initWithFrame:NSMakeRect(0, 0, 240, 200)];
         [scroll setHasVerticalScroller:YES];
@@ -1031,13 +1367,12 @@ int32_t jnative_ui_platform_create_control(int32_t peerId, int32_t kind, int32_t
         NSTableView *table = [[NSTableView alloc] initWithFrame:scroll.bounds];
         [table setHeaderView:[[NSTableHeaderView alloc] init]];
         [table setUsesAlternatingRowBackgroundColors:YES];
-        /* Compact system-like row height (~22–26pt). */
-        [table setRowHeight:24.0];
-        [table setIntercellSpacing:NSMakeSize(6.0, 1.0)];
+        /* Compact system row height (~22–24pt). */
+        [table setRowHeight:22.0];
+        [table setIntercellSpacing:NSMakeSize(4.0, 1.0)];
         [table setGridStyleMask:NSTableViewGridNone];
-        /* Name (first) column absorbs leftover width — Activity Monitor / Finder style. */
+        /* Name (first) column absorbs leftover width — not the last (Threads) column. */
         [table setColumnAutoresizingStyle:NSTableViewFirstColumnOnlyAutoresizingStyle];
-        /* Plain/full-width — Inset style looked like gray card rows (demo-ish). */
         if (@available(macOS 11.0, *)) {
             [table setStyle:NSTableViewStylePlain];
         }
@@ -1137,16 +1472,54 @@ int32_t jnative_ui_platform_dialog_message(int32_t windowId, int32_t type,
     return (r == NSAlertFirstButtonReturn) ? 1 : 0;
 }
 
+static NSArray<NSString *> *jn_parse_filter_exts(const char *filter) {
+    /* filter forms: "json" | "json,txt" | "JSON files|json;txt" — take extension tokens. */
+    if (filter == NULL || filter[0] == '\0') {
+        return nil;
+    }
+    NSMutableArray<NSString *> *exts = [NSMutableArray array];
+    NSString *raw = jn_nsstring(filter);
+    NSCharacterSet *seps = [NSCharacterSet characterSetWithCharactersInString:@",;| "];
+    NSArray<NSString *> *parts = [raw componentsSeparatedByCharactersInSet:seps];
+    for (NSString *p in parts) {
+        NSString *t = [[p stringByTrimmingCharactersInSet:
+            [NSCharacterSet whitespaceAndNewlineCharacterSet]] lowercaseString];
+        if (t.length == 0) {
+            continue;
+        }
+        if ([t containsString:@"."]) {
+            t = [t pathExtension];
+        }
+        if ([t isEqualToString:@"files"] || [t isEqualToString:@"file"]
+                || [t isEqualToString:@"all"]) {
+            continue;
+        }
+        if (t.length > 0 && t.length <= 8) {
+            [exts addObject:t];
+        }
+    }
+    if (exts.count == 0) {
+        return nil;
+    }
+    return exts;
+}
+
 char *jnative_ui_platform_dialog_file(int32_t windowId, int32_t save, const char *filter) {
     if (!g_cocoa_active) {
         return NULL;
     }
     (void)windowId;
-    (void)filter;
+    NSArray<NSString *> *exts = jn_parse_filter_exts(filter);
     if (save) {
         NSSavePanel *panel = [NSSavePanel savePanel];
+        [panel setCanCreateDirectories:YES];
+        /* macOS Save panel confirms overwrite by default. */
+        if (exts != nil) {
+            [panel setAllowedFileTypes:exts];
+            [panel setAllowsOtherFileTypes:NO];
+        }
         if ([panel runModal] != NSModalResponseOK) {
-            return NULL;
+            return NULL; /* cancel → not an error */
         }
         const char *utf8 = panel.URL.path.UTF8String;
         return utf8 ? strdup(utf8) : NULL;
@@ -1159,6 +1532,9 @@ char *jnative_ui_platform_dialog_file(int32_t windowId, int32_t save, const char
     } else {
         [panel setCanChooseFiles:YES];
         [panel setCanChooseDirectories:NO];
+        if (exts != nil) {
+            [panel setAllowedFileTypes:exts];
+        }
     }
     if ([panel runModal] != NSModalResponseOK) {
         return NULL;
@@ -1209,6 +1585,10 @@ void jnative_ui_platform_set_title(int32_t handleId, const char *title) {
 
 void jnative_ui_platform_set_text(int32_t handleId, const char *text) {
     id obj = (handleId > 0 && handleId < JN_UI_MAX) ? g_peers[handleId] : nil;
+    if ([obj isKindOfClass:[JnTrendView class]]) {
+        [(JnTrendView *)obj jnSetCsv:jn_nsstring(text)];
+        return;
+    }
     if ([obj isKindOfClass:[JnUiButton class]]) {
         JnUiButton *btn = (JnUiButton *)obj;
         [btn setTitle:jn_nsstring(text)];
@@ -1323,17 +1703,22 @@ void jnative_ui_platform_set_menubar(int32_t windowId, int32_t menuBarId) {
     if (g_menu_target == nil) {
         g_menu_target = [JnUiMenuTarget new];
     }
+    NSString *appName = jn_nsstring(jnative_ui_get_app_name());
     NSMenu *mainMenu = [[NSMenu alloc] initWithTitle:@"MainMenu"];
-    /* Standard app menu so Cmd+Q etc. remain available. */
+    /* Application menu: About / Quit via managed requestQuit (not NSApp terminate). */
     NSMenuItem *appItem = [[NSMenuItem alloc] init];
-    NSMenu *appMenu = [[NSMenu alloc] initWithTitle:@"JNative"];
-    [appMenu addItemWithTitle:@"About JNative Notepad"
+    NSMenu *appMenu = [[NSMenu alloc] initWithTitle:appName];
+    NSString *aboutTitle = [NSString stringWithFormat:@"About %@", appName];
+    [appMenu addItemWithTitle:aboutTitle
                        action:@selector(orderFrontStandardAboutPanel:)
                 keyEquivalent:@""];
     [appMenu addItem:[NSMenuItem separatorItem]];
-    [appMenu addItemWithTitle:@"Quit"
-                       action:@selector(terminate:)
-                keyEquivalent:@"q"];
+    NSString *quitTitle = [NSString stringWithFormat:@"Quit %@", appName];
+    NSMenuItem *quitItem = [[NSMenuItem alloc] initWithTitle:quitTitle
+                                                      action:@selector(jnAppQuit:)
+                                               keyEquivalent:@"q"];
+    [quitItem setTarget:g_menu_target];
+    [appMenu addItem:quitItem];
     [appItem setSubmenu:appMenu];
     [mainMenu addItem:appItem];
 
@@ -1345,6 +1730,7 @@ void jnative_ui_platform_set_menubar(int32_t windowId, int32_t menuBarId) {
         NSString *menuTitle = jn_nsstring(mtitle);
         NSMenuItem *top = [[NSMenuItem alloc] init];
         NSMenu *submenu = [[NSMenu alloc] initWithTitle:menuTitle];
+        [submenu setAutoenablesItems:NO];
         int32_t itemCount = jnative_ui_menu_child_count(menuId);
         for (int32_t ii = 0; ii < itemCount; ii++) {
             int32_t itemId = jnative_ui_menu_child_at(menuId, ii);
@@ -1361,6 +1747,11 @@ void jnative_ui_platform_set_menubar(int32_t windowId, int32_t menuBarId) {
                 keyEquivalent:@""];
             [item setTarget:g_menu_target];
             [item setTag:(NSInteger)itemId];
+            jn_apply_menu_shortcut(item, itemId);
+            int32_t en = jnative_ui_get_enabled(itemId);
+            [item setEnabled:(en != 0)];
+            int32_t sel = jnative_ui_get_selected(itemId);
+            [item setState:(sel != 0) ? NSControlStateValueOn : NSControlStateValueOff];
             [submenu addItem:item];
         }
         [top setSubmenu:submenu];
@@ -1466,47 +1857,118 @@ void jnative_ui_platform_table_set_columns(int32_t peerId, const char *titles_ts
     while (tv.tableColumns.count > 0) {
         [tv removeTableColumn:tv.tableColumns[0]];
     }
+    BOOL anyFlex = NO;
     for (NSUInteger i = 0; i < parts.count; i++) {
-        NSString *title = parts[i];
+        NSString *raw = parts[i];
+        NSString *title = raw;
+        CGFloat width = -1;
+        CGFloat minW = -1;
+        CGFloat maxW = -1;
+        int align = 0; /* 0=L 1=C 2=R */
+        int flex = 0;
+        NSArray *meta = [raw componentsSeparatedByString:@"##"];
+        if (meta.count >= 1) {
+            title = meta[0];
+        }
+        if (meta.count >= 2) {
+            width = [meta[1] doubleValue];
+        }
+        if (meta.count >= 3) {
+            NSString *a = meta[2];
+            if ([a isEqualToString:@"R"] || [a isEqualToString:@"2"]) align = 2;
+            else if ([a isEqualToString:@"C"] || [a isEqualToString:@"1"]) align = 1;
+            else align = 0;
+        }
+        if (meta.count >= 4) {
+            flex = [meta[3] intValue];
+        }
         if (title.length == 0) {
             title = [NSString stringWithFormat:@"Col%lu", (unsigned long)i];
         }
         NSTableColumn *col = [[NSTableColumn alloc]
             initWithIdentifier:[NSString stringWithFormat:@"%lu", (unsigned long)i]];
         [col setTitle:title];
-        /* Heuristic widths: name grows; PID/CPU/mem/threads stay compact. */
-        if (i == 0) {
-            [col setWidth:280.0];
-            [col setMinWidth:140.0];
-        } else if ([title containsString:@"PID"]) {
+        BOOL right = (align == 2);
+        if (width > 0) {
+            [col setWidth:width];
+            if (minW < 0) minW = width * 0.6;
+            if (maxW < 0) {
+                maxW = flex ? 100000.0 : width * 1.5;
+            }
+            [col setMinWidth:minW];
+            [col setMaxWidth:maxW];
+            if (flex) anyFlex = YES;
+        } else if (flex) {
+            [col setWidth:360.0];
+            [col setMinWidth:120.0];
+            [col setMaxWidth:100000.0];
+            anyFlex = YES;
+        } else if (i == 0) {
+            [col setWidth:360.0];
+            [col setMinWidth:180.0];
+            [col setMaxWidth:100000.0];
+            anyFlex = YES;
+        } else if ([title containsString:@"PID"] || i == 1) {
             [col setWidth:88.0];
             [col setMinWidth:72.0];
-        } else if ([title containsString:@"用户"] || [title containsString:@"User"]) {
-            [col setWidth:140.0];
-            [col setMinWidth:100.0];
+            [col setMaxWidth:110.0];
+            right = YES;
+        } else if ([title containsString:@"用户"] || [title containsString:@"User"] || i == 2) {
+            [col setWidth:128.0];
+            [col setMinWidth:88.0];
+            [col setMaxWidth:240.0];
         } else if ([title containsString:@"CPU"] || [title containsString:@"%"]) {
-            [col setWidth:88.0];
+            [col setWidth:84.0];
             [col setMinWidth:72.0];
+            [col setMaxWidth:110.0];
+            right = YES;
         } else if ([title containsString:@"线程"] || [title containsString:@"Threads"]) {
             [col setWidth:64.0];
-            [col setMinWidth:52.0];
+            [col setMinWidth:56.0];
+            [col setMaxWidth:80.0];
+            right = YES;
         } else if ([title containsString:@"内存"] || [title containsString:@"Memory"]
                 || [title containsString:@"RSS"] || [title containsString:@"占用"]) {
-            [col setWidth:108.0];
-            [col setMinWidth:84.0];
-        } else if (i == 1) {
-            [col setWidth:88.0];
-            [col setMinWidth:72.0];
-        } else if (i == 2) {
-            [col setWidth:140.0];
-            [col setMinWidth:100.0];
-        } else {
             [col setWidth:100.0];
-            [col setMinWidth:64.0];
+            [col setMinWidth:84.0];
+            [col setMaxWidth:140.0];
+            right = YES;
+        } else {
+            [col setWidth:96.0];
+            [col setMinWidth:72.0];
+            [col setMaxWidth:160.0];
         }
+        if (right) {
+            [[col headerCell] setAlignment:NSTextAlignmentRight];
+        } else if (align == 1) {
+            [[col headerCell] setAlignment:NSTextAlignmentCenter];
+        } else {
+            [[col headerCell] setAlignment:NSTextAlignmentLeft];
+        }
+        [col setResizingMask:NSTableColumnUserResizingMask];
         [tv addTableColumn:col];
     }
-    [tv sizeLastColumnToFit];
+    (void)anyFlex;
+    /* Re-assert: leftover width goes to name (col 0), never Threads. */
+    [tv setColumnAutoresizingStyle:NSTableViewFirstColumnOnlyAutoresizingStyle];
+    /* Table may still be ~240pt at first set_columns; use a floor so numeric
+       columns are not crushed before the real window layout runs. */
+    if (tv.tableColumns.count > 1) {
+        CGFloat fixed = 0;
+        NSUInteger ci;
+        for (ci = 1; ci < tv.tableColumns.count; ci++) {
+            fixed += [tv.tableColumns[ci] width];
+        }
+        CGFloat tableW = tv.bounds.size.width;
+        if (tableW < 900.0) {
+            tableW = 1000.0;
+        }
+        CGFloat nameW = tableW - fixed - 16.0;
+        if (nameW < 180.0) {
+            nameW = 180.0;
+        }
+        [tv.tableColumns[0] setWidth:nameW];
+    }
 }
 
 void jnative_ui_platform_items_changed(int32_t peerId) {
@@ -1540,7 +2002,17 @@ void jnative_ui_platform_items_changed(int32_t peerId) {
             }
         }
     } else {
+        NSScrollView *sv = [tv enclosingScrollView];
+        CGFloat savedY = 0;
+        int hasScroll = 0;
+        if (sv != nil) {
+            savedY = [[sv contentView] documentVisibleRect].origin.y;
+            hasScroll = 1;
+        }
         [tv reloadData];
+        if (hasScroll != 0 && sv != nil) {
+            [[sv documentView] scrollPoint:NSMakePoint(0, savedY)];
+        }
     }
     id scroll = g_peers[peerId];
     if ([scroll isKindOfClass:[NSScrollView class]]) {
@@ -1646,11 +2118,16 @@ int32_t jnative_ui_platform_context_menu_show(int32_t menuId, int32_t screenX, i
         mi.tag = itemId;
         [menu addItem:mi];
     }
-    NSPoint pt = NSMakePoint((CGFloat)screenX, (CGFloat)screenY);
-    NSScreen *screen = [NSScreen mainScreen];
-    if (screen != nil) {
-        CGFloat h = NSHeight(screen.frame);
-        pt.y = h - (CGFloat)screenY;
+    NSPoint pt;
+    if (screenX == 0 && screenY == 0) {
+        pt = [NSEvent mouseLocation];
+    } else {
+        pt = NSMakePoint((CGFloat)screenX, (CGFloat)screenY);
+        NSScreen *screen = [NSScreen mainScreen];
+        if (screen != nil) {
+            CGFloat h = NSHeight(screen.frame);
+            pt.y = h - (CGFloat)screenY;
+        }
     }
     [menu popUpMenuPositioningItem:nil atLocation:pt inView:nil];
     return 1;
@@ -1664,16 +2141,16 @@ void jnative_ui_platform_set_control_style(int32_t peerId, int32_t style) {
     if ([obj isKindOfClass:[NSButton class]]) {
         NSButton *btn = (NSButton *)obj;
         if (style == 1) {
-            /* Toolbar: compact, hover-revealed chrome (borderless). */
+            /* Toolbar glyph: compact borderless. */
             [btn setBordered:NO];
             [btn setButtonType:NSButtonTypeMomentaryLight];
             [btn setControlSize:NSControlSizeRegular];
-            [btn setFont:[NSFont systemFontOfSize:15.0 weight:NSFontWeightMedium]];
+            [btn setFont:[NSFont systemFontOfSize:13.0 weight:NSFontWeightMedium]];
             [btn setContentTintColor:[NSColor labelColor]];
             [btn sizeToFit];
             NSRect f = btn.frame;
-            if (f.size.width < 32.0) {
-                f.size.width = 32.0;
+            if (f.size.width < 28.0) {
+                f.size.width = 28.0;
             }
             if (f.size.height < 28.0) {
                 f.size.height = 28.0;
@@ -1686,6 +2163,20 @@ void jnative_ui_platform_set_control_style(int32_t peerId, int32_t style) {
             [btn setFont:[NSFont systemFontOfSize:12.0 weight:NSFontWeightRegular]];
             [btn setContentTintColor:[NSColor labelColor]];
             [btn sizeToFit];
+        } else if (style == 3) {
+            /* Toolbar push — visible bezel + optional SF Symbol. */
+            [btn setBordered:YES];
+            [btn setButtonType:NSButtonTypeMomentaryPushIn];
+            [btn setBezelStyle:NSBezelStyleRounded];
+            [btn setControlSize:NSControlSizeRegular];
+            [btn setFont:[NSFont systemFontOfSize:13.0 weight:NSFontWeightRegular]];
+            [btn setContentTintColor:[NSColor controlAccentColor]];
+            [btn sizeToFit];
+            NSRect f = btn.frame;
+            if (f.size.height < 28.0) {
+                f.size.height = 28.0;
+            }
+            [btn setFrame:f];
         } else {
             [btn setBordered:YES];
             [btn setButtonType:NSButtonTypeMomentaryPushIn];
@@ -1695,10 +2186,192 @@ void jnative_ui_platform_set_control_style(int32_t peerId, int32_t style) {
                 [btn setBezelStyle:NSBezelStyleRounded];
             }
         }
-    } else if ([obj isKindOfClass:[NSTextField class]] && style == 2) {
-        NSTextField *lab = (NSTextField *)obj;
-        [lab setFont:[NSFont systemFontOfSize:12.0]];
-        [lab setTextColor:[NSColor secondaryLabelColor]];
+    } else if ([obj isKindOfClass:[NSTextField class]]) {
+        NSTextField *tf = (NSTextField *)obj;
+        if (style == 2) {
+            [tf setFont:[NSFont systemFontOfSize:12.0]];
+            [tf setTextColor:[NSColor secondaryLabelColor]];
+        } else if (style == 4) {
+            /* Search-field look. */
+            [tf setBezeled:YES];
+            [tf setBezelStyle:NSTextFieldRoundedBezel];
+            [tf setDrawsBackground:YES];
+            [tf setFont:[NSFont systemFontOfSize:13.0]];
+        }
+    }
+}
+
+void jnative_ui_platform_set_tooltip(int32_t peerId, const char *tip) {
+    if (!g_cocoa_active || peerId <= 0 || peerId >= JN_UI_MAX) {
+        return;
+    }
+    id obj = g_peers[peerId];
+    NSString *s = jn_ns_from_utf8(tip);
+    if ([obj isKindOfClass:[NSView class]]) {
+        [(NSView *)obj setToolTip:s];
+    }
+    if ([obj respondsToSelector:@selector(setAccessibilityLabel:)]) {
+        /* Tooltip doubles as name when no dedicated accessible name is set. */
+        NSString *existing = nil;
+        if ([obj respondsToSelector:@selector(accessibilityLabel)]) {
+            existing = [obj accessibilityLabel];
+        }
+        if (existing == nil || existing.length == 0) {
+            [obj setAccessibilityLabel:s];
+        }
+    }
+}
+
+void jnative_ui_platform_set_accessible(int32_t peerId, const char *name, const char *description) {
+    if (!g_cocoa_active || peerId <= 0 || peerId >= JN_UI_MAX) {
+        return;
+    }
+    id obj = g_peers[peerId];
+    if (obj == nil) {
+        return;
+    }
+    if (name != NULL && [obj respondsToSelector:@selector(setAccessibilityLabel:)]) {
+        [obj setAccessibilityLabel:jn_ns_from_utf8(name)];
+    }
+    if (description != NULL && [obj respondsToSelector:@selector(setAccessibilityHelp:)]) {
+        [obj setAccessibilityHelp:jn_ns_from_utf8(description)];
+    }
+}
+
+void jnative_ui_platform_set_accessible_title_ui(int32_t fieldId, int32_t labelId) {
+    if (!g_cocoa_active || fieldId <= 0 || fieldId >= JN_UI_MAX
+            || labelId <= 0 || labelId >= JN_UI_MAX) {
+        return;
+    }
+    id field = g_peers[fieldId];
+    id label = g_peers[labelId];
+    if ([field isKindOfClass:[NSView class]] && [label isKindOfClass:[NSView class]]) {
+        if ([field respondsToSelector:@selector(setAccessibilityTitleUIElement:)]) {
+            [field setAccessibilityTitleUIElement:label];
+        }
+    }
+}
+
+void jnative_ui_platform_set_next_key_view(int32_t fromId, int32_t toId) {
+    if (!g_cocoa_active || fromId <= 0 || fromId >= JN_UI_MAX
+            || toId <= 0 || toId >= JN_UI_MAX) {
+        return;
+    }
+    id from = g_peers[fromId];
+    id to = g_peers[toId];
+    if ([from isKindOfClass:[NSView class]] && [to isKindOfClass:[NSView class]]) {
+        [(NSView *)from setNextKeyView:(NSView *)to];
+    }
+}
+
+void jnative_ui_platform_window_set_default_button(int32_t windowId, int32_t buttonId) {
+    if (!g_cocoa_active || windowId <= 0 || windowId >= JN_UI_MAX) {
+        return;
+    }
+    id winObj = g_peers[windowId];
+    if (![winObj isKindOfClass:[NSWindow class]]) {
+        return;
+    }
+    NSWindow *win = (NSWindow *)winObj;
+    if (buttonId <= 0 || buttonId >= JN_UI_MAX) {
+        [win setDefaultButtonCell:nil];
+        return;
+    }
+    id btn = g_peers[buttonId];
+    if ([btn isKindOfClass:[NSButton class]]) {
+        [win setDefaultButtonCell:[(NSButton *)btn cell]];
+    }
+}
+
+void jnative_ui_platform_window_set_cancel_button(int32_t windowId, int32_t buttonId) {
+    /* Escape is handled in managed Window keyDown → cancel button click. Peer id stored via value_i32 on window. */
+    (void)windowId;
+    (void)buttonId;
+}
+
+int32_t jnative_ui_platform_prefers_reduced_motion(void) {
+    if (!g_cocoa_active) {
+        return -1;
+    }
+    if (@available(macOS 10.12, *)) {
+        return [[NSWorkspace sharedWorkspace] accessibilityDisplayShouldReduceMotion] ? 1 : 0;
+    }
+    return -1;
+}
+
+int32_t jnative_ui_platform_prefers_increased_contrast(void) {
+    if (!g_cocoa_active) {
+        return -1;
+    }
+    if (@available(macOS 10.10, *)) {
+        return [[NSWorkspace sharedWorkspace] accessibilityDisplayShouldIncreaseContrast] ? 1 : 0;
+    }
+    return -1;
+}
+
+void jnative_ui_platform_set_button_symbol(int32_t peerId, const char *symbolName) {
+    if (!g_cocoa_active || peerId <= 0 || peerId >= JN_UI_MAX || symbolName == NULL) {
+        return;
+    }
+    id obj = g_peers[peerId];
+    if (![obj isKindOfClass:[NSButton class]]) {
+        return;
+    }
+    NSButton *btn = (NSButton *)obj;
+    NSImage *img = jn_symbol(jn_ns_from_utf8(symbolName), nil);
+    if (img != nil) {
+        [btn setImage:img];
+        [btn setImagePosition:NSImageLeft];
+        [btn sizeToFit];
+    }
+}
+
+void jnative_ui_platform_set_selected(int32_t peerId, int32_t selected) {
+    if (!g_cocoa_active || peerId <= 0 || peerId >= JN_UI_MAX) {
+        return;
+    }
+    id obj = g_peers[peerId];
+    if ([obj isKindOfClass:[NSButton class]]) {
+        NSButton *btn = (NSButton *)obj;
+        [btn setState:(selected != 0) ? NSControlStateValueOn : NSControlStateValueOff];
+    }
+}
+
+void jnative_ui_platform_set_selected_index(int32_t peerId, int32_t index) {
+    if (!g_cocoa_active || peerId <= 0 || peerId >= JN_UI_MAX) {
+        return;
+    }
+    id obj = g_peers[peerId];
+    if ([obj isKindOfClass:[NSSegmentedControl class]]) {
+        NSSegmentedControl *seg = (NSSegmentedControl *)obj;
+        if (index >= 0 && index < [seg segmentCount]) {
+            [seg setSelectedSegment:index];
+        }
+        return;
+    }
+    if ([obj isKindOfClass:[NSComboBox class]]) {
+        NSComboBox *box = (NSComboBox *)obj;
+        if (index >= 0 && index < [box numberOfItems]) {
+            [box selectItemAtIndex:index];
+            id val = [box itemObjectValueAtIndex:index];
+            if (val != nil) {
+                [box setObjectValue:val];
+            }
+        } else if (index < 0) {
+            [box setObjectValue:@""];
+            [box deselectItemAtIndex:[box indexOfSelectedItem]];
+        }
+        return;
+    }
+    NSTableView *tv = jn_table_view(peerId);
+    if (tv != nil) {
+        if (index < 0) {
+            [tv deselectAll:nil];
+        } else if (index < [tv numberOfRows]) {
+            [tv selectRowIndexes:[NSIndexSet indexSetWithIndex:(NSUInteger)index]
+           byExtendingSelection:NO];
+            [tv scrollRowToVisible:index];
+        }
     }
 }
 
@@ -1804,3 +2477,47 @@ void jnative_ui_platform_button_flash(int32_t peerId, int32_t pressed) {
         }
     }
 }
+
+int32_t jnative_ui_platform_features(void) {
+    if (!g_cocoa_active) {
+        return 0;
+    }
+    return JN_UI_FEAT_SEGMENTED | JN_UI_FEAT_SEARCH_FIELD | JN_UI_FEAT_TABLE
+        | JN_UI_FEAT_TRENDCHART | JN_UI_FEAT_DIALOGS | JN_UI_FEAT_TOOLTIP
+        | JN_UI_FEAT_SF_SYMBOL | JN_UI_FEAT_OVERFLOW_MENU;
+    /* JN_UI_FEAT_NATIVE_TOOLBAR intentionally unset: Toolbar is HBox chrome
+       composed of native buttons / segmented / search, not NSToolbar. */
+}
+
+int32_t jnative_ui_platform_table_get_scroll_y(int32_t peerId) {
+    if (!g_cocoa_active) {
+        return -1;
+    }
+    NSTableView *tv = jn_table_view(peerId);
+    if (tv == nil) {
+        return -1;
+    }
+    NSScrollView *sv = [tv enclosingScrollView];
+    if (sv == nil) {
+        return -1;
+    }
+    NSRect vis = [[sv contentView] documentVisibleRect];
+    return (int32_t)(vis.origin.y + 0.5);
+}
+
+void jnative_ui_platform_table_set_scroll_y(int32_t peerId, int32_t y) {
+    if (!g_cocoa_active || y < 0) {
+        return;
+    }
+    NSTableView *tv = jn_table_view(peerId);
+    if (tv == nil) {
+        return;
+    }
+    NSScrollView *sv = [tv enclosingScrollView];
+    if (sv == nil) {
+        return;
+    }
+    NSPoint pt = NSMakePoint(0, (CGFloat)y);
+    [[sv documentView] scrollPoint:pt];
+}
+

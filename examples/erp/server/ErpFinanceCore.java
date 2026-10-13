@@ -12,6 +12,7 @@ class ErpFinanceCore {
                 "SELECT id FROM gl_accounts WHERE company_id=? AND account_code=?", chk, new LongMapper());
         if (existing != null) {
             ensureMfgAccounts(companyId);
+            ensureBankIfMissing(companyId);
             return;
         }
         long now = AsyncClockNative.wallMillis();
@@ -36,13 +37,7 @@ class ErpFinanceCore {
         mapAccount(companyId, AccountMapKey.REVENUE, "4000");
         mapAccount(companyId, AccountMapKey.COGS, "5000");
 
-        ArrayList<Object> empty = new ArrayList<Object>();
-        Object bankGl = accountIdByCode(companyId, "1000");
-        ErpDb.exec(
-                "INSERT INTO bank_accounts(company_id, account_name, currency, ledger_account_id, active) VALUES ("
-                        + CryptoParse.longToString(companyId) + ",'Operating Bank','USD',"
-                        + CryptoParse.longToString(ErpNum.asLong(bankGl)) + ",1)",
-                empty);
+        ensureBankIfMissing(companyId);
 
         /* Wide open period covering demo horizon (epoch±years). */
         ArrayList<Object> fp = new ArrayList<Object>();
@@ -81,6 +76,26 @@ class ErpFinanceCore {
         seqOp.add("OP");
         seqOp.add("1");
         ErpDb.exec("INSERT INTO number_sequences(company_id, seq_name, next_val) VALUES (?,?,?)", seqOp);
+    }
+
+    static void ensureBankIfMissing(long companyId) {
+        ArrayList<Object> empty = new ArrayList<Object>();
+        ArrayList<Object> p = new ArrayList<Object>();
+        p.add(CryptoParse.longToString(companyId));
+        Object existing = ErpDb.queryOne(
+                "SELECT id FROM bank_accounts WHERE company_id=? ORDER BY id LIMIT 1", p, new LongMapper());
+        if (existing != null) {
+            return;
+        }
+        Object bankGl = accountIdByCode(companyId, "1000");
+        if (ErpNum.asLong(bankGl) == 0L) {
+            return;
+        }
+        ErpDb.exec(
+                "INSERT INTO bank_accounts(company_id, account_name, currency, ledger_account_id, active) VALUES ("
+                        + CryptoParse.longToString(companyId) + ",'Operating Bank','USD',"
+                        + CryptoParse.longToString(ErpNum.asLong(bankGl)) + ",1)",
+                empty);
     }
 
     static void ensureMfgAccounts(long companyId) {

@@ -232,6 +232,13 @@ class RenderScheduler {
         dirty = false;
     }
 
+    static void clearPending() {
+        ensureInit();
+        pendingBindings.clear();
+        dirty = false;
+        flushScheduled = false;
+    }
+
     static void batch(VoidCallback fn) {
         boolean prev = flushScheduled;
         flushScheduled = true;
@@ -407,14 +414,36 @@ abstract class WebUiComponent {
 class ComponentInstance {
     WebUiComponent component;
     int rootDomId;
+    int instanceId;
     ArrayList<DomBinding> bindings;
     ArrayList<ComponentInstance> children;
+    int[] callbackIds;
+    int callbackCount;
+    static int nextInstanceId;
 
     ComponentInstance(WebUiComponent component) {
         this.component = component;
         this.bindings = new ArrayList<DomBinding>();
         this.children = new ArrayList<ComponentInstance>();
+        this.callbackIds = new int[16];
+        this.callbackCount = 0;
+        nextInstanceId = nextInstanceId + 1;
+        this.instanceId = nextInstanceId;
         component.instance = this;
+    }
+
+    void trackCallback(int cbId) {
+        if (callbackCount >= callbackIds.length) {
+            int[] grown = new int[callbackIds.length * 2];
+            int i = 0;
+            while (i < callbackCount) {
+                grown[i] = callbackIds[i];
+                i = i + 1;
+            }
+            callbackIds = grown;
+        }
+        callbackIds[callbackCount] = cbId;
+        callbackCount = callbackCount + 1;
     }
 
     void mount(int parentDomId) {
@@ -430,10 +459,18 @@ class ComponentInstance {
             bindings.get(i).dispose();
         }
         bindings.clear();
-        for (int i = 0; i < children.size(); i = i + 1) {
-            children.get(i).unmount();
+        int i = 0;
+        while (i < callbackCount) {
+            WebUiNative.unregisterCallback(callbackIds[i]);
+            i = i + 1;
+        }
+        callbackCount = 0;
+        for (int c = 0; c < children.size(); c = c + 1) {
+            children.get(c).unmount();
         }
         children.clear();
+        component.instance = null;
+        rootDomId = 0;
     }
 }
 
@@ -472,6 +509,7 @@ class BrowserDomRenderer {
         for (int i = 0; i < el.events.size(); i = i + 1) {
             ViewEvent ev = el.events.get(i);
             int cbId = WebUiNative.registerCallback(ev.handler);
+            owner.trackCallback(cbId);
             WebUiNative.delegateEvent(nodeId, ev.type, cbId);
         }
         if (parentDomId != 0) {
@@ -572,6 +610,9 @@ class WebUI {
 
     static void mount(String selector, WebUiComponent component) {
         mountCount = mountCount + 1;
+        if (root != null) {
+            unmount();
+        }
         int host = WebUiNative.querySelector(selector);
         if (host == 0) {
             Browser.console().error("WebUI mount target not found");
@@ -581,6 +622,16 @@ class WebUI {
         root = new ComponentInstance(component);
         root.mount(host);
         RenderScheduler.scheduleFlush();
+    }
+
+    /** Tear down root instance: child unmount, binding dispose, callback unregister. */
+    static void unmount() {
+        if (root == null) {
+            return;
+        }
+        RenderScheduler.clearPending();
+        root.unmount();
+        root = null;
     }
 
     static void batch(VoidCallback fn) {
@@ -624,6 +675,9 @@ class WebUiNative {
 
     static int registerCallback(MouseCallback handler) {
         return 1;
+    }
+
+    static void unregisterCallback(int callbackId) {
     }
 
     static void delegateEvent(int nodeId, String type, int callbackId) {

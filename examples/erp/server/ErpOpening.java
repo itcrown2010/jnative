@@ -188,14 +188,18 @@ class OpeningStockPostWork implements DbTransactionWork {
                         + " WHERE id=" + CryptoParse.longToString(docId)
                         + " AND company_id=" + CryptoParse.longToString(companyId),
                 new ArrayList<Object>());
-        ErpDb.execConn(conn,
-                "INSERT INTO audit_logs(company_id, user_id, action, entity_type, entity_id, detail, created_at) VALUES ("
-                        + CryptoParse.longToString(companyId) + ","
-                        + CryptoParse.longToString(userId)
-                        + ",'POST','OPENING_STOCK',"
-                        + CryptoParse.longToString(docId) + ",'" + docNo + "',"
-                        + CryptoParse.longToString(now) + ")",
-                new ArrayList<Object>());
+        try {
+            ErpDb.execConn(conn,
+                    "INSERT INTO audit_logs(company_id, user_id, action, entity_type, entity_id, detail, created_at) VALUES ("
+                            + CryptoParse.longToString(companyId) + ","
+                            + CryptoParse.longToString(userId)
+                            + ",'POST','OPENING_STOCK',"
+                            + CryptoParse.longToString(docId) + ",'" + docNo + "',"
+                            + CryptoParse.longToString(now) + ")",
+                    new ArrayList<Object>());
+        } catch (Exception auditEx) {
+            /* Audit must not block opening stock posting. */
+        }
         String docJson = "{\"id\":" + ErpJson.num(docId) + ",\"docNo\":" + ErpJson.str(docNo)
                 + ",\"status\":\"POSTED\"}";
         PostResultDto ok = new PostResultDto();

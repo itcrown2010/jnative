@@ -3,7 +3,6 @@ package io.jnative.examples.mobile.guidetasks
 
 import android.annotation.SuppressLint
 import android.content.Intent
-import android.net.Uri
 import android.os.Bundle
 import android.view.ViewGroup
 import android.webkit.WebResourceRequest
@@ -11,6 +10,7 @@ import android.webkit.WebResourceResponse
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import androidx.activity.OnBackPressedCallback
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowCompat
@@ -19,11 +19,19 @@ import androidx.webkit.WebViewAssetLoader
 
 /**
  * Thin Android container: loads packaged WebUI/WASM from app assets only.
- * External http(s) links open in the system browser (no bridge there).
+ * Document pickers use system SAF (no broad storage permission).
  */
 class MainActivity : AppCompatActivity() {
     private lateinit var webView: WebView
     private var bridge: BridgeHost? = null
+
+    private val openDocument = registerForActivityResult(
+        ActivityResultContracts.OpenDocument(),
+    ) { uri -> bridge?.onOpenDocument(uri) }
+
+    private val createDocument = registerForActivityResult(
+        ActivityResultContracts.CreateDocument("application/json"),
+    ) { uri -> bridge?.onCreateDocument(uri) }
 
     @SuppressLint("SetJavaScriptEnabled")
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -40,16 +48,19 @@ class MainActivity : AppCompatActivity() {
 
         webView = findViewById(R.id.webview)
         val bridgeHost = BridgeHost(this, webView)
+        bridgeHost.openDocumentLauncher = openDocument
+        bridgeHost.createDocumentLauncher = createDocument
         bridge = bridgeHost
 
         webView.settings.javaScriptEnabled = true
         webView.settings.domStorageEnabled = true
         webView.settings.allowFileAccess = false
         webView.settings.allowContentAccess = false
+        val debuggable =
+            (applicationInfo.flags and android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE) != 0
+        WebView.setWebContentsDebuggingEnabled(debuggable)
         webView.addJavascriptInterface(bridgeHost, "JNativeHost")
 
-        // Serve assets via https://appassets.androidplatform.net/ — isolated origin.
-        // Path "/" maps URL /www/... → assets/www/...
         val assetLoader = WebViewAssetLoader.Builder()
             .addPathHandler("/", WebViewAssetLoader.AssetsPathHandler(this))
             .build()
@@ -68,7 +79,6 @@ class MainActivity : AppCompatActivity() {
                 if (host == "appassets.androidplatform.net") {
                     return false
                 }
-                // External link: open outside the bridged WebView.
                 startActivity(Intent(Intent.ACTION_VIEW, url))
                 return true
             }

@@ -15,7 +15,10 @@
 | 项 | 状态 |
 |----|------|
 | `build_web.sh` / `verify_web.sh` | **实验性**（macOS arm64 已跑通） |
-| 浏览器完整 UI 点击截图验收 | **未验证**（请本地预览） |
+| Chrome 自动化：多页面/中文/非法日期/离开确认/网络 | **实验性 / 已验收**（`verify_browser.mjs`） |
+| 存档 v3 + `#/list|task|new|edit|settings` | **实验性 / 已验收** |
+| 开发预览可靠刷新（非 HMR） | **实验性 / 已验收**（`dev_web.mjs` / `verify_dev_web.mjs`） |
+| `BrowserNative.fetch`（WASM 内） | **未支持**（网络走 JS `fetch`） |
 
 ## 课表
 
@@ -35,7 +38,10 @@
 ## 快速构建
 
 ```bash
-./examples/guide-tasks/scripts/build_web.sh
 ./examples/guide-tasks/scripts/verify_web.sh
-cd examples/guide-tasks/web/dist && python3 -m http.server 8767
+node examples/guide-tasks/scripts/verify_browser.mjs
+node examples/guide-tasks/scripts/dev_web.mjs
+# 打开 http://127.0.0.1:8767/
 ```
+
+分步骤：`docs/tutorial/chapters/web-mobile-tasks.md`。

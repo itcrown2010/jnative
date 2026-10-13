@@ -26,6 +26,9 @@
 | `jnative analyze` / `jnative lsp` | CLI；VS Code 调用 | 扩展 README：analyze-only 诊断 | 实验性 |
 | 包管理 `add/remove/update/deps/search/…` | CLI help | 有命令；文档仅描述已验证路径 | 实验性 |
 | `--target wasm32-browser` 导出核心 | 编译器 | 数独 Web；guide-tasks `verify_web.sh` PASS | 实验性 |
+| Browser `storage_get`（WASM glue） | `JsGlueGenerator` | 已实现读 localStorage；需重建 JAR | 实验性 |
+| Browser `fetch_get`（WASM glue） | `JsGlueGenerator` | 仍返回空；网络用 JS 适配器 | 未支持 |
+| guide-tasks Chrome e2e | `verify_browser.mjs` | 增改搜完成→恢复→网络成败 | 实验性 / 已验收 |
 | WebUI `WebUI.mount` / `Html.*` | `WebUiLib` | counter 在 0.32 全量 stdlib→WAT 校验失败 | 实验性 / 当前不可用于新教程 |
 | 优化 `-O0`…`-O3` | CLI | 单文件 `-O0` 已用于 Hello | 稳定 |
 

@@ -1,0 +1,15 @@
+# Author: 张晓达
+[package]
+name = "ui-controls-demo"
+namespace = "local"
+version = "0.1.0"
+description = "Consumes local/ui-controls via .jnpkg (no hand-copied sources)"
+license = "MIT"
+type = "source"
+
+[target]
+kind = "desktop"
+triple = "native"
+
+[dependencies]
+"local/ui-controls" = "0.1.0"

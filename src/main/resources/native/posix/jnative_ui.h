@@ -32,7 +32,24 @@ enum {
     JN_UI_KIND_TREEVIEW = 16,
     JN_UI_KIND_MENUITEM = 17,
     JN_UI_KIND_SEPARATOR = 18,
-    JN_UI_KIND_CANVAS = 19
+    JN_UI_KIND_CANVAS = 19,
+    /** NSSegmentedControl / equivalent; text = tab-separated segment titles. */
+    JN_UI_KIND_SEGMENTED = 20,
+    /** Bounded sparkline / trend chart (samples via set_text CSV). */
+    JN_UI_KIND_TRENDCHART = 21
+};
+
+/* Platform capability bits (jnative_ui_platform_features). */
+enum {
+    JN_UI_FEAT_NATIVE_TOOLBAR = 1,
+    JN_UI_FEAT_SEGMENTED = 2,
+    JN_UI_FEAT_SEARCH_FIELD = 4,
+    JN_UI_FEAT_TABLE = 8,
+    JN_UI_FEAT_TRENDCHART = 16,
+    JN_UI_FEAT_DIALOGS = 32,
+    JN_UI_FEAT_TOOLTIP = 64,
+    JN_UI_FEAT_SF_SYMBOL = 128,
+    JN_UI_FEAT_OVERFLOW_MENU = 256
 };
 
 /* Platform-neutral event codes. */
@@ -52,7 +69,9 @@ enum {
     JN_UI_EVENT_PAINT = 13,
     JN_UI_EVENT_TIMER = 14,
     /** Table/outline header click; arg0 = column index. */
-    JN_UI_EVENT_HEADER = 15
+    JN_UI_EVENT_HEADER = 15,
+    /** Managed quit request (App menu Quit / Cmd+Q); Java runs hooks then quits. */
+    JN_UI_EVENT_QUIT_REQUEST = 16
 };
 
 /* Mouse / key subtypes packed into event arg0 for KEY/MOUSE/FOCUS. */
@@ -92,9 +111,14 @@ void jnative_ui_show(int32_t id);
 void jnative_ui_hide(int32_t id);
 void jnative_ui_set_title(int32_t id, const char *title);
 void jnative_ui_set_text(int32_t id, const char *text);
+/** Update managed peer text only (no platform write — for native→managed sync). */
+void jnative_ui_store_text(int32_t id, const char *text);
+/** Heap copy of current peer text; free with jnative_ui_dialog_free_path. */
+char *jnative_ui_copy_text(int32_t id);
 void jnative_ui_set_bounds(int32_t id, int32_t x, int32_t y, int32_t w, int32_t h);
 void jnative_ui_set_visible(int32_t id, int32_t visible);
 void jnative_ui_set_enabled(int32_t id, int32_t enabled);
+int32_t jnative_ui_get_enabled(int32_t id);
 void jnative_ui_focus(int32_t id);
 void jnative_ui_set_content(int32_t windowId, int32_t childId);
 /** Attach child native peer as subview of parent peer (panel/split/etc). */
@@ -138,6 +162,15 @@ int32_t jnative_ui_menu_create_item(const char *text);
 int32_t jnative_ui_menu_create_separator(void);
 void jnative_ui_menu_add(int32_t parentMenuId, int32_t childId);
 void jnative_ui_window_set_menubar(int32_t windowId, int32_t menuBarId);
+/** Menu item accelerator: key is lowercase ASCII (e.g. 's'); mods: 1=shift 2=alt 4=ctrl 8=meta/cmd. */
+void jnative_ui_menu_set_shortcut(int32_t itemId, int32_t keyCode, int32_t mods);
+int32_t jnative_ui_menu_get_shortcut_key(int32_t itemId);
+int32_t jnative_ui_menu_get_shortcut_mods(int32_t itemId);
+/** Display name for the macOS application menu (About / Quit). */
+void jnative_ui_set_app_name(const char *name);
+const char *jnative_ui_get_app_name(void);
+/** Post JN_UI_EVENT_QUIT_REQUEST to the UI thread (does not kill the process). */
+void jnative_ui_request_quit(void);
 /* Menu peer introspection for platform MenuBar install. */
 int32_t jnative_ui_peer_kind(int32_t id);
 const char *jnative_ui_peer_text(int32_t id);
@@ -201,8 +234,34 @@ int32_t jnative_ui_platform_dialog_message(int32_t windowId, int32_t type,
 char *jnative_ui_platform_dialog_file(int32_t windowId, int32_t save, const char *filter);
 void jnative_ui_platform_items_changed(int32_t id);
 void jnative_ui_platform_table_set_columns(int32_t id, const char *titles_tsv);
-/** Control chrome: 0=default, 1=toolbar, 2=breadcrumb, 3=sidebar item. */
+/** Control chrome: 0=default, 1=toolbar glyph, 2=breadcrumb, 3=toolbar push, 4=search field. */
 void jnative_ui_platform_set_control_style(int32_t id, int32_t style);
+void jnative_ui_set_tooltip(int32_t id, const char *tip);
+void jnative_ui_platform_set_tooltip(int32_t id, const char *tip);
+/** Accessibility: name = AX label; description = help; roleHint unused on Cocoa (native roles). */
+void jnative_ui_set_accessible(int32_t id, const char *name, const char *description);
+void jnative_ui_platform_set_accessible(int32_t id, const char *name, const char *description);
+/** Associate an error/help label peer as the text field's title UI element (VoiceOver). */
+void jnative_ui_set_accessible_title_ui(int32_t fieldId, int32_t labelId);
+void jnative_ui_platform_set_accessible_title_ui(int32_t fieldId, int32_t labelId);
+/** Key-view loop: set next key view for Tab order (Cocoa). */
+void jnative_ui_set_next_key_view(int32_t fromId, int32_t toId);
+void jnative_ui_platform_set_next_key_view(int32_t fromId, int32_t toId);
+/** Window default / cancel buttons (Return / Escape). */
+void jnative_ui_window_set_default_button(int32_t windowId, int32_t buttonId);
+void jnative_ui_window_set_cancel_button(int32_t windowId, int32_t buttonId);
+void jnative_ui_platform_window_set_default_button(int32_t windowId, int32_t buttonId);
+void jnative_ui_platform_window_set_cancel_button(int32_t windowId, int32_t buttonId);
+/** System accessibility display prefs: 1=yes, 0=no, -1=unknown. */
+int32_t jnative_ui_prefers_reduced_motion(void);
+int32_t jnative_ui_prefers_increased_contrast(void);
+int32_t jnative_ui_platform_prefers_reduced_motion(void);
+int32_t jnative_ui_platform_prefers_increased_contrast(void);
+void jnative_ui_set_button_symbol(int32_t id, const char *symbolName);
+void jnative_ui_platform_set_button_symbol(int32_t id, const char *symbolName);
+void jnative_ui_platform_set_selected_index(int32_t id, int32_t index);
+/** Sync checkbox / radio on/off to the native peer. */
+void jnative_ui_platform_set_selected(int32_t id, int32_t selected);
 /** Visual style: bg/fg as 0xAARRGGBB (-1 = leave), radius px (-1 leave), fontSize pt (-1 leave), align 0=L 1=C 2=R (-1 leave). */
 void jnative_ui_set_visual(int32_t id, int32_t bg_rgba, int32_t fg_rgba,
                            int32_t corner_radius, int32_t font_size, int32_t text_align);
@@ -210,6 +269,14 @@ void jnative_ui_platform_set_visual(int32_t id, int32_t bg_rgba, int32_t fg_rgba
                                     int32_t corner_radius, int32_t font_size, int32_t text_align);
 void jnative_ui_window_set_min_size(int32_t windowId, int32_t w, int32_t h);
 void jnative_ui_platform_window_set_min_size(int32_t windowId, int32_t w, int32_t h);
+/** Bitmask of JN_UI_FEAT_* (0 when headless / unsupported backend). */
+int32_t jnative_ui_features(void);
+int32_t jnative_ui_platform_features(void);
+/** Table scroll offset in logical points (document Y). -1 if unsupported. */
+int32_t jnative_ui_table_get_scroll_y(int32_t id);
+void jnative_ui_table_set_scroll_y(int32_t id, int32_t y);
+int32_t jnative_ui_platform_table_get_scroll_y(int32_t id);
+void jnative_ui_platform_table_set_scroll_y(int32_t id, int32_t y);
 /** Flash pressed visual feedback (filled buttons). */
 void jnative_ui_button_flash(int32_t id, int32_t pressed);
 void jnative_ui_platform_button_flash(int32_t id, int32_t pressed);

@@ -1,0 +1,23 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "jnative-build-desktop-sample",
+      "type": "shell",
+      "command": "${workspaceFolder}/scripts/build.sh",
+      "options": {
+        "cwd": "${workspaceFolder}",
+        "env": {
+          "JNATIVE_JAR": "${workspaceFolder}/../../target/jnative.jar"
+        }
+      },
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      },
+      "presentation": {
+        "reveal": "always"
+      }
+    }
+  ]
+}

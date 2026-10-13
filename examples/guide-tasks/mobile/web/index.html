@@ -11,23 +11,43 @@
   <main id="app">
     <header class="top">
       <h1>任务管理器</h1>
-      <p class="sub">WASM TaskCore · WebView 容器</p>
+      <p class="sub">WASM TaskCore · WebView 触屏壳（非原生控件 UI）</p>
+      <p id="status" class="status" role="status">加载中…</p>
+      <p id="lifecycle" class="meta" aria-live="polite"></p>
     </header>
-    <p id="status" class="status" role="status">加载中…</p>
-    <p id="lifecycle" class="meta" aria-live="polite"></p>
 
-    <form id="form" class="form">
-      <input id="title" type="text" maxlength="48" placeholder="任务标题" enterkeyhint="done" autocomplete="off"/>
-      <button type="submit" class="primary">添加</button>
-    </form>
+    <section id="view-list" class="view" hidden>
+      <form id="form-add" class="form">
+        <input id="title" type="text" maxlength="48" placeholder="新任务标题" enterkeyhint="done" autocomplete="off"/>
+        <button type="submit" class="primary">添加</button>
+      </form>
+      <p id="form-error" class="field-error" hidden></p>
+      <div class="tools">
+        <input id="search" type="search" maxlength="48" placeholder="搜索…" autocomplete="off"/>
+        <button type="button" id="sync">提示</button>
+      </div>
+      <p id="list-state" class="list-state" hidden></p>
+      <ul id="list" class="list" aria-live="polite"></ul>
+    </section>
 
-    <div class="tools">
-      <button type="button" id="save">保存</button>
-      <button type="button" id="load">加载</button>
-      <button type="button" id="bg">异步</button>
-    </div>
+    <section id="view-edit" class="view" hidden>
+      <button type="button" id="back" class="linkish">← 返回</button>
+      <h2 id="edit-heading">编辑任务</h2>
+      <form id="form-edit" class="col">
+        <input id="edit-title" type="text" maxlength="48" enterkeyhint="done" autocomplete="off"/>
+        <p id="edit-error" class="field-error" hidden></p>
+        <div class="tools">
+          <button type="submit" class="primary">保存</button>
+          <button type="button" id="edit-cancel">取消</button>
+        </div>
+      </form>
+      <p id="dirty-hint" class="hint" hidden>有未保存修改</p>
+    </section>
 
-    <ul id="list" class="list"></ul>
+    <section id="view-fail" class="view" hidden>
+      <p class="fail">WASM 未能启动</p>
+      <pre id="fail-detail"></pre>
+    </section>
   </main>
   <script type="module" src="./app-shell.js"></script>
 </body>

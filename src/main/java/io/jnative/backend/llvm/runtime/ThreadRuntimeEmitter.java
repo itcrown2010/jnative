@@ -48,10 +48,16 @@ public final class ThreadRuntimeEmitter {
                 ; AtomicLong: { meta*, i64 value }
                 ; AtomicBool: { meta*, i8 value }
 
-                define void @jnative_thread_entry(ptr %thread_obj) {
+                define void @jnative_thread_entry(ptr %thread_obj0) {
                 entry:
-                  call void @jn_thread_set_current_obj(ptr %thread_obj)
+                  ; Pin via TLS root slot before any safepoint (young GC is moving).
+                  call void @jn_thread_set_current_obj(ptr %thread_obj0)
                   call void @jn_safepoint_poll()
+                  ; Must reload — safepoint may have forwarded the Thread object.
+                  %thread_obj = call ptr @jn_thread_current_obj()
+                  %missing = icmp eq ptr %thread_obj, null
+                  br i1 %missing, label %done, label %run
+                run:
                   %meta = load ptr, ptr %thread_obj, align 8
                   %vtField = getelementptr %jn.ClassMeta, ptr %meta, i32 0, i32 0
                   %vtable = load ptr, ptr %vtField, align 8

@@ -1,0 +1,9 @@
+[package]
+name = "desktop-sample"
+namespace = "local"
+version = "0.1.0"
+license = "MIT"
+
+[target]
+kind = "desktop"
+triple = "native"

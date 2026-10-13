@@ -47,7 +47,11 @@ typedef struct {
     int32_t item_expanded[JN_UI_ITEM_MAX];
     int32_t menu_children[64];
     int32_t menu_child_count;
+    int32_t shortcut_key;
+    int32_t shortcut_mods;
 } JnUiPeer;
+
+static char *g_app_name = NULL;
 
 static JnUiPeer g_peers[JN_UI_MAX];
 static int32_t g_next_id = 1;
@@ -166,6 +170,35 @@ __attribute__((weak)) char *jnative_ui_platform_dialog_file(
 __attribute__((weak)) void jnative_ui_platform_items_changed(int32_t id) {
     (void)id;
 }
+__attribute__((weak)) void jnative_ui_platform_set_tooltip(int32_t id, const char *tip) {
+    (void)id; (void)tip;
+}
+__attribute__((weak)) void jnative_ui_platform_set_accessible(int32_t id, const char *name, const char *description) {
+    (void)id; (void)name; (void)description;
+}
+__attribute__((weak)) void jnative_ui_platform_set_accessible_title_ui(int32_t fieldId, int32_t labelId) {
+    (void)fieldId; (void)labelId;
+}
+__attribute__((weak)) void jnative_ui_platform_set_next_key_view(int32_t fromId, int32_t toId) {
+    (void)fromId; (void)toId;
+}
+__attribute__((weak)) void jnative_ui_platform_window_set_default_button(int32_t windowId, int32_t buttonId) {
+    (void)windowId; (void)buttonId;
+}
+__attribute__((weak)) void jnative_ui_platform_window_set_cancel_button(int32_t windowId, int32_t buttonId) {
+    (void)windowId; (void)buttonId;
+}
+__attribute__((weak)) int32_t jnative_ui_platform_prefers_reduced_motion(void) { return -1; }
+__attribute__((weak)) int32_t jnative_ui_platform_prefers_increased_contrast(void) { return -1; }
+__attribute__((weak)) void jnative_ui_platform_set_button_symbol(int32_t id, const char *symbolName) {
+    (void)id; (void)symbolName;
+}
+__attribute__((weak)) void jnative_ui_platform_set_selected_index(int32_t id, int32_t index) {
+    (void)id; (void)index;
+}
+__attribute__((weak)) void jnative_ui_platform_set_selected(int32_t id, int32_t selected) {
+    (void)id; (void)selected;
+}
 __attribute__((weak)) void jnative_ui_platform_set_control_style(int32_t id, int32_t style) {
     (void)id;
     (void)style;
@@ -181,6 +214,17 @@ __attribute__((weak)) void jnative_ui_platform_window_set_min_size(int32_t windo
 }
 __attribute__((weak)) void jnative_ui_platform_button_flash(int32_t id, int32_t pressed) {
     (void)id; (void)pressed;
+}
+__attribute__((weak)) int32_t jnative_ui_platform_features(void) {
+    return 0;
+}
+__attribute__((weak)) int32_t jnative_ui_platform_table_get_scroll_y(int32_t id) {
+    (void)id;
+    return -1;
+}
+__attribute__((weak)) void jnative_ui_platform_table_set_scroll_y(int32_t id, int32_t y) {
+    (void)id;
+    (void)y;
 }
 __attribute__((weak)) void jnative_ui_platform_table_set_columns(
         int32_t id, const char *titles_tsv) {
@@ -393,6 +437,19 @@ void jnative_ui_set_text(int32_t id, const char *text) {
     p->text = jn_ui_strdup(text);
     if (g_platform_active && !g_headless) jnative_ui_platform_set_text(id, text);
 }
+void jnative_ui_store_text(int32_t id, const char *text) {
+    JnUiPeer *p = peer(id);
+    if (p == NULL) return;
+    free(p->text);
+    p->text = jn_ui_strdup(text);
+}
+char *jnative_ui_copy_text(int32_t id) {
+    JnUiPeer *p = peer(id);
+    if (p == NULL || p->text == NULL) {
+        return jn_ui_strdup("");
+    }
+    return jn_ui_strdup(p->text);
+}
 void jnative_ui_set_bounds(int32_t id, int32_t x, int32_t y, int32_t w, int32_t h) {
     JnUiPeer *p = peer(id);
     if (p == NULL) return;
@@ -410,6 +467,10 @@ void jnative_ui_set_enabled(int32_t id, int32_t enabled) {
     if (p == NULL) return;
     p->enabled = enabled != 0;
     if (g_platform_active && !g_headless) jnative_ui_platform_set_enabled(id, enabled);
+}
+int32_t jnative_ui_get_enabled(int32_t id) {
+    JnUiPeer *p = peer(id);
+    return p == NULL ? 0 : (p->enabled ? 1 : 0);
 }
 void jnative_ui_focus(int32_t id) {
     JnUiPeer *p = peer(id);
@@ -436,6 +497,9 @@ void jnative_ui_set_selected(int32_t id, int32_t selected) {
     JnUiPeer *p = peer(id);
     if (p == NULL) return;
     p->selected = selected != 0;
+    if (g_platform_active && !g_headless) {
+        jnative_ui_platform_set_selected(id, p->selected ? 1 : 0);
+    }
 }
 int32_t jnative_ui_get_selected(int32_t id) {
     JnUiPeer *p = peer(id);
@@ -445,9 +509,10 @@ void jnative_ui_set_value_i32(int32_t id, int32_t value) {
     JnUiPeer *p = peer(id);
     if (p == NULL) return;
     p->value_i32 = value;
-    /* Button/label chrome styles (toolbar / breadcrumb) via value channel. */
+    /* Button/label/textfield chrome styles via value channel. */
     if (g_platform_active && !g_headless
-            && (p->kind == JN_UI_KIND_BUTTON || p->kind == JN_UI_KIND_LABEL)) {
+            && (p->kind == JN_UI_KIND_BUTTON || p->kind == JN_UI_KIND_LABEL
+                || p->kind == JN_UI_KIND_TEXTFIELD)) {
         jnative_ui_platform_set_control_style(id, value);
     }
 }
@@ -534,6 +599,9 @@ void jnative_ui_set_selected_index(int32_t id, int32_t index) {
     JnUiPeer *p = peer(id);
     if (p == NULL) return;
     p->selected_index = index;
+    if (g_platform_active && !g_headless) {
+        jnative_ui_platform_set_selected_index(id, index);
+    }
 }
 int32_t jnative_ui_get_selected_index(int32_t id) {
     JnUiPeer *p = peer(id);
@@ -572,6 +640,9 @@ void jnative_ui_combo_add_item(int32_t id, const char *text) {
     if (p == NULL || p->item_count >= JN_UI_ITEM_MAX) return;
     p->items[p->item_count] = jn_ui_strdup(text);
     p->item_count++;
+    if (g_platform_active && !g_headless) {
+        jnative_ui_platform_items_changed(id);
+    }
 }
 void jnative_ui_list_clear(int32_t id) {
     jnative_ui_combo_clear(id);
@@ -652,6 +723,46 @@ void jnative_ui_menu_add(int32_t parentMenuId, int32_t childId) {
     p->menu_children[p->menu_child_count++] = childId;
     c->parent = parentMenuId;
 }
+void jnative_ui_set_app_name(const char *name) {
+    free(g_app_name);
+    g_app_name = jn_ui_strdup(name != NULL ? name : "JNative");
+}
+
+const char *jnative_ui_get_app_name(void) {
+    if (g_app_name == NULL || g_app_name[0] == '\0') {
+        return "JNative";
+    }
+    return g_app_name;
+}
+
+void jnative_ui_menu_set_shortcut(int32_t itemId, int32_t keyCode, int32_t mods) {
+    JnUiPeer *p = peer(itemId);
+    if (p == NULL) {
+        return;
+    }
+    p->shortcut_key = keyCode;
+    p->shortcut_mods = mods;
+}
+
+int32_t jnative_ui_menu_get_shortcut_key(int32_t itemId) {
+    JnUiPeer *p = peer(itemId);
+    return p == NULL ? 0 : p->shortcut_key;
+}
+
+int32_t jnative_ui_menu_get_shortcut_mods(int32_t itemId) {
+    JnUiPeer *p = peer(itemId);
+    return p == NULL ? 0 : p->shortcut_mods;
+}
+
+void jnative_ui_request_quit(void) {
+    /* Deliver on UI thread via task pump (handle 0 + QUIT_REQUEST). */
+    if (g_dispatch != NULL) {
+        g_dispatch(0, JN_UI_EVENT_QUIT_REQUEST);
+    } else {
+        jnative_ui_quit();
+    }
+}
+
 void jnative_ui_window_set_menubar(int32_t windowId, int32_t menuBarId) {
     JnUiPeer *w = peer(windowId);
     JnUiPeer *m = peer(menuBarId);
@@ -824,6 +935,70 @@ int32_t jnative_ui_system_dark(void) {
 void jnative_ui_set_appearance_mode(int32_t mode) {
     if (g_platform_active && !g_headless) {
         jnative_ui_platform_set_appearance_mode(mode);
+    }
+}
+void jnative_ui_set_tooltip(int32_t id, const char *tip) {
+    if (g_platform_active && !g_headless) {
+        jnative_ui_platform_set_tooltip(id, tip);
+    }
+}
+void jnative_ui_set_accessible(int32_t id, const char *name, const char *description) {
+    if (g_platform_active && !g_headless) {
+        jnative_ui_platform_set_accessible(id, name, description);
+    }
+}
+void jnative_ui_set_accessible_title_ui(int32_t fieldId, int32_t labelId) {
+    if (g_platform_active && !g_headless) {
+        jnative_ui_platform_set_accessible_title_ui(fieldId, labelId);
+    }
+}
+void jnative_ui_set_next_key_view(int32_t fromId, int32_t toId) {
+    if (g_platform_active && !g_headless) {
+        jnative_ui_platform_set_next_key_view(fromId, toId);
+    }
+}
+void jnative_ui_window_set_default_button(int32_t windowId, int32_t buttonId) {
+    if (g_platform_active && !g_headless) {
+        jnative_ui_platform_window_set_default_button(windowId, buttonId);
+    }
+}
+void jnative_ui_window_set_cancel_button(int32_t windowId, int32_t buttonId) {
+    if (g_platform_active && !g_headless) {
+        jnative_ui_platform_window_set_cancel_button(windowId, buttonId);
+    }
+}
+int32_t jnative_ui_prefers_reduced_motion(void) {
+    if (g_platform_active && !g_headless) {
+        return jnative_ui_platform_prefers_reduced_motion();
+    }
+    return -1;
+}
+int32_t jnative_ui_prefers_increased_contrast(void) {
+    if (g_platform_active && !g_headless) {
+        return jnative_ui_platform_prefers_increased_contrast();
+    }
+    return -1;
+}
+void jnative_ui_set_button_symbol(int32_t id, const char *symbolName) {
+    if (g_platform_active && !g_headless) {
+        jnative_ui_platform_set_button_symbol(id, symbolName);
+    }
+}
+int32_t jnative_ui_features(void) {
+    if (g_platform_active && !g_headless) {
+        return jnative_ui_platform_features();
+    }
+    return 0;
+}
+int32_t jnative_ui_table_get_scroll_y(int32_t id) {
+    if (g_platform_active && !g_headless) {
+        return jnative_ui_platform_table_get_scroll_y(id);
+    }
+    return -1;
+}
+void jnative_ui_table_set_scroll_y(int32_t id, int32_t y) {
+    if (g_platform_active && !g_headless) {
+        jnative_ui_platform_table_set_scroll_y(id, y);
     }
 }
 int32_t jnative_ui_context_menu_show(int32_t menuId, int32_t screenX, int32_t screenY) {

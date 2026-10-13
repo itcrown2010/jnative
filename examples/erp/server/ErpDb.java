@@ -65,8 +65,13 @@ class ErpDb {
             path3 = "examples/erp/migrations/003_manufacturing_sqlite.sql";
             path4 = "examples/erp/migrations/004_enterprise_sqlite.sql";
         }
-        /* When core tables already exist (psql pre-apply), skip DDL re-exec to avoid PG 08P01 storms. */
-        int coreReady = tableExists("companies");
+        /* Skip full 001-003 only when business docs already exist (avoid PG 08P01 storms).
+           companies alone is not enough — ensureCoreTables may create companies without PO/SO. */
+        int coreReady = 0;
+        if (tableExists("companies") != 0 && tableExists("purchase_orders") != 0
+                && tableExists("sales_orders") != 0 && tableExists("gl_accounts") != 0) {
+            coreReady = 1;
+        }
         if (coreReady == 0) {
             String sql = File.readString(path);
             if (sql == null) {
@@ -84,7 +89,7 @@ class ErpDb {
             }
             runScriptSoft(sql3, "003");
         } else {
-            System.out.println("MIGRATE_SKIP 001-003 (companies present)");
+            System.out.println("MIGRATE_SKIP 001-003 (business schema present)");
         }
         if (tableExists("platform_permissions") == 0) {
             String sql4 = File.readString(path4);
@@ -154,6 +159,9 @@ class ErpDb {
                     empty);
             execRetry(
                     "CREATE TABLE IF NOT EXISTS employees (id INTEGER PRIMARY KEY AUTOINCREMENT, company_id INTEGER NOT NULL, code TEXT NOT NULL, name TEXT NOT NULL, department TEXT NOT NULL DEFAULT '', title TEXT NOT NULL DEFAULT '', status TEXT NOT NULL DEFAULT 'ACTIVE', created_at INTEGER NOT NULL, UNIQUE (company_id, code))",
+                    empty);
+            execRetry(
+                    "CREATE TABLE IF NOT EXISTS departments (id INTEGER PRIMARY KEY AUTOINCREMENT, company_id INTEGER NOT NULL, code TEXT NOT NULL, name TEXT NOT NULL, UNIQUE (company_id, code))",
                     empty);
             execRetry(
                     "CREATE TABLE IF NOT EXISTS purchase_requests (id INTEGER PRIMARY KEY AUTOINCREMENT, company_id INTEGER NOT NULL, doc_no TEXT NOT NULL, requester_name TEXT NOT NULL DEFAULT '', supplier_id INTEGER NOT NULL DEFAULT 0, status TEXT NOT NULL, notes TEXT NOT NULL DEFAULT '', seed_key TEXT NOT NULL DEFAULT '', created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL, UNIQUE (company_id, doc_no))",

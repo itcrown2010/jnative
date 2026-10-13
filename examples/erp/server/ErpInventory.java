@@ -5,10 +5,17 @@ class ErpInventory {
     static ArrayList<Object> balances(long companyId, long warehouseId) {
         ArrayList<Object> p = new ArrayList<Object>();
         p.add(CryptoParse.longToString(companyId));
-        p.add(CryptoParse.longToString(warehouseId));
-        DbQueryResult r = ErpDb.query(
-                "SELECT warehouse_id, item_id, quantity_on_hand, value_amount FROM inventory_balances WHERE company_id=? AND warehouse_id=?",
-                p);
+        DbQueryResult r = null;
+        if (warehouseId > 0L) {
+            p.add(CryptoParse.longToString(warehouseId));
+            r = ErpDb.query(
+                    "SELECT warehouse_id, item_id, quantity_on_hand, value_amount FROM inventory_balances WHERE company_id=? AND warehouse_id=? ORDER BY warehouse_id, item_id",
+                    p);
+        } else {
+            r = ErpDb.query(
+                    "SELECT warehouse_id, item_id, quantity_on_hand, value_amount FROM inventory_balances WHERE company_id=? ORDER BY warehouse_id, item_id",
+                    p);
+        }
         ArrayList<Object> out = new ArrayList<Object>();
         int i = 0;
         while (i < r.rows.size()) {

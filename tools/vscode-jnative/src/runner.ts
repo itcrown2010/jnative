@@ -27,6 +27,20 @@ import { detectProjectKind } from './projectKind';
 import { rememberProject } from './recentProjects';
 import { getConfiguredTarget } from './targetContext';
 import { startWebPreview, stopPreview } from './webPreview';
+import {
+  classifyMobileFailure,
+  extractCompileDiagnostics,
+  getLastMobileSession,
+  layerLog,
+  newRequestId,
+  parseDevicesJson,
+  pickConfiguration,
+  pickDevice,
+  pickMobileTarget,
+  setLastMobileSession,
+  type MobileConfiguration,
+  type MobileTarget,
+} from './mobileFlow';
 
 export { getOutput };
 
@@ -303,20 +317,6 @@ export async function runProject(project: JNativeProject): Promise<void> {
     return;
   }
   if (kind === 'mobile') {
-    const pick = await vscode.window.showQuickPick(
-      [
-        { label: 'Web 预览', description: 'mobile build --target web + 本地预览', id: 'web' },
-        { label: 'Android / iOS', description: '选择设备后安装运行', id: 'device' },
-      ],
-      { title: '移动项目运行方式' }
-    );
-    if (!pick) {
-      return;
-    }
-    if (pick.id === 'web') {
-      await runMobileWebPreview(project);
-      return;
-    }
     await mobileRun(project);
     return;
   }
@@ -433,14 +433,14 @@ function resolveWebEntry(root: string): string | undefined {
   return undefined;
 }
 
-/** Explain package artifacts; never auto-publish. */
+/** Package project artifacts; never auto-publish / notarize. */
 export async function packageProject(project: JNativeProject): Promise<void> {
   const kind = detectProjectKind(project);
   const channel = getOutput();
   channel.show(true);
   channel.appendLine(`[package] kind=${kind} root=${project.root}`);
   const lines: string[] = [
-    'JNative 打包说明（不会自动发布到商店或注册表）：',
+    'JNative 打包（不会自动发布到商店或注册表）：',
     '',
   ];
   if (kind === 'web') {
@@ -449,23 +449,89 @@ export async function packageProject(project: JNativeProject): Promise<void> {
       '分发: 可将 dist/ 部署到任意静态主机。',
       '限制: 无应用商店签名；依赖浏览器 WASM 支持。'
     );
-  } else if (kind === 'mobile') {
-    lines.push(
-      'Web: dist/（同上）',
-      'Android: 使用 `jnative mobile build --target android` 得到调试 APK（见 CLI 输出路径）。',
-      'iOS: 模拟器构建；本阶段无商店签名 / TestFlight。',
-      '限制: 移动容器 ≠ 完整原生移动运行时。'
-    );
-  } else {
-    lines.push(
-      '产物: 项目构建输出的原生可执行文件（见 build 成功时的 Output 行）。',
-      '分发: 自行拷贝二进制及依赖的原生库；不提供自动公证/安装包。'
-    );
+    for (const l of lines) {
+      channel.appendLine(l);
+    }
+    vscode.window.showInformationMessage('打包说明已写入 JNative 输出面板（未自动发布）。');
+    return;
   }
-  for (const l of lines) {
-    channel.appendLine(l);
+  if (kind === 'mobile') {
+    await packageMobileProject(project);
+    return;
   }
-  vscode.window.showInformationMessage('打包说明已写入 JNative 输出面板（未自动发布）。');
+
+  /* Desktop: rebuild then pack .app via scripts/macos/pack-app.sh (same pipeline as CLI). */
+  const packScript = locatePackAppScript(project.root);
+  if (!packScript) {
+    channel.appendLine('error: 找不到 scripts/macos/pack-app.sh');
+    vscode.window.showErrorMessage('未找到 scripts/macos/pack-app.sh；无法打包 .app。');
+    return;
+  }
+  channel.appendLine('先构建原生 GUI 产物（失败则不保留/不启动旧 .app）…');
+  const built = await buildProject(project, false);
+  if (!built.success || !built.artifact || !fs.existsSync(built.artifact)) {
+    channel.appendLine('error: 构建失败或产物缺失，已中止打包。');
+    vscode.window.showErrorMessage('构建失败，未打包 .app。');
+    return;
+  }
+  const artifact = built.artifact;
+  const staleApp = artifact + '.app';
+  if (fs.existsSync(staleApp)) {
+    try {
+      fs.rmSync(staleApp, { recursive: true, force: true });
+      channel.appendLine(`removed stale ${staleApp}`);
+    } catch (e) {
+      channel.appendLine(`warn: could not remove stale app: ${String(e)}`);
+    }
+  }
+  const appName = path.basename(artifact);
+  const outDir = path.dirname(artifact);
+  const bundleId = `io.jnative.app.${appName.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`;
+  channel.appendLine(`pack: ${packScript}`);
+  channel.appendLine(`bin:  ${artifact}`);
+  try {
+    const { spawnSync } = await import('child_process');
+    const r = spawnSync(
+      packScript,
+      ['--bin', artifact, '--name', appName, '--id', bundleId, '--out', outDir, '--version', '0.1.0'],
+      { encoding: 'utf8' }
+    );
+    if (r.stdout) {
+      channel.appendLine(r.stdout.trim());
+    }
+    if (r.stderr) {
+      channel.appendLine(r.stderr.trim());
+    }
+    if (r.status !== 0) {
+      channel.appendLine(`pack failed status=${r.status}`);
+      vscode.window.showErrorMessage('打包失败（见输出面板）。');
+      return;
+    }
+    const appPath = path.join(outDir, `${appName}.app`);
+    channel.appendLine(`产物: ${appPath}`);
+    channel.appendLine('限制: 未签名/未公证；仅本机验证环境可双击运行。');
+    vscode.window.showInformationMessage(`已打包: ${appPath}`);
+  } catch (e) {
+    channel.appendLine(`pack exception: ${String(e)}`);
+    vscode.window.showErrorMessage('打包过程异常（见输出面板）。');
+  }
+}
+
+/** Walk up from project root to find repo scripts/macos/pack-app.sh. */
+function locatePackAppScript(start: string): string | undefined {
+  let dir = path.resolve(start);
+  for (let i = 0; i < 8; i++) {
+    const candidate = path.join(dir, 'scripts', 'macos', 'pack-app.sh');
+    if (fs.existsSync(candidate)) {
+      return candidate;
+    }
+    const parent = path.dirname(dir);
+    if (parent === dir) {
+      break;
+    }
+    dir = parent;
+  }
+  return undefined;
 }
 
 export async function openTutorial(): Promise<void> {
@@ -644,7 +710,7 @@ export async function runArtifact(artifact: string, cwd: string): Promise<void> 
 }
 
 export function stopRun(): void {
-  // Only stop processes this extension started (native run + web preview).
+  // Only stop processes / mobile sessions this extension started.
   if (runProcess && !runProcess.killed) {
     runProcess.kill('SIGTERM');
     const p = runProcess;
@@ -656,6 +722,37 @@ export function stopRun(): void {
   }
   runProcess = undefined;
   stopPreview();
+  void stopLastMobileSession();
+}
+
+async function stopLastMobileSession(): Promise<void> {
+  const session = getLastMobileSession();
+  if (!session) {
+    return;
+  }
+  const inv = await requireToolchain();
+  if (!inv) {
+    return;
+  }
+  const channel = getOutput();
+  layerLog(channel, session.requestId, session.target === 'android' ? 'android-container' : 'ios-container',
+    `停止本次启动: ${session.target} ${session.deviceId}`);
+  const result = await runCapture(
+    inv,
+    [
+      'mobile',
+      'stop',
+      '--target',
+      session.target,
+      '--device',
+      session.deviceId,
+      '--project',
+      session.projectRoot,
+    ],
+    { cwd: session.projectRoot, timeoutMs: 60000 }
+  );
+  channel.appendLine(result.stdout + result.stderr);
+  setLastMobileSession(undefined);
 }
 
 /** Unified create wizard (desktop / web / mobile). */
@@ -711,21 +808,17 @@ export async function mobileBuild(project: JNativeProject): Promise<void> {
   if (!inv) {
     return;
   }
-  const target = await vscode.window.showQuickPick(['web', 'android', 'ios'], {
-    placeHolder: '选择移动构建目标',
-  });
+  if (!(await saveDirtySources(project.root))) {
+    return;
+  }
+  const target = (await pickMobileTarget()) as MobileTarget | undefined;
   if (!target) {
     return;
   }
-  const channel = getOutput();
-  channel.show(true);
-  const result = await runCapture(
-    inv,
-    ['mobile', 'build', '--target', target, '--project', project.root],
-    { cwd: project.root, timeoutMs: 600000 }
-  );
-  channel.appendLine(result.stdout + result.stderr);
-  vscode.window.showInformationMessage(result.code === 0 ? `移动构建成功 (${target})` : `移动构建失败 (${target})`);
+  const configuration = (await pickConfiguration()) ?? 'debug';
+  await withProjectLock(project.root, async () => {
+    await runMobileBuild(project, inv, target, configuration, newRequestId());
+  });
 }
 
 export async function mobileRun(project: JNativeProject): Promise<void> {
@@ -733,32 +826,255 @@ export async function mobileRun(project: JNativeProject): Promise<void> {
   if (!inv) {
     return;
   }
-  const target = await vscode.window.showQuickPick(['android', 'ios'], {
-    placeHolder: '选择运行目标',
-  });
+  if (!(await saveDirtySources(project.root))) {
+    return;
+  }
+  const target = await pickMobileTarget();
   if (!target) {
     return;
   }
+  const configuration = (await pickConfiguration()) ?? 'debug';
+  const requestId = newRequestId();
   const channel = getOutput();
   channel.show(true);
-  const list = await runCapture(inv, ['mobile', 'devices', '--target', target], {
-    cwd: project.root,
-    timeoutMs: 120000,
+  rememberProject(project.root);
+
+  return withProjectLock(project.root, async () => {
+    if (target === 'web') {
+      const built = await runMobileBuild(project, inv, 'web', configuration, requestId);
+      if (!built) {
+        return;
+      }
+      const dist = path.join(project.root, 'dist');
+      if (!fs.existsSync(path.join(dist, 'index.html'))) {
+        layerLog(channel, requestId, 'wasm', `未找到 ${dist}/index.html，未启动预览`);
+        vscode.window.showErrorMessage('Web 产物不完整，未启动预览。');
+        return;
+      }
+      const preview = await startWebPreview(dist, channel);
+      if (preview) {
+        layerLog(channel, requestId, 'javascript', `预览 ${preview.url}`);
+        vscode.window.showInformationMessage(`Web 预览 ${preview.url}`);
+      }
+      return;
+    }
+
+    // Doctor for the selected platform before build
+    layerLog(channel, requestId, 'toolchain', `检查 ${target} 工具链…`);
+    const doctor = await runCapture(inv, ['doctor', '--mobile'], {
+      cwd: project.root,
+      timeoutMs: 120000,
+    });
+    channel.appendLine(doctor.stdout + doctor.stderr);
+    const doctorOk =
+      target === 'android'
+        ? /target android:\s*available/i.test(doctor.stdout)
+        : /target ios:\s*available/i.test(doctor.stdout);
+    if (!doctorOk) {
+      layerLog(channel, requestId, 'toolchain', `${target} 工具链未就绪，已中止（不安装旧产物）`);
+      vscode.window.showErrorMessage(`${target} 工具链未就绪。详见输出面板。`);
+      return;
+    }
+
+    layerLog(channel, requestId, 'toolchain', `列出 ${target} 设备…`);
+    const list = await runCapture(
+      inv,
+      ['mobile', 'devices', '--target', target, '--format', 'json'],
+      { cwd: project.root, timeoutMs: 120000 }
+    );
+    channel.appendLine(list.stdout + list.stderr);
+    if (list.code !== 0) {
+      layerLog(channel, requestId, 'toolchain', '设备列表失败');
+      vscode.window.showErrorMessage('无法列出设备。');
+      return;
+    }
+    const devices = parseDevicesJson(list.stdout + '\n' + list.stderr);
+    const device = await pickDevice(devices, target);
+    if (!device) {
+      vscode.window.showWarningMessage('未选择设备，已取消（不会猜测目标）。');
+      return;
+    }
+    layerLog(channel, requestId, 'toolchain', `已选设备 ${device.id} (${device.name})`);
+
+    const built = await runMobileBuild(project, inv, target, configuration, requestId);
+    if (!built) {
+      return;
+    }
+
+    // Stamp check — never install without fresh stamp from this build
+    const stampName = target === 'android' ? 'android.ok' : 'ios.ok';
+    const stamp = path.join(project.root, '.jnative', 'mobile-staging', stampName);
+    if (!fs.existsSync(stamp)) {
+      layerLog(channel, requestId, 'install', `缺少构建 stamp ${stamp}，拒绝安装`);
+      vscode.window.showErrorMessage('构建未产生有效 stamp，未安装。');
+      return;
+    }
+
+    layerLog(channel, requestId, 'install', `安装并启动 → ${device.id}`);
+    const result = await runCapture(
+      inv,
+      [
+        'mobile',
+        'run',
+        '--target',
+        target,
+        '--device',
+        device.id,
+        '--project',
+        project.root,
+      ],
+      { cwd: project.root, timeoutMs: 300000 }
+    );
+    channel.appendLine(result.stdout + result.stderr);
+    if (result.code !== 0) {
+      const cls = classifyMobileFailure(result.stdout + result.stderr);
+      layerLog(channel, requestId, cls.layer, cls.hint);
+      const msg =
+        cls.layer === 'install'
+          ? '安装失败'
+          : cls.layer === 'launch'
+            ? '启动失败'
+            : `运行失败（${cls.layer}）`;
+      vscode.window.showErrorMessage(`${msg}：${cls.hint}`);
+      return;
+    }
+    setLastMobileSession({
+      target,
+      deviceId: device.id,
+      projectRoot: project.root,
+      configuration,
+      startedAt: new Date().toISOString(),
+      requestId,
+    });
+    layerLog(channel, requestId, 'launch', '已请求安装并启动；可用「JNative: 停止」结束本次会话');
+    vscode.window.showInformationMessage(`已在 ${device.name} 上启动（${configuration}）`);
   });
-  channel.appendLine(list.stdout + list.stderr);
-  const device = await vscode.window.showInputBox({
-    prompt: '设备 / 模拟器 ID（多设备时必填，见输出面板列表）',
-    placeHolder: '例如 emulator-5554 或 UUID',
-  });
-  if (!device) {
-    vscode.window.showWarningMessage('未选择设备，已取消运行（不会猜测目标）。');
+}
+
+async function runMobileBuild(
+  project: JNativeProject,
+  inv: ToolchainInvocation,
+  target: MobileTarget,
+  configuration: MobileConfiguration,
+  requestId: string
+): Promise<boolean> {
+  const channel = getOutput();
+  channel.show(true);
+  layerLog(
+    channel,
+    requestId,
+    'jnative-compile',
+    `mobile build --target ${target} --configuration ${configuration}`
+  );
+  // Invalidate platform stamps before build so a failed rebuild cannot reuse old ok files.
+  try {
+    const staging = path.join(project.root, '.jnative', 'mobile-staging');
+    for (const name of ['android.ok', 'ios.ok']) {
+      const p = path.join(staging, name);
+      if (fs.existsSync(p) && (target === 'android' || target === 'ios' || target === 'web')) {
+        if (target === 'web' || (target === 'android' && name === 'android.ok') || (target === 'ios' && name === 'ios.ok')) {
+          fs.unlinkSync(p);
+        }
+      }
+    }
+  } catch {
+    /* ignore */
+  }
+
+  const result = await vscode.window.withProgress(
+    {
+      location: vscode.ProgressLocation.Notification,
+      title: `JNative 移动构建 (${target}/${configuration})`,
+      cancellable: false,
+    },
+    async (progress) => {
+      progress.report({ message: '编译中…' });
+      return runCapture(
+        inv,
+        [
+          'mobile',
+          'build',
+          '--target',
+          target,
+          '--configuration',
+          configuration,
+          '--project',
+          project.root,
+        ],
+        { cwd: project.root, timeoutMs: 600000 }
+      );
+    }
+  );
+  channel.appendLine(result.stdout);
+  if (result.stderr.trim()) {
+    channel.appendLine(result.stderr);
+  }
+  const combined = result.stdout + '\n' + result.stderr;
+  const compileLines = extractCompileDiagnostics(combined);
+  if (compileLines.length) {
+    const textDiags = parseTextDiagnostics(combined);
+    applyJsonDiagnostics(project.root, textDiags, project.root);
+    for (const line of compileLines) {
+      layerLog(channel, requestId, 'jnative-compile', line);
+    }
+  }
+  if (result.code !== 0) {
+    const cls = classifyMobileFailure(combined);
+    layerLog(channel, requestId, cls.layer, `构建失败 — ${cls.hint}`);
+    vscode.window.showErrorMessage(`移动构建失败（${cls.layer}）：${cls.hint}`);
+    return false;
+  }
+  const distWasm = path.join(project.root, 'dist', 'app.wasm');
+  const distJs = path.join(project.root, 'dist', 'app.js');
+  if (!fs.existsSync(distWasm) || !fs.existsSync(distJs)) {
+    layerLog(channel, requestId, 'wasm', '构建退出 0 但缺少 app.wasm/app.js，拒绝继续');
+    vscode.window.showErrorMessage('WASM 产物缺失，未安装/预览。');
+    return false;
+  }
+  clearProjectDiagnostics(project.root);
+  layerLog(channel, requestId, 'wasm', `产物就绪 dist/app.wasm + app.js (${configuration})`);
+  vscode.window.showInformationMessage(`移动构建成功 (${target}/${configuration})`);
+  return true;
+}
+
+async function packageMobileProject(project: JNativeProject): Promise<void> {
+  const inv = await requireToolchain();
+  if (!inv) {
     return;
   }
-  const result = await runCapture(
-    inv,
-    ['mobile', 'run', '--target', target, '--device', device, '--project', project.root],
-    { cwd: project.root, timeoutMs: 300000 }
+  if (!(await saveDirtySources(project.root))) {
+    return;
+  }
+  const target = await pickMobileTarget();
+  if (!target) {
+    return;
+  }
+  const requestId = newRequestId();
+  const channel = getOutput();
+  channel.show(true);
+  layerLog(channel, requestId, 'unknown', '打包：使用 release 配置（不会上传商店、不会写入签名密钥）');
+  const ok = await withProjectLock(project.root, () =>
+    runMobileBuild(project, inv, target, 'release', requestId)
   );
-  channel.appendLine(result.stdout + result.stderr);
-  vscode.window.showInformationMessage(result.code === 0 ? '已请求安装并启动' : '运行失败');
+  if (!ok) {
+    return;
+  }
+  const record = path.join(project.root, '.jnative', 'mobile-build.json');
+  channel.appendLine('');
+  channel.appendLine('=== 产物清单 ===');
+  channel.appendLine(`项目: ${project.root}`);
+  channel.appendLine(`目标: ${target}`);
+  channel.appendLine(`配置: release`);
+  channel.appendLine(`dist/: ${path.join(project.root, 'dist')}`);
+  if (fs.existsSync(record)) {
+    channel.appendLine(`构建记录: ${record}`);
+    try {
+      channel.appendLine(fs.readFileSync(record, 'utf8'));
+    } catch {
+      /* ignore */
+    }
+  }
+  channel.appendLine('限制: store_ready=false；未签名或模拟器产物不具备公开分发条件。');
+  channel.appendLine('不会自动提交签名材料或上传商店。');
+  vscode.window.showInformationMessage('发布配置产物已生成（见输出面板清单；未上传商店）。');
 }

@@ -118,12 +118,15 @@ class ErpBooks {
                             + CryptoParse.longToString(now) + ")",
                     new ArrayList<Object>());
         }
-        ErpDemoScenarioSeed.applyIfNeeded(companyId);
+        /* Heavy scenario seed deferred to ErpDemoScenarioSeed.ensureOnDemoEnter. */
+        recordDemoSeed(companyId, cur);
     }
 
     /** Wipe demo transactional data and re-seed masters + scenarios. FORMAL -> throw. */
     static void resetDemoBook(long companyId) {
         requireDemoBookOrThrow(companyId, "RESET_DEMO");
+        System.out.println("DEMO_RESET begin companyId=" + CryptoParse.longToString(companyId));
+        ErpDb.reconnect();
         ArrayList<Object> empty = new ArrayList<Object>();
         String cid = CryptoParse.longToString(companyId);
         ErpDb.exec("DELETE FROM idempotency_keys WHERE company_id=" + cid, empty);
@@ -162,10 +165,14 @@ class ErpBooks {
         tryDelete("units_of_measure", cid);
         tryDelete("employees", cid);
         long now = AsyncClockNative.wallMillis();
+        ErpDb.reconnect();
+        ErpSeed.seedSequences(companyId);
         ErpSeed.seedDemoBusiness(companyId, now);
+        ErpMastersExtra.ensureSeed(companyId, now);
         ErpFinanceCore.ensureSeed(companyId);
+        /* Scenario docs are re-applied on process restart (applyIfNeeded). In-process
+           FutureBlocker posting deadlocks once the HTTP event loop is running. */
         recordDemoSeed(companyId, 0);
-        ErpDemoScenarioSeed.forceReseed(companyId);
         try {
             ErpDb.exec(
                     "INSERT INTO audit_logs(company_id, user_id, action, entity_type, entity_id, detail, created_at) VALUES ("
@@ -173,12 +180,16 @@ class ErpBooks {
                             + CryptoParse.longToString(now) + ")",
                     empty);
         } catch (Exception ignored) {
-            ErpDb.exec(
-                    "INSERT INTO audit_events(company_id, actor_user_id, action, entity_type, entity_id, detail, created_at) VALUES ("
-                            + cid + ",0,'DEMO_RESET','COMPANY'," + cid + ",'demo book reset',"
-                            + CryptoParse.longToString(now) + ")",
-                    empty);
+            try {
+                ErpDb.exec(
+                        "INSERT INTO audit_events(company_id, actor_user_id, action, entity_type, entity_id, detail, created_at) VALUES ("
+                                + cid + ",0,'DEMO_RESET','COMPANY'," + cid + ",'demo book reset',"
+                                + CryptoParse.longToString(now) + ")",
+                        empty);
+            } catch (Exception ignored2) {
+            }
         }
+        System.out.println("DEMO_RESET wiped companyId=" + cid + " seed_version=0 (scenarios on restart)");
     }
 
     static void tryDelete(String table, String companyId) {

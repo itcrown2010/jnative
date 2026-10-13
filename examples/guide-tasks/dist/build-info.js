@@ -1,0 +1,1 @@
+export const BUILD_INFO = { appName: "任务管理", version: "0.1.0", buildNumber: "1", configuration: "debug", androidId: "io.jnative.examples.mobile.guidetasks", iosBundleId: "io.jnative.examples.mobile.guidetasks" };

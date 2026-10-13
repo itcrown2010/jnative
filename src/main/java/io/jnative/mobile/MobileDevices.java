@@ -121,6 +121,33 @@ public final class MobileDevices {
         return sb.toString();
     }
 
+    /** Compact JSON array for IDE QuickPick parsers (no pretty-print). */
+    public static String toJson(List<Device> devices) {
+        StringBuilder sb = new StringBuilder();
+        sb.append('[');
+        for (int i = 0; i < devices.size(); i++) {
+            Device d = devices.get(i);
+            if (i > 0) {
+                sb.append(',');
+            }
+            sb.append('{')
+                    .append("\"id\":\"").append(jsonEscape(d.id())).append("\",")
+                    .append("\"name\":\"").append(jsonEscape(d.name())).append("\",")
+                    .append("\"platform\":\"").append(jsonEscape(d.platform())).append("\",")
+                    .append("\"state\":\"").append(jsonEscape(d.state())).append("\"")
+                    .append('}');
+        }
+        sb.append(']');
+        return sb.toString();
+    }
+
+    private static String jsonEscape(String s) {
+        if (s == null) {
+            return "";
+        }
+        return s.replace("\\", "\\\\").replace("\"", "\\\"");
+    }
+
     private record PathAdb(String path) {
     }
 

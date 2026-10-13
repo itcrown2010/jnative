@@ -36,6 +36,11 @@ final class ViewController: UIViewController, WKNavigationDelegate, WKUIDelegate
         webView.backgroundColor = .clear
         webView.scrollView.backgroundColor = .clear
         webView.scrollView.contentInsetAdjustmentBehavior = .always
+        #if DEBUG
+        if #available(iOS 16.4, *) {
+            webView.isInspectable = true
+        }
+        #endif
         view.addSubview(webView)
         NSLayoutConstraint.activate([
             webView.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor),
@@ -45,7 +50,7 @@ final class ViewController: UIViewController, WKNavigationDelegate, WKUIDelegate
         ])
         self.webView = webView
 
-        let bridge = BridgeHost(webView: webView)
+        let bridge = BridgeHost(webView: webView, presenter: self)
         ucc.add(bridge, name: "jnativeBridge")
         self.bridge = bridge
 

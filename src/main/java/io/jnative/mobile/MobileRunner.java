@@ -121,8 +121,35 @@ public final class MobileRunner {
         MobileProcess.run(
                 List.of("xcrun", "simctl", "spawn", device.id(), "log", "show",
                         "--last", lines + "s", "--predicate",
-                        "process == \"App\" OR process == \"Calculator\" OR processImagePath CONTAINS \"jnative\""),
+                        "process == \"App\" OR process == \"Calculator\""
+                                + " OR processImagePath CONTAINS \"jnative\""
+                                + " OR processImagePath CONTAINS \"guidetasks\""),
                 null, null, 60);
+    }
+
+    /** Stop an app previously launched via {@code mobile run} (does not kill unrelated processes). */
+    public void stopAndroid(String deviceId) throws Exception {
+        MobileDevices.Device device = MobileDevices.requireOne("android", deviceId);
+        String adb = resolveAdb();
+        MobileProcess.Result r = MobileProcess.run(
+                List.of(adb, "-s", device.id(), "shell", "am", "force-stop",
+                        config.androidApplicationId()),
+                null, androidEnv(), 30);
+        if (!r.ok()) {
+            throw new IllegalStateException("adb force-stop failed:\n" + r.output());
+        }
+        System.out.println("Stopped " + config.androidApplicationId() + " on " + device.id());
+    }
+
+    public void stopIos(String deviceId) throws Exception {
+        MobileDevices.Device device = MobileDevices.requireOne("ios", deviceId);
+        MobileProcess.Result r = MobileProcess.run(
+                List.of("xcrun", "simctl", "terminate", device.id(), config.iosBundleId()),
+                null, null, 30);
+        if (!r.ok() && !r.output().toLowerCase(Locale.ROOT).contains("not running")) {
+            throw new IllegalStateException("simctl terminate failed:\n" + r.output());
+        }
+        System.out.println("Stopped " + config.iosBundleId() + " on " + device.name());
     }
 
     private static Map<String, String> androidEnv() {

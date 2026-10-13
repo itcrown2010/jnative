@@ -25,12 +25,21 @@ public final class SourceFiles {
         if (path == null || path.getFileName() == null) {
             return false;
         }
-        /* Skip tooling dirs under source roots (e.g. src/.jnative-file-build/*.jn binaries). */
+        /*
+         * Skip local tooling trees, but allow package extractions under
+         * {@code .jnative/pkg-cache/extracted/} (third-party .jnpkg sources).
+         */
+        String norm = path.toString().replace('\\', '/');
+        if (norm.contains("/.jnative-file-build/")
+                || norm.contains("/node_modules/")
+                || norm.contains("/.jnative/build/")
+                || norm.contains("/.jnative/generated/")
+                || norm.contains("/.jnative/cache/")) {
+            return false;
+        }
         for (Path part : path) {
             String seg = part.toString();
-            if (seg.equals(".jnative")
-                    || seg.equals(".jnative-file-build")
-                    || seg.equals("node_modules")) {
+            if (seg.equals(".jnative-file-build") || seg.equals("node_modules")) {
                 return false;
             }
         }

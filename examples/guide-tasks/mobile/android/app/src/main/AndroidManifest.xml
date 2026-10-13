@@ -1,10 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- Author: 张晓达 -->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
-    <!-- No INTERNET: app loads only packaged assets. -->
+    <!-- INTERNET: optional sync to a developer-configured host (default loopback docs). -->
+    <uses-permission android:name="android.permission.INTERNET" />
     <application
         android:allowBackup="false"
-        android:label="JNative Sudoku"
+        android:label="JNative Tasks"
         android:supportsRtl="true"
         android:theme="@style/Theme.JNativeSudoku"
         android:usesCleartextTraffic="false">
@@ -18,5 +19,14 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.fileprovider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths" />
+        </provider>
     </application>
 </manifest>

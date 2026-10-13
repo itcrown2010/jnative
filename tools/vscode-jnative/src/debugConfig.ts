@@ -10,6 +10,8 @@ import * as vscode from 'vscode';
 import { JNativeProject, pickProject } from './project';
 import { buildProject, getOutput } from './runner';
 import { buildLaunchConfig, JNativeLldbLaunch } from './launchConfig';
+import { detectProjectKind } from './projectKind';
+import { getConfiguredTarget } from './targetContext';
 
 export type { JNativeLldbLaunch };
 export { buildLaunchConfig };
@@ -81,6 +83,9 @@ export class JNativeDebugConfigurationProvider
       if (!project) {
         return undefined;
       }
+      if (!(await refuseNonNativeDebug(project))) {
+        return undefined;
+      }
       if (!(await ensureCodeLldb())) {
         return undefined;
       }
@@ -104,6 +109,9 @@ export class JNativeDebugConfigurationProvider
         if (!project) {
           return undefined;
         }
+        if (!(await refuseNonNativeDebug(project))) {
+          return undefined;
+        }
         if (!(await ensureCodeLldb())) {
           return undefined;
         }
@@ -119,6 +127,28 @@ export class JNativeDebugConfigurationProvider
     }
     return config;
   }
+}
+
+/**
+ * CodeLLDB 仅覆盖原生桌面可执行文件。
+ * 不把「仅映射 JS 胶水的 source map」或「无 DWARF 的 WASM」伪装成 JNative 源码调试。
+ */
+async function refuseNonNativeDebug(project: JNativeProject): Promise<boolean> {
+  const kind = detectProjectKind(project);
+  const folder = vscode.workspace.getWorkspaceFolder(vscode.Uri.file(project.root));
+  const target = getConfiguredTarget(folder);
+  if (kind === 'web' || kind === 'mobile' || target === 'wasm32-browser') {
+    const channel = getOutput();
+    channel.show(true);
+    channel.appendLine('[debug] WASM / 移动容器不支持 CodeLLDB 源码调试。');
+    channel.appendLine('[debug] 请使用分层日志与浏览器/WebView 检查（见 docs/developer/WASM_SOURCE_DEBUG.md）。');
+    channel.appendLine('[debug] 缺口：浏览器侧无可靠 .jn DWARF/源映射；原生 LLDB 不会自动覆盖 WASM。');
+    vscode.window.showWarningMessage(
+      'Web/移动目标无 JNative 源码级调试（不启动无效调试会话）。请用输出面板分层日志与 WebView 检查。'
+    );
+    return false;
+  }
+  return true;
 }
 
 /** Write a sample launch.json only when missing (never overwrite). */

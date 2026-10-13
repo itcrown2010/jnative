@@ -42,6 +42,7 @@ public final class MobileCli {
             case "devices" -> devices(args);
             case "run" -> run(args);
             case "logs" -> logs(args);
+            case "stop" -> stop(args);
             case "help", "-h", "--help" -> {
                 System.out.println(usage());
                 yield 0;
@@ -92,13 +93,17 @@ public final class MobileCli {
     private static int build(String[] args) throws Exception {
         Path project = Path.of(".").toAbsolutePath().normalize();
         String target = null;
+        String configuration = "debug";
         for (int i = 2; i < args.length; i++) {
             switch (args[i]) {
                 case "--project" -> project = Path.of(args[++i]).toAbsolutePath().normalize();
                 case "--target" -> target = args[++i];
+                case "--configuration" -> configuration = args[++i];
                 default -> {
                     if (args[i].startsWith("--target=")) {
                         target = args[i].substring("--target=".length());
+                    } else if (args[i].startsWith("--configuration=")) {
+                        configuration = args[i].substring("--configuration=".length());
                     }
                 }
             }
@@ -110,12 +115,9 @@ public final class MobileCli {
         target = target.toLowerCase(Locale.ROOT);
         try {
             MobileConfig config = MobileConfig.load(project);
-            Path jar = Path.of("target/jnative.jar").toAbsolutePath().normalize();
-            if (!Files.isRegularFile(jar)) {
-                String env = System.getenv("JNATIVE_JAR");
-                jar = env != null ? Path.of(env) : jar;
-            }
-            MobileBuilder builder = new MobileBuilder(project, config, jar);
+            Path jar = resolveJnativeJar(project);
+            MobileBuilder.Configuration cfg = MobileBuilder.Configuration.parse(configuration);
+            MobileBuilder builder = new MobileBuilder(project, config, jar).configuration(cfg);
             switch (target) {
                 case "web" -> builder.buildWeb();
                 case "android" -> builder.buildAndroid();
@@ -138,9 +140,18 @@ public final class MobileCli {
 
     private static int devices(String[] args) throws Exception {
         String target = null;
+        String format = "text";
         for (int i = 2; i < args.length; i++) {
-            if ("--target".equals(args[i]) && i + 1 < args.length) {
-                target = args[++i];
+            switch (args[i]) {
+                case "--target" -> target = args[++i];
+                case "--format" -> format = args[++i];
+                default -> {
+                    if (args[i].startsWith("--target=")) {
+                        target = args[i].substring("--target=".length());
+                    } else if (args[i].startsWith("--format=")) {
+                        format = args[i].substring("--format=".length());
+                    }
+                }
             }
         }
         if (target == null) {
@@ -149,8 +160,12 @@ public final class MobileCli {
         }
         try {
             var list = MobileDevices.list(target);
-            System.out.println(target + " devices:");
-            System.out.print(MobileDevices.format(list));
+            if ("json".equalsIgnoreCase(format)) {
+                System.out.println(MobileDevices.toJson(list));
+            } else {
+                System.out.println(target + " devices:");
+                System.out.print(MobileDevices.format(list));
+            }
             return 0;
         } catch (Exception e) {
             System.err.println("error: " + e.getMessage());
@@ -183,6 +198,41 @@ public final class MobileCli {
                 case "ios" -> runner.runIos(device);
                 default -> {
                     System.err.println("error: run supports android|ios only");
+                    return 1;
+                }
+            }
+            return 0;
+        } catch (Exception e) {
+            System.err.println("error: " + e.getMessage());
+            return 1;
+        }
+    }
+
+    private static int stop(String[] args) throws Exception {
+        Path project = Path.of(".").toAbsolutePath().normalize();
+        String target = null;
+        String device = null;
+        for (int i = 2; i < args.length; i++) {
+            switch (args[i]) {
+                case "--project" -> project = Path.of(args[++i]).toAbsolutePath().normalize();
+                case "--target" -> target = args[++i];
+                case "--device" -> device = args[++i];
+                default -> {
+                }
+            }
+        }
+        if (target == null || device == null || device.isBlank()) {
+            System.err.println("error: --target android|ios and --device ID required");
+            return 1;
+        }
+        try {
+            MobileConfig config = MobileConfig.load(project);
+            MobileRunner runner = new MobileRunner(project, config);
+            switch (target.toLowerCase(Locale.ROOT)) {
+                case "android" -> runner.stopAndroid(device);
+                case "ios" -> runner.stopIos(device);
+                default -> {
+                    System.err.println("error: stop supports android|ios only");
                     return 1;
                 }
             }
@@ -274,12 +324,37 @@ public final class MobileCli {
         }
     }
 
+    /** Prefer env, then project/cwd, then walk parents for target/jnative.jar. */
+    static Path resolveJnativeJar(Path project) {
+        String env = System.getenv("JNATIVE_JAR");
+        if (env != null && !env.isBlank()) {
+            Path p = Path.of(env).toAbsolutePath().normalize();
+            if (Files.isRegularFile(p)) {
+                return p;
+            }
+        }
+        Path cwdJar = Path.of("target/jnative.jar").toAbsolutePath().normalize();
+        if (Files.isRegularFile(cwdJar)) {
+            return cwdJar;
+        }
+        Path cur = project.toAbsolutePath().normalize();
+        for (int i = 0; i < 8 && cur != null; i++) {
+            Path candidate = cur.resolve("target/jnative.jar");
+            if (Files.isRegularFile(candidate)) {
+                return candidate;
+            }
+            cur = cur.getParent();
+        }
+        return cwdJar;
+    }
+
     private static String usage() {
         return """
                 usage:
-                  jnative mobile build --target web|android|ios [--project DIR]
-                  jnative mobile devices --target android|ios
+                  jnative mobile build --target web|android|ios [--configuration debug|release] [--project DIR]
+                  jnative mobile devices --target android|ios [--format text|json]
                   jnative mobile run --target android|ios --device ID [--project DIR]
+                  jnative mobile stop --target android|ios --device ID [--project DIR]
                   jnative mobile logs --target android|ios [--device ID] [--lines N]
                 """;
     }

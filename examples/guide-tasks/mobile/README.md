@@ -27,4 +27,13 @@ cd examples/guide-tasks/mobile/staging/android-www
 python3 -m http.server 8768
 ```
 
-完整 APK / iOS 签名运行步骤见文档站移动教程；容器实现参考 `examples/sudoku/mobile/`（已验证模式）。
+统一 CLI（推荐）：
+
+```bash
+java -jar target/jnative.jar mobile build --target android --project examples/guide-tasks
+java -jar target/jnative.jar mobile build --target ios --project examples/guide-tasks
+java -jar target/jnative.jar mobile run --target ios --device <UDID> --project examples/guide-tasks
+```
+
+调试构建启用 WebView 检查；发布配置关闭。商店签名 / 上传不在本仓库流程内。  
+详见 `docs/developer/VSCODE_MOBILE_RUN.md`。

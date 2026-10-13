@@ -1,16 +1,20 @@
-/* Author: 张晓达 — touch shell for guide-tasks mobile */
-:root {
-  --bg: #f5f0e8;
-  --ink: #1a2332;
-  --muted: #5a6570;
-  --panel: #fffdf9;
-  --line: #d5cdc0;
-  --accent: #0b6e4f;
-  --err: #a12622;
+/* Author: 张晓达 — touch overlay for guide-tasks mobile (loads after tasks.css) */
+body.touch {
   --tap: 48px;
   --safe-top: env(safe-area-inset-top, 0px);
   --safe-bottom: env(safe-area-inset-bottom, 0px);
+  padding-bottom: calc(var(--safe-bottom) + 4.5rem);
 }
+body.touch .tabs {
+  position: fixed;
+  left: 0; right: 0; bottom: 0;
+  margin: 0;
+  padding: 0.45rem 0.6rem calc(0.45rem + var(--safe-bottom));
+  background: color-mix(in srgb, var(--panel) 92%, transparent);
+  border-top: 1px solid var(--line);
+  z-index: 5;
+}
+body.touch #app { padding-bottom: 6.5rem; }
 * { box-sizing: border-box; }
 html, body {
   margin: 0;
@@ -77,10 +81,37 @@ button.primary {
   padding: 0.75rem;
   margin-bottom: 0.55rem;
 }
+.list li.task {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+}
 .list li span { flex: 1 1 10rem; font-size: 1.05rem; word-break: break-word; }
 .list li.done span { text-decoration: line-through; color: var(--muted); }
+.list .actions { display: flex; flex-wrap: wrap; gap: 0.4rem; }
 .list li button { flex: 0 0 auto; }
-.empty { color: var(--muted); font-style: italic; padding: 1rem 0.25rem; }
+.list-state, .hint, .empty { color: var(--muted); font-style: italic; padding: 0.35rem 0.1rem; }
+.field-error { color: var(--err); margin: 0.2rem 0 0; }
+.fail { color: var(--err); }
+button.linkish {
+  border: none;
+  background: transparent;
+  color: var(--accent);
+  min-height: 0;
+  padding: 0.25rem 0;
+}
+input[type="search"] {
+  flex: 1 1 10rem;
+  min-height: var(--tap);
+  padding: 0.65rem 0.8rem;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--panel);
+  font: inherit;
+  font-size: 1.05rem;
+}
+.col { display: flex; flex-direction: column; gap: 0.45rem; }
 
 /* Soft keyboard: keep focused field above keyboard when visualViewport shrinks */
 body.keyboard-open main {

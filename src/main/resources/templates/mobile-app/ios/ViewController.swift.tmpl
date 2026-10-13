@@ -15,6 +15,11 @@ final class ViewController: UIViewController, WKNavigationDelegate {
         webView.translatesAutoresizingMaskIntoConstraints = false
         webView.navigationDelegate = self
         webView.scrollView.contentInsetAdjustmentBehavior = .always
+        #if DEBUG
+        if #available(iOS 16.4, *) {
+            webView.isInspectable = true
+        }
+        #endif
         view.addSubview(webView)
         NSLayoutConstraint.activate([
             webView.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor),

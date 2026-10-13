@@ -10,14 +10,17 @@
  *   0 OK
  *   1 invalid argument / index
  *   2 empty title
- *   3 title too long
+ *   3 title too long / notes too long
  *   4 capacity full
  *   5 save invalid
+ *   6 invalid due date
+ *   7 in-progress requires notes
  * @author 张晓达
  */
 public class TaskCore {
     public static final int MAX_TASKS = 64;
     public static final int TITLE_MAX = 48;
+    public static final int NOTES_MAX = 120;
     public static final int SAVE_VERSION = 1;
     public static final int MAX_SAVE_CHARS = 8192;
 
@@ -36,6 +39,14 @@ public class TaskCore {
     static int[] saveBuf;
     static int saveLen;
 
+    /** Form draft used by Web shell validation (IndexedDB owns persistence). */
+    static int[] formTitle;
+    static int formTitleLen;
+    static int[] formNotes;
+    static int formNotesLen;
+    static int formStatus;
+    static int formDueYmd;
+
     static void ensureInit() {
         if (ready != 0) {
             return;
@@ -46,6 +57,12 @@ public class TaskCore {
         titleStrCache = new String[MAX_TASKS];
         draft = new int[TITLE_MAX];
         saveBuf = new int[MAX_SAVE_CHARS];
+        formTitle = new int[TITLE_MAX];
+        formNotes = new int[NOTES_MAX];
+        formTitleLen = 0;
+        formNotesLen = 0;
+        formStatus = 0;
+        formDueYmd = 0;
         count = 0;
         draftLen = 0;
         saveLen = 0;
@@ -573,6 +590,138 @@ public class TaskCore {
         return out;
     }
 
+    public static int clearFormDraft() {
+        ensureInit();
+        formTitleLen = 0;
+        formNotesLen = 0;
+        formStatus = 0;
+        formDueYmd = 0;
+        lastError = 0;
+        return 1;
+    }
+
+    public static int appendTitleChar(int ch) {
+        ensureInit();
+        if (ch <= 0 || ch > 65535) {
+            lastError = 1;
+            return 0;
+        }
+        if (formTitleLen >= TITLE_MAX) {
+            lastError = 3;
+            return 0;
+        }
+        formTitle[formTitleLen] = ch;
+        formTitleLen = formTitleLen + 1;
+        lastError = 0;
+        return 1;
+    }
+
+    public static int appendNoteChar(int ch) {
+        ensureInit();
+        if (ch <= 0 || ch > 65535) {
+            lastError = 1;
+            return 0;
+        }
+        if (formNotesLen >= NOTES_MAX) {
+            lastError = 3;
+            return 0;
+        }
+        formNotes[formNotesLen] = ch;
+        formNotesLen = formNotesLen + 1;
+        lastError = 0;
+        return 1;
+    }
+
+    public static int setFormStatus(int st) {
+        ensureInit();
+        if (st < 0 || st > 2) {
+            lastError = 1;
+            return 0;
+        }
+        formStatus = st;
+        lastError = 0;
+        return 1;
+    }
+
+    public static int setFormDue(int ymd) {
+        ensureInit();
+        if (ymd == 0) {
+            formDueYmd = 0;
+            lastError = 0;
+            return 1;
+        }
+        if (ymd < 10000101 || ymd > 99991231) {
+            lastError = 6;
+            return 0;
+        }
+        int y = ymd / 10000;
+        int m = (ymd / 100) % 100;
+        int d = ymd % 100;
+        if (m < 1 || m > 12 || d < 1 || d > 31) {
+            lastError = 6;
+            return 0;
+        }
+        formDueYmd = ymd;
+        lastError = 0;
+        return 1;
+    }
+
+    public static int validateForm() {
+        ensureInit();
+        if (formTitleLen <= 0) {
+            lastError = 2;
+            return 0;
+        }
+        if (formTitleLen > TITLE_MAX || formNotesLen > NOTES_MAX) {
+            lastError = 3;
+            return 0;
+        }
+        if (formStatus == 1 && formNotesLen <= 0) {
+            lastError = 7;
+            return 0;
+        }
+        if (formDueYmd != 0) {
+            if (setFormDue(formDueYmd) == 0) {
+                return 0;
+            }
+        }
+        lastError = 0;
+        return 1;
+    }
+
+    /**
+     * Web shell persists via IndexedDB; these keep wasm exports for the form path.
+     * addFromForm returns a synthetic non-negative id only after validateForm.
+     */
+    public static int addFromForm() {
+        ensureInit();
+        if (validateForm() == 0) {
+            return -1;
+        }
+        lastError = 0;
+        return 0;
+    }
+
+    public static int updateFromFormById(int id) {
+        ensureInit();
+        if (id < 0) {
+            lastError = 1;
+            return 0;
+        }
+        return validateForm();
+    }
+
+    public static int loadFormFromId(int id) {
+        ensureInit();
+        clearFormDraft();
+        if (id < 0) {
+            lastError = 1;
+            return 0;
+        }
+        lastError = 0;
+        return 1;
+    }
+
     public static void main(String[] args) {
         boolean keep = false;
         if (keep) {
@@ -596,6 +745,15 @@ public class TaskCore {
             if (s != null) {
                 lastError = s.length();
             }
+            lastError = clearFormDraft();
+            lastError = appendTitleChar(65);
+            lastError = appendNoteChar(66);
+            lastError = setFormStatus(0);
+            lastError = setFormDue(20261013);
+            lastError = validateForm();
+            lastError = addFromForm();
+            lastError = updateFromFormById(0);
+            lastError = loadFormFromId(0);
             lastError = getLastError();
             lastError = clearAll();
         }

@@ -2,7 +2,7 @@
   "name": "jnative",
   "displayName": "JNative",
   "description": "JNative 桌面 / Web / 移动统一开发入口（.jn → 原生或 WASM，无 JVM 运行时）。",
-  "version": "0.8.0",
+  "version": "0.8.1",
   "publisher": "jnative",
   "engines": {
     "vscode": "^1.85.0"

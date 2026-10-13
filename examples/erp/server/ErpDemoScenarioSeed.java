@@ -39,9 +39,25 @@ class ErpDemoScenarioSeed {
 
     static void forceReseed(long companyId) {
         ErpBooks.requireDemoBookOrThrow(companyId, "RESET_DEMO");
-        runScenarios(companyId);
-        ErpBooks.recordDemoSeed(companyId, ErpBooks.DEMO_SEED_VERSION);
-        log(companyId, "v2-reset", "OK", "scenario reseed after reset");
+        System.out.println("DEMO_FORCE_RESEED companyId=" + CryptoParse.longToString(companyId));
+        try {
+            /* Masters already re-seeded by ErpBooks.resetDemoBook; only run doc scenarios. */
+            runScenarioDocuments(companyId);
+            ErpBooks.recordDemoSeed(companyId, ErpBooks.DEMO_SEED_VERSION);
+            log(companyId, "v2-reset", "OK", "scenario reseed after reset");
+            System.out.println("DEMO_FORCE_RESEED ok");
+        } catch (Exception ex) {
+            String msg = "";
+            if (ex.getMessage() != null) {
+                msg = ex.getMessage();
+            }
+            if (msg.length() == 0) {
+                msg = "unknown";
+            }
+            System.out.println("DEMO_FORCE_RESEED_EX " + msg);
+            log(companyId, "v2-reset", "FAILED", msg);
+            throw new TransactionException("FORCE_RESEED:" + msg);
+        }
     }
 
     static void log(long companyId, String key, String status, String detail) {
@@ -98,9 +114,16 @@ class ErpDemoScenarioSeed {
 
     static void runScenarios(long companyId) {
         long now = AsyncClockNative.wallMillis();
+        ErpSeed.seedSequences(companyId);
+        ErpFinanceCore.ensureSeed(companyId);
+        ErpSeed.seedDemoBusiness(companyId, now);
         ErpMastersExtra.ensureSeed(companyId, now);
         ensureTradingMasters(companyId, now);
+        runScenarioDocuments(companyId);
+    }
 
+    /** Opening + purchase/sales chains (masters must already exist). */
+    static void runScenarioDocuments(long companyId) {
         long adminId = adminUserId(companyId);
         long whMain = warehouseId(companyId, "WH1");
         if (whMain == 0L) {
@@ -111,6 +134,9 @@ class ErpDemoScenarioSeed {
         }
         long supplierId = firstPartner(companyId, PartnerKind.SUPPLIER);
         long customerId = firstPartner(companyId, PartnerKind.CUSTOMER);
+        if (supplierId == 0L || customerId == 0L) {
+            throw new TransactionException("missing trading partners");
+        }
         long itemA = itemId(companyId, "SKU-1");
         if (itemA == 0L) {
             itemA = firstItem(companyId);
@@ -119,25 +145,71 @@ class ErpDemoScenarioSeed {
         if (itemB == 0L) {
             itemB = itemA;
         }
+        if (itemA == 0L) {
+            throw new TransactionException("missing seed items");
+        }
         long bankId = ErpDocsList.firstBankAccountId(companyId);
         if (bankId == 0L) {
             throw new TransactionException("no bank account");
         }
+        log(companyId, "phase", "RUN", "ids wh=" + CryptoParse.longToString(whMain)
+                + " sup=" + CryptoParse.longToString(supplierId)
+                + " cust=" + CryptoParse.longToString(customerId)
+                + " bank=" + CryptoParse.longToString(bankId));
 
         if (already(companyId, "opening-stock") == 0) {
-            seedOpening(companyId, adminId, whMain, itemA, itemB);
-            log(companyId, "opening-stock", "OK", "opening stock posted");
+            try {
+                log(companyId, "phase", "RUN", "opening");
+                seedOpening(companyId, adminId, whMain, itemA, itemB);
+                log(companyId, "opening-stock", "OK", "opening stock posted");
+            } catch (Exception openEx) {
+                String om = "";
+                if (openEx.getMessage() != null) {
+                    om = openEx.getMessage();
+                }
+                if (om.length() == 0) {
+                    om = "opening failed";
+                }
+                log(companyId, "opening-stock", "SKIP", om);
+                System.out.println("DEMO_SCENARIO opening skipped: " + om);
+            }
         }
         if (already(companyId, "purchase-chain") == 0) {
-            seedPurchaseChain(companyId, adminId, supplierId, whMain, itemA, itemB, bankId);
-            log(companyId, "purchase-chain", "OK", "PR/PO/GR/AP/payment");
+            try {
+                log(companyId, "phase", "RUN", "purchase");
+                seedPurchaseChain(companyId, adminId, supplierId, whMain, itemA, itemB, bankId);
+                log(companyId, "purchase-chain", "OK", "PR/PO/GR/AP/payment");
+            } catch (Exception pex) {
+                String pm = "";
+                if (pex.getMessage() != null) {
+                    pm = pex.getMessage();
+                }
+                if (pm.length() == 0) {
+                    pm = "purchase-chain failed";
+                }
+                log(companyId, "purchase-chain", "FAILED", pm);
+                throw new TransactionException("purchase-chain:" + pm);
+            }
         }
         if (already(companyId, "sales-chain") == 0) {
-            seedSalesChain(companyId, adminId, customerId, whMain, itemA, bankId);
-            log(companyId, "sales-chain", "OK", "SO/DL/AR/payment");
+            try {
+                log(companyId, "phase", "RUN", "sales");
+                seedSalesChain(companyId, adminId, customerId, whMain, itemA, bankId);
+                log(companyId, "sales-chain", "OK", "SO/DL/AR/payment");
+            } catch (Exception sex) {
+                String sm = "";
+                if (sex.getMessage() != null) {
+                    sm = sex.getMessage();
+                }
+                if (sm.length() == 0) {
+                    sm = "sales-chain failed";
+                }
+                log(companyId, "sales-chain", "FAILED", sm);
+                throw new TransactionException("sales-chain:" + sm);
+            }
         }
-        /* Practice materials must remain zero */
         assertPracticeZero(companyId);
+        log(companyId, "phase", "OK", "complete");
     }
 
     static void ensureTradingMasters(long companyId, long now) {
@@ -206,16 +278,31 @@ class ErpDemoScenarioSeed {
         b.quantity = 50;
         b.unitCostAmount = 3000L;
         lines.add(b);
+        ErpDb.reconnect();
         PostResultDto draft = ErpOpening.createStockDraft(companyId, userId, warehouseId, SEED_EPOCH + DAY * 5,
                 "Demo opening", "seed-open-draft", lines);
         if (draft.ok == 0) {
             throw new TransactionException("opening draft:" + draft.message);
         }
         long docId = parseIdFromDoc(draft.documentJson);
-        PostResultDto posted = ErpOpening.postStock(companyId, userId, docId, "seed-open-post");
-        if (posted.ok == 0) {
-            throw new TransactionException("opening post:" + posted.message);
+        if (docId == 0L) {
+            throw new TransactionException("opening draft: missing doc id");
         }
+        PostResultDto posted = null;
+        int attempt = 0;
+        while (attempt < 3) {
+            ErpDb.reconnect();
+            posted = ErpOpening.postStock(companyId, userId, docId, "seed-open-post");
+            if (posted != null && posted.ok != 0) {
+                return;
+            }
+            attempt = attempt + 1;
+        }
+        String pm = "";
+        if (posted != null && posted.message != null) {
+            pm = posted.message;
+        }
+        throw new TransactionException("opening post:" + pm);
     }
 
     static void seedPurchaseChain(long companyId, long userId, long supplierId, long warehouseId, long itemA,
@@ -305,16 +392,39 @@ class ErpDemoScenarioSeed {
         if (gr2r.ok == 0) {
             throw new TransactionException("GR2:" + gr2r.message);
         }
-        long grId = parseIdFromDoc(gr2r.documentJson);
+        ErpDb.reconnect();
+        long grId = latestGoodsReceiptId(companyId);
+        if (grId == 0L) {
+            grId = parseIdFromDoc(gr2r.documentJson);
+        }
         long apTotal = 30L * 4500L + 10L * 2800L;
-        ApInvoiceDto ap = ErpFinanceArAp.createApInvoice(companyId, supplierId, apTotal,
-                SEED_EPOCH + DAY * 40, SEED_EPOCH + DAY * 70, grId);
+        ApInvoiceDto ap = null;
+        int apCreateAttempt = 0;
+        while (apCreateAttempt < 3 && ap == null) {
+            ErpDb.reconnect();
+            ap = ErpFinanceArAp.createApInvoice(companyId, supplierId, apTotal,
+                    SEED_EPOCH + DAY * 40, SEED_EPOCH + DAY * 70, grId);
+            apCreateAttempt = apCreateAttempt + 1;
+        }
         if (ap == null) {
             throw new TransactionException("AP create failed");
         }
-        PostResultDto apPost = ErpFinanceArAp.postApInvoice(companyId, userId, ap.id);
-        if (apPost.ok == 0) {
-            throw new TransactionException("AP post:" + apPost.message);
+        PostResultDto apPost = null;
+        int apPostAttempt = 0;
+        while (apPostAttempt < 4) {
+            ErpDb.reconnect();
+            apPost = ErpFinanceArAp.postApInvoice(companyId, userId, ap.id);
+            if (apPost != null && apPost.ok != 0) {
+                break;
+            }
+            apPostAttempt = apPostAttempt + 1;
+        }
+        if (apPost == null || apPost.ok == 0) {
+            String am = "";
+            if (apPost != null && apPost.message != null) {
+                am = apPost.message;
+            }
+            throw new TransactionException("AP post:" + am);
         }
         OutgoingPaymentRequest pay = new OutgoingPaymentRequest();
         pay.supplierId = supplierId;
@@ -327,9 +437,22 @@ class ErpDemoScenarioSeed {
         alloc.invoiceId = ap.id;
         alloc.allocatedAmount = apTotal / 2;
         pay.allocations.add(alloc);
-        PostResultDto payR = ErpFinanceArAp.postOutgoingPayment(companyId, userId, pay);
-        if (payR.ok == 0) {
-            throw new TransactionException("OP:" + payR.message);
+        PostResultDto payR = null;
+        int opAttempt = 0;
+        while (opAttempt < 4) {
+            ErpDb.reconnect();
+            payR = ErpFinanceArAp.postOutgoingPayment(companyId, userId, pay);
+            if (payR != null && payR.ok != 0) {
+                break;
+            }
+            opAttempt = opAttempt + 1;
+        }
+        if (payR == null || payR.ok == 0) {
+            String om = "";
+            if (payR != null && payR.message != null) {
+                om = payR.message;
+            }
+            throw new TransactionException("OP:" + om);
         }
     }
 
@@ -373,10 +496,19 @@ class ErpDemoScenarioSeed {
         if (r2.ok == 0) {
             throw new TransactionException("DL2:" + r2.message);
         }
-        long dlId = parseIdFromDoc(r2.documentJson);
+        ErpDb.reconnect();
+        long dlId = latestDeliveryId(companyId);
+        if (dlId == 0L) {
+            dlId = parseIdFromDoc(r2.documentJson);
+        }
         long arTotal = 20L * 8000L;
         ArInvoiceDto ar = ErpFinanceArAp.createArInvoice(companyId, customerId, arTotal,
                 SEED_EPOCH + DAY * 50, SEED_EPOCH + DAY * 80, dlId);
+        if (ar == null) {
+            ErpDb.reconnect();
+            ar = ErpFinanceArAp.createArInvoice(companyId, customerId, arTotal,
+                    SEED_EPOCH + DAY * 50, SEED_EPOCH + DAY * 80, dlId);
+        }
         if (ar == null) {
             throw new TransactionException("AR create failed");
         }
@@ -395,9 +527,22 @@ class ErpDemoScenarioSeed {
         alloc.invoiceId = ar.id;
         alloc.allocatedAmount = arTotal;
         pay.allocations.add(alloc);
-        PostResultDto payR = ErpFinanceArAp.postIncomingPayment(companyId, userId, pay);
-        if (payR.ok == 0) {
-            throw new TransactionException("IP:" + payR.message);
+        PostResultDto payR = null;
+        int ipAttempt = 0;
+        while (ipAttempt < 4) {
+            ErpDb.reconnect();
+            payR = ErpFinanceArAp.postIncomingPayment(companyId, userId, pay);
+            if (payR != null && payR.ok != 0) {
+                break;
+            }
+            ipAttempt = ipAttempt + 1;
+        }
+        if (payR == null || payR.ok == 0) {
+            String im = "";
+            if (payR != null && payR.message != null) {
+                im = payR.message;
+            }
+            throw new TransactionException("IP:" + im);
         }
     }
 
@@ -497,6 +642,22 @@ class ErpDemoScenarioSeed {
         Object v = ErpDb.queryOne(
                 "SELECT id FROM business_partners WHERE company_id=? AND kind=? ORDER BY id LIMIT 1", p,
                 new LongMapper());
+        return ErpNum.asLong(v);
+    }
+
+    static long latestGoodsReceiptId(long companyId) {
+        ArrayList<Object> p = new ArrayList<Object>();
+        p.add(CryptoParse.longToString(companyId));
+        Object v = ErpDb.queryOne(
+                "SELECT id FROM goods_receipts WHERE company_id=? ORDER BY id DESC LIMIT 1", p, new LongMapper());
+        return ErpNum.asLong(v);
+    }
+
+    static long latestDeliveryId(long companyId) {
+        ArrayList<Object> p = new ArrayList<Object>();
+        p.add(CryptoParse.longToString(companyId));
+        Object v = ErpDb.queryOne(
+                "SELECT id FROM deliveries WHERE company_id=? ORDER BY id DESC LIMIT 1", p, new LongMapper());
         return ErpNum.asLong(v);
     }
 }
