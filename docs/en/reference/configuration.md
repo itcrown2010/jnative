@@ -1,0 +1,6 @@
+# Configuration
+
+- Compiler: CLI flags / `CompilerOptions`
+- Projects: `jnative.toml`, `jnative.project`
+- GC: `JNATIVE_GC`, `JNATIVE_YOUNG_SIZE`, …
+- VS Code: `jnative.jarPath`, `jnative.javaPath`, …

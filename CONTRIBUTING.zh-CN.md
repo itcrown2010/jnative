@@ -22,6 +22,12 @@
 
 新增第三方材料时，同步更新 `THIRD_PARTY_NOTICES.md` 与 `docs/legal/THIRD_PARTY_SOURCES.md`。
 
+## 文档（与英文 CONTRIBUTING 对齐）
+
+面向用户的新功能应包含文档与至少一个可运行示例；公共 SDK API 应有 API 文档与示例；语言改动应更新语言参考与编译器测试。完整要求见英文 [CONTRIBUTING.md](CONTRIBUTING.md) 与 [docs/en/changelog-policy.md](docs/en/changelog-policy.md)。
+
+可运行：`./tools/check-docs`
+
 ## 测试
 
 - 至少保证与你的改动相关的单元测试或示例构建通过。

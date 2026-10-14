@@ -6,7 +6,7 @@ You write a familiar subset of Java-style source (`.java` or `.jn`). The compile
 
 JNative is **not** Java SE: it does not implement the full standard library, does not load arbitrary JARs, and does not claim HotSpot compatibility.
 
-[中文](README.zh-CN.md) · [Getting Started](docs/en/getting-started.md) · [Architecture](docs/en/architecture.md) · [Language](docs/en/language.md) · [Contributing](CONTRIBUTING.md)
+[中文](README.zh-CN.md) · [**Start here**](docs/en/start-here.md) · [Docs](docs/en/index.md) · [30 min Todo](docs/en/tutorials/30-minutes.md) · [What can I build?](docs/en/what-can-i-build.md) · [VS Code](docs/en/vscode/index.md) · [Contributing](CONTRIBUTING.md)
 
 ---
 
@@ -97,15 +97,51 @@ java -jar target/jnative.jar doctor
 
 ---
 
+## Built with JNative
+
+### JNative Studio (Experimental)
+
+A **CLI** development environment written in JNative that can open, edit, build, and run JNative projects.
+
+```bash
+java -jar target/jnative.jar build --project examples/jnative-studio
+examples/jnative-studio/build/StudioMain --jar $PWD/target/jnative.jar open examples/hello-app
+examples/jnative-studio/build/StudioMain --jar $PWD/target/jnative.jar build
+examples/jnative-studio/build/StudioMain --jar $PWD/target/jnative.jar run
+```
+
+GUI IDE shell is deferred (stdlib UI/graphics compile blocker). Details: [docs/en/projects/jnative-studio.md](docs/en/projects/jnative-studio.md).
+
+### Self-hosting (in progress)
+
+JNative tools + a **compatible lexer** built in JNative (golden tests vs the reference lexer). This is **not** a self-hosted compiler yet.
+
+```bash
+./scripts/bootstrap-stage1.sh   # expects STAGE1_PASS
+```
+
+Docs: [self-hosting](docs/en/architecture/self-hosting.md) · [status](docs/en/reference/self-hosting-status.md)
+
+---
+
 ## Documentation
+
+**English is canonical.** Begin at **[docs/en/start-here.md](docs/en/start-here.md)**.
 
 | Link | Role |
 |------|------|
-| [docs/en/](docs/en/README.md) | **English** public docs (authoritative) |
+| [Start Here](docs/en/start-here.md) | Paths for Java / CLI / server / mobile / contribute |
+| [Install](docs/en/getting-started/installation.md) | Toolchain |
+| [30-minute Todo](docs/en/tutorials/30-minutes.md) | First real app |
+| [Language Tour](docs/en/language/index.md) | Learn the language |
+| [SDK](docs/en/sdk/index.md) | Platform APIs |
+| [Cookbook](docs/en/cookbook/index.md) | How-to recipes |
+| [VS Code](docs/en/vscode/index.md) | Official extension |
+| [What can I build?](docs/en/what-can-i-build.md) | Honest capability list |
+| [Web](docs/en/web/index.md) / [Desktop](docs/en/desktop/index.md) / [Mobile status](docs/en/mobile/status.md) | Platforms |
+| [Capability matrix](docs/en/reference/capability-matrix.md) | Source of truth |
 | [docs/zh-CN/](docs/zh-CN/README.md) | Chinese navigation |
-| [docs/tutorial/](docs/tutorial/index.md) | Step-by-step tutorial (Chinese) |
-| [website/](website/README.md) | VitePress site (Chinese-first UI today) |
-| [docs/language-support.md](docs/language-support.md) | Normative feature audit |
+| [DX audit](docs/en/reference/developer-experience-audit.md) | Documentation coverage |
 
 ---
 

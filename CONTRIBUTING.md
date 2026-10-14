@@ -32,6 +32,28 @@ Requirements: Java 21+, Maven 3.9+, `clang` on `PATH`.
 
 ---
 
+## Documentation is part of the product
+
+A user-facing feature is **not complete** when only the code lands. Prefer:
+
+```text
+Code + Tests + Example + Documentation + Release notes = Complete
+```
+
+- **Every new user-facing feature** should include documentation and at least one runnable example.
+- **Public SDK APIs** should include API documentation (under `docs/en/reference/sdk/` or `docs/en/sdk/`) and examples.
+- **Language changes** should update the language reference (`docs/en/language/` / `docs/en/reference/language/`) and compiler tests.
+- Update [docs/en/reference/capability-matrix.md](docs/en/reference/capability-matrix.md) when maturity changes.
+- Release notes should use sections: Added / Changed / Fixed / Breaking Changes / Documentation / Examples (see [docs/en/changelog-policy.md](docs/en/changelog-policy.md)).
+
+Run practical doc checks before merging when possible:
+
+```bash
+./tools/check-docs
+```
+
+---
+
 ## How to add a language / compiler feature
 
 1. Implement in the appropriate package under `src/main/java/io/jnative/` (frontend, semantic, IR, opt, LLVM backend, runtime emitters as needed).

@@ -1,0 +1,36 @@
+name: bootstrap-stage1
+
+on:
+  pull_request:
+    paths:
+      - 'compiler-selfhost/**'
+      - 'tests/selfhost/**'
+      - 'scripts/bootstrap-stage1.sh'
+      - 'scripts/selfhost-lex-compare.sh'
+      - 'scripts/selfhost-ast-compare.sh'
+      - 'src/main/java/io/jnative/lexer/**'
+      - 'src/main/java/io/jnative/selfhost/**'
+      - 'src/main/java/io/jnative/ast/**'
+      - 'examples/jn-tools/**'
+  push:
+    branches: [main, master]
+    paths:
+      - 'compiler-selfhost/**'
+      - 'tests/selfhost/**'
+      - 'scripts/bootstrap-stage1.sh'
+      - 'scripts/selfhost-lex-compare.sh'
+      - 'scripts/selfhost-ast-compare.sh'
+
+jobs:
+  stage1:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Package reference compiler
+        run: mvn -q -DskipTests package
+      - name: Bootstrap stage 1
+        run: bash scripts/bootstrap-stage1.sh

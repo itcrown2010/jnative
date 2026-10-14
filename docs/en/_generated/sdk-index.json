@@ -1,0 +1,4821 @@
+{
+  "generator": "scripts/docs/generate-sdk-index.py",
+  "note": "Class inventory from stdlib sources + curated builtins. Methods incomplete except builtins.",
+  "modules": [
+    "async",
+    "browser",
+    "builtin",
+    "collections",
+    "crypto",
+    "db",
+    "editor",
+    "graphics",
+    "http",
+    "io",
+    "json",
+    "math",
+    "net",
+    "rpc",
+    "studio",
+    "time",
+    "tls",
+    "ui",
+    "web",
+    "webui"
+  ],
+  "builtins": [
+    {
+      "name": "File",
+      "module": "builtin",
+      "methods": [
+        "readString",
+        "writeString",
+        "readBytes",
+        "writeBytes",
+        "exists",
+        "size",
+        "delete"
+      ],
+      "status": "Experimental",
+      "tests": [
+        "FileIoEndToEndTest"
+      ],
+      "examples": [
+        "examples/file-io"
+      ]
+    },
+    {
+      "name": "TcpServer",
+      "module": "builtin",
+      "status": "Experimental",
+      "tests": [
+        "NetworkEndToEndTest"
+      ],
+      "examples": [
+        "examples/tcp-echo"
+      ]
+    },
+    {
+      "name": "TcpSocket",
+      "module": "builtin",
+      "status": "Experimental",
+      "tests": [
+        "NetworkEndToEndTest"
+      ],
+      "examples": [
+        "examples/tcp-echo"
+      ]
+    },
+    {
+      "name": "Thread",
+      "module": "builtin",
+      "status": "Experimental",
+      "tests": [
+        "ThreadEndToEndTest"
+      ],
+      "examples": [
+        "examples/multithreading"
+      ]
+    },
+    {
+      "name": "Mutex",
+      "module": "builtin",
+      "status": "Experimental",
+      "tests": [
+        "ThreadEndToEndTest"
+      ],
+      "examples": [
+        "examples/multithreading"
+      ]
+    }
+  ],
+  "types": [
+    {
+      "name": "AsyncClockNative",
+      "kind": "class",
+      "module": "async",
+      "source": "src/main/resources/stdlib/async/AsyncLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "AsyncCpuNative",
+      "kind": "class",
+      "module": "async",
+      "source": "src/main/resources/stdlib/async/AsyncLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "AsyncCpu",
+      "kind": "class",
+      "module": "async",
+      "source": "src/main/resources/stdlib/async/AsyncLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "PollNative",
+      "kind": "class",
+      "module": "async",
+      "source": "src/main/resources/stdlib/async/AsyncLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "TimeoutException",
+      "kind": "class",
+      "module": "async",
+      "source": "src/main/resources/stdlib/async/AsyncLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "FutureSubscription",
+      "kind": "class",
+      "module": "async",
+      "source": "src/main/resources/stdlib/async/AsyncLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "CancellableFutureCallback",
+      "kind": "class",
+      "module": "async",
+      "source": "src/main/resources/stdlib/async/AsyncLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "JnCancellationToken",
+      "kind": "class",
+      "module": "async",
+      "source": "src/main/resources/stdlib/async/AsyncLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "CancellationSource",
+      "kind": "class",
+      "module": "async",
+      "source": "src/main/resources/stdlib/async/AsyncLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "JnFuture",
+      "kind": "class",
+      "module": "async",
+      "source": "src/main/resources/stdlib/async/AsyncLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "SuccessCallback",
+      "kind": "class",
+      "module": "async",
+      "source": "src/main/resources/stdlib/async/AsyncLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "FailureCallback",
+      "kind": "class",
+      "module": "async",
+      "source": "src/main/resources/stdlib/async/AsyncLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "RunCallbackTask",
+      "kind": "class",
+      "module": "async",
+      "source": "src/main/resources/stdlib/async/AsyncLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "ThenCallback",
+      "kind": "class",
+      "module": "async",
+      "source": "src/main/resources/stdlib/async/AsyncLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "FlatMapCallback",
+      "kind": "class",
+      "module": "async",
+      "source": "src/main/resources/stdlib/async/AsyncLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "ForwardCallback",
+      "kind": "class",
+      "module": "async",
+      "source": "src/main/resources/stdlib/async/AsyncLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "RecoverCallback",
+      "kind": "class",
+      "module": "async",
+      "source": "src/main/resources/stdlib/async/AsyncLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "FinallyCallback",
+      "kind": "class",
+      "module": "async",
+      "source": "src/main/resources/stdlib/async/AsyncLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "AllWaiter",
+      "kind": "class",
+      "module": "async",
+      "source": "src/main/resources/stdlib/async/AsyncLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "AnyRace",
+      "kind": "class",
+      "module": "async",
+      "source": "src/main/resources/stdlib/async/AsyncLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "TimeoutPair",
+      "kind": "class",
+      "module": "async",
+      "source": "src/main/resources/stdlib/async/AsyncLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "TimeoutSourceCallback",
+      "kind": "class",
+      "module": "async",
+      "source": "src/main/resources/stdlib/async/AsyncLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "TimeoutFireTask",
+      "kind": "class",
+      "module": "async",
+      "source": "src/main/resources/stdlib/async/AsyncLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "TimerEntry",
+      "kind": "class",
+      "module": "async",
+      "source": "src/main/resources/stdlib/async/AsyncLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "EventLoop",
+      "kind": "class",
+      "module": "async",
+      "source": "src/main/resources/stdlib/async/AsyncLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "EventLoopRunner",
+      "kind": "class",
+      "module": "async",
+      "source": "src/main/resources/stdlib/async/AsyncLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "EventLoopGroup",
+      "kind": "class",
+      "module": "async",
+      "source": "src/main/resources/stdlib/async/AsyncLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "Async",
+      "kind": "class",
+      "module": "async",
+      "source": "src/main/resources/stdlib/async/AsyncLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "SleepCompleteTask",
+      "kind": "class",
+      "module": "async",
+      "source": "src/main/resources/stdlib/async/AsyncLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "BlockingRunTask",
+      "kind": "class",
+      "module": "async",
+      "source": "src/main/resources/stdlib/async/AsyncLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "BlockingCompleteTask",
+      "kind": "class",
+      "module": "async",
+      "source": "src/main/resources/stdlib/async/AsyncLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "AsyncMutex",
+      "kind": "class",
+      "module": "async",
+      "source": "src/main/resources/stdlib/async/AsyncLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "AsyncSemaphore",
+      "kind": "class",
+      "module": "async",
+      "source": "src/main/resources/stdlib/async/AsyncLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "AsyncQueue",
+      "kind": "class",
+      "module": "async",
+      "source": "src/main/resources/stdlib/async/AsyncLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "AsyncTcpConnectSupplier",
+      "kind": "class",
+      "module": "async",
+      "source": "src/main/resources/stdlib/async/AsyncLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "AsyncTcpSocket",
+      "kind": "class",
+      "module": "async",
+      "source": "src/main/resources/stdlib/async/AsyncLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "AsyncTcpWriteSupplier",
+      "kind": "class",
+      "module": "async",
+      "source": "src/main/resources/stdlib/async/AsyncLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "AsyncTcpReadAllSupplier",
+      "kind": "class",
+      "module": "async",
+      "source": "src/main/resources/stdlib/async/AsyncLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "AsyncTcpAcceptSupplier",
+      "kind": "class",
+      "module": "async",
+      "source": "src/main/resources/stdlib/async/AsyncLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "AsyncTcpServer",
+      "kind": "class",
+      "module": "async",
+      "source": "src/main/resources/stdlib/async/AsyncLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "FutureBlocker",
+      "kind": "class",
+      "module": "async",
+      "source": "src/main/resources/stdlib/async/AsyncLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "AsyncTcpListenSupplier",
+      "kind": "class",
+      "module": "async",
+      "source": "src/main/resources/stdlib/async/AsyncLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "LoopTask",
+      "kind": "interface",
+      "module": "async",
+      "source": "src/main/resources/stdlib/async/AsyncLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "JnFutureCallback",
+      "kind": "interface",
+      "module": "async",
+      "source": "src/main/resources/stdlib/async/AsyncLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "BlockingSupplier",
+      "kind": "interface",
+      "module": "async",
+      "source": "src/main/resources/stdlib/async/AsyncLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "FlatMapFunction",
+      "kind": "interface",
+      "module": "async",
+      "source": "src/main/resources/stdlib/async/AsyncLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "RecoverFunction",
+      "kind": "interface",
+      "module": "async",
+      "source": "src/main/resources/stdlib/async/AsyncLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "JsException",
+      "kind": "class",
+      "module": "browser",
+      "source": "src/main/resources/stdlib/browser/BrowserLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "BrowserException",
+      "kind": "class",
+      "module": "browser",
+      "source": "src/main/resources/stdlib/browser/BrowserLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "JsHandle",
+      "kind": "class",
+      "module": "browser",
+      "source": "src/main/resources/stdlib/browser/BrowserLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "JsObject",
+      "kind": "class",
+      "module": "browser",
+      "source": "src/main/resources/stdlib/browser/BrowserLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "Console",
+      "kind": "class",
+      "module": "browser",
+      "source": "src/main/resources/stdlib/browser/BrowserLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "Document",
+      "kind": "class",
+      "module": "browser",
+      "source": "src/main/resources/stdlib/browser/BrowserLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "Element",
+      "kind": "class",
+      "module": "browser",
+      "source": "src/main/resources/stdlib/browser/BrowserLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "HtmlInputElement",
+      "kind": "class",
+      "module": "browser",
+      "source": "src/main/resources/stdlib/browser/BrowserLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "HtmlButtonElement",
+      "kind": "class",
+      "module": "browser",
+      "source": "src/main/resources/stdlib/browser/BrowserLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "BrowserEvent",
+      "kind": "class",
+      "module": "browser",
+      "source": "src/main/resources/stdlib/browser/BrowserLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "Storage",
+      "kind": "class",
+      "module": "browser",
+      "source": "src/main/resources/stdlib/browser/BrowserLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "Window",
+      "kind": "class",
+      "module": "browser",
+      "source": "src/main/resources/stdlib/browser/BrowserLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "Browser",
+      "kind": "class",
+      "module": "browser",
+      "source": "src/main/resources/stdlib/browser/BrowserLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "BrowserNative",
+      "kind": "class",
+      "module": "browser",
+      "source": "src/main/resources/stdlib/browser/BrowserLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "BrowserEventHandler",
+      "kind": "interface",
+      "module": "browser",
+      "source": "src/main/resources/stdlib/browser/BrowserLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "Integer",
+      "kind": "class",
+      "module": "collections",
+      "source": "src/main/resources/stdlib/collections/BoxingLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "Long",
+      "kind": "class",
+      "module": "collections",
+      "source": "src/main/resources/stdlib/collections/BoxingLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "Boolean",
+      "kind": "class",
+      "module": "collections",
+      "source": "src/main/resources/stdlib/collections/BoxingLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "Float",
+      "kind": "class",
+      "module": "collections",
+      "source": "src/main/resources/stdlib/collections/BoxingLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "Double",
+      "kind": "class",
+      "module": "collections",
+      "source": "src/main/resources/stdlib/collections/BoxingLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "ResourceTracker",
+      "kind": "class",
+      "module": "collections",
+      "source": "src/main/resources/stdlib/collections/CollectionsLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "ArrayListIterator",
+      "kind": "class",
+      "module": "collections",
+      "source": "src/main/resources/stdlib/collections/CollectionsLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "ArrayList",
+      "kind": "class",
+      "module": "collections",
+      "source": "src/main/resources/stdlib/collections/CollectionsLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "HashMap",
+      "kind": "class",
+      "module": "collections",
+      "source": "src/main/resources/stdlib/collections/CollectionsLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "HashMapEntry",
+      "kind": "class",
+      "module": "collections",
+      "source": "src/main/resources/stdlib/collections/CollectionsLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "HashMapEntryIterator",
+      "kind": "class",
+      "module": "collections",
+      "source": "src/main/resources/stdlib/collections/CollectionsLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "PresentMarker",
+      "kind": "class",
+      "module": "collections",
+      "source": "src/main/resources/stdlib/collections/CollectionsLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "ArrayIterator",
+      "kind": "class",
+      "module": "collections",
+      "source": "src/main/resources/stdlib/collections/CollectionsLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "HashSet",
+      "kind": "class",
+      "module": "collections",
+      "source": "src/main/resources/stdlib/collections/CollectionsLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "ArrayDeque",
+      "kind": "class",
+      "module": "collections",
+      "source": "src/main/resources/stdlib/collections/CollectionsLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "StringBuilder",
+      "kind": "class",
+      "module": "collections",
+      "source": "src/main/resources/stdlib/collections/CollectionsLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "Arrays",
+      "kind": "class",
+      "module": "collections",
+      "source": "src/main/resources/stdlib/collections/CollectionsLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "Collections",
+      "kind": "class",
+      "module": "collections",
+      "source": "src/main/resources/stdlib/collections/CollectionsLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "ThreadPoolExecutor",
+      "kind": "class",
+      "module": "collections",
+      "source": "src/main/resources/stdlib/collections/CollectionsLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "ThreadPoolWorker",
+      "kind": "class",
+      "module": "collections",
+      "source": "src/main/resources/stdlib/collections/CollectionsLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "AutoCloseable",
+      "kind": "interface",
+      "module": "collections",
+      "source": "src/main/resources/stdlib/collections/CollectionsLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "Iterable",
+      "kind": "interface",
+      "module": "collections",
+      "source": "src/main/resources/stdlib/collections/CollectionsLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "Iterator",
+      "kind": "interface",
+      "module": "collections",
+      "source": "src/main/resources/stdlib/collections/CollectionsLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "Collection",
+      "kind": "interface",
+      "module": "collections",
+      "source": "src/main/resources/stdlib/collections/CollectionsLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "List",
+      "kind": "interface",
+      "module": "collections",
+      "source": "src/main/resources/stdlib/collections/CollectionsLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "Set",
+      "kind": "interface",
+      "module": "collections",
+      "source": "src/main/resources/stdlib/collections/CollectionsLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "Map",
+      "kind": "interface",
+      "module": "collections",
+      "source": "src/main/resources/stdlib/collections/CollectionsLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "Entry",
+      "kind": "interface",
+      "module": "collections",
+      "source": "src/main/resources/stdlib/collections/CollectionsLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "Queue",
+      "kind": "interface",
+      "module": "collections",
+      "source": "src/main/resources/stdlib/collections/CollectionsLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "Deque",
+      "kind": "interface",
+      "module": "collections",
+      "source": "src/main/resources/stdlib/collections/CollectionsLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "Comparator",
+      "kind": "interface",
+      "module": "collections",
+      "source": "src/main/resources/stdlib/collections/CollectionsLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "Comparable",
+      "kind": "interface",
+      "module": "collections",
+      "source": "src/main/resources/stdlib/collections/CollectionsLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "Consumer",
+      "kind": "interface",
+      "module": "collections",
+      "source": "src/main/resources/stdlib/collections/CollectionsLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "Function",
+      "kind": "interface",
+      "module": "collections",
+      "source": "src/main/resources/stdlib/collections/CollectionsLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "Predicate",
+      "kind": "interface",
+      "module": "collections",
+      "source": "src/main/resources/stdlib/collections/CollectionsLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "Supplier",
+      "kind": "interface",
+      "module": "collections",
+      "source": "src/main/resources/stdlib/collections/CollectionsLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "IntConsumer",
+      "kind": "interface",
+      "module": "collections",
+      "source": "src/main/resources/stdlib/collections/CollectionsLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "IntPredicate",
+      "kind": "interface",
+      "module": "collections",
+      "source": "src/main/resources/stdlib/collections/CollectionsLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "IntSupplier",
+      "kind": "interface",
+      "module": "collections",
+      "source": "src/main/resources/stdlib/collections/CollectionsLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "PoolTask",
+      "kind": "interface",
+      "module": "collections",
+      "source": "src/main/resources/stdlib/collections/CollectionsLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "Executor",
+      "kind": "interface",
+      "module": "collections",
+      "source": "src/main/resources/stdlib/collections/CollectionsLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "CryptoException",
+      "kind": "class",
+      "module": "crypto",
+      "source": "src/main/resources/stdlib/crypto/CryptoLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "CryptoInt",
+      "kind": "class",
+      "module": "crypto",
+      "source": "src/main/resources/stdlib/crypto/CryptoLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "CryptoParse",
+      "kind": "class",
+      "module": "crypto",
+      "source": "src/main/resources/stdlib/crypto/CryptoLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "BitOps",
+      "kind": "class",
+      "module": "crypto",
+      "source": "src/main/resources/stdlib/crypto/CryptoLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "SecureRandomNative",
+      "kind": "class",
+      "module": "crypto",
+      "source": "src/main/resources/stdlib/crypto/CryptoLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "SecureRandom",
+      "kind": "class",
+      "module": "crypto",
+      "source": "src/main/resources/stdlib/crypto/CryptoLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "CryptoHex",
+      "kind": "class",
+      "module": "crypto",
+      "source": "src/main/resources/stdlib/crypto/CryptoLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "CryptoBytes",
+      "kind": "class",
+      "module": "crypto",
+      "source": "src/main/resources/stdlib/crypto/CryptoLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "Base64Codec",
+      "kind": "class",
+      "module": "crypto",
+      "source": "src/main/resources/stdlib/crypto/CryptoLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "ConstantTime",
+      "kind": "class",
+      "module": "crypto",
+      "source": "src/main/resources/stdlib/crypto/CryptoLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "Sha1",
+      "kind": "class",
+      "module": "crypto",
+      "source": "src/main/resources/stdlib/crypto/CryptoLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "Sha256",
+      "kind": "class",
+      "module": "crypto",
+      "source": "src/main/resources/stdlib/crypto/CryptoLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "Hmac",
+      "kind": "class",
+      "module": "crypto",
+      "source": "src/main/resources/stdlib/crypto/CryptoLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "Password",
+      "kind": "class",
+      "module": "crypto",
+      "source": "src/main/resources/stdlib/crypto/CryptoLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "PasswordHashSupplier",
+      "kind": "class",
+      "module": "crypto",
+      "source": "src/main/resources/stdlib/crypto/CryptoLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "PasswordVerifySupplier",
+      "kind": "class",
+      "module": "crypto",
+      "source": "src/main/resources/stdlib/crypto/CryptoLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "JwtClaims",
+      "kind": "class",
+      "module": "crypto",
+      "source": "src/main/resources/stdlib/crypto/CryptoLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "Jwt",
+      "kind": "class",
+      "module": "crypto",
+      "source": "src/main/resources/stdlib/crypto/CryptoLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "WebSocketAccept",
+      "kind": "class",
+      "module": "crypto",
+      "source": "src/main/resources/stdlib/crypto/CryptoLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "DatabaseException",
+      "kind": "class",
+      "module": "db",
+      "source": "src/main/resources/stdlib/db/DbLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "ConnectionException",
+      "kind": "class",
+      "module": "db",
+      "source": "src/main/resources/stdlib/db/DbLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "AuthenticationException",
+      "kind": "class",
+      "module": "db",
+      "source": "src/main/resources/stdlib/db/DbLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "QueryException",
+      "kind": "class",
+      "module": "db",
+      "source": "src/main/resources/stdlib/db/DbLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "ConstraintViolationException",
+      "kind": "class",
+      "module": "db",
+      "source": "src/main/resources/stdlib/db/DbLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "TransactionException",
+      "kind": "class",
+      "module": "db",
+      "source": "src/main/resources/stdlib/db/DbLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "QueryTimeoutException",
+      "kind": "class",
+      "module": "db",
+      "source": "src/main/resources/stdlib/db/DbLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "ConnectionAcquireTimeoutException",
+      "kind": "class",
+      "module": "db",
+      "source": "src/main/resources/stdlib/db/DbLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "DbLoopViolationException",
+      "kind": "class",
+      "module": "db",
+      "source": "src/main/resources/stdlib/db/DbLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "DbByteUtil",
+      "kind": "class",
+      "module": "db",
+      "source": "src/main/resources/stdlib/db/DbLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "DbByteBuffer",
+      "kind": "class",
+      "module": "db",
+      "source": "src/main/resources/stdlib/db/DbLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "DatabaseUrl",
+      "kind": "class",
+      "module": "db",
+      "source": "src/main/resources/stdlib/db/DbLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "DbParseUtil",
+      "kind": "class",
+      "module": "db",
+      "source": "src/main/resources/stdlib/db/DbLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "Row",
+      "kind": "class",
+      "module": "db",
+      "source": "src/main/resources/stdlib/db/DbLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "DbBlobHolder",
+      "kind": "class",
+      "module": "db",
+      "source": "src/main/resources/stdlib/db/DbLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "DbColumnType",
+      "kind": "class",
+      "module": "db",
+      "source": "src/main/resources/stdlib/db/DbLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "DbConnection",
+      "kind": "class",
+      "module": "db",
+      "source": "src/main/resources/stdlib/db/DbLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "DatabaseConfig",
+      "kind": "class",
+      "module": "db",
+      "source": "src/main/resources/stdlib/db/DbLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "DbMetrics",
+      "kind": "class",
+      "module": "db",
+      "source": "src/main/resources/stdlib/db/DbLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "DriverRegistry",
+      "kind": "class",
+      "module": "db",
+      "source": "src/main/resources/stdlib/db/DbLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "DbLoopGuard",
+      "kind": "class",
+      "module": "db",
+      "source": "src/main/resources/stdlib/db/DbLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "FutureBridge",
+      "kind": "class",
+      "module": "db",
+      "source": "src/main/resources/stdlib/db/DbLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "ConnectionPool",
+      "kind": "class",
+      "module": "db",
+      "source": "src/main/resources/stdlib/db/DbLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "PoolAcquireStep",
+      "kind": "class",
+      "module": "db",
+      "source": "src/main/resources/stdlib/db/DbLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "PoolConnectDone",
+      "kind": "class",
+      "module": "db",
+      "source": "src/main/resources/stdlib/db/DbLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "Database",
+      "kind": "class",
+      "module": "db",
+      "source": "src/main/resources/stdlib/db/DbLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "WithConnectionFlatMap",
+      "kind": "class",
+      "module": "db",
+      "source": "src/main/resources/stdlib/db/DbLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "ReleaseAfterWork",
+      "kind": "class",
+      "module": "db",
+      "source": "src/main/resources/stdlib/db/DbLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "PoolQueryAllWork",
+      "kind": "class",
+      "module": "db",
+      "source": "src/main/resources/stdlib/db/DbLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "QueryMetricsCallback",
+      "kind": "class",
+      "module": "db",
+      "source": "src/main/resources/stdlib/db/DbLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "PoolQueryOneWork",
+      "kind": "class",
+      "module": "db",
+      "source": "src/main/resources/stdlib/db/DbLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "PoolExecuteWork",
+      "kind": "class",
+      "module": "db",
+      "source": "src/main/resources/stdlib/db/DbLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "PoolTransactionWork",
+      "kind": "class",
+      "module": "db",
+      "source": "src/main/resources/stdlib/db/DbLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "TransactionFlatMap",
+      "kind": "class",
+      "module": "db",
+      "source": "src/main/resources/stdlib/db/DbLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "TransactionLoopUtil",
+      "kind": "class",
+      "module": "db",
+      "source": "src/main/resources/stdlib/db/DbLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "TransactionRollbackRecover",
+      "kind": "class",
+      "module": "db",
+      "source": "src/main/resources/stdlib/db/DbLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "TransactionCommitMap",
+      "kind": "class",
+      "module": "db",
+      "source": "src/main/resources/stdlib/db/DbLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "TransactionReturnValue",
+      "kind": "class",
+      "module": "db",
+      "source": "src/main/resources/stdlib/db/DbLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "DbQueryResult",
+      "kind": "class",
+      "module": "db",
+      "source": "src/main/resources/stdlib/db/DbLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "DbBootstrap",
+      "kind": "class",
+      "module": "db",
+      "source": "src/main/resources/stdlib/db/DbLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "RowMapper",
+      "kind": "interface",
+      "module": "db",
+      "source": "src/main/resources/stdlib/db/DbLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "TypeCodec",
+      "kind": "interface",
+      "module": "db",
+      "source": "src/main/resources/stdlib/db/DbLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "DatabaseDriver",
+      "kind": "interface",
+      "module": "db",
+      "source": "src/main/resources/stdlib/db/DbLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "DatabaseBackend",
+      "kind": "interface",
+      "module": "db",
+      "source": "src/main/resources/stdlib/db/DbLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "DbTransactionWork",
+      "kind": "interface",
+      "module": "db",
+      "source": "src/main/resources/stdlib/db/DbLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "DbPoolWork",
+      "kind": "interface",
+      "module": "db",
+      "source": "src/main/resources/stdlib/db/DbLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "MigrationRecord",
+      "kind": "class",
+      "module": "db",
+      "source": "src/main/resources/stdlib/db/DbMigrateLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "MigrationFile",
+      "kind": "class",
+      "module": "db",
+      "source": "src/main/resources/stdlib/db/DbMigrateLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "MigrationUtil",
+      "kind": "class",
+      "module": "db",
+      "source": "src/main/resources/stdlib/db/DbMigrateLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "Migrator",
+      "kind": "class",
+      "module": "db",
+      "source": "src/main/resources/stdlib/db/DbMigrateLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "MigrationInsertStep",
+      "kind": "class",
+      "module": "db",
+      "source": "src/main/resources/stdlib/db/DbMigrateLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "SchemaSnapshot",
+      "kind": "class",
+      "module": "db",
+      "source": "src/main/resources/stdlib/db/DbMigrateLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "QueryAnnotation",
+      "kind": "class",
+      "module": "db",
+      "source": "src/main/resources/stdlib/db/DbMigrateLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "PgType",
+      "kind": "class",
+      "module": "db",
+      "source": "src/main/resources/stdlib/db/PgDriverLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "PgMsg",
+      "kind": "class",
+      "module": "db",
+      "source": "src/main/resources/stdlib/db/PgDriverLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "DbPgBootstrap",
+      "kind": "class",
+      "module": "db",
+      "source": "src/main/resources/stdlib/db/PgDriverLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "PgMessage",
+      "kind": "class",
+      "module": "db",
+      "source": "src/main/resources/stdlib/db/PgDriverLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "PgMessageReader",
+      "kind": "class",
+      "module": "db",
+      "source": "src/main/resources/stdlib/db/PgDriverLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "PgErrorInfo",
+      "kind": "class",
+      "module": "db",
+      "source": "src/main/resources/stdlib/db/PgDriverLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "PgHex",
+      "kind": "class",
+      "module": "db",
+      "source": "src/main/resources/stdlib/db/PgDriverLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "PgMd5",
+      "kind": "class",
+      "module": "db",
+      "source": "src/main/resources/stdlib/db/PgDriverLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "PgWire",
+      "kind": "class",
+      "module": "db",
+      "source": "src/main/resources/stdlib/db/PgDriverLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "PgCast",
+      "kind": "class",
+      "module": "db",
+      "source": "src/main/resources/stdlib/db/PgDriverLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "PgBytesParam",
+      "kind": "class",
+      "module": "db",
+      "source": "src/main/resources/stdlib/db/PgDriverLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "PgParam",
+      "kind": "class",
+      "module": "db",
+      "source": "src/main/resources/stdlib/db/PgDriverLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "PgChunk",
+      "kind": "class",
+      "module": "db",
+      "source": "src/main/resources/stdlib/db/PgDriverLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "AsyncTcpReadBytesSupplier",
+      "kind": "class",
+      "module": "db",
+      "source": "src/main/resources/stdlib/db/PgDriverLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "PgSocket",
+      "kind": "class",
+      "module": "db",
+      "source": "src/main/resources/stdlib/db/PgDriverLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "PostgreSQLDriver",
+      "kind": "class",
+      "module": "db",
+      "source": "src/main/resources/stdlib/db/PgDriverLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "PgConnectSupplier",
+      "kind": "class",
+      "module": "db",
+      "source": "src/main/resources/stdlib/db/PgDriverLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "PgConnection",
+      "kind": "class",
+      "module": "db",
+      "source": "src/main/resources/stdlib/db/PgDriverLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "PgQueryState",
+      "kind": "class",
+      "module": "db",
+      "source": "src/main/resources/stdlib/db/PgDriverLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "PgQueryOneMap",
+      "kind": "class",
+      "module": "db",
+      "source": "src/main/resources/stdlib/db/PgDriverLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "PgExecuteMap",
+      "kind": "class",
+      "module": "db",
+      "source": "src/main/resources/stdlib/db/PgDriverLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "PgHandshakeStart",
+      "kind": "class",
+      "module": "db",
+      "source": "src/main/resources/stdlib/db/PgDriverLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "PgQueryStart",
+      "kind": "class",
+      "module": "db",
+      "source": "src/main/resources/stdlib/db/PgDriverLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "PgCloseDone",
+      "kind": "class",
+      "module": "db",
+      "source": "src/main/resources/stdlib/db/PgDriverLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "PgReadLoop",
+      "kind": "class",
+      "module": "db",
+      "source": "src/main/resources/stdlib/db/PgDriverLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "PgRowParser",
+      "kind": "class",
+      "module": "db",
+      "source": "src/main/resources/stdlib/db/PgDriverLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "PgReadChunkCallback",
+      "kind": "class",
+      "module": "db",
+      "source": "src/main/resources/stdlib/db/PgDriverLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "PgAuthWriteCallback",
+      "kind": "class",
+      "module": "db",
+      "source": "src/main/resources/stdlib/db/PgDriverLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "PgProtocolTestKit",
+      "kind": "class",
+      "module": "db",
+      "source": "src/main/resources/stdlib/db/PgDriverLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "Sqlite3Native",
+      "kind": "class",
+      "module": "db",
+      "source": "src/main/resources/stdlib/db/SqliteDriverLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "SqliteConst",
+      "kind": "class",
+      "module": "db",
+      "source": "src/main/resources/stdlib/db/SqliteDriverLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "DbSqliteBootstrap",
+      "kind": "class",
+      "module": "db",
+      "source": "src/main/resources/stdlib/db/SqliteDriverLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "SQLiteDriver",
+      "kind": "class",
+      "module": "db",
+      "source": "src/main/resources/stdlib/db/SqliteDriverLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "SqliteConnectSupplier",
+      "kind": "class",
+      "module": "db",
+      "source": "src/main/resources/stdlib/db/SqliteDriverLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "SQLiteConnection",
+      "kind": "class",
+      "module": "db",
+      "source": "src/main/resources/stdlib/db/SqliteDriverLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "DbBindInt",
+      "kind": "class",
+      "module": "db",
+      "source": "src/main/resources/stdlib/db/SqliteDriverLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "SqliteParam",
+      "kind": "class",
+      "module": "db",
+      "source": "src/main/resources/stdlib/db/SqliteDriverLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "SqliteNativeUtil",
+      "kind": "class",
+      "module": "db",
+      "source": "src/main/resources/stdlib/db/SqliteDriverLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "SqliteQuerySupplier",
+      "kind": "class",
+      "module": "db",
+      "source": "src/main/resources/stdlib/db/SqliteDriverLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "SqliteExecuteSupplier",
+      "kind": "class",
+      "module": "db",
+      "source": "src/main/resources/stdlib/db/SqliteDriverLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "ClipboardNative",
+      "kind": "class",
+      "module": "editor",
+      "source": "src/main/resources/stdlib/editor/ClipboardLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "Clipboard",
+      "kind": "class",
+      "module": "editor",
+      "source": "src/main/resources/stdlib/editor/ClipboardLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "TextPosition",
+      "kind": "class",
+      "module": "editor",
+      "source": "src/main/resources/stdlib/editor/EditorLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "TextRange",
+      "kind": "class",
+      "module": "editor",
+      "source": "src/main/resources/stdlib/editor/EditorLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "DocumentChange",
+      "kind": "class",
+      "module": "editor",
+      "source": "src/main/resources/stdlib/editor/EditorLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "Piece",
+      "kind": "class",
+      "module": "editor",
+      "source": "src/main/resources/stdlib/editor/EditorLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "PieceTable",
+      "kind": "class",
+      "module": "editor",
+      "source": "src/main/resources/stdlib/editor/EditorLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "TextUtil",
+      "kind": "class",
+      "module": "editor",
+      "source": "src/main/resources/stdlib/editor/EditorLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "TextSnapshot",
+      "kind": "class",
+      "module": "editor",
+      "source": "src/main/resources/stdlib/editor/EditorLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "TextDocument",
+      "kind": "class",
+      "module": "editor",
+      "source": "src/main/resources/stdlib/editor/EditorLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "TextEdit",
+      "kind": "class",
+      "module": "editor",
+      "source": "src/main/resources/stdlib/editor/EditorLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "UndoGroup",
+      "kind": "class",
+      "module": "editor",
+      "source": "src/main/resources/stdlib/editor/EditorLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "UndoManager",
+      "kind": "class",
+      "module": "editor",
+      "source": "src/main/resources/stdlib/editor/EditorLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "TextSearch",
+      "kind": "class",
+      "module": "editor",
+      "source": "src/main/resources/stdlib/editor/EditorLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "TokenType",
+      "kind": "class",
+      "module": "editor",
+      "source": "src/main/resources/stdlib/editor/EditorLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "Token",
+      "kind": "class",
+      "module": "editor",
+      "source": "src/main/resources/stdlib/editor/EditorLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "TextStyle",
+      "kind": "class",
+      "module": "editor",
+      "source": "src/main/resources/stdlib/editor/EditorLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "StyledSpan",
+      "kind": "class",
+      "module": "editor",
+      "source": "src/main/resources/stdlib/editor/EditorLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "EditorTheme",
+      "kind": "class",
+      "module": "editor",
+      "source": "src/main/resources/stdlib/editor/EditorLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "JNativeSyntaxTokenizer",
+      "kind": "class",
+      "module": "editor",
+      "source": "src/main/resources/stdlib/editor/EditorLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "EditorDiagnostic",
+      "kind": "class",
+      "module": "editor",
+      "source": "src/main/resources/stdlib/editor/EditorLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "TextSelection",
+      "kind": "class",
+      "module": "editor",
+      "source": "src/main/resources/stdlib/editor/EditorLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "Caret",
+      "kind": "class",
+      "module": "editor",
+      "source": "src/main/resources/stdlib/editor/EditorLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "EditorViewport",
+      "kind": "class",
+      "module": "editor",
+      "source": "src/main/resources/stdlib/editor/EditorLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "ClipboardNative",
+      "kind": "class",
+      "module": "editor",
+      "source": "src/main/resources/stdlib/editor/EditorLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "ProcessNative",
+      "kind": "class",
+      "module": "editor",
+      "source": "src/main/resources/stdlib/editor/EditorLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "ProcessRunner",
+      "kind": "class",
+      "module": "editor",
+      "source": "src/main/resources/stdlib/editor/EditorLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "EditorClock",
+      "kind": "class",
+      "module": "editor",
+      "source": "src/main/resources/stdlib/editor/EditorLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "Clipboard",
+      "kind": "class",
+      "module": "editor",
+      "source": "src/main/resources/stdlib/editor/EditorLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "EditorMetrics",
+      "kind": "class",
+      "module": "editor",
+      "source": "src/main/resources/stdlib/editor/EditorLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "EditorCommand",
+      "kind": "class",
+      "module": "editor",
+      "source": "src/main/resources/stdlib/editor/EditorLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "WordBoundary",
+      "kind": "class",
+      "module": "editor",
+      "source": "src/main/resources/stdlib/editor/EditorLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "FoldRegion",
+      "kind": "class",
+      "module": "editor",
+      "source": "src/main/resources/stdlib/editor/EditorLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "KeyBinding",
+      "kind": "class",
+      "module": "editor",
+      "source": "src/main/resources/stdlib/editor/EditorLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "TextLayout",
+      "kind": "class",
+      "module": "editor",
+      "source": "src/main/resources/stdlib/editor/EditorLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "TextLineLayout",
+      "kind": "class",
+      "module": "editor",
+      "source": "src/main/resources/stdlib/editor/EditorLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "CodeEditor",
+      "kind": "class",
+      "module": "editor",
+      "source": "src/main/resources/stdlib/editor/EditorLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "EditorTest",
+      "kind": "class",
+      "module": "editor",
+      "source": "src/main/resources/stdlib/editor/EditorLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "DocumentChangeListener",
+      "kind": "interface",
+      "module": "editor",
+      "source": "src/main/resources/stdlib/editor/EditorLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "CaretListener",
+      "kind": "interface",
+      "module": "editor",
+      "source": "src/main/resources/stdlib/editor/EditorLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "SelectionListener",
+      "kind": "interface",
+      "module": "editor",
+      "source": "src/main/resources/stdlib/editor/EditorLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "ChunkConsumer",
+      "kind": "interface",
+      "module": "editor",
+      "source": "src/main/resources/stdlib/editor/EditorLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "GraphicsException",
+      "kind": "class",
+      "module": "graphics",
+      "source": "src/main/resources/stdlib/graphics/GraphicsLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "ImageDecodeException",
+      "kind": "class",
+      "module": "graphics",
+      "source": "src/main/resources/stdlib/graphics/GraphicsLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "InvalidGraphicsStateException",
+      "kind": "class",
+      "module": "graphics",
+      "source": "src/main/resources/stdlib/graphics/GraphicsLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "DisposedGraphicsResourceException",
+      "kind": "class",
+      "module": "graphics",
+      "source": "src/main/resources/stdlib/graphics/GraphicsLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "GfxNative",
+      "kind": "class",
+      "module": "graphics",
+      "source": "src/main/resources/stdlib/graphics/GraphicsLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "Color",
+      "kind": "class",
+      "module": "graphics",
+      "source": "src/main/resources/stdlib/graphics/GraphicsLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "Point",
+      "kind": "class",
+      "module": "graphics",
+      "source": "src/main/resources/stdlib/graphics/GraphicsLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "Size",
+      "kind": "class",
+      "module": "graphics",
+      "source": "src/main/resources/stdlib/graphics/GraphicsLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "Rect",
+      "kind": "class",
+      "module": "graphics",
+      "source": "src/main/resources/stdlib/graphics/GraphicsLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "Stroke",
+      "kind": "class",
+      "module": "graphics",
+      "source": "src/main/resources/stdlib/graphics/GraphicsLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "FontStyle",
+      "kind": "class",
+      "module": "graphics",
+      "source": "src/main/resources/stdlib/graphics/GraphicsLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "Font",
+      "kind": "class",
+      "module": "graphics",
+      "source": "src/main/resources/stdlib/graphics/GraphicsLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "FontMetrics",
+      "kind": "class",
+      "module": "graphics",
+      "source": "src/main/resources/stdlib/graphics/GraphicsLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "Path",
+      "kind": "class",
+      "module": "graphics",
+      "source": "src/main/resources/stdlib/graphics/GraphicsLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "Image",
+      "kind": "class",
+      "module": "graphics",
+      "source": "src/main/resources/stdlib/graphics/GraphicsLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "Graphics",
+      "kind": "class",
+      "module": "graphics",
+      "source": "src/main/resources/stdlib/graphics/GraphicsLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "GfxMetrics",
+      "kind": "class",
+      "module": "graphics",
+      "source": "src/main/resources/stdlib/graphics/GraphicsLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "PointF",
+      "kind": "class",
+      "module": "graphics",
+      "source": "src/main/resources/stdlib/graphics/GraphicsLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "SizeF",
+      "kind": "class",
+      "module": "graphics",
+      "source": "src/main/resources/stdlib/graphics/GraphicsLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "RectF",
+      "kind": "class",
+      "module": "graphics",
+      "source": "src/main/resources/stdlib/graphics/GraphicsLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "AffineTransform",
+      "kind": "class",
+      "module": "graphics",
+      "source": "src/main/resources/stdlib/graphics/GraphicsLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "CanvasPaintHook",
+      "kind": "class",
+      "module": "graphics",
+      "source": "src/main/resources/stdlib/graphics/GraphicsLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "CanvasTimerHook",
+      "kind": "class",
+      "module": "graphics",
+      "source": "src/main/resources/stdlib/graphics/GraphicsLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "UiTimerHook",
+      "kind": "class",
+      "module": "graphics",
+      "source": "src/main/resources/stdlib/graphics/GraphicsLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "Canvas",
+      "kind": "class",
+      "module": "graphics",
+      "source": "src/main/resources/stdlib/graphics/GraphicsLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "UiTimer",
+      "kind": "class",
+      "module": "graphics",
+      "source": "src/main/resources/stdlib/graphics/GraphicsLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "PaintHandler",
+      "kind": "interface",
+      "module": "graphics",
+      "source": "src/main/resources/stdlib/graphics/GraphicsLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "FrameHandler",
+      "kind": "interface",
+      "module": "graphics",
+      "source": "src/main/resources/stdlib/graphics/GraphicsLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "Http2Error",
+      "kind": "class",
+      "module": "http",
+      "source": "src/main/resources/stdlib/http/Http2Lib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "Http2FrameType",
+      "kind": "class",
+      "module": "http",
+      "source": "src/main/resources/stdlib/http/Http2Lib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "Http2Frame",
+      "kind": "class",
+      "module": "http",
+      "source": "src/main/resources/stdlib/http/Http2Lib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "Http2Bits",
+      "kind": "class",
+      "module": "http",
+      "source": "src/main/resources/stdlib/http/Http2Lib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "Http2Codec",
+      "kind": "class",
+      "module": "http",
+      "source": "src/main/resources/stdlib/http/Http2Lib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "HpackEncoder",
+      "kind": "class",
+      "module": "http",
+      "source": "src/main/resources/stdlib/http/Http2Lib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "Http2Client",
+      "kind": "class",
+      "module": "http",
+      "source": "src/main/resources/stdlib/http/Http2Lib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "HpackDecoder",
+      "kind": "class",
+      "module": "http",
+      "source": "src/main/resources/stdlib/http/Http2Lib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "Http2Connection",
+      "kind": "class",
+      "module": "http",
+      "source": "src/main/resources/stdlib/http/Http2Lib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "HpackResponse",
+      "kind": "class",
+      "module": "http",
+      "source": "src/main/resources/stdlib/http/Http2Lib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "HttpException",
+      "kind": "class",
+      "module": "http",
+      "source": "src/main/resources/stdlib/http/HttpLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "HttpProtocolException",
+      "kind": "class",
+      "module": "http",
+      "source": "src/main/resources/stdlib/http/HttpLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "InvalidUrlException",
+      "kind": "class",
+      "module": "http",
+      "source": "src/main/resources/stdlib/http/HttpLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "UnsupportedSchemeException",
+      "kind": "class",
+      "module": "http",
+      "source": "src/main/resources/stdlib/http/HttpLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "HttpUrl",
+      "kind": "class",
+      "module": "http",
+      "source": "src/main/resources/stdlib/http/HttpLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "HttpHeaders",
+      "kind": "class",
+      "module": "http",
+      "source": "src/main/resources/stdlib/http/HttpLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "ByteBuf",
+      "kind": "class",
+      "module": "http",
+      "source": "src/main/resources/stdlib/http/HttpLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "HttpUtil",
+      "kind": "class",
+      "module": "http",
+      "source": "src/main/resources/stdlib/http/HttpLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "HttpRequest",
+      "kind": "class",
+      "module": "http",
+      "source": "src/main/resources/stdlib/http/HttpLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "HttpResponse",
+      "kind": "class",
+      "module": "http",
+      "source": "src/main/resources/stdlib/http/HttpLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "HttpPoolKey",
+      "kind": "class",
+      "module": "http",
+      "source": "src/main/resources/stdlib/http/HttpLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "HttpPooledConn",
+      "kind": "class",
+      "module": "http",
+      "source": "src/main/resources/stdlib/http/HttpLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "HttpConnectionPool",
+      "kind": "class",
+      "module": "http",
+      "source": "src/main/resources/stdlib/http/HttpLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "HttpClient",
+      "kind": "class",
+      "module": "http",
+      "source": "src/main/resources/stdlib/http/HttpLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "HttpServerRequest",
+      "kind": "class",
+      "module": "http",
+      "source": "src/main/resources/stdlib/http/HttpLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "HttpConnection",
+      "kind": "class",
+      "module": "http",
+      "source": "src/main/resources/stdlib/http/HttpLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "HttpServer",
+      "kind": "class",
+      "module": "http",
+      "source": "src/main/resources/stdlib/http/HttpLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "FsNative",
+      "kind": "class",
+      "module": "io",
+      "source": "src/main/resources/stdlib/io/IoLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "StandardOpenOption",
+      "kind": "class",
+      "module": "io",
+      "source": "src/main/resources/stdlib/io/IoLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "ProcNative",
+      "kind": "class",
+      "module": "io",
+      "source": "src/main/resources/stdlib/io/IoLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "FsPath",
+      "kind": "class",
+      "module": "io",
+      "source": "src/main/resources/stdlib/io/IoLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "Files",
+      "kind": "class",
+      "module": "io",
+      "source": "src/main/resources/stdlib/io/IoLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "FileInfo",
+      "kind": "class",
+      "module": "io",
+      "source": "src/main/resources/stdlib/io/IoLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "FileTypes",
+      "kind": "class",
+      "module": "io",
+      "source": "src/main/resources/stdlib/io/IoLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "FileSize",
+      "kind": "class",
+      "module": "io",
+      "source": "src/main/resources/stdlib/io/IoLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "DriveInfo",
+      "kind": "class",
+      "module": "io",
+      "source": "src/main/resources/stdlib/io/IoLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "FileSystem",
+      "kind": "class",
+      "module": "io",
+      "source": "src/main/resources/stdlib/io/IoLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "SystemPaths",
+      "kind": "class",
+      "module": "io",
+      "source": "src/main/resources/stdlib/io/IoLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "WatchKind",
+      "kind": "class",
+      "module": "io",
+      "source": "src/main/resources/stdlib/io/IoLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "WatchService",
+      "kind": "class",
+      "module": "io",
+      "source": "src/main/resources/stdlib/io/IoLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "IoUtil",
+      "kind": "class",
+      "module": "io",
+      "source": "src/main/resources/stdlib/io/IoLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "ProcessBuilder",
+      "kind": "class",
+      "module": "io",
+      "source": "src/main/resources/stdlib/io/IoLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "Process",
+      "kind": "class",
+      "module": "io",
+      "source": "src/main/resources/stdlib/io/IoLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "Desktop",
+      "kind": "class",
+      "module": "io",
+      "source": "src/main/resources/stdlib/io/IoLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "EnvNative",
+      "kind": "class",
+      "module": "io",
+      "source": "src/main/resources/stdlib/io/IoLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "Env",
+      "kind": "class",
+      "module": "io",
+      "source": "src/main/resources/stdlib/io/IoLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "CpuInfo",
+      "kind": "class",
+      "module": "io",
+      "source": "src/main/resources/stdlib/io/IoLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "HostPlatform",
+      "kind": "class",
+      "module": "io",
+      "source": "src/main/resources/stdlib/io/IoLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "UserPreferencesStore",
+      "kind": "class",
+      "module": "io",
+      "source": "src/main/resources/stdlib/io/IoLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "Logger",
+      "kind": "class",
+      "module": "io",
+      "source": "src/main/resources/stdlib/io/IoLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "Resources",
+      "kind": "class",
+      "module": "io",
+      "source": "src/main/resources/stdlib/io/IoLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "CancellationToken",
+      "kind": "class",
+      "module": "io",
+      "source": "src/main/resources/stdlib/io/IoLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "FileWatcher",
+      "kind": "class",
+      "module": "io",
+      "source": "src/main/resources/stdlib/io/IoLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "BufferException",
+      "kind": "class",
+      "module": "io",
+      "source": "src/main/resources/stdlib/io/StreamLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "BufferOverflowException",
+      "kind": "class",
+      "module": "io",
+      "source": "src/main/resources/stdlib/io/StreamLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "BufferUnderflowException",
+      "kind": "class",
+      "module": "io",
+      "source": "src/main/resources/stdlib/io/StreamLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "ByteBuffer",
+      "kind": "class",
+      "module": "io",
+      "source": "src/main/resources/stdlib/io/StreamLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "ByteBufferPool",
+      "kind": "class",
+      "module": "io",
+      "source": "src/main/resources/stdlib/io/StreamLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "StreamNative",
+      "kind": "class",
+      "module": "io",
+      "source": "src/main/resources/stdlib/io/StreamLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "InputStream",
+      "kind": "class",
+      "module": "io",
+      "source": "src/main/resources/stdlib/io/StreamLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "OutputStream",
+      "kind": "class",
+      "module": "io",
+      "source": "src/main/resources/stdlib/io/StreamLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "ByteArrayInputStream",
+      "kind": "class",
+      "module": "io",
+      "source": "src/main/resources/stdlib/io/StreamLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "ByteArrayOutputStream",
+      "kind": "class",
+      "module": "io",
+      "source": "src/main/resources/stdlib/io/StreamLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "FileInputStream",
+      "kind": "class",
+      "module": "io",
+      "source": "src/main/resources/stdlib/io/StreamLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "FileOutputStream",
+      "kind": "class",
+      "module": "io",
+      "source": "src/main/resources/stdlib/io/StreamLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "BufferedInputStream",
+      "kind": "class",
+      "module": "io",
+      "source": "src/main/resources/stdlib/io/StreamLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "BufferedOutputStream",
+      "kind": "class",
+      "module": "io",
+      "source": "src/main/resources/stdlib/io/StreamLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "InputStreamReader",
+      "kind": "class",
+      "module": "io",
+      "source": "src/main/resources/stdlib/io/StreamLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "OutputStreamWriter",
+      "kind": "class",
+      "module": "io",
+      "source": "src/main/resources/stdlib/io/StreamLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "Reader",
+      "kind": "class",
+      "module": "io",
+      "source": "src/main/resources/stdlib/io/StreamLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "Writer",
+      "kind": "class",
+      "module": "io",
+      "source": "src/main/resources/stdlib/io/StreamLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "BufferedReader",
+      "kind": "class",
+      "module": "io",
+      "source": "src/main/resources/stdlib/io/StreamLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "BufferedWriter",
+      "kind": "class",
+      "module": "io",
+      "source": "src/main/resources/stdlib/io/StreamLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "JsonValue",
+      "kind": "class",
+      "module": "json",
+      "source": "src/main/resources/stdlib/json/JsonLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "JsonNull",
+      "kind": "class",
+      "module": "json",
+      "source": "src/main/resources/stdlib/json/JsonLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "JsonBoolean",
+      "kind": "class",
+      "module": "json",
+      "source": "src/main/resources/stdlib/json/JsonLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "JsonNumber",
+      "kind": "class",
+      "module": "json",
+      "source": "src/main/resources/stdlib/json/JsonLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "JsonString",
+      "kind": "class",
+      "module": "json",
+      "source": "src/main/resources/stdlib/json/JsonLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "JsonArray",
+      "kind": "class",
+      "module": "json",
+      "source": "src/main/resources/stdlib/json/JsonLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "JsonObject",
+      "kind": "class",
+      "module": "json",
+      "source": "src/main/resources/stdlib/json/JsonLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "JsonParser",
+      "kind": "class",
+      "module": "json",
+      "source": "src/main/resources/stdlib/json/JsonLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "JsonUtil",
+      "kind": "class",
+      "module": "json",
+      "source": "src/main/resources/stdlib/json/JsonLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "JsonWriter",
+      "kind": "class",
+      "module": "json",
+      "source": "src/main/resources/stdlib/json/JsonLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "Json",
+      "kind": "class",
+      "module": "json",
+      "source": "src/main/resources/stdlib/json/JsonLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "JsonParseInt",
+      "kind": "class",
+      "module": "json",
+      "source": "src/main/resources/stdlib/json/JsonLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "JsonParseLong",
+      "kind": "class",
+      "module": "json",
+      "source": "src/main/resources/stdlib/json/JsonLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "JsonCodec",
+      "kind": "interface",
+      "module": "json",
+      "source": "src/main/resources/stdlib/json/JsonLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "DecimalException",
+      "kind": "class",
+      "module": "math",
+      "source": "src/main/resources/stdlib/math/DecimalLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "Decimal",
+      "kind": "class",
+      "module": "math",
+      "source": "src/main/resources/stdlib/math/DecimalLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "DecimalDigits",
+      "kind": "class",
+      "module": "math",
+      "source": "src/main/resources/stdlib/math/DecimalLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "DoubleParse",
+      "kind": "class",
+      "module": "math",
+      "source": "src/main/resources/stdlib/math/DecimalLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "Math",
+      "kind": "class",
+      "module": "math",
+      "source": "src/main/resources/stdlib/math/MathLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "NetNative",
+      "kind": "class",
+      "module": "net",
+      "source": "src/main/resources/stdlib/net/NetLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "IPAddress",
+      "kind": "class",
+      "module": "net",
+      "source": "src/main/resources/stdlib/net/NetLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "SocketAddress",
+      "kind": "class",
+      "module": "net",
+      "source": "src/main/resources/stdlib/net/NetLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "DnsResolver",
+      "kind": "class",
+      "module": "net",
+      "source": "src/main/resources/stdlib/net/NetLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "UdpSocket",
+      "kind": "class",
+      "module": "net",
+      "source": "src/main/resources/stdlib/net/NetLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "RpcException",
+      "kind": "class",
+      "module": "rpc",
+      "source": "src/main/resources/stdlib/rpc/RpcLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "RpcUnauthorizedException",
+      "kind": "class",
+      "module": "rpc",
+      "source": "src/main/resources/stdlib/rpc/RpcLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "RpcForbiddenException",
+      "kind": "class",
+      "module": "rpc",
+      "source": "src/main/resources/stdlib/rpc/RpcLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "RpcRemoteException",
+      "kind": "class",
+      "module": "rpc",
+      "source": "src/main/resources/stdlib/rpc/RpcLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "RpcTransportException",
+      "kind": "class",
+      "module": "rpc",
+      "source": "src/main/resources/stdlib/rpc/RpcLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "RpcProtocolException",
+      "kind": "class",
+      "module": "rpc",
+      "source": "src/main/resources/stdlib/rpc/RpcLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "RpcTimeoutException",
+      "kind": "class",
+      "module": "rpc",
+      "source": "src/main/resources/stdlib/rpc/RpcLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "RpcContext",
+      "kind": "class",
+      "module": "rpc",
+      "source": "src/main/resources/stdlib/rpc/RpcLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "RpcRuntime",
+      "kind": "class",
+      "module": "rpc",
+      "source": "src/main/resources/stdlib/rpc/RpcLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "RpcEnvelope",
+      "kind": "class",
+      "module": "rpc",
+      "source": "src/main/resources/stdlib/rpc/RpcLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "RpcHttp",
+      "kind": "class",
+      "module": "rpc",
+      "source": "src/main/resources/stdlib/rpc/RpcLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "ProjectNodeKind",
+      "kind": "class",
+      "module": "studio",
+      "source": "src/main/resources/stdlib/studio/StudioLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "ProjectNode",
+      "kind": "class",
+      "module": "studio",
+      "source": "src/main/resources/stdlib/studio/StudioLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "Project",
+      "kind": "class",
+      "module": "studio",
+      "source": "src/main/resources/stdlib/studio/StudioLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "EditorTab",
+      "kind": "class",
+      "module": "studio",
+      "source": "src/main/resources/stdlib/studio/StudioLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "ConsoleBuffer",
+      "kind": "class",
+      "module": "studio",
+      "source": "src/main/resources/stdlib/studio/StudioLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "StudioDiagnostic",
+      "kind": "class",
+      "module": "studio",
+      "source": "src/main/resources/stdlib/studio/StudioLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "BuildState",
+      "kind": "class",
+      "module": "studio",
+      "source": "src/main/resources/stdlib/studio/StudioLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "RunConfiguration",
+      "kind": "class",
+      "module": "studio",
+      "source": "src/main/resources/stdlib/studio/StudioLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "SearchMatch",
+      "kind": "class",
+      "module": "studio",
+      "source": "src/main/resources/stdlib/studio/StudioLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "CompletionItem",
+      "kind": "class",
+      "module": "studio",
+      "source": "src/main/resources/stdlib/studio/StudioLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "StudioCommand",
+      "kind": "class",
+      "module": "studio",
+      "source": "src/main/resources/stdlib/studio/StudioLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "StudioCommandRegistry",
+      "kind": "class",
+      "module": "studio",
+      "source": "src/main/resources/stdlib/studio/StudioLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "StudioSettings",
+      "kind": "class",
+      "module": "studio",
+      "source": "src/main/resources/stdlib/studio/StudioLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "StudioSymbol",
+      "kind": "class",
+      "module": "studio",
+      "source": "src/main/resources/stdlib/studio/StudioLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "CompletionService",
+      "kind": "class",
+      "module": "studio",
+      "source": "src/main/resources/stdlib/studio/StudioLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "WorkspaceIndex",
+      "kind": "class",
+      "module": "studio",
+      "source": "src/main/resources/stdlib/studio/StudioLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "StudioApplication",
+      "kind": "class",
+      "module": "studio",
+      "source": "src/main/resources/stdlib/studio/StudioLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "StudioHolder",
+      "kind": "class",
+      "module": "studio",
+      "source": "src/main/resources/stdlib/studio/StudioLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "ProjectTreeModel",
+      "kind": "class",
+      "module": "studio",
+      "source": "src/main/resources/stdlib/studio/StudioLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "ProjectNodeRenderer",
+      "kind": "class",
+      "module": "studio",
+      "source": "src/main/resources/stdlib/studio/StudioLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "StudioVersion",
+      "kind": "class",
+      "module": "studio",
+      "source": "src/main/resources/stdlib/studio/StudioLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "StudioUtil",
+      "kind": "class",
+      "module": "studio",
+      "source": "src/main/resources/stdlib/studio/StudioLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "StudioActions",
+      "kind": "class",
+      "module": "studio",
+      "source": "src/main/resources/stdlib/studio/StudioLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "StudioBuildWorker",
+      "kind": "class",
+      "module": "studio",
+      "source": "src/main/resources/stdlib/studio/StudioLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "StudioRunWorker",
+      "kind": "class",
+      "module": "studio",
+      "source": "src/main/resources/stdlib/studio/StudioLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "StudioSearchWorker",
+      "kind": "class",
+      "module": "studio",
+      "source": "src/main/resources/stdlib/studio/StudioLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "BuildThread",
+      "kind": "class",
+      "module": "studio",
+      "source": "src/main/resources/stdlib/studio/StudioLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "RunThread",
+      "kind": "class",
+      "module": "studio",
+      "source": "src/main/resources/stdlib/studio/StudioLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "SearchThread",
+      "kind": "class",
+      "module": "studio",
+      "source": "src/main/resources/stdlib/studio/StudioLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "TimeClockNative",
+      "kind": "class",
+      "module": "time",
+      "source": "src/main/resources/stdlib/time/TimeLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "TimeFmt",
+      "kind": "class",
+      "module": "time",
+      "source": "src/main/resources/stdlib/time/TimeLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "Instant",
+      "kind": "class",
+      "module": "time",
+      "source": "src/main/resources/stdlib/time/TimeLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "Duration",
+      "kind": "class",
+      "module": "time",
+      "source": "src/main/resources/stdlib/time/TimeLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "ZoneOffset",
+      "kind": "class",
+      "module": "time",
+      "source": "src/main/resources/stdlib/time/TimeLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "ZoneId",
+      "kind": "class",
+      "module": "time",
+      "source": "src/main/resources/stdlib/time/TimeLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "Clock",
+      "kind": "class",
+      "module": "time",
+      "source": "src/main/resources/stdlib/time/TimeLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "CivilDate",
+      "kind": "class",
+      "module": "time",
+      "source": "src/main/resources/stdlib/time/TimeLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "LocalDate",
+      "kind": "class",
+      "module": "time",
+      "source": "src/main/resources/stdlib/time/TimeLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "LocalTime",
+      "kind": "class",
+      "module": "time",
+      "source": "src/main/resources/stdlib/time/TimeLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "LocalDateTime",
+      "kind": "class",
+      "module": "time",
+      "source": "src/main/resources/stdlib/time/TimeLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "ZonedDateTime",
+      "kind": "class",
+      "module": "time",
+      "source": "src/main/resources/stdlib/time/TimeLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "DateTimeFormatter",
+      "kind": "class",
+      "module": "time",
+      "source": "src/main/resources/stdlib/time/TimeLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "UUID",
+      "kind": "class",
+      "module": "time",
+      "source": "src/main/resources/stdlib/time/TimeLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "TlsException",
+      "kind": "class",
+      "module": "tls",
+      "source": "src/main/resources/stdlib/tls/TlsLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "TlsHandshakeException",
+      "kind": "class",
+      "module": "tls",
+      "source": "src/main/resources/stdlib/tls/TlsLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "TlsCertificateException",
+      "kind": "class",
+      "module": "tls",
+      "source": "src/main/resources/stdlib/tls/TlsLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "TlsWant",
+      "kind": "class",
+      "module": "tls",
+      "source": "src/main/resources/stdlib/tls/TlsLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "TlsNative",
+      "kind": "class",
+      "module": "tls",
+      "source": "src/main/resources/stdlib/tls/TlsLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "TlsConfig",
+      "kind": "class",
+      "module": "tls",
+      "source": "src/main/resources/stdlib/tls/TlsLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "TlsContext",
+      "kind": "class",
+      "module": "tls",
+      "source": "src/main/resources/stdlib/tls/TlsLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "TlsConnection",
+      "kind": "class",
+      "module": "tls",
+      "source": "src/main/resources/stdlib/tls/TlsLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "ObsChangeEvent",
+      "kind": "class",
+      "module": "ui",
+      "source": "src/main/resources/stdlib/ui/BindingLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "ObsSubscription",
+      "kind": "class",
+      "module": "ui",
+      "source": "src/main/resources/stdlib/ui/BindingLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "ObservableValue",
+      "kind": "class",
+      "module": "ui",
+      "source": "src/main/resources/stdlib/ui/BindingLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "ObservableInt",
+      "kind": "class",
+      "module": "ui",
+      "source": "src/main/resources/stdlib/ui/BindingLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "BindingScope",
+      "kind": "class",
+      "module": "ui",
+      "source": "src/main/resources/stdlib/ui/BindingLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "BindingHandle",
+      "kind": "class",
+      "module": "ui",
+      "source": "src/main/resources/stdlib/ui/BindingLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "Bindings",
+      "kind": "class",
+      "module": "ui",
+      "source": "src/main/resources/stdlib/ui/BindingLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "FieldState",
+      "kind": "class",
+      "module": "ui",
+      "source": "src/main/resources/stdlib/ui/BindingLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "RequiredRule",
+      "kind": "class",
+      "module": "ui",
+      "source": "src/main/resources/stdlib/ui/BindingLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "LengthRule",
+      "kind": "class",
+      "module": "ui",
+      "source": "src/main/resources/stdlib/ui/BindingLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "CompositeControl",
+      "kind": "class",
+      "module": "ui",
+      "source": "src/main/resources/stdlib/ui/BindingLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "DecimalFieldModel",
+      "kind": "class",
+      "module": "ui",
+      "source": "src/main/resources/stdlib/ui/BindingLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "StringFieldModel",
+      "kind": "class",
+      "module": "ui",
+      "source": "src/main/resources/stdlib/ui/BindingLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "FormModel",
+      "kind": "class",
+      "module": "ui",
+      "source": "src/main/resources/stdlib/ui/BindingLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "ObsListener",
+      "kind": "interface",
+      "module": "ui",
+      "source": "src/main/resources/stdlib/ui/BindingLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "FieldRule",
+      "kind": "interface",
+      "module": "ui",
+      "source": "src/main/resources/stdlib/ui/BindingLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "CrossFieldRule",
+      "kind": "interface",
+      "module": "ui",
+      "source": "src/main/resources/stdlib/ui/BindingLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "UiException",
+      "kind": "class",
+      "module": "ui",
+      "source": "src/main/resources/stdlib/ui/UiLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "UiNativeException",
+      "kind": "class",
+      "module": "ui",
+      "source": "src/main/resources/stdlib/ui/UiLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "UiThreadViolationException",
+      "kind": "class",
+      "module": "ui",
+      "source": "src/main/resources/stdlib/ui/UiLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "DisposedComponentException",
+      "kind": "class",
+      "module": "ui",
+      "source": "src/main/resources/stdlib/ui/UiLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "Orientation",
+      "kind": "class",
+      "module": "ui",
+      "source": "src/main/resources/stdlib/ui/UiLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "KeyCode",
+      "kind": "class",
+      "module": "ui",
+      "source": "src/main/resources/stdlib/ui/UiLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "KeyCombination",
+      "kind": "class",
+      "module": "ui",
+      "source": "src/main/resources/stdlib/ui/UiLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "UiNative",
+      "kind": "class",
+      "module": "ui",
+      "source": "src/main/resources/stdlib/ui/UiLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "UiHandleRegistry",
+      "kind": "class",
+      "module": "ui",
+      "source": "src/main/resources/stdlib/ui/UiLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "UiTaskQueue",
+      "kind": "class",
+      "module": "ui",
+      "source": "src/main/resources/stdlib/ui/UiLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "UiCoalesce",
+      "kind": "class",
+      "module": "ui",
+      "source": "src/main/resources/stdlib/ui/UiLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "UiMetrics",
+      "kind": "class",
+      "module": "ui",
+      "source": "src/main/resources/stdlib/ui/UiLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "UiEvent",
+      "kind": "class",
+      "module": "ui",
+      "source": "src/main/resources/stdlib/ui/UiLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "ActionEvent",
+      "kind": "class",
+      "module": "ui",
+      "source": "src/main/resources/stdlib/ui/UiLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "UiSubscription",
+      "kind": "class",
+      "module": "ui",
+      "source": "src/main/resources/stdlib/ui/UiLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "ValueChangeEvent",
+      "kind": "class",
+      "module": "ui",
+      "source": "src/main/resources/stdlib/ui/UiLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "SelectionEvent",
+      "kind": "class",
+      "module": "ui",
+      "source": "src/main/resources/stdlib/ui/UiLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "MouseEvent",
+      "kind": "class",
+      "module": "ui",
+      "source": "src/main/resources/stdlib/ui/UiLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "KeyEvent",
+      "kind": "class",
+      "module": "ui",
+      "source": "src/main/resources/stdlib/ui/UiLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "FocusEvent",
+      "kind": "class",
+      "module": "ui",
+      "source": "src/main/resources/stdlib/ui/UiLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "WindowEvent",
+      "kind": "class",
+      "module": "ui",
+      "source": "src/main/resources/stdlib/ui/UiLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "ArrayListListModel",
+      "kind": "class",
+      "module": "ui",
+      "source": "src/main/resources/stdlib/ui/UiLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "SelectionModel",
+      "kind": "class",
+      "module": "ui",
+      "source": "src/main/resources/stdlib/ui/UiLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "Application",
+      "kind": "class",
+      "module": "ui",
+      "source": "src/main/resources/stdlib/ui/UiLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "Component",
+      "kind": "class",
+      "module": "ui",
+      "source": "src/main/resources/stdlib/ui/UiLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "Control",
+      "kind": "class",
+      "module": "ui",
+      "source": "src/main/resources/stdlib/ui/UiLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "Container",
+      "kind": "class",
+      "module": "ui",
+      "source": "src/main/resources/stdlib/ui/UiLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "Panel",
+      "kind": "class",
+      "module": "ui",
+      "source": "src/main/resources/stdlib/ui/UiLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "VBox",
+      "kind": "class",
+      "module": "ui",
+      "source": "src/main/resources/stdlib/ui/UiLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "HBox",
+      "kind": "class",
+      "module": "ui",
+      "source": "src/main/resources/stdlib/ui/UiLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "GridPane",
+      "kind": "class",
+      "module": "ui",
+      "source": "src/main/resources/stdlib/ui/UiLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "StackPane",
+      "kind": "class",
+      "module": "ui",
+      "source": "src/main/resources/stdlib/ui/UiLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "ScrollView",
+      "kind": "class",
+      "module": "ui",
+      "source": "src/main/resources/stdlib/ui/UiLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "Tab",
+      "kind": "class",
+      "module": "ui",
+      "source": "src/main/resources/stdlib/ui/UiLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "TabPane",
+      "kind": "class",
+      "module": "ui",
+      "source": "src/main/resources/stdlib/ui/UiLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "SplitPane",
+      "kind": "class",
+      "module": "ui",
+      "source": "src/main/resources/stdlib/ui/UiLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "Label",
+      "kind": "class",
+      "module": "ui",
+      "source": "src/main/resources/stdlib/ui/UiLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "Button",
+      "kind": "class",
+      "module": "ui",
+      "source": "src/main/resources/stdlib/ui/UiLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "TextField",
+      "kind": "class",
+      "module": "ui",
+      "source": "src/main/resources/stdlib/ui/UiLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "TextArea",
+      "kind": "class",
+      "module": "ui",
+      "source": "src/main/resources/stdlib/ui/UiLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "ProgressBar",
+      "kind": "class",
+      "module": "ui",
+      "source": "src/main/resources/stdlib/ui/UiLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "CheckBox",
+      "kind": "class",
+      "module": "ui",
+      "source": "src/main/resources/stdlib/ui/UiLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "SegmentedControl",
+      "kind": "class",
+      "module": "ui",
+      "source": "src/main/resources/stdlib/ui/UiLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "RadioButton",
+      "kind": "class",
+      "module": "ui",
+      "source": "src/main/resources/stdlib/ui/UiLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "ToggleGroup",
+      "kind": "class",
+      "module": "ui",
+      "source": "src/main/resources/stdlib/ui/UiLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "ComboBox",
+      "kind": "class",
+      "module": "ui",
+      "source": "src/main/resources/stdlib/ui/UiLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "ListView",
+      "kind": "class",
+      "module": "ui",
+      "source": "src/main/resources/stdlib/ui/UiLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "TableColumn",
+      "kind": "class",
+      "module": "ui",
+      "source": "src/main/resources/stdlib/ui/UiLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "UiStrings",
+      "kind": "class",
+      "module": "ui",
+      "source": "src/main/resources/stdlib/ui/UiLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "TableColumnDef",
+      "kind": "class",
+      "module": "ui",
+      "source": "src/main/resources/stdlib/ui/UiLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "TableView",
+      "kind": "class",
+      "module": "ui",
+      "source": "src/main/resources/stdlib/ui/UiLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "TreeNode",
+      "kind": "class",
+      "module": "ui",
+      "source": "src/main/resources/stdlib/ui/UiLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "TreeView",
+      "kind": "class",
+      "module": "ui",
+      "source": "src/main/resources/stdlib/ui/UiLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "MenuItem",
+      "kind": "class",
+      "module": "ui",
+      "source": "src/main/resources/stdlib/ui/UiLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "SeparatorMenuItem",
+      "kind": "class",
+      "module": "ui",
+      "source": "src/main/resources/stdlib/ui/UiLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "Menu",
+      "kind": "class",
+      "module": "ui",
+      "source": "src/main/resources/stdlib/ui/UiLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "MenuBar",
+      "kind": "class",
+      "module": "ui",
+      "source": "src/main/resources/stdlib/ui/UiLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "ContextMenu",
+      "kind": "class",
+      "module": "ui",
+      "source": "src/main/resources/stdlib/ui/UiLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "Dialogs",
+      "kind": "class",
+      "module": "ui",
+      "source": "src/main/resources/stdlib/ui/UiLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "FileDialog",
+      "kind": "class",
+      "module": "ui",
+      "source": "src/main/resources/stdlib/ui/UiLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "DirectoryDialog",
+      "kind": "class",
+      "module": "ui",
+      "source": "src/main/resources/stdlib/ui/UiLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "PopupWindow",
+      "kind": "class",
+      "module": "ui",
+      "source": "src/main/resources/stdlib/ui/UiLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "Window",
+      "kind": "class",
+      "module": "ui",
+      "source": "src/main/resources/stdlib/ui/UiLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "Theme",
+      "kind": "class",
+      "module": "ui",
+      "source": "src/main/resources/stdlib/ui/UiLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "UiThread",
+      "kind": "class",
+      "module": "ui",
+      "source": "src/main/resources/stdlib/ui/UiLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "Point",
+      "kind": "class",
+      "module": "ui",
+      "source": "src/main/resources/stdlib/ui/UiLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "Size",
+      "kind": "class",
+      "module": "ui",
+      "source": "src/main/resources/stdlib/ui/UiLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "Rect",
+      "kind": "class",
+      "module": "ui",
+      "source": "src/main/resources/stdlib/ui/UiLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "Insets",
+      "kind": "class",
+      "module": "ui",
+      "source": "src/main/resources/stdlib/ui/UiLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "Dpi",
+      "kind": "class",
+      "module": "ui",
+      "source": "src/main/resources/stdlib/ui/UiLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "Toolbar",
+      "kind": "class",
+      "module": "ui",
+      "source": "src/main/resources/stdlib/ui/UiLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "UiPlatform",
+      "kind": "class",
+      "module": "ui",
+      "source": "src/main/resources/stdlib/ui/UiLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "TrendChart",
+      "kind": "class",
+      "module": "ui",
+      "source": "src/main/resources/stdlib/ui/UiLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "BreadcrumbBar",
+      "kind": "class",
+      "module": "ui",
+      "source": "src/main/resources/stdlib/ui/UiLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "FocusManager",
+      "kind": "class",
+      "module": "ui",
+      "source": "src/main/resources/stdlib/ui/UiLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "FocusTraversal",
+      "kind": "class",
+      "module": "ui",
+      "source": "src/main/resources/stdlib/ui/UiLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "VirtualListMetrics",
+      "kind": "class",
+      "module": "ui",
+      "source": "src/main/resources/stdlib/ui/UiLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "SystemIcons",
+      "kind": "class",
+      "module": "ui",
+      "source": "src/main/resources/stdlib/ui/UiLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "Command",
+      "kind": "class",
+      "module": "ui",
+      "source": "src/main/resources/stdlib/ui/UiLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "CommandRegistry",
+      "kind": "class",
+      "module": "ui",
+      "source": "src/main/resources/stdlib/ui/UiLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "AppMenus",
+      "kind": "class",
+      "module": "ui",
+      "source": "src/main/resources/stdlib/ui/UiLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "ShortcutManager",
+      "kind": "class",
+      "module": "ui",
+      "source": "src/main/resources/stdlib/ui/UiLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "SearchField",
+      "kind": "class",
+      "module": "ui",
+      "source": "src/main/resources/stdlib/ui/UiLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "UiTest",
+      "kind": "class",
+      "module": "ui",
+      "source": "src/main/resources/stdlib/ui/UiLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "UiTestHarness",
+      "kind": "class",
+      "module": "ui",
+      "source": "src/main/resources/stdlib/ui/UiLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "EventHandler",
+      "kind": "interface",
+      "module": "ui",
+      "source": "src/main/resources/stdlib/ui/UiLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "UiHook",
+      "kind": "interface",
+      "module": "ui",
+      "source": "src/main/resources/stdlib/ui/UiLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "CellRenderer",
+      "kind": "interface",
+      "module": "ui",
+      "source": "src/main/resources/stdlib/ui/UiLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "ListModel",
+      "kind": "interface",
+      "module": "ui",
+      "source": "src/main/resources/stdlib/ui/UiLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "TreeModel",
+      "kind": "interface",
+      "module": "ui",
+      "source": "src/main/resources/stdlib/ui/UiLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "ColumnRenderer",
+      "kind": "interface",
+      "module": "ui",
+      "source": "src/main/resources/stdlib/ui/UiLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "TableIconPathProvider",
+      "kind": "interface",
+      "module": "ui",
+      "source": "src/main/resources/stdlib/ui/UiLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "TableRowIdProvider",
+      "kind": "interface",
+      "module": "ui",
+      "source": "src/main/resources/stdlib/ui/UiLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "BreadcrumbNavigate",
+      "kind": "interface",
+      "module": "ui",
+      "source": "src/main/resources/stdlib/ui/UiLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "CommandExecute",
+      "kind": "interface",
+      "module": "ui",
+      "source": "src/main/resources/stdlib/ui/UiLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "SearchQueryListener",
+      "kind": "interface",
+      "module": "ui",
+      "source": "src/main/resources/stdlib/ui/UiLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "UnauthorizedException",
+      "kind": "class",
+      "module": "web",
+      "source": "src/main/resources/stdlib/web/AuthLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "ForbiddenException",
+      "kind": "class",
+      "module": "web",
+      "source": "src/main/resources/stdlib/web/AuthLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "UserPrincipal",
+      "kind": "class",
+      "module": "web",
+      "source": "src/main/resources/stdlib/web/AuthLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "SessionData",
+      "kind": "class",
+      "module": "web",
+      "source": "src/main/resources/stdlib/web/AuthLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "InMemorySessionStore",
+      "kind": "class",
+      "module": "web",
+      "source": "src/main/resources/stdlib/web/AuthLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "Session",
+      "kind": "class",
+      "module": "web",
+      "source": "src/main/resources/stdlib/web/AuthLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "SessionManager",
+      "kind": "class",
+      "module": "web",
+      "source": "src/main/resources/stdlib/web/AuthLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "AuthContext",
+      "kind": "class",
+      "module": "web",
+      "source": "src/main/resources/stdlib/web/AuthLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "AuthRequired",
+      "kind": "class",
+      "module": "web",
+      "source": "src/main/resources/stdlib/web/AuthLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "AuthRequireRole",
+      "kind": "class",
+      "module": "web",
+      "source": "src/main/resources/stdlib/web/AuthLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "Csrf",
+      "kind": "class",
+      "module": "web",
+      "source": "src/main/resources/stdlib/web/AuthLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "RateLimitBucket",
+      "kind": "class",
+      "module": "web",
+      "source": "src/main/resources/stdlib/web/AuthLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "RateLimiter",
+      "kind": "class",
+      "module": "web",
+      "source": "src/main/resources/stdlib/web/AuthLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "SecurityHeaders",
+      "kind": "class",
+      "module": "web",
+      "source": "src/main/resources/stdlib/web/AuthLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "TrustedProxies",
+      "kind": "class",
+      "module": "web",
+      "source": "src/main/resources/stdlib/web/AuthLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "ApiKeyAuth",
+      "kind": "class",
+      "module": "web",
+      "source": "src/main/resources/stdlib/web/AuthLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "AuthLogin",
+      "kind": "class",
+      "module": "web",
+      "source": "src/main/resources/stdlib/web/AuthLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "SessionStore",
+      "kind": "interface",
+      "module": "web",
+      "source": "src/main/resources/stdlib/web/AuthLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "SessionStoreSync",
+      "kind": "interface",
+      "module": "web",
+      "source": "src/main/resources/stdlib/web/AuthLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "WebSocketHandlerAdapter",
+      "kind": "class",
+      "module": "web",
+      "source": "src/main/resources/stdlib/web/RealtimeLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "WebSocketOpcode",
+      "kind": "class",
+      "module": "web",
+      "source": "src/main/resources/stdlib/web/RealtimeLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "WebSocketState",
+      "kind": "class",
+      "module": "web",
+      "source": "src/main/resources/stdlib/web/RealtimeLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "WebSocketMessage",
+      "kind": "class",
+      "module": "web",
+      "source": "src/main/resources/stdlib/web/RealtimeLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "WebSocketFrame",
+      "kind": "class",
+      "module": "web",
+      "source": "src/main/resources/stdlib/web/RealtimeLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "WebSocketFrameCodec",
+      "kind": "class",
+      "module": "web",
+      "source": "src/main/resources/stdlib/web/RealtimeLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "WsBytesChunk",
+      "kind": "class",
+      "module": "web",
+      "source": "src/main/resources/stdlib/web/RealtimeLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "WsConnReadSupplier",
+      "kind": "class",
+      "module": "web",
+      "source": "src/main/resources/stdlib/web/RealtimeLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "WsConnWriteSupplier",
+      "kind": "class",
+      "module": "web",
+      "source": "src/main/resources/stdlib/web/RealtimeLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "WebSocketConnection",
+      "kind": "class",
+      "module": "web",
+      "source": "src/main/resources/stdlib/web/RealtimeLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "WebSocketHub",
+      "kind": "class",
+      "module": "web",
+      "source": "src/main/resources/stdlib/web/RealtimeLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "SseEvent",
+      "kind": "class",
+      "module": "web",
+      "source": "src/main/resources/stdlib/web/RealtimeLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "SseStream",
+      "kind": "class",
+      "module": "web",
+      "source": "src/main/resources/stdlib/web/RealtimeLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "SseSupport",
+      "kind": "class",
+      "module": "web",
+      "source": "src/main/resources/stdlib/web/RealtimeLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "WebSocketHandler",
+      "kind": "interface",
+      "module": "web",
+      "source": "src/main/resources/stdlib/web/RealtimeLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "WebConfig",
+      "kind": "class",
+      "module": "web",
+      "source": "src/main/resources/stdlib/web/WebLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "ServerConfig",
+      "kind": "class",
+      "module": "web",
+      "source": "src/main/resources/stdlib/web/WebLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "TraceContext",
+      "kind": "class",
+      "module": "web",
+      "source": "src/main/resources/stdlib/web/WebLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "RequestLog",
+      "kind": "class",
+      "module": "web",
+      "source": "src/main/resources/stdlib/web/WebLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "TlsMetrics",
+      "kind": "class",
+      "module": "web",
+      "source": "src/main/resources/stdlib/web/WebLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "TransportSecurity",
+      "kind": "class",
+      "module": "web",
+      "source": "src/main/resources/stdlib/web/WebLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "TransportSecurityMiddleware",
+      "kind": "class",
+      "module": "web",
+      "source": "src/main/resources/stdlib/web/WebLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "HttpsRedirectMiddleware",
+      "kind": "class",
+      "module": "web",
+      "source": "src/main/resources/stdlib/web/WebLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "HealthOkHandler",
+      "kind": "class",
+      "module": "web",
+      "source": "src/main/resources/stdlib/web/WebLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "HealthReadyHandler",
+      "kind": "class",
+      "module": "web",
+      "source": "src/main/resources/stdlib/web/WebLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "HealthEndpoints",
+      "kind": "class",
+      "module": "web",
+      "source": "src/main/resources/stdlib/web/WebLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "HttpMethod",
+      "kind": "class",
+      "module": "web",
+      "source": "src/main/resources/stdlib/web/WebLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "WebException",
+      "kind": "class",
+      "module": "web",
+      "source": "src/main/resources/stdlib/web/WebLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "BadRequestException",
+      "kind": "class",
+      "module": "web",
+      "source": "src/main/resources/stdlib/web/WebLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "NotFoundException",
+      "kind": "class",
+      "module": "web",
+      "source": "src/main/resources/stdlib/web/WebLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "MethodNotAllowedException",
+      "kind": "class",
+      "module": "web",
+      "source": "src/main/resources/stdlib/web/WebLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "PayloadTooLargeException",
+      "kind": "class",
+      "module": "web",
+      "source": "src/main/resources/stdlib/web/WebLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "IllegalResponseStateException",
+      "kind": "class",
+      "module": "web",
+      "source": "src/main/resources/stdlib/web/WebLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "UrlCodec",
+      "kind": "class",
+      "module": "web",
+      "source": "src/main/resources/stdlib/web/WebLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "QueryMap",
+      "kind": "class",
+      "module": "web",
+      "source": "src/main/resources/stdlib/web/WebLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "WebClockNative",
+      "kind": "class",
+      "module": "web",
+      "source": "src/main/resources/stdlib/web/WebLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "WebUtil",
+      "kind": "class",
+      "module": "web",
+      "source": "src/main/resources/stdlib/web/WebLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "ResponseBody",
+      "kind": "class",
+      "module": "web",
+      "source": "src/main/resources/stdlib/web/WebLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "WebResponse",
+      "kind": "class",
+      "module": "web",
+      "source": "src/main/resources/stdlib/web/WebLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "WebRequest",
+      "kind": "class",
+      "module": "web",
+      "source": "src/main/resources/stdlib/web/WebLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "WebContext",
+      "kind": "class",
+      "module": "web",
+      "source": "src/main/resources/stdlib/web/WebLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "CookieUtil",
+      "kind": "class",
+      "module": "web",
+      "source": "src/main/resources/stdlib/web/WebLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "RouteNode",
+      "kind": "class",
+      "module": "web",
+      "source": "src/main/resources/stdlib/web/WebLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "RouteMatch",
+      "kind": "class",
+      "module": "web",
+      "source": "src/main/resources/stdlib/web/WebLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "Router",
+      "kind": "class",
+      "module": "web",
+      "source": "src/main/resources/stdlib/web/WebLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "WebNext",
+      "kind": "class",
+      "module": "web",
+      "source": "src/main/resources/stdlib/web/WebLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "MiddlewareChain",
+      "kind": "class",
+      "module": "web",
+      "source": "src/main/resources/stdlib/web/WebLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "MimeTypes",
+      "kind": "class",
+      "module": "web",
+      "source": "src/main/resources/stdlib/web/WebLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "MediaStreamer",
+      "kind": "class",
+      "module": "web",
+      "source": "src/main/resources/stdlib/web/WebLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "StaticMount",
+      "kind": "class",
+      "module": "web",
+      "source": "src/main/resources/stdlib/web/WebLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "PathSafety",
+      "kind": "class",
+      "module": "web",
+      "source": "src/main/resources/stdlib/web/WebLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "LoggerMiddleware",
+      "kind": "class",
+      "module": "web",
+      "source": "src/main/resources/stdlib/web/WebLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "WebMiddleware",
+      "kind": "class",
+      "module": "web",
+      "source": "src/main/resources/stdlib/web/WebLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "CorsMiddleware",
+      "kind": "class",
+      "module": "web",
+      "source": "src/main/resources/stdlib/web/WebLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "Cors",
+      "kind": "class",
+      "module": "web",
+      "source": "src/main/resources/stdlib/web/WebLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "WebAcceptThread",
+      "kind": "class",
+      "module": "web",
+      "source": "src/main/resources/stdlib/web/WebLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "WebConnTask",
+      "kind": "class",
+      "module": "web",
+      "source": "src/main/resources/stdlib/web/WebLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "WebServer",
+      "kind": "class",
+      "module": "web",
+      "source": "src/main/resources/stdlib/web/WebLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "WebApp",
+      "kind": "class",
+      "module": "web",
+      "source": "src/main/resources/stdlib/web/WebLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "NoopWebHandler",
+      "kind": "class",
+      "module": "web",
+      "source": "src/main/resources/stdlib/web/WebLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "SyncAsyncWebHandler",
+      "kind": "class",
+      "module": "web",
+      "source": "src/main/resources/stdlib/web/WebLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "WebHandlers",
+      "kind": "class",
+      "module": "web",
+      "source": "src/main/resources/stdlib/web/WebLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "GzipMiddleware",
+      "kind": "class",
+      "module": "web",
+      "source": "src/main/resources/stdlib/web/WebLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "Compression",
+      "kind": "class",
+      "module": "web",
+      "source": "src/main/resources/stdlib/web/WebLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "Http2Server",
+      "kind": "class",
+      "module": "web",
+      "source": "src/main/resources/stdlib/web/WebLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "WebHandler",
+      "kind": "interface",
+      "module": "web",
+      "source": "src/main/resources/stdlib/web/WebLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "Middleware",
+      "kind": "interface",
+      "module": "web",
+      "source": "src/main/resources/stdlib/web/WebLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "Next",
+      "kind": "interface",
+      "module": "web",
+      "source": "src/main/resources/stdlib/web/WebLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "ErrorHandler",
+      "kind": "interface",
+      "module": "web",
+      "source": "src/main/resources/stdlib/web/WebLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "AsyncWebHandler",
+      "kind": "interface",
+      "module": "web",
+      "source": "src/main/resources/stdlib/web/WebLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "ReactiveTracker",
+      "kind": "class",
+      "module": "webui",
+      "source": "src/main/resources/stdlib/webui/WebUiLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "ReactiveComputation",
+      "kind": "class",
+      "module": "webui",
+      "source": "src/main/resources/stdlib/webui/WebUiLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "IntState",
+      "kind": "class",
+      "module": "webui",
+      "source": "src/main/resources/stdlib/webui/WebUiLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "StringState",
+      "kind": "class",
+      "module": "webui",
+      "source": "src/main/resources/stdlib/webui/WebUiLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "RenderScheduler",
+      "kind": "class",
+      "module": "webui",
+      "source": "src/main/resources/stdlib/webui/WebUiLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "FlushTask",
+      "kind": "class",
+      "module": "webui",
+      "source": "src/main/resources/stdlib/webui/WebUiLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "DomPatchOps",
+      "kind": "class",
+      "module": "webui",
+      "source": "src/main/resources/stdlib/webui/WebUiLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "DomPatchBuffer",
+      "kind": "class",
+      "module": "webui",
+      "source": "src/main/resources/stdlib/webui/WebUiLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "View",
+      "kind": "class",
+      "module": "webui",
+      "source": "src/main/resources/stdlib/webui/WebUiLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "ElementView",
+      "kind": "class",
+      "module": "webui",
+      "source": "src/main/resources/stdlib/webui/WebUiLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "TextView",
+      "kind": "class",
+      "module": "webui",
+      "source": "src/main/resources/stdlib/webui/WebUiLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "ComponentView",
+      "kind": "class",
+      "module": "webui",
+      "source": "src/main/resources/stdlib/webui/WebUiLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "ViewProp",
+      "kind": "class",
+      "module": "webui",
+      "source": "src/main/resources/stdlib/webui/WebUiLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "ViewEvent",
+      "kind": "class",
+      "module": "webui",
+      "source": "src/main/resources/stdlib/webui/WebUiLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "DomBinding",
+      "kind": "class",
+      "module": "webui",
+      "source": "src/main/resources/stdlib/webui/WebUiLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "WebUiComponent",
+      "kind": "class",
+      "module": "webui",
+      "source": "src/main/resources/stdlib/webui/WebUiLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "ComponentInstance",
+      "kind": "class",
+      "module": "webui",
+      "source": "src/main/resources/stdlib/webui/WebUiLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "BrowserDomRenderer",
+      "kind": "class",
+      "module": "webui",
+      "source": "src/main/resources/stdlib/webui/WebUiLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "Html",
+      "kind": "class",
+      "module": "webui",
+      "source": "src/main/resources/stdlib/webui/WebUiLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "ClickVoidAdapter",
+      "kind": "class",
+      "module": "webui",
+      "source": "src/main/resources/stdlib/webui/WebUiLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "WebUI",
+      "kind": "class",
+      "module": "webui",
+      "source": "src/main/resources/stdlib/webui/WebUiLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "WebUiNative",
+      "kind": "class",
+      "module": "webui",
+      "source": "src/main/resources/stdlib/webui/WebUiLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "WebUiEventBridge",
+      "kind": "class",
+      "module": "webui",
+      "source": "src/main/resources/stdlib/webui/WebUiLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "ReactiveSubscription",
+      "kind": "interface",
+      "module": "webui",
+      "source": "src/main/resources/stdlib/webui/WebUiLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "ReactiveSource",
+      "kind": "interface",
+      "module": "webui",
+      "source": "src/main/resources/stdlib/webui/WebUiLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "StringProducer",
+      "kind": "interface",
+      "module": "webui",
+      "source": "src/main/resources/stdlib/webui/WebUiLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "VoidCallback",
+      "kind": "interface",
+      "module": "webui",
+      "source": "src/main/resources/stdlib/webui/WebUiLib.java",
+      "status": "Experimental"
+    },
+    {
+      "name": "MouseCallback",
+      "kind": "interface",
+      "module": "webui",
+      "source": "src/main/resources/stdlib/webui/WebUiLib.java",
+      "status": "Experimental"
+    }
+  ],
+  "examples": [
+    "examples/file-io",
+    "examples/http-server",
+    "examples/json-demo",
+    "examples/multithreading",
+    "examples/tcp-echo",
+    "examples/tutorials/cli-todo",
+    "examples/notes-cli"
+  ]
+}

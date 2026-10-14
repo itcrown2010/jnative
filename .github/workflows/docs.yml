@@ -1,0 +1,35 @@
+# Documentation checks for pull requests.
+# Limitation: does not compile every example unless the job builds the compiler JAR
+# and CHECK_DOCS_EXAMPLES=1 is set (expensive). Default job checks structure + links softly.
+name: docs
+
+on:
+  pull_request:
+    paths:
+      - 'docs/**'
+      - 'examples/**'
+      - 'tools/check-docs'
+      - 'scripts/docs/**'
+      - '.github/workflows/docs.yml'
+      - 'CONTRIBUTING.md'
+  push:
+    branches: [main, master]
+    paths:
+      - 'docs/**'
+      - 'examples/**'
+      - 'tools/check-docs'
+      - 'scripts/docs/**'
+
+jobs:
+  check-docs:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run check-docs
+        run: |
+          chmod +x tools/check-docs
+          ./tools/check-docs
+      - name: Note on example compilation
+        run: |
+          echo "This workflow does not compile examples by default."
+          echo "Maintainers may run CHECK_DOCS_EXAMPLES=1 after mvn -DskipTests package."

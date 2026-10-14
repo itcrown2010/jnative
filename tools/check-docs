@@ -1,0 +1,115 @@
+#!/usr/bin/env bash
+# Practical documentation completeness checks (Phase 3).
+# Author: 张晓达
+set -euo pipefail
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+cd "$ROOT"
+
+fail=0
+warn=0
+
+note() { echo "check-docs: $*"; }
+bad() { echo "FAIL: $*" >&2; fail=$((fail + 1)); }
+soft() { echo "WARN: $*" >&2; warn=$((warn + 1)); }
+
+note "scanning docs/en markdown links (relative .md)"
+
+# Broken relative markdown links: ](path.md) or ](path.md#anchor)
+while IFS= read -r -d '' f; do
+  dir=$(dirname "$f")
+  # Extract markdown links to .md files (skip http/https)
+  perl -ne 'while (/\[[^\]]*\]\(([^)]+)\)/g) {
+      my $t=$1; next if $t =~ m{^(https?://|/|#|mailto:)};
+      $t =~ s/#.*//;
+      next unless $t =~ /\.md$/;
+      print "$t\n";
+    }' "$f" | while read -r target; do
+      # skip empty
+      [[ -z "$target" ]] && continue
+      cand="$dir/$target"
+      # normalize .. segments roughly via realpath if exists
+      if [[ -f "$cand" ]]; then
+        continue
+      fi
+      # try without ./
+      if [[ -f "$ROOT/${target#./}" ]]; then
+        continue
+      fi
+      soft "missing link target from $f -> $target"
+    done
+done < <(find docs/en -name '*.md' -print0)
+
+note "examples with README"
+for d in examples/hello-world examples/file-io examples/http-server examples/json-demo \
+         examples/multithreading examples/tcp-echo examples/notes-cli examples/web; do
+  if [[ -d "$d" && ! -f "$d/README.md" ]]; then
+    bad "example missing README: $d"
+  fi
+done
+
+note "required Phase 3/4 pages"
+for p in \
+  docs/en/reference/capability-matrix.md \
+  docs/en/reference/platform-matrix.md \
+  docs/en/reference/example-index.md \
+  docs/en/reference/language/index.md \
+  docs/en/web/capability-matrix.md \
+  docs/en/desktop/capability-matrix.md \
+  docs/en/mobile/capability-matrix.md \
+  docs/en/vscode/capabilities.md \
+  docs/en/vscode/tutorial.md \
+  docs/en/getting-started/what-can-i-build.md \
+  docs/en/tutorials/build-your-first-application.md \
+  docs/en/versions.md \
+  docs/en/start-here.md \
+  docs/en/what-can-i-build.md \
+  docs/en/language/index.md \
+  docs/en/language/for-java-developers.md \
+  docs/en/sdk/index.md \
+  docs/en/cookbook/index.md \
+  docs/en/tutorials/building-an-application.md \
+  docs/en/mobile/status.md \
+  docs/en/vscode/index.md \
+  docs/en/troubleshooting/index.md \
+  docs/en/contributing/feature-completion.md \
+  docs/en/reference/developer-experience-audit.md \
+  docs/en/_generated/sdk-index.json \
+  docs/en/CAPABILITY_AUDIT_REPORT.md \
+  docs/en/architecture/jnative-studio-feasibility.md \
+  docs/en/projects/jnative-studio.md \
+  docs/en/projects/index.md \
+  docs/en/real-applications.md \
+  docs/en/releases/jnative-studio-mvp.md \
+  docs/en/architecture/self-hosting.md \
+  docs/en/architecture/bootstrap-roadmap.md \
+  docs/en/reference/self-hosting-status.md \
+  docs/en/projects/phase6-bootstrap-report.md
+do
+  [[ -f "$p" ]] || bad "missing required page: $p"
+done
+
+note "stdlib modules vs narrative sdk pages (soft)"
+for mod in http json io net collections time; do
+  if [[ -d "src/main/resources/stdlib/$mod" ]]; then
+    :
+  fi
+done
+[[ -f docs/en/sdk/http.md ]] || soft "missing docs/en/sdk/http.md"
+[[ -f docs/en/reference/sdk/http.md ]] || soft "missing docs/en/reference/sdk/http.md"
+
+if [[ "${CHECK_DOCS_EXAMPLES:-0}" == "1" ]]; then
+  note "running verify-en-examples.sh"
+  if [[ -f target/jnative.jar ]]; then
+    bash scripts/docs/verify-en-examples.sh || bad "verify-en-examples failed"
+  else
+    soft "skip example compile: missing target/jnative.jar"
+  fi
+else
+  note "skip example compile (set CHECK_DOCS_EXAMPLES=1 to enable)"
+fi
+
+echo "check-docs: failures=$fail warnings=$warn"
+if [[ "$fail" -gt 0 ]]; then
+  exit 1
+fi
+exit 0
