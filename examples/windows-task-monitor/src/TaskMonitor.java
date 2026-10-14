@@ -25,19 +25,76 @@ public class TaskMonitor {
     }
 }
 
+/**
+ * Display formatting helpers (presentation only).
+ */
+class TmFormat {
+    static String na() {
+        return "—";
+    }
+
+    /** CPU percent with one decimal. milli = percent * 100. -1 waiting, -2 n/a. */
+    static String cpuPct1(int milli) {
+        if (milli == -1) {
+            return "采样中";
+        }
+        if (milli < 0) {
+            return na();
+        }
+        int tenths = (milli + 5) / 10;
+        int whole = tenths / 10;
+        int frac = tenths % 10;
+        return String.valueOf(whole) + "." + String.valueOf(frac) + "%";
+    }
+
+    static String bytes(long n) {
+        if (n < 0) {
+            return na();
+        }
+        return AmFormat.bytes(n);
+    }
+}
+
+/**
+ * Column layout that always reports a very large preferred height so a parent
+ * HBox hands it the full available height (VBox/HBox layout never grows a
+ * child beyond its preferred height on its own).
+ */
+class TmColumn extends VBox {
+    public int preferredHeight() {
+        return 20000;
+    }
+}
+
+/**
+ * Page container: tiny preferred height so the parent VBox stretch logic
+ * always sizes it to the leftover space (and lets it shrink with the window).
+ */
+class TmPage extends VBox {
+    public int preferredHeight() {
+        return 120;
+    }
+}
+
 class TmUi {
     static Window window;
     static TableView<AmProcRow> table;
     static TextField searchField;
     static Label footPrimary;
     static Label footStatus;
-    static Button pageProcBtn;
-    static Button pagePerfBtn;
-    static Button pageDetailBtn;
+    static Label pageTitle;
+    static Label toolStatus;
+    static Label procSummary;
     static Button pauseBtn;
     static Button refreshBtn;
     static Button detailBtn;
     static Button termBtn;
+    static Button navToggle;
+    static ArrayList<Button> navBtns;
+    static ArrayList<Panel> navInds;
+    static ArrayList<HBox> navRows;
+    static VBox navBox;
+    static VBox contentMain;
     static VBox pageProc;
     static VBox pagePerf;
     static VBox pageDetail;
@@ -70,8 +127,24 @@ class TmUi {
     static long lastOkMonoNs;
     static int lastSampleOk;
     static int page; /* 0=proc 1=perf 2=detail */
-    static int chromeBg;
-    static int tableBg;
+    static int navCollapsed;
+    static int termStyle; /* 0=unset 1=disabled 2=enabled */
+    static int detailStyle; /* 0=unset 1=disabled 2=enabled */
+
+    /* Palette (Component.rgba ints). */
+    static int appBg;
+    static int contentBg;
+    static int textC;
+    static int mutedC;
+    static int sepC;
+    static int accentC;
+    static int hoverC;
+    static int selectedC;
+    static int dangerBg;
+    static int dangerFg;
+    static int disabledFg;
+    static int toolBg;
+
     static Window detailWin;
     static Label detailBody;
     static String detailCopyText;
@@ -98,15 +171,34 @@ class TmUi {
         if (scope == null) {
             scope = new BindingScope();
         }
+        if (navBtns == null) {
+            navBtns = new ArrayList<Button>();
+        }
+        if (navInds == null) {
+            navInds = new ArrayList<Panel>();
+        }
+        if (navRows == null) {
+            navRows = new ArrayList<HBox>();
+        }
         if (sortCol == 0 && sortAsc == 0) {
-            sortCol = 3;
+            sortCol = 1;
             sortAsc = 0;
         }
         if (refreshMs == 0) {
             refreshMs = 1000;
         }
-        chromeBg = Component.rgba(236, 238, 241, 255);
-        tableBg = Component.rgba(255, 255, 255, 255);
+        appBg = Component.rgba(243, 245, 247, 255);
+        contentBg = Component.rgba(255, 255, 255, 255);
+        textC = Component.rgba(32, 33, 36, 255);
+        mutedC = Component.rgba(102, 112, 133, 255);
+        sepC = Component.rgba(232, 235, 239, 255);
+        accentC = Component.rgba(0, 103, 192, 255);
+        hoverC = Component.rgba(242, 246, 250, 255);
+        selectedC = Component.rgba(229, 241, 252, 255);
+        dangerBg = Component.rgba(252, 232, 230, 255);
+        dangerFg = Component.rgba(197, 34, 31, 255);
+        disabledFg = Component.rgba(160, 168, 181, 255);
+        toolBg = Component.rgba(255, 255, 255, 255);
         alive = 1;
         paused = 0;
         samplerBusy = 0;
@@ -114,16 +206,76 @@ class TmUi {
         lastSampleOk = 0;
         lastOkMonoNs = 0;
         page = 0;
+        navCollapsed = 0;
+        termStyle = 0;
+        detailStyle = 0;
         selPid = -1;
         detailPid = -1;
+    }
+
+    static Label mkLabel(String t, int w, int h, int pt, int fg, int bg) {
+        Label l = new Label(t);
+        l.setPrefSize(w, h);
+        l.setVisual(bg, fg, 0, pt, 0);
+        return l;
+    }
+
+    /** Left navigation item. selected: light-blue pill; else transparent/appBg. */
+    static void styleNavBtn(Button b, int selected, int collapsed) {
+        if (b == null) {
+            return;
+        }
+        if (selected != 0) {
+            b.setFilledStyle(selectedC, textC, 6, 13);
+        } else {
+            b.setFilledStyle(appBg, mutedC, 6, 13);
+        }
+        if (collapsed != 0) {
+            b.setTextAlign(1);
+        } else {
+            b.setTextAlign(0);
+        }
+    }
+
+    /** Toolbar push button: white fill, dark text. */
+    static void styleToolBtn(Button b) {
+        if (b == null) {
+            return;
+        }
+        b.setPrefSize(b.prefWidth, 32);
+        b.setFilledStyle(toolBg, textC, 5, 13);
+    }
+
+    static void styleToolBtnState(Button b, int enabled) {
+        if (b == null) {
+            return;
+        }
+        b.setPrefSize(b.prefWidth, 32);
+        if (enabled != 0) {
+            b.setFilledStyle(toolBg, textC, 5, 13);
+        } else {
+            b.setFilledStyle(appBg, disabledFg, 5, 13);
+        }
+    }
+
+    static void styleDangerBtn(Button b, int enabled) {
+        if (b == null) {
+            return;
+        }
+        b.setPrefSize(b.prefWidth, 32);
+        if (enabled != 0) {
+            b.setFilledStyle(dangerBg, dangerFg, 5, 13);
+        } else {
+            b.setFilledStyle(appBg, disabledFg, 5, 13);
+        }
     }
 }
 
 class TmWindow {
     static void show() {
         TmUi.ensure();
-        TmUi.window = new Window("JNative Task Monitor", 1280, 820);
-        TmUi.window.setMinSize(880, 520);
+        TmUi.window = new Window("JNative Task Monitor", 1180, 760);
+        TmUi.window.setMinSize(900, 600);
         TmUi.window.onClose(() -> {
             TmUi.alive = 0;
             TmUi.sampleToken = TmUi.sampleToken + 1;
@@ -140,168 +292,216 @@ class TmWindow {
             }
         });
 
-        VBox root = new VBox();
+        HBox root = new HBox();
         root.spacing = 0;
         root.padding = 0;
-        root.setBackgroundRgba(TmUi.chromeBg);
+        root.setBackgroundRgba(TmUi.appBg);
 
+        /* ---- Left navigation ---- */
+        TmColumn nav = new TmColumn();
+        nav.spacing = 4;
+        nav.padding = 8;
+        nav.prefWidth = 184;
+        nav.width = 184;
+        nav.setBackgroundRgba(TmUi.appBg);
+        TmUi.navBox = nav;
+
+        TmUi.navToggle = new Button("«");
+        TmUi.navToggle.setPrefSize(168, 32);
+        TmUi.navToggle.setFilledStyle(TmUi.appBg, TmUi.mutedC, 6, 13);
+        TmUi.navToggle.onClick(() -> { TmActions.toggleNav(); });
+        nav.add(TmUi.navToggle);
+
+        addNavItem(nav, 0);
+        addNavItem(nav, 1);
+        addNavItem(nav, 2);
+
+        /* ---- Main column ---- */
+        TmColumn main = new TmColumn();
+        main.spacing = 12;
+        main.padding = 20;
+        main.hgrow = 1;
+        main.setBackgroundRgba(TmUi.appBg);
+        TmUi.contentMain = main;
+
+        /* Top row: page title | search */
+        HBox top = new HBox();
+        top.spacing = 12;
+        top.padding = 0;
+        top.setPrefSize(400, 40);
+        top.setBackgroundRgba(TmUi.appBg);
+        TmUi.pageTitle = TmUi.mkLabel("进程", 200, 32, 20, TmUi.textC, TmUi.appBg);
+        TmUi.pageTitle.hgrow = 1;
+        TmUi.searchField = new TextField("");
+        TmUi.searchField.setPrefSize(300, 36);
+        TmUi.searchField.width = 300;
+        TmUi.searchField.height = 36;
+        TmUi.searchField.hgrow = 1;
+        TmUi.searchField.setBackgroundRgba(Component.rgba(255, 255, 255, 255));
+        TmUi.searchField.setForegroundRgba(TmUi.textC);
+        TmUi.searchField.setCornerRadius(6);
+        TmUi.searchField.setFontSize(13);
+        TmUi.searchField.onChange((ev) -> { TmActions.onSearchChanged(); });
+        top.add(TmUi.pageTitle);
+        top.add(TmUi.searchField);
+
+        /* Toolbar: status | actions */
         HBox toolbar = new HBox();
-        toolbar.spacing = Theme.SPACE_2;
-        toolbar.padding = Theme.SPACE_3;
-        toolbar.prefHeight = 48;
-        toolbar.height = 48;
-        toolbar.setBackgroundRgba(TmUi.chromeBg);
-
-        TmUi.pageProcBtn = new Button("进程");
-        TmUi.pageProcBtn.setPrefSize(64, 28);
-        TmUi.pageProcBtn.setChromeStyle(3);
-        TmUi.pageProcBtn.onClick(() -> { TmActions.showPage(0); });
-        TmUi.pagePerfBtn = new Button("性能");
-        TmUi.pagePerfBtn.setPrefSize(64, 28);
-        TmUi.pagePerfBtn.setChromeStyle(3);
-        TmUi.pagePerfBtn.onClick(() -> { TmActions.showPage(1); });
-        TmUi.pageDetailBtn = new Button("详情");
-        TmUi.pageDetailBtn.setPrefSize(64, 28);
-        TmUi.pageDetailBtn.setChromeStyle(3);
-        TmUi.pageDetailBtn.onClick(() -> { TmActions.showPage(2); });
+        toolbar.spacing = 8;
+        toolbar.padding = 0;
+        toolbar.setPrefSize(400, 40);
+        toolbar.setBackgroundRgba(TmUi.appBg);
+        TmUi.toolStatus = TmUi.mkLabel("自动刷新 · 1000 ms", 200, 24, 12, TmUi.mutedC, TmUi.appBg);
+        TmUi.toolStatus.hgrow = 1;
 
         TmUi.pauseBtn = new Button("暂停");
-        TmUi.pauseBtn.setPrefSize(64, 28);
-        TmUi.pauseBtn.setChromeStyle(3);
+        TmUi.pauseBtn.setPrefSize(72, 32);
+        TmUi.styleToolBtn(TmUi.pauseBtn);
         TmUi.pauseBtn.onClick(() -> { TmActions.togglePause(); });
         TmUi.refreshBtn = new Button("刷新");
-        TmUi.refreshBtn.setPrefSize(64, 28);
-        TmUi.refreshBtn.setChromeStyle(3);
+        TmUi.refreshBtn.setPrefSize(72, 32);
+        TmUi.styleToolBtn(TmUi.refreshBtn);
         TmUi.refreshBtn.onClick(() -> { TmActions.requestSample(1); });
-
         TmUi.detailBtn = new Button("打开详情");
-        TmUi.detailBtn.setPrefSize(88, 28);
-        TmUi.detailBtn.setChromeStyle(3);
+        TmUi.detailBtn.setPrefSize(96, 32);
+        TmUi.styleToolBtnState(TmUi.detailBtn, 0);
         TmUi.detailBtn.onClick(() -> { TmActions.showDetail(); });
         TmUi.termBtn = new Button("结束进程");
-        TmUi.termBtn.setPrefSize(88, 28);
-        TmUi.termBtn.setChromeStyle(3);
+        TmUi.termBtn.setPrefSize(96, 32);
+        TmUi.styleDangerBtn(TmUi.termBtn, 0);
         TmUi.termBtn.onClick(() -> { TmActions.confirmTerminate(); });
         TmUi.termBtn.setEnabled(false);
         TmUi.detailBtn.setEnabled(false);
+        TmUi.termStyle = 1;
+        TmUi.detailStyle = 1;
 
-        TmUi.searchField = new TextField("");
-        TmUi.searchField.setPrefSize(240, 28);
-        TmUi.searchField.setBackgroundRgba(Component.rgba(255, 255, 255, 255));
-        TmUi.searchField.setForegroundRgba(Component.rgba(30, 30, 30, 255));
-        TmUi.searchField.onChange((ev) -> { TmActions.onSearchChanged(); });
-        Label searchHint = new Label("搜索");
-        Theme.applyStyle(searchHint, Theme.STYLE_SECONDARY);
-        searchHint.setPrefSize(36, 26);
-        Label flex = new Label("");
-        flex.hgrow = 1;
-        flex.setBackgroundRgba(TmUi.chromeBg);
-
-        toolbar.add(TmUi.pageProcBtn);
-        toolbar.add(TmUi.pagePerfBtn);
-        toolbar.add(TmUi.pageDetailBtn);
+        toolbar.add(TmUi.toolStatus);
         toolbar.add(TmUi.pauseBtn);
         toolbar.add(TmUi.refreshBtn);
         toolbar.add(TmUi.detailBtn);
         toolbar.add(TmUi.termBtn);
-        toolbar.add(flex);
-        toolbar.add(searchHint);
-        toolbar.add(TmUi.searchField);
 
         /* ---- Process page ---- */
-        TmUi.pageProc = new VBox();
-        TmUi.pageProc.spacing = 0;
-        TmUi.pageProc.padding = 0;
-        TmUi.pageProc.vgrow = 1;
-        TmUi.pageProc.setBackgroundRgba(TmUi.tableBg);
+        TmPage pageProc = new TmPage();
+        pageProc.spacing = 8;
+        pageProc.padding = 12;
+        pageProc.vgrow = 1;
+        pageProc.setBackgroundRgba(TmUi.contentBg);
+        TmUi.pageProc = pageProc;
+        TmUi.procSummary = TmUi.mkLabel("", 400, 24, 12, TmUi.mutedC, TmUi.contentBg);
         TmUi.table = new TableView<AmProcRow>();
         TmUi.table.vgrow = 1;
-        TmUi.table.prefHeight = 600;
-        TmUi.table.height = 600;
-        TmUi.table.setBackgroundRgba(TmUi.tableBg);
+        TmUi.table.prefHeight = 200;
+        TmUi.table.height = 200;
+        TmUi.table.setBackgroundRgba(TmUi.contentBg);
         TmUi.table.setRowIdProvider(new TmRowIds());
+        TmUi.table.setIconPathProvider(new TmRowIcons());
+        TmUi.table.setRowHeight(34);
         TmUi.table.setEmptyMessage("正在采样…");
         TmActions.rebuildColumns();
-        TmUi.table.onSelectionChanged((ev) -> { TmActions.onSelect(ev.selectedIndex); });
+        TmUi.table.onSelectionChanged((ev) -> {
+            if (ev != null && ev.selectedItem != null) {
+                TmActions.onSelectRow(ev.selectedItem);
+            } else if (ev != null) {
+                TmActions.onSelect(ev.selectedIndex);
+            }
+        });
         TmUi.table.onDoubleClick((ev) -> { TmActions.showDetail(); });
         TmUi.table.onHeaderClick((ev) -> { TmActions.sort(ev.selectedIndex); });
-        TmUi.pageProc.add(TmUi.table);
+        pageProc.add(TmUi.procSummary);
+        pageProc.add(TmUi.table);
 
         /* ---- Performance page ---- */
-        TmUi.pagePerf = new VBox();
-        TmUi.pagePerf.spacing = Theme.SPACE_3;
-        TmUi.pagePerf.padding = Theme.SPACE_4;
-        TmUi.pagePerf.vgrow = 1;
-        TmUi.pagePerf.setBackgroundRgba(TmUi.tableBg);
-        TmUi.pagePerf.setVisible(false);
-        TmUi.perfCpuLabel = new Label("CPU —");
-        TmUi.perfCpuLabel.setPrefSize(700, 28);
-        Theme.applyStyle(TmUi.perfCpuLabel, Theme.STYLE_BODY);
+        TmPage pagePerf = new TmPage();
+        pagePerf.spacing = Theme.SPACE_3;
+        pagePerf.padding = Theme.SPACE_4;
+        pagePerf.vgrow = 1;
+        pagePerf.setBackgroundRgba(TmUi.contentBg);
+        TmUi.pagePerf = pagePerf;
+        pagePerf.setVisible(false);
+        TmUi.perfCpuLabel = TmUi.mkLabel("CPU —", 400, 28, 14, TmUi.textC, TmUi.contentBg);
         TmUi.cpuChart = new TrendChart();
         TmUi.cpuChart.setCapacity(60);
         TmUi.cpuChart.setYRange(0.0, 100.0);
-        TmUi.cpuChart.setPrefSize(1100, 120);
-        TmUi.cpuChart.width = 1100;
-        TmUi.cpuChart.height = 120;
-        TmUi.perfMemLabel = new Label("内存 —");
-        TmUi.perfMemLabel.setPrefSize(700, 28);
-        Theme.applyStyle(TmUi.perfMemLabel, Theme.STYLE_BODY);
+        TmUi.cpuChart.setPrefSize(400, 120);
+        TmUi.perfMemLabel = TmUi.mkLabel("内存 —", 400, 28, 14, TmUi.textC, TmUi.contentBg);
         TmUi.memChart = new TrendChart();
         TmUi.memChart.setCapacity(60);
         TmUi.memChart.setYRange(0.0, 100.0);
-        TmUi.memChart.setPrefSize(1100, 120);
-        TmUi.memChart.width = 1100;
-        TmUi.memChart.height = 120;
-        TmUi.perfMetaLabel = new Label("最近约 60 秒 · 间隔 1000 ms · CPU% 按整机逻辑处理器归一化 · 内存为系统已用估计");
-        TmUi.perfMetaLabel.setPrefSize(1100, 24);
-        Theme.applyStyle(TmUi.perfMetaLabel, Theme.STYLE_SECONDARY);
-        TmUi.pagePerf.add(TmUi.perfCpuLabel);
-        TmUi.pagePerf.add(TmUi.cpuChart);
-        TmUi.pagePerf.add(TmUi.perfMemLabel);
-        TmUi.pagePerf.add(TmUi.memChart);
-        TmUi.pagePerf.add(TmUi.perfMetaLabel);
+        TmUi.memChart.setPrefSize(400, 120);
+        TmUi.perfMetaLabel = TmUi.mkLabel(
+                "最近约 60 秒 · 间隔 1000 ms · CPU% 按整机逻辑处理器归一化 · 内存为系统已用估计",
+                400, 24, 12, TmUi.mutedC, TmUi.contentBg);
+        pagePerf.add(TmUi.perfCpuLabel);
+        pagePerf.add(TmUi.cpuChart);
+        pagePerf.add(TmUi.perfMemLabel);
+        pagePerf.add(TmUi.memChart);
+        pagePerf.add(TmUi.perfMetaLabel);
 
         /* ---- Detail page ---- */
-        TmUi.pageDetail = new VBox();
-        TmUi.pageDetail.spacing = Theme.SPACE_2;
-        TmUi.pageDetail.padding = Theme.SPACE_4;
-        TmUi.pageDetail.vgrow = 1;
-        TmUi.pageDetail.setBackgroundRgba(TmUi.tableBg);
-        TmUi.pageDetail.setVisible(false);
-        TmUi.detailPageBody = new Label("在进程页选择一个进程以查看详情。");
-        TmUi.detailPageBody.setPrefSize(900, 400);
-        Theme.applyStyle(TmUi.detailPageBody, Theme.STYLE_BODY);
-        TmUi.pageDetail.add(TmUi.detailPageBody);
+        TmPage pageDetail = new TmPage();
+        pageDetail.spacing = Theme.SPACE_2;
+        pageDetail.padding = Theme.SPACE_4;
+        pageDetail.vgrow = 1;
+        pageDetail.setBackgroundRgba(TmUi.contentBg);
+        TmUi.pageDetail = pageDetail;
+        pageDetail.setVisible(false);
+        TmUi.detailPageBody = TmUi.mkLabel("在进程页选择一个进程以查看详情。",
+                400, 360, 13, TmUi.textC, TmUi.contentBg);
+        pageDetail.add(TmUi.detailPageBody);
 
+        /* ---- Footer ---- */
         HBox footer = new HBox();
-        footer.spacing = Theme.SPACE_3;
-        footer.padding = Theme.SPACE_3;
-        footer.prefHeight = 40;
-        footer.height = 40;
-        footer.setBackgroundRgba(TmUi.chromeBg);
-        TmUi.footPrimary = new Label("系统 CPU —  ·  等待采样");
-        TmUi.footPrimary.setPrefSize(720, 26);
-        Theme.applyStyle(TmUi.footPrimary, Theme.STYLE_BODY);
-        TmUi.footStatus = new Label("就绪");
-        TmUi.footStatus.setPrefSize(280, 26);
-        Theme.applyStyle(TmUi.footStatus, Theme.STYLE_SECONDARY);
-        Label fflex = new Label("");
-        fflex.hgrow = 1;
-        fflex.setBackgroundRgba(TmUi.chromeBg);
+        footer.spacing = 12;
+        footer.padding = 0;
+        footer.setPrefSize(400, 32);
+        footer.setBackgroundRgba(TmUi.appBg);
+        TmUi.footPrimary = TmUi.mkLabel("进程 — · 线程 —", 200, 24, 12, TmUi.mutedC, TmUi.appBg);
+        TmUi.footPrimary.hgrow = 1;
+        TmUi.footStatus = TmUi.mkLabel("就绪", 320, 24, 12, TmUi.mutedC, TmUi.appBg);
         footer.add(TmUi.footPrimary);
-        footer.add(fflex);
         footer.add(TmUi.footStatus);
 
-        root.add(toolbar);
-        root.add(TmUi.pageProc);
-        root.add(TmUi.pagePerf);
-        root.add(TmUi.pageDetail);
-        root.add(footer);
+        main.add(top);
+        main.add(toolbar);
+        main.add(pageProc);
+        main.add(pagePerf);
+        main.add(pageDetail);
+        main.add(footer);
+
+        root.add(nav);
+        root.add(main);
+
         TmUi.window.setContent(root);
         TmUi.window.show();
         TmActions.showPage(0);
         TmActions.syncToolbarEnabled();
         TmActions.warmupAndArm();
+    }
+
+    static void addNavItem(VBox nav, int idx) {
+        HBox row = new HBox();
+        row.spacing = 0;
+        row.padding = 0;
+        row.setPrefSize(168, 36);
+        row.setBackgroundRgba(TmUi.appBg);
+
+        Panel ind = new Panel();
+        ind.setPrefSize(3, 20);
+        ind.setBackgroundRgba(TmUi.appBg);
+
+        Button b = new Button(TmActions.navLabel(idx, 0));
+        b.setPrefSize(165, 36);
+        TmUi.styleNavBtn(b, 0, 0);
+        b.onClick(() -> { TmActions.showPage(idx); });
+
+        row.add(ind);
+        row.add(b);
+        nav.add(row);
+
+        TmUi.navRows.add(row);
+        TmUi.navInds.add(ind);
+        TmUi.navBtns.add(b);
     }
 }
 
@@ -314,25 +514,68 @@ class TmRowIds implements TableRowIdProvider<AmProcRow> {
     }
 }
 
+class TmRowIcons implements TableIconPathProvider<AmProcRow> {
+    public String iconPath(AmProcRow row) {
+        if (row == null || row.sample == null) {
+            return "";
+        }
+        if ((row.sample.flags & AmFlags.PATH) != 0 && row.sample.path != null) {
+            return row.sample.path;
+        }
+        return "";
+    }
+}
+
 class TmColName implements ColumnRenderer<AmProcRow> {
     String getTitle() {
-        return TmActions.colTitle(0, "进程名称");
+        return TmActions.colTitle(0, "名称");
     }
     String renderRow(AmProcRow row) {
-        if (row == null || row.sample == null || row.sample.name == null) {
-            return "不可用";
+        if (row == null || row.sample == null || row.sample.name == null
+                || row.sample.name.length() == 0) {
+            return TmFormat.na();
         }
         return row.sample.name;
     }
 }
 
-class TmColPid implements ColumnRenderer<AmProcRow> {
+class TmColCpu implements ColumnRenderer<AmProcRow> {
     String getTitle() {
-        return TmActions.colTitle(1, "PID");
+        return TmActions.colTitle(1, "CPU");
+    }
+    String renderRow(AmProcRow row) {
+        if (row == null) {
+            return TmFormat.na();
+        }
+        return TmFormat.cpuPct1(row.cpuMilli);
+    }
+}
+
+class TmColMem implements ColumnRenderer<AmProcRow> {
+    String getTitle() {
+        return TmActions.colTitle(2, "工作集");
     }
     String renderRow(AmProcRow row) {
         if (row == null || row.sample == null) {
-            return "不可用";
+            return TmFormat.na();
+        }
+        if ((row.sample.flags & AmFlags.FOOTPRINT) != 0) {
+            return TmFormat.bytes(row.sample.footprint);
+        }
+        if ((row.sample.flags & AmFlags.RSS) != 0) {
+            return TmFormat.bytes(row.sample.rss);
+        }
+        return TmFormat.na();
+    }
+}
+
+class TmColPid implements ColumnRenderer<AmProcRow> {
+    String getTitle() {
+        return TmActions.colTitle(3, "PID");
+    }
+    String renderRow(AmProcRow row) {
+        if (row == null || row.sample == null) {
+            return TmFormat.na();
         }
         return String.valueOf(row.sample.pid);
     }
@@ -340,44 +583,14 @@ class TmColPid implements ColumnRenderer<AmProcRow> {
 
 class TmColUser implements ColumnRenderer<AmProcRow> {
     String getTitle() {
-        return TmActions.colTitle(2, "用户");
+        return TmActions.colTitle(4, "用户");
     }
     String renderRow(AmProcRow row) {
         if (row == null || row.sample == null || (row.sample.flags & AmFlags.USER) == 0
-                || row.sample.user == null) {
-            return "不可用";
+                || row.sample.user == null || row.sample.user.length() == 0) {
+            return TmFormat.na();
         }
         return row.sample.user;
-    }
-}
-
-class TmColCpu implements ColumnRenderer<AmProcRow> {
-    String getTitle() {
-        return TmActions.colTitle(3, "CPU %");
-    }
-    String renderRow(AmProcRow row) {
-        if (row == null) {
-            return AmFormat.waiting();
-        }
-        return AmFormat.cpuPct(row.cpuMilli);
-    }
-}
-
-class TmColMem implements ColumnRenderer<AmProcRow> {
-    String getTitle() {
-        return TmActions.colTitle(4, "工作集");
-    }
-    String renderRow(AmProcRow row) {
-        if (row == null || row.sample == null) {
-            return "不可用";
-        }
-        if ((row.sample.flags & AmFlags.FOOTPRINT) != 0) {
-            return AmFormat.bytes(row.sample.footprint);
-        }
-        if ((row.sample.flags & AmFlags.RSS) != 0) {
-            return AmFormat.bytes(row.sample.rss);
-        }
-        return "不可用";
     }
 }
 
@@ -386,10 +599,11 @@ class TmColThr implements ColumnRenderer<AmProcRow> {
         return TmActions.colTitle(5, "线程");
     }
     String renderRow(AmProcRow row) {
-        if (row == null || row.sample == null) {
-            return "不可用";
+        if (row == null || row.sample == null || (row.sample.flags & AmFlags.NTHREADS) == 0
+                || row.sample.nthreads < 0) {
+            return TmFormat.na();
         }
-        return AmFormat.threads(row.sample);
+        return String.valueOf(row.sample.nthreads);
     }
 }
 
@@ -399,9 +613,9 @@ class TmActions {
             return base;
         }
         if (TmUi.sortAsc != 0) {
-            return base + " ▲";
+            return base + " ↑";
         }
-        return base + " ▼";
+        return base + " ↓";
     }
 
     static void rebuildColumns() {
@@ -409,13 +623,101 @@ class TmActions {
             return;
         }
         TmUi.table.columns.clear();
-        /* Name flex but modest preferred width so numeric cols stay visible. */
-        TmUi.table.addColumnDef(colTitle(0, "进程名称"), new TmColName(), 220, "L", 1);
-        TmUi.table.addColumnDef(colTitle(1, "PID"), new TmColPid(), 80, "R", 0);
-        TmUi.table.addColumnDef(colTitle(2, "用户"), new TmColUser(), 120, "L", 0);
-        TmUi.table.addColumnDef(colTitle(3, "CPU %"), new TmColCpu(), 90, "R", 0);
-        TmUi.table.addColumnDef(colTitle(4, "工作集"), new TmColMem(), 110, "R", 0);
-        TmUi.table.addColumnDef(colTitle(5, "线程"), new TmColThr(), 72, "R", 0);
+        /* Order: Name | CPU | Memory | PID | User | Threads */
+        /* Prefer: name/cpu/mem/pid stay visible; user/threads may scroll when narrow. */
+        TmUi.table.addColumnDef(colTitle(0, "名称"), new TmColName(), 240, "L", 1, 360);
+        TmUi.table.addColumnDef(colTitle(1, "CPU"), new TmColCpu(), 90, "R", 0, 0);
+        TmUi.table.addColumnDef(colTitle(2, "工作集"), new TmColMem(), 120, "R", 0, 0);
+        TmUi.table.addColumnDef(colTitle(3, "PID"), new TmColPid(), 80, "R", 0, 0);
+        TmUi.table.addColumnDef(colTitle(4, "用户"), new TmColUser(), 120, "L", 1, 180);
+        TmUi.table.addColumnDef(colTitle(5, "线程"), new TmColThr(), 70, "R", 0, 0);
+    }
+
+    static String navLabel(int idx, int collapsed) {
+        if (collapsed != 0) {
+            if (idx == 0) {
+                return "进";
+            }
+            if (idx == 1) {
+                return "性";
+            }
+            return "详";
+        }
+        if (idx == 0) {
+            return "  进程";
+        }
+        if (idx == 1) {
+            return "  性能";
+        }
+        return "  详情";
+    }
+
+    static String pageName(int p) {
+        if (p == 0) {
+            return "进程";
+        }
+        if (p == 1) {
+            return "性能";
+        }
+        return "详情";
+    }
+
+    static void toggleNav() {
+        if (TmUi.navCollapsed != 0) {
+            TmUi.navCollapsed = 0;
+        } else {
+            TmUi.navCollapsed = 1;
+        }
+        syncNav();
+    }
+
+    /** Restyle nav buttons / indicators / widths for current page + collapsed state. */
+    static void syncNav() {
+        if (TmUi.navBox == null || TmUi.navBtns == null) {
+            return;
+        }
+        int collapsed = TmUi.navCollapsed;
+        int navW = 184;
+        if (collapsed != 0) {
+            navW = 56;
+        }
+        int innerW = navW - 16;
+        int btnW = innerW - 3;
+        TmUi.navBox.prefWidth = navW;
+        TmUi.navBox.width = navW;
+        if (TmUi.navToggle != null) {
+            TmUi.navToggle.setPrefSize(innerW, 32);
+            if (collapsed != 0) {
+                TmUi.navToggle.setText("»");
+            } else {
+                TmUi.navToggle.setText("«");
+            }
+        }
+        int i = 0;
+        while (i < TmUi.navBtns.size()) {
+            Button b = TmUi.navBtns.get(i);
+            Panel ind = TmUi.navInds.get(i);
+            HBox row = TmUi.navRows.get(i);
+            int sel = 0;
+            if (i == TmUi.page) {
+                sel = 1;
+            }
+            row.setPrefSize(innerW, 36);
+            b.setPrefSize(btnW, 36);
+            b.setText(navLabel(i, collapsed));
+            TmUi.styleNavBtn(b, sel, collapsed);
+            if (sel != 0) {
+                ind.setBackgroundRgba(TmUi.accentC);
+            } else {
+                ind.setBackgroundRgba(TmUi.appBg);
+            }
+            row.layout();
+            i = i + 1;
+        }
+        TmUi.navBox.layout();
+        if (TmUi.window != null && TmUi.window.content != null) {
+            TmUi.window.content.layout();
+        }
     }
 
     static void showPage(int p) {
@@ -432,12 +734,19 @@ class TmActions {
         if (TmUi.pageDetail != null) {
             TmUi.pageDetail.setVisible(p == 2);
         }
+        if (TmUi.searchField != null) {
+            TmUi.searchField.setVisible(p == 0);
+        }
+        if (TmUi.pageTitle != null) {
+            TmUi.pageTitle.setText(pageName(p));
+        }
         if (p == 1) {
             updatePerfPage();
         }
         if (p == 2) {
             refreshDetailPage();
         }
+        syncNav();
         if (TmUi.window != null && TmUi.window.content != null) {
             TmUi.window.content.layout();
         }
@@ -448,12 +757,14 @@ class TmActions {
             TmUi.paused = 0;
             if (TmUi.pauseBtn != null) {
                 TmUi.pauseBtn.setText("暂停");
+                TmUi.pauseBtn.setPrefSize(72, 32);
             }
             requestSample(0);
         } else {
             TmUi.paused = 1;
             if (TmUi.pauseBtn != null) {
                 TmUi.pauseBtn.setText("恢复");
+                TmUi.pauseBtn.setPrefSize(72, 32);
             }
         }
         updateStatusBar();
@@ -472,14 +783,7 @@ class TmActions {
         maybeRebuildTable(1);
     }
 
-    static void onSelect(int index) {
-        if (TmUi.viewRows == null || index < 0 || index >= TmUi.viewRows.size()) {
-            TmUi.selPid = -1;
-            syncToolbarEnabled();
-            refreshDetailPage();
-            return;
-        }
-        AmProcRow r = TmUi.viewRows.get(index);
+    static void onSelectRow(AmProcRow r) {
         if (r == null || r.sample == null) {
             TmUi.selPid = -1;
             syncToolbarEnabled();
@@ -494,6 +798,16 @@ class TmActions {
         refreshDetailPage();
     }
 
+    static void onSelect(int index) {
+        if (TmUi.viewRows == null || index < 0 || index >= TmUi.viewRows.size()) {
+            TmUi.selPid = -1;
+            syncToolbarEnabled();
+            refreshDetailPage();
+            return;
+        }
+        onSelectRow(TmUi.viewRows.get(index));
+    }
+
     static void syncToolbarEnabled() {
         AmProcRow r = selectedRow();
         int ok = 0;
@@ -502,6 +816,14 @@ class TmActions {
         }
         if (TmUi.detailBtn != null) {
             TmUi.detailBtn.setEnabled(ok != 0);
+            int want = 1;
+            if (ok != 0) {
+                want = 2;
+            }
+            if (TmUi.detailStyle != want) {
+                TmUi.detailStyle = want;
+                TmUi.styleToolBtnState(TmUi.detailBtn, ok);
+            }
         }
         int canTerm = 0;
         if (ok != 0 && AmProtect.isProtected(r.sample) == 0) {
@@ -509,6 +831,14 @@ class TmActions {
         }
         if (TmUi.termBtn != null) {
             TmUi.termBtn.setEnabled(canTerm != 0);
+            int wantT = 1;
+            if (canTerm != 0) {
+                wantT = 2;
+            }
+            if (TmUi.termStyle != wantT) {
+                TmUi.termStyle = wantT;
+                TmUi.styleDangerBtn(TmUi.termBtn, canTerm);
+            }
         }
     }
 
@@ -617,10 +947,34 @@ class TmActions {
                 maybeRebuildTable(1);
             }
         }
+        syncSelectionFromNative();
         syncToolbarEnabled();
         refreshDetailIfOpen();
         if (TmUi.page == 2) {
             refreshDetailPage();
+        }
+    }
+
+    /**
+     * Win32 ListView selection sometimes paints without delivering SELECT to
+     * Java; poll the native selected index so toolbar enablement stays correct.
+     */
+    static void syncSelectionFromNative() {
+        if (TmUi.table == null || TmUi.table.nativeId <= 0 || TmUi.viewRows == null) {
+            return;
+        }
+        int idx = UiNative.getSelectedIndex(TmUi.table.nativeId);
+        if (idx < 0 || idx >= TmUi.viewRows.size()) {
+            return;
+        }
+        AmProcRow r = TmUi.viewRows.get(idx);
+        if (r == null || r.sample == null) {
+            return;
+        }
+        if (r.sample.pid != TmUi.selPid
+                || r.sample.startSec != TmUi.selStartSec
+                || r.sample.startUsec != TmUi.selStartUsec) {
+            onSelectRow(r);
         }
     }
 
@@ -662,12 +1016,9 @@ class TmActions {
                         TmUi.state.lastError = "采样失败";
                     }
                 }
-                /* Periodic tick: update footer/charts only unless dirty/forced. */
-                int forceTable = 0;
-                if (force != 0 || TmUi.tableDirty != 0 || TmUi.lastTableRebuildNs == 0) {
-                    forceTable = 1;
-                }
-                finishSampleUi(forceTable);
+                /* Always rebuild the process table so CPU/mem keep updating.
+                 * TableView.preserveScroll + rowId selection keep UX stable. */
+                finishSampleUi(1);
                 drainPending();
             });
         });
@@ -699,14 +1050,8 @@ class TmActions {
     }
 
     static void updateFooter() {
-        if (TmUi.footPrimary == null || TmUi.state == null) {
+        if (TmUi.state == null) {
             return;
-        }
-        String cpu = "—";
-        if (TmUi.state.sysCpuMilli >= 0) {
-            cpu = AmFormat.cpuPct(TmUi.state.sysCpuMilli);
-        } else if (TmUi.state.sampleCount < 2) {
-            cpu = AmFormat.waiting();
         }
         int nproc = 0;
         int nthr = 0;
@@ -721,19 +1066,50 @@ class TmActions {
                 i = i + 1;
             }
         }
-        String mem = "";
-        if (TmUi.state.sysMemUsedBytes >= 0) {
-            mem = "  ·  内存 " + AmFormat.bytes(TmUi.state.sysMemUsedBytes);
-            if (TmUi.state.memTotal > 0) {
-                mem = mem + " / " + AmFormat.bytes(TmUi.state.memTotal);
-            }
+        String cpuPart = "";
+        if (TmUi.state.sysCpuMilli >= 0) {
+            cpuPart = TmFormat.cpuPct1(TmUi.state.sysCpuMilli);
         }
-        TmUi.footPrimary.setText("系统 CPU " + cpu
-                + "  ·  进程 " + String.valueOf(nproc)
-                + "  ·  线程 " + String.valueOf(nthr) + mem);
+        if (TmUi.footPrimary != null) {
+            String ft = "进程 " + String.valueOf(nproc) + " · 线程 " + String.valueOf(nthr);
+            if (cpuPart.length() > 0) {
+                ft = ft + " · CPU " + cpuPart;
+            }
+            TmUi.footPrimary.setText(ft);
+        }
+        if (TmUi.procSummary != null) {
+            String sum = "";
+            if (cpuPart.length() > 0) {
+                sum = "CPU " + cpuPart;
+            }
+            if (TmUi.state.sysMemUsedBytes >= 0) {
+                if (sum.length() > 0) {
+                    sum = sum + " · ";
+                }
+                sum = sum + "内存 " + AmFormat.bytes(TmUi.state.sysMemUsedBytes);
+                if (TmUi.state.memTotal > 0) {
+                    sum = sum + " / " + AmFormat.bytes(TmUi.state.memTotal);
+                }
+            }
+            if (sum.length() == 0 && TmUi.state.sampleCount < 2) {
+                sum = "正在采样…";
+            }
+            TmUi.procSummary.setText(sum);
+        }
     }
 
     static void updateStatusBar() {
+        String ts = "";
+        if (TmUi.paused != 0) {
+            ts = "已暂停";
+        } else if (TmUi.samplerBusy != 0) {
+            ts = "采样中…";
+        } else {
+            ts = "自动刷新 · " + String.valueOf(TmUi.refreshMs) + " ms";
+        }
+        if (TmUi.toolStatus != null) {
+            TmUi.toolStatus.setText(ts);
+        }
         if (TmUi.footStatus == null) {
             return;
         }
@@ -750,10 +1126,10 @@ class TmActions {
             if (ageMs < 0) {
                 ageMs = 0;
             }
-            st = st + "  ·  上次成功 " + AmParse.longToString(ageMs) + " ms 前";
+            st = st + " · 上次成功 " + AmParse.longToString(ageMs) + " ms 前";
         } else if (TmUi.state != null && TmUi.state.lastError != null
                 && TmUi.state.lastError.length() > 0) {
-            st = st + "  ·  数据已过期（" + TmUi.state.lastError + "）";
+            st = st + " · 数据已过期（" + TmUi.state.lastError + "）";
         }
         TmUi.footStatus.setText(st);
     }
@@ -762,21 +1138,21 @@ class TmActions {
         if (TmUi.perfCpuLabel == null) {
             return;
         }
-        String cpu = "—";
+        String cpu = TmFormat.na();
         if (TmUi.state != null && TmUi.state.sysCpuMilli >= 0) {
-            cpu = AmFormat.cpuPct(TmUi.state.sysCpuMilli);
+            cpu = TmFormat.cpuPct1(TmUi.state.sysCpuMilli);
         } else if (TmUi.state != null && TmUi.state.sampleCount < 2) {
-            cpu = AmFormat.waiting();
+            cpu = "采样中";
         }
         int ncpu = 0;
         if (TmUi.state != null) {
             ncpu = TmUi.state.ncpu;
         }
         TmUi.perfCpuLabel.setText("CPU 利用率 " + cpu
-                + (ncpu > 0 ? ("  ·  逻辑处理器 " + String.valueOf(ncpu)) : ""));
+                + (ncpu > 0 ? (" · 逻辑处理器 " + String.valueOf(ncpu)) : ""));
         if (TmUi.perfMemLabel != null && TmUi.state != null) {
-            String mu = "—";
-            String mt = "—";
+            String mu = TmFormat.na();
+            String mt = TmFormat.na();
             if (TmUi.state.sysMemUsedBytes >= 0) {
                 mu = AmFormat.bytes(TmUi.state.sysMemUsedBytes);
             }
@@ -823,22 +1199,35 @@ class TmActions {
                     rr.sample.name = "";
                 }
                 if (rr.sample.user == null) {
-                    rr.sample.user = "不可用";
+                    rr.sample.user = "";
                 }
                 shown.add(rr);
             }
             si = si + 1;
         }
         TmUi.viewRows = shown;
+        /* Seed row-id so setItems restores selection without EnsureVisible jump. */
+        if (TmUi.selPid > 0) {
+            TmUi.table.selectedRowId = String.valueOf(TmUi.selPid) + ":"
+                    + AmParse.longToString(TmUi.selStartSec) + ":"
+                    + String.valueOf(TmUi.selStartUsec);
+        }
+        int keepTop = -1;
+        if (TmUi.table.nativeId > 0) {
+            keepTop = UiNative.tableGetScrollY(TmUi.table.nativeId);
+        }
         TmUi.table.setItems(TmUi.viewRows);
+        if (keepTop >= 0 && TmUi.table.nativeId > 0) {
+            UiNative.tableSetScrollY(TmUi.table.nativeId, keepTop);
+        }
         if (TmUi.selPid > 0) {
             String want = String.valueOf(TmUi.selPid) + ":"
                     + AmParse.longToString(TmUi.selStartSec) + ":"
                     + String.valueOf(TmUi.selStartUsec);
-            TmUi.table.selectByRowId(want);
             if (TmUi.table.getSelectedRowId() == null
                     || !want.equals(TmUi.table.getSelectedRowId())) {
                 TmUi.selPid = -1;
+                TmUi.table.selectedRowId = null;
             }
         }
         TmUi.tableDirty = 0;
@@ -869,6 +1258,7 @@ class TmActions {
         return out;
     }
 
+    /* Columns: 0 Name | 1 CPU | 2 Memory | 3 PID | 4 User | 5 Threads */
     static int cmp(AmProcRow x, AmProcRow y, int col, int asc) {
         if (x == null || y == null || x.sample == null || y.sample == null) {
             return 0;
@@ -879,14 +1269,8 @@ class TmActions {
             String ny = y.sample.name != null ? y.sample.name : "";
             c = nx.compareTo(ny);
         } else if (col == 1) {
-            c = x.sample.pid - y.sample.pid;
-        } else if (col == 2) {
-            String ux = x.sample.user != null ? x.sample.user : "";
-            String uy = y.sample.user != null ? y.sample.user : "";
-            c = ux.compareTo(uy);
-        } else if (col == 3) {
             c = x.cpuMilli - y.cpuMilli;
-        } else if (col == 4) {
+        } else if (col == 2) {
             long mx = -1;
             long my = -1;
             if ((x.sample.flags & AmFlags.FOOTPRINT) != 0) {
@@ -904,6 +1288,12 @@ class TmActions {
             } else if (mx > my) {
                 c = 1;
             }
+        } else if (col == 3) {
+            c = x.sample.pid - y.sample.pid;
+        } else if (col == 4) {
+            String ux = x.sample.user != null ? x.sample.user : "";
+            String uy = y.sample.user != null ? y.sample.user : "";
+            c = ux.compareTo(uy);
         } else if (col == 5) {
             c = x.sample.nthreads - y.sample.nthreads;
         }
@@ -919,17 +1309,22 @@ class TmActions {
         }
         String path = r.sample.path;
         if (path == null || path.length() == 0 || (r.sample.flags & AmFlags.PATH) == 0) {
-            path = "不可用";
+            path = TmFormat.na();
         }
-        String mem = "不可用";
+        String mem = TmFormat.na();
         if ((r.sample.flags & AmFlags.FOOTPRINT) != 0) {
-            mem = AmFormat.bytes(r.sample.footprint) + "（工作集）";
+            mem = TmFormat.bytes(r.sample.footprint) + "（工作集）";
         } else if ((r.sample.flags & AmFlags.RSS) != 0) {
-            mem = AmFormat.bytes(r.sample.rss) + "（工作集）";
+            mem = TmFormat.bytes(r.sample.rss) + "（工作集）";
         }
-        String user = "不可用";
-        if ((r.sample.flags & AmFlags.USER) != 0 && r.sample.user != null) {
+        String user = TmFormat.na();
+        if ((r.sample.flags & AmFlags.USER) != 0 && r.sample.user != null
+                && r.sample.user.length() > 0) {
             user = r.sample.user;
+        }
+        String thr = TmFormat.na();
+        if ((r.sample.flags & AmFlags.NTHREADS) != 0 && r.sample.nthreads >= 0) {
+            thr = String.valueOf(r.sample.nthreads);
         }
         String prot = "";
         if (AmProtect.isProtected(r.sample) != 0) {
@@ -939,9 +1334,9 @@ class TmActions {
                 + "PID\t" + String.valueOf(r.sample.pid) + "\n"
                 + "PPID\t" + String.valueOf(r.sample.ppid) + "\n"
                 + "用户\t" + user + "\n"
-                + "CPU\t" + AmFormat.cpuPct(r.cpuMilli) + "\n"
-                + "工作集\t" + mem + "\n"
-                + "线程\t" + AmFormat.threads(r.sample) + "\n"
+                + "CPU\t" + TmFormat.cpuPct1(r.cpuMilli) + "\n"
+                + "内存\t" + mem + "\n"
+                + "线程\t" + thr + "\n"
                 + "路径\t" + path + "\n"
                 + "启动\t" + AmParse.longToString(r.sample.startSec) + "."
                 + String.valueOf(r.sample.startUsec)
@@ -978,10 +1373,11 @@ class TmActions {
             VBox box = new VBox();
             box.spacing = 8;
             box.padding = 16;
-            TmUi.detailBody = new Label("");
-            TmUi.detailBody.setPrefSize(440, 300);
+            box.setBackgroundRgba(TmUi.contentBg);
+            TmUi.detailBody = TmUi.mkLabel("", 440, 300, 13, TmUi.textC, TmUi.contentBg);
             Button copy = new Button("复制");
-            copy.setChromeStyle(3);
+            copy.setPrefSize(72, 32);
+            TmUi.styleToolBtn(copy);
             copy.onClick(() -> {
                 String t = TmUi.detailCopyText;
                 if (t == null) {

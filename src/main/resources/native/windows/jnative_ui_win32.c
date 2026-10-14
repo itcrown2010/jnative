@@ -19,10 +19,12 @@
 #endif
 #include <windows.h>
 #include <commctrl.h>
+#include <shellapi.h>
 #include <uxtheme.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
+#include <math.h>
 
 #include "jnative_ui.h"
 
@@ -79,6 +81,21 @@ static HFONT g_ui_font = NULL;
 static int g_col_count[JN_UI_MAX];
 static int g_col_width_lp[JN_UI_MAX][JN_UI_MAX_COLS];
 static int g_col_flex[JN_UI_MAX][JN_UI_MAX_COLS];
+/* Optional per-column max logical width (0 = unlimited) and heat role. */
+static int g_col_max_lp[JN_UI_MAX][JN_UI_MAX_COLS];
+/* 0 = normal, 1 = cpu, 2 = memory (light heat tint in custom draw). */
+static int g_col_role[JN_UI_MAX][JN_UI_MAX_COLS];
+/* Client-area minimum size per top-level window (logical px, 0 = unset). */
+static int g_min_w[JN_UI_MAX], g_min_h[JN_UI_MAX];
+/* Small imagelist per table (16 x rowHeight) + per-table icon path cache. */
+static HIMAGELIST g_table_il[JN_UI_MAX];
+static int g_table_il_h[JN_UI_MAX];
+#define JN_ICON_CACHE_MAX 512
+static wchar_t **g_icon_paths[JN_UI_MAX];
+static int *g_icon_idx[JN_UI_MAX];
+static int g_icon_n[JN_UI_MAX];
+/* Guards LVN_ITEMCHANGED -> SELECT feedback while selecting programmatically. */
+static int g_in_set_selection = 0;
 /* TrendChart sample CSV: "ymin,ymax,cap|v0,v1,..." (display units). */
 static char *g_trend_csv[JN_UI_MAX];
 
@@ -124,6 +141,12 @@ static COLORREF rgba_to_colorref(int32_t rgba) {
     return RGB(r, g, b);
 }
 
+static HFONT create_font_face(int px, const wchar_t *face) {
+    return CreateFontW(px, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
+            DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
+            CLEARTYPE_QUALITY, DEFAULT_PITCH | FF_SWISS, face);
+}
+
 static HFONT make_ui_font(int pt) {
     if (pt <= 0) {
         pt = 13;
@@ -132,12 +155,29 @@ static HFONT make_ui_font(int pt) {
     int dpi = 96;
     if (hdc != NULL) {
         dpi = GetDeviceCaps(hdc, LOGPIXELSY);
-        ReleaseDC(NULL, hdc);
     }
     int px = -MulDiv(pt, dpi, 72);
-    return CreateFontW(px, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
-            DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
-            CLEARTYPE_QUALITY, DEFAULT_PITCH | FF_SWISS, L"Segoe UI");
+    /* Prefer Segoe UI Variable (Win11); CreateFont silently substitutes when the
+     * face is missing, so verify the realized face name before keeping it. */
+    HFONT font = create_font_face(px, L"Segoe UI Variable");
+    if (font != NULL && hdc != NULL) {
+        wchar_t face[LF_FACESIZE + 1];
+        face[0] = L'\0';
+        HGDIOBJ old = SelectObject(hdc, font);
+        GetTextFaceW(hdc, LF_FACESIZE, face);
+        SelectObject(hdc, old);
+        if (_wcsnicmp(face, L"Segoe UI Variable", 17) != 0) {
+            DeleteObject(font);
+            font = NULL;
+        }
+    }
+    if (hdc != NULL) {
+        ReleaseDC(NULL, hdc);
+    }
+    if (font == NULL) {
+        font = create_font_face(px, L"Segoe UI");
+    }
+    return font;
 }
 
 static void apply_theme_to_hwnd(HWND hwnd, int kind) {
@@ -186,7 +226,7 @@ static void paint_owner_button(const DRAWITEMSTRUCT *dis) {
     int id = (int)(intptr_t)GetWindowLongPtr(dis->hwndItem, GWLP_USERDATA);
     COLORREF bg = RGB(0, 122, 255);
     COLORREF fg = RGB(255, 255, 255);
-    int radius = 8;
+    int radius = 6;
     if (id > 0 && id < JN_UI_MAX) {
         if (g_bg_rgba[id] != 0 && g_bg_rgba[id] != JN_VISUAL_KEEP) {
             bg = rgba_to_colorref(g_bg_rgba[id]);
@@ -198,15 +238,27 @@ static void paint_owner_button(const DRAWITEMSTRUCT *dis) {
             radius = g_corner_radius[id];
         }
     }
-    if (dis->itemState & ODS_SELECTED) {
-        bg = darken_color(bg, 28);
-    } else if (dis->itemState & ODS_DISABLED) {
-        bg = RGB(200, 200, 205);
-        fg = RGB(120, 120, 125);
+    /* Light fills get a hairline #E8EBEF border; saturated fills keep a same-color edge. */
+    int lum = (299 * (int)GetRValue(bg) + 587 * (int)GetGValue(bg)
+            + 114 * (int)GetBValue(bg)) / 1000;
+    int light_bg = lum >= 200;
+    if (dis->itemState & ODS_DISABLED) {
+        if (light_bg) {
+            bg = RGB(240, 241, 243);
+            fg = RGB(160, 164, 170);
+        } else {
+            bg = RGB(200, 200, 205);
+            fg = RGB(120, 120, 125);
+        }
+    } else if (dis->itemState & ODS_SELECTED) {
+        bg = darken_color(bg, 18);
+    } else if (dis->itemState & ODS_HOTLIGHT) {
+        bg = darken_color(bg, 8);
     }
+    COLORREF border = light_bg ? RGB(0xE8, 0xEB, 0xEF) : bg;
     RECT rc = dis->rcItem;
     HBRUSH br = CreateSolidBrush(bg);
-    HPEN pen = CreatePen(PS_SOLID, 1, bg);
+    HPEN pen = CreatePen(PS_SOLID, 1, border);
     HGDIOBJ oldBr = SelectObject(dis->hDC, br);
     HGDIOBJ oldPen = SelectObject(dis->hDC, pen);
     RoundRect(dis->hDC, rc.left, rc.top, rc.right, rc.bottom, radius * 2, radius * 2);
@@ -372,8 +424,157 @@ static void paint_trend_chart(HWND hwnd, int32_t id) {
     EndPaint(hwnd, &ps);
 }
 
+/* ---- ListView NM_CUSTOMDRAW helpers (Task Manager-like rows) ---- */
+
+static void lv_get_cell_text(HWND lv, int row, int sub, wchar_t *buf, int cch) {
+    LVITEMW it;
+    if (cch <= 0) {
+        return;
+    }
+    buf[0] = L'\0';
+    memset(&it, 0, sizeof(it));
+    it.iSubItem = sub;
+    it.pszText = buf;
+    it.cchTextMax = cch;
+    SendMessageW(lv, LVM_GETITEMTEXTW, (WPARAM)row, (LPARAM)&it);
+    buf[cch - 1] = L'\0';
+}
+
+/* Returns heat 0..100 parsed from cell text (<0 = not parseable). */
+static int lv_heat_from_text(int role, const wchar_t *s) {
+    wchar_t *end = NULL;
+    double v;
+    while (*s == L' ' || *s == L'\t') {
+        s++;
+    }
+    if (*s == L'\0') {
+        return -1;
+    }
+    v = wcstod(s, &end);
+    if (end == s || v < 0.0) {
+        return -1;
+    }
+    while (*end == L' ') {
+        end++;
+    }
+    if (role == 1) {
+        if (*end != L'%') {
+            return -1;
+        }
+        if (v > 100.0) {
+            v = 100.0;
+        }
+        return (int)(v + 0.5);
+    }
+    if (role == 2) {
+        double mb;
+        if (end[0] == L'G' || end[0] == L'g') {
+            mb = v * 1024.0;
+        } else if (end[0] == L'T' || end[0] == L't') {
+            mb = v * 1024.0 * 1024.0;
+        } else if (end[0] == L'K' || end[0] == L'k') {
+            mb = v / 1024.0;
+        } else if (end[0] == L'M' || end[0] == L'm') {
+            mb = v;
+        } else {
+            return -1;
+        }
+        /* sqrt keeps small apps visible; ~2 GB saturates. */
+        double t = sqrt(mb / 2048.0);
+        if (t > 1.0) {
+            t = 1.0;
+        }
+        return (int)(t * 100.0 + 0.5);
+    }
+    return -1;
+}
+
+static COLORREF blend_toward(COLORREF base, COLORREF tint, int alpha_pct) {
+    int r = GetRValue(base) + ((int)GetRValue(tint) - (int)GetRValue(base)) * alpha_pct / 100;
+    int g = GetGValue(base) + ((int)GetGValue(tint) - (int)GetGValue(base)) * alpha_pct / 100;
+    int b = GetBValue(base) + ((int)GetBValue(tint) - (int)GetBValue(base)) * alpha_pct / 100;
+    return RGB(r, g, b);
+}
+
+static LRESULT listview_customdraw(int32_t id, LPNMLVCUSTOMDRAW cd) {
+    /* Soft colors only via clrText/clrTextBk — never FillRect here.
+     * Filling before CDRF_NEWFONT blanks subitem text while scrolling. */
+    static const COLORREF kText = RGB(0x20, 0x21, 0x24);
+    static const COLORREF kMuted = RGB(0x66, 0x70, 0x85);
+    static const COLORREF kSelBg = RGB(0xE5, 0xF1, 0xFC);
+    static const COLORREF kWhite = RGB(255, 255, 255);
+    HWND lv = cd->nmcd.hdr.hwndFrom;
+    int row = (int)cd->nmcd.dwItemSpec;
+    switch (cd->nmcd.dwDrawStage) {
+    case CDDS_PREPAINT:
+        return CDRF_NOTIFYITEMDRAW;
+    case CDDS_ITEMPREPAINT: {
+        int selected = (ListView_GetItemState(lv, row, LVIS_SELECTED) & LVIS_SELECTED) != 0;
+        if (selected) {
+            cd->clrTextBk = kSelBg;
+            cd->clrText = kText;
+            /* Keep system text paint; only tint background. */
+            cd->nmcd.uItemState &= ~(UINT)(CDIS_SELECTED | CDIS_FOCUS);
+        }
+        return CDRF_NOTIFYSUBITEMDRAW | CDRF_NEWFONT;
+    }
+    case (CDDS_SUBITEM | CDDS_ITEMPREPAINT): {
+        int sub = cd->iSubItem;
+        int selected = (ListView_GetItemState(lv, row, LVIS_SELECTED) & LVIS_SELECTED) != 0;
+        wchar_t text[96];
+        COLORREF fillBg = selected ? kSelBg : kWhite;
+        int heat = -1;
+        lv_get_cell_text(lv, row, sub, text, 96);
+        /* Em-dash "—" (U+2014) or ASCII '-' used as n/a → muted. */
+        if ((text[0] == 0x2014 && text[1] == L'\0')
+                || (text[0] == L'-' && text[1] == L'\0')
+                || wcscmp(text, L"\x91C7\x6837\x4E2D") == 0) {
+            cd->clrText = kMuted;
+        } else {
+            cd->clrText = kText;
+        }
+        if (id > 0 && id < JN_UI_MAX && sub >= 0 && sub < JN_UI_MAX_COLS
+                && g_col_role[id][sub] != 0) {
+            heat = lv_heat_from_text(g_col_role[id][sub], text);
+        }
+        if (heat > 0) {
+            cd->clrTextBk = blend_toward(fillBg, RGB(0, 120, 212), heat * 22 / 100);
+        } else {
+            cd->clrTextBk = fillBg;
+        }
+        return CDRF_NEWFONT;
+    }
+    default:
+        break;
+    }
+    return CDRF_DODEFAULT;
+}
+
 static LRESULT CALLBACK JnWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
     int32_t handleId = (int32_t)(intptr_t)GetWindowLongPtr(hwnd, GWLP_USERDATA);
+    if (msg == WM_GETMINMAXINFO) {
+        if (handleId > 0 && handleId < JN_UI_MAX && g_kinds[handleId] == JN_UI_KIND_WINDOW
+                && (g_min_w[handleId] > 0 || g_min_h[handleId] > 0)) {
+            MINMAXINFO *mmi = (MINMAXINFO *)lParam;
+            RECT wr;
+            DWORD style = (DWORD)GetWindowLongPtr(hwnd, GWL_STYLE);
+            DWORD ex = (DWORD)GetWindowLongPtr(hwnd, GWL_EXSTYLE);
+            wr.left = 0;
+            wr.top = 0;
+            wr.right = g_min_w[handleId] > 0 ? g_min_w[handleId] : 0;
+            wr.bottom = g_min_h[handleId] > 0 ? g_min_h[handleId] : 0;
+            AdjustWindowRectEx(&wr, style, FALSE, ex);
+            if (mmi != NULL) {
+                if (g_min_w[handleId] > 0) {
+                    mmi->ptMinTrackSize.x = wr.right - wr.left;
+                }
+                if (g_min_h[handleId] > 0) {
+                    mmi->ptMinTrackSize.y = wr.bottom - wr.top;
+                }
+            }
+            return 0;
+        }
+    }
     if (msg == WM_PAINT) {
         if (handleId > 0 && handleId < JN_UI_MAX
                 && g_kinds[handleId] == JN_UI_KIND_TRENDCHART) {
@@ -447,12 +648,34 @@ static LRESULT CALLBACK JnWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPa
         if (hdr != NULL) {
             int32_t cid = (int32_t)(intptr_t)GetWindowLongPtr(hdr->hwndFrom, GWLP_USERDATA);
             if (cid > 0) {
+                if (hdr->code == NM_CUSTOMDRAW && cid < JN_UI_MAX
+                        && (g_kinds[cid] == JN_UI_KIND_LISTVIEW
+                            || g_kinds[cid] == JN_UI_KIND_TABLEVIEW)) {
+                    return listview_customdraw(cid, (LPNMLVCUSTOMDRAW)lParam);
+                }
                 if (hdr->code == LVN_ITEMCHANGED) {
                     NMLISTVIEW *lv = (NMLISTVIEW *)lParam;
+                    if (g_in_set_selection) {
+                        return 0;
+                    }
                     if ((lv->uChanged & LVIF_STATE) != 0
-                            && (lv->uNewState & LVIS_SELECTED) != 0) {
+                            && (lv->uNewState & LVIS_SELECTED) != 0
+                            && lv->iItem >= 0) {
                         g_selected_index[cid] = lv->iItem;
                         jnative_ui_emit_event_ex(cid, JN_UI_EVENT_SELECT, lv->iItem, 0, 0, 0);
+                    }
+                } else if (hdr->code == NM_CLICK) {
+                    /* Fallback: some themed/custom-drawn ListViews skip a clean
+                     * LVN_ITEMCHANGED edge; NM_CLICK still carries the row. */
+                    LPNMITEMACTIVATE ia = (LPNMITEMACTIVATE)lParam;
+                    if (ia != NULL && ia->iItem >= 0
+                            && (g_kinds[cid] == JN_UI_KIND_LISTVIEW
+                                || g_kinds[cid] == JN_UI_KIND_TABLEVIEW)) {
+                        g_selected_index[cid] = ia->iItem;
+                        ListView_SetItemState(g_hwnds[cid], ia->iItem,
+                                LVIS_SELECTED | LVIS_FOCUSED,
+                                LVIS_SELECTED | LVIS_FOCUSED);
+                        jnative_ui_emit_event_ex(cid, JN_UI_EVENT_SELECT, ia->iItem, 0, 0, 0);
                     }
                 } else if (hdr->code == NM_DBLCLK) {
                     jnative_ui_emit_event(cid, JN_UI_EVENT_ACTION);
@@ -757,7 +980,7 @@ int32_t jnative_ui_create_control(int32_t kind, int32_t parentId, const char *te
                 if (lid > 0 && lid < JN_UI_MAX && g_hwnds[lid] != NULL) {
                     ListView_SetExtendedListViewStyle(g_hwnds[lid],
                             LVS_EX_FULLROWSELECT | LVS_EX_DOUBLEBUFFER | LVS_EX_LABELTIP
-                            | LVS_EX_GRIDLINES);
+                            | LVS_EX_SUBITEMIMAGES);
                 }
                 return lid;
             }
@@ -778,6 +1001,193 @@ int32_t jnative_ui_create_control(int32_t kind, int32_t parentId, const char *te
     }
 }
 
+/* ---- Table row height / icon imagelist ---- */
+
+static int is_table_kind(int32_t id) {
+    return id > 0 && id < JN_UI_MAX
+            && (g_kinds[id] == JN_UI_KIND_LISTVIEW || g_kinds[id] == JN_UI_KIND_TABLEVIEW);
+}
+
+static void icon_cache_free(int32_t id) {
+    int i;
+    for (i = 0; i < g_icon_n[id]; i++) {
+        free(g_icon_paths[id][i]);
+    }
+    free(g_icon_paths[id]);
+    free(g_icon_idx[id]);
+    g_icon_paths[id] = NULL;
+    g_icon_idx[id] = NULL;
+    g_icon_n[id] = 0;
+}
+
+/* Creates/replaces the table's small imagelist (cx=16, cy=height). The ListView row
+ * height follows the imagelist height. Existing icon indices become invalid. */
+static void ensure_table_row_height(int32_t id, int height) {
+    if (!g_win32_active || !is_table_kind(id) || g_hwnds[id] == NULL) {
+        return;
+    }
+    if (height < 16) {
+        height = 16;
+    }
+    if (height > 64) {
+        height = 64;
+    }
+    if (g_table_il[id] != NULL && g_table_il_h[id] == height) {
+        return;
+    }
+    HIMAGELIST il = ImageList_Create(16, height, ILC_COLOR32, 16, 16);
+    if (il == NULL) {
+        return;
+    }
+    HIMAGELIST old = ListView_SetImageList(g_hwnds[id], il, LVSIL_SMALL);
+    if (old != NULL) {
+        ImageList_Destroy(old);
+    }
+    icon_cache_free(id);
+    g_table_il[id] = il;
+    g_table_il_h[id] = height;
+    InvalidateRect(g_hwnds[id], NULL, TRUE);
+}
+
+/* Draws a 16x16 icon vertically centered into a 16 x h ARGB bitmap and appends it. */
+static int imagelist_add_icon_centered(HIMAGELIST il, HICON icon, int h) {
+    BITMAPINFO bi;
+    void *bitsC = NULL;
+    void *bitsM = NULL;
+    int idx = -1;
+    int y = (h - 16) / 2;
+    int x, yy;
+    HDC mdc = CreateCompatibleDC(NULL);
+    if (mdc == NULL) {
+        return -1;
+    }
+    memset(&bi, 0, sizeof(bi));
+    bi.bmiHeader.biSize = sizeof(BITMAPINFOHEADER);
+    bi.bmiHeader.biWidth = 16;
+    bi.bmiHeader.biHeight = -h; /* top-down */
+    bi.bmiHeader.biPlanes = 1;
+    bi.bmiHeader.biBitCount = 32;
+    bi.bmiHeader.biCompression = BI_RGB;
+    HBITMAP colorBmp = CreateDIBSection(mdc, &bi, DIB_RGB_COLORS, &bitsC, NULL, 0);
+    HBITMAP maskBmp = CreateDIBSection(mdc, &bi, DIB_RGB_COLORS, &bitsM, NULL, 0);
+    if (colorBmp != NULL && maskBmp != NULL && bitsC != NULL && bitsM != NULL) {
+        size_t bytes = (size_t)16 * (size_t)h * 4;
+        uint32_t *pc = (uint32_t *)bitsC;
+        uint32_t *pm = (uint32_t *)bitsM;
+        int hasAlpha = 0;
+        HGDIOBJ old = SelectObject(mdc, colorBmp);
+        memset(bitsC, 0, bytes);
+        DrawIconEx(mdc, 0, y, icon, 16, 16, 0, NULL, DI_NORMAL);
+        SelectObject(mdc, maskBmp);
+        memset(bitsM, 0xFF, bytes);
+        DrawIconEx(mdc, 0, y, icon, 16, 16, 0, NULL, DI_MASK);
+        SelectObject(mdc, old);
+        GdiFlush();
+        for (yy = 0; yy < h && !hasAlpha; yy++) {
+            for (x = 0; x < 16; x++) {
+                if ((pc[yy * 16 + x] >> 24) != 0) {
+                    hasAlpha = 1;
+                    break;
+                }
+            }
+        }
+        if (!hasAlpha) {
+            /* Classic icon: GDI leaves alpha 0, so rebuild it from the AND mask. */
+            for (yy = 0; yy < h; yy++) {
+                for (x = 0; x < 16; x++) {
+                    int o = yy * 16 + x;
+                    if ((pm[o] & 0x00FFFFFFu) == 0) {
+                        pc[o] |= 0xFF000000u;
+                    } else {
+                        pc[o] = 0;
+                    }
+                }
+            }
+        }
+        idx = ImageList_Add(il, colorBmp, NULL);
+    }
+    if (colorBmp != NULL) {
+        DeleteObject(colorBmp);
+    }
+    if (maskBmp != NULL) {
+        DeleteObject(maskBmp);
+    }
+    DeleteDC(mdc);
+    return idx;
+}
+
+/* Resolve an exe/file path (UTF-8) to an imagelist index for this table. */
+static int table_icon_index(int32_t id, const char *utf8path) {
+    int i;
+    wchar_t *wpath;
+    HICON small_icon = NULL;
+    int owned = 0;
+    int idx;
+    if (!is_table_kind(id) || g_hwnds[id] == NULL) {
+        return -1;
+    }
+    if (g_table_il[id] == NULL) {
+        ensure_table_row_height(id, 24);
+    }
+    if (g_table_il[id] == NULL) {
+        return -1;
+    }
+    wpath = utf8_to_wide(utf8path);
+    if (wpath == NULL) {
+        return -1;
+    }
+    for (i = 0; i < g_icon_n[id]; i++) {
+        if (wcscmp(g_icon_paths[id][i], wpath) == 0) {
+            idx = g_icon_idx[id][i];
+            free(wpath);
+            return idx;
+        }
+    }
+    if (wpath[0] != L'\0') {
+        HICON large_icon = NULL;
+        if (ExtractIconExW(wpath, 0, &large_icon, &small_icon, 1) > 0 && small_icon != NULL) {
+            owned = 1;
+        } else {
+            SHFILEINFOW sfi;
+            memset(&sfi, 0, sizeof(sfi));
+            small_icon = NULL;
+            if (SHGetFileInfoW(wpath, 0, &sfi, sizeof(sfi), SHGFI_ICON | SHGFI_SMALLICON) != 0
+                    && sfi.hIcon != NULL) {
+                small_icon = sfi.hIcon;
+                owned = 1;
+            }
+        }
+        if (large_icon != NULL) {
+            DestroyIcon(large_icon);
+        }
+    }
+    if (small_icon == NULL) {
+        small_icon = LoadIcon(NULL, IDI_APPLICATION); /* shared; never destroyed */
+        owned = 0;
+    }
+    idx = -1;
+    if (small_icon != NULL) {
+        idx = imagelist_add_icon_centered(g_table_il[id], small_icon, g_table_il_h[id]);
+    }
+    if (owned && small_icon != NULL) {
+        DestroyIcon(small_icon);
+    }
+    if (idx >= 0 && g_icon_n[id] < JN_ICON_CACHE_MAX) {
+        if (g_icon_paths[id] == NULL) {
+            g_icon_paths[id] = (wchar_t **)calloc(JN_ICON_CACHE_MAX, sizeof(wchar_t *));
+            g_icon_idx[id] = (int *)calloc(JN_ICON_CACHE_MAX, sizeof(int));
+        }
+        if (g_icon_paths[id] != NULL && g_icon_idx[id] != NULL) {
+            g_icon_paths[id][g_icon_n[id]] = wpath; /* cache takes ownership */
+            g_icon_idx[id][g_icon_n[id]] = idx;
+            g_icon_n[id]++;
+            return idx;
+        }
+    }
+    free(wpath);
+    return idx;
+}
+
 void jnative_ui_destroy(int32_t id) {
     if (id <= 0 || id >= JN_UI_MAX) {
         return;
@@ -785,8 +1195,13 @@ void jnative_ui_destroy(int32_t id) {
     HWND hwnd = g_hwnds[id];
     g_hwnds[id] = NULL;
     if (hwnd != NULL) {
-        DestroyWindow(hwnd);
+        DestroyWindow(hwnd); /* ListView owns/destroys its small imagelist */
     }
+    g_table_il[id] = NULL;
+    g_table_il_h[id] = 0;
+    icon_cache_free(id);
+    g_min_w[id] = 0;
+    g_min_h[id] = 0;
     if (g_kinds[id] == JN_UI_KIND_WINDOW) {
         g_live_windows--;
     } else if (g_kinds[id] != 0) {
@@ -870,6 +1285,9 @@ static void stretch_table_columns(int32_t id) {
         if (lp <= 0) {
             lp = (c == 0) ? 220 : 100;
         }
+        if (g_col_max_lp[id][c] > 0 && lp > g_col_max_lp[id][c]) {
+            lp = g_col_max_lp[id][c];
+        }
         widths[c] = lp;
         flex[c] = g_col_flex[id][c];
         if (flex[c] > 0) {
@@ -881,28 +1299,112 @@ static void stretch_table_columns(int32_t id) {
         flex[0] = 1;
         flexSum = 1;
     }
-    /* Fit all columns into the view: shrink or grow via flex. */
+    /* Fit all columns into the view: shrink or grow via flex (honoring max caps). */
     if (total > view) {
-        for (c = 0; c < cols; c++) {
-            widths[c] = widths[c] * view / total;
-            if (widths[c] < 48) {
-                widths[c] = 48;
+        /* Shrink trailing / flex columns first so name+CPU+mem+PID stay readable. */
+        int need = total - view;
+        int pass;
+        for (pass = 0; pass < 3 && need > 0; pass++) {
+            int avail = 0;
+            int taken = 0;
+            int take;
+            int sweep;
+            for (c = 0; c < cols; c++) {
+                int eligible = 0;
+                int floor = 48;
+                if (pass == 0) {
+                    /* Prefer shrinking user/threads (last two) and other flex cols. */
+                    eligible = (flex[c] > 0) || (c >= cols - 2);
+                    floor = (c >= cols - 2) ? 0 : 56;
+                } else if (pass == 1) {
+                    eligible = flex[c] > 0 || c == 0;
+                    floor = (c == 0) ? 120 : 56;
+                } else {
+                    eligible = 1;
+                    floor = 48;
+                }
+                if (eligible && widths[c] > floor) {
+                    avail += widths[c] - floor;
+                }
             }
+            if (avail <= 0) {
+                continue;
+            }
+            take = need < avail ? need : avail;
+            for (c = 0; c < cols; c++) {
+                int eligible = 0;
+                int floor = 48;
+                if (pass == 0) {
+                    eligible = (flex[c] > 0) || (c >= cols - 2);
+                    floor = (c >= cols - 2) ? 0 : 56;
+                } else if (pass == 1) {
+                    eligible = flex[c] > 0 || c == 0;
+                    floor = (c == 0) ? 120 : 56;
+                } else {
+                    eligible = 1;
+                    floor = 48;
+                }
+                if (eligible && widths[c] > floor) {
+                    int room = widths[c] - floor;
+                    int cut = take * room / avail;
+                    widths[c] -= cut;
+                    taken += cut;
+                }
+            }
+            for (sweep = 0; sweep < 4 && taken < take; sweep++) {
+                for (c = cols - 1; c >= 0 && taken < take; c--) {
+                    int floor = 48;
+                    if (pass == 0 && c >= cols - 2) {
+                        floor = 0;
+                    } else if (pass == 1 && c == 0) {
+                        floor = 120;
+                    } else if (pass == 1) {
+                        floor = 56;
+                    }
+                    if (widths[c] > floor) {
+                        widths[c]--;
+                        taken++;
+                    }
+                }
+            }
+            need -= taken;
         }
     } else if (total < view) {
         int extra = view - total;
-        int given = 0;
-        int lastFlex = -1;
-        for (c = 0; c < cols; c++) {
-            if (flex[c] > 0) {
-                int add = extra * flex[c] / flexSum;
-                widths[c] += add;
-                given += add;
-                lastFlex = c;
+        int iter;
+        for (iter = 0; iter < 32 && extra > 0; iter++) {
+            int fsum = 0;
+            int given = 0;
+            int firstEligible = -1;
+            for (c = 0; c < cols; c++) {
+                int cap = g_col_max_lp[id][c];
+                if (flex[c] > 0 && (cap <= 0 || widths[c] < cap)) {
+                    fsum += flex[c];
+                    if (firstEligible < 0) {
+                        firstEligible = c;
+                    }
+                }
             }
-        }
-        if (lastFlex >= 0 && given < extra) {
-            widths[lastFlex] += (extra - given);
+            if (fsum <= 0) {
+                break; /* every flex column is capped: leave the rest unused */
+            }
+            for (c = 0; c < cols; c++) {
+                int cap = g_col_max_lp[id][c];
+                if (flex[c] > 0 && (cap <= 0 || widths[c] < cap)) {
+                    int add = extra * flex[c] / fsum;
+                    if (cap > 0 && widths[c] + add > cap) {
+                        add = cap - widths[c];
+                    }
+                    widths[c] += add;
+                    given += add;
+                }
+            }
+            if (given <= 0) {
+                /* rounding starved everyone: hand out a single pixel */
+                widths[firstEligible]++;
+                given = 1;
+            }
+            extra -= given;
         }
     }
     for (c = 0; c < cols; c++) {
@@ -993,7 +1495,12 @@ double jnative_ui_get_progress(int32_t id) {
     return (id > 0 && id < JN_UI_MAX) ? g_progress[id] : 0.0;
 }
 void jnative_ui_set_item_count(int32_t id, int32_t count) {
-    if (id > 0 && id < JN_UI_MAX) g_item_count[id] = count;
+    if (id > 0 && id < JN_UI_MAX) {
+        g_item_count[id] = count;
+        if (g_kinds[id] == JN_UI_KIND_TABLEVIEW || g_kinds[id] == JN_UI_KIND_LISTVIEW) {
+            stretch_table_columns(id);
+        }
+    }
 }
 int32_t jnative_ui_get_item_count(int32_t id) {
     return (id > 0 && id < JN_UI_MAX) ? g_item_count[id] : 0;
@@ -1014,6 +1521,8 @@ void jnative_ui_table_set_columns(int32_t id, const char *titles_tsv) {
     g_col_count[id] = 0;
     memset(g_col_width_lp[id], 0, sizeof(g_col_width_lp[id]));
     memset(g_col_flex[id], 0, sizeof(g_col_flex[id]));
+    memset(g_col_max_lp[id], 0, sizeof(g_col_max_lp[id]));
+    memset(g_col_role[id], 0, sizeof(g_col_role[id]));
     if (titles_tsv == NULL || titles_tsv[0] == '\0') {
         return;
     }
@@ -1032,6 +1541,8 @@ void jnative_ui_table_set_columns(int32_t id, const char *titles_tsv) {
         char *title = p;
         int widthLp = (col == 0) ? 220 : 100;
         int flex = (col == 0) ? 1 : 0;
+        int maxLp = 0;
+        int role = 0;
         int fmt = (col == 0) ? LVCFMT_LEFT : LVCFMT_RIGHT;
         char *m1 = strstr(p, "##");
         if (m1 != NULL) {
@@ -1048,7 +1559,17 @@ void jnative_ui_table_set_columns(int32_t id, const char *titles_tsv) {
                 char *m3 = strstr(astr, "##");
                 if (m3 != NULL) {
                     *m3 = '\0';
-                    int fl = atoi(m3 + 2);
+                    char *fstr = m3 + 2;
+                    /* Optional 5th meta field: ...##flex##max (logical px). */
+                    char *m4 = strstr(fstr, "##");
+                    if (m4 != NULL) {
+                        *m4 = '\0';
+                        int mx = atoi(m4 + 2);
+                        if (mx > 0) {
+                            maxLp = mx;
+                        }
+                    }
+                    int fl = atoi(fstr);
                     if (fl > 0) {
                         flex = fl;
                     } else {
@@ -1067,8 +1588,18 @@ void jnative_ui_table_set_columns(int32_t id, const char *titles_tsv) {
         if (title[0] == '\0') {
             title = " ";
         }
+        /* Heat role from the (already stripped) UTF-8 title. */
+        if (strstr(title, "CPU") != NULL) {
+            role = 1;
+        } else if (strstr(title, "\xE5\xB7\xA5" "\xE4\xBD\x9C" "\xE9\x9B\x86") != NULL  /* gong-zuo-ji */
+                || strstr(title, "\xE5\x86\x85" "\xE5\xAD\x98") != NULL                 /* nei-cun */
+                || strstr(title, "Memory") != NULL) {
+            role = 2;
+        }
         g_col_width_lp[id][col] = widthLp;
         g_col_flex[id][col] = flex;
+        g_col_max_lp[id][col] = maxLp;
+        g_col_role[id][col] = role;
         wchar_t *w = utf8_to_wide(title);
         LVCOLUMNW lc;
         memset(&lc, 0, sizeof(lc));
@@ -1085,7 +1616,7 @@ void jnative_ui_table_set_columns(int32_t id, const char *titles_tsv) {
     g_col_count[id] = col;
     ListView_SetExtendedListViewStyle(lv,
             LVS_EX_FULLROWSELECT | LVS_EX_DOUBLEBUFFER | LVS_EX_LABELTIP
-            | LVS_EX_GRIDLINES);
+            | LVS_EX_SUBITEMIMAGES);
     /* Ensure report view + extended styles before rows arrive. */
     {
         LONG_PTR st = GetWindowLongPtr(lv, GWL_STYLE);
@@ -1100,12 +1631,40 @@ const char *jnative_ui_table_columns(int32_t id) {
 }
 void jnative_ui_set_selected_index(int32_t id, int32_t index) {
     if (id > 0 && id < JN_UI_MAX) g_selected_index[id] = index;
+    if (g_win32_active && is_table_kind(id) && g_hwnds[id] != NULL) {
+        HWND lv = g_hwnds[id];
+        int count = ListView_GetItemCount(lv);
+        g_in_set_selection++;
+        /* Clear any previous selection/focus, then select the requested row.
+         * Do NOT EnsureVisible — auto-refresh rebuilds must keep user scroll. */
+        ListView_SetItemState(lv, -1, 0, LVIS_SELECTED | LVIS_FOCUSED);
+        if (index >= 0 && index < count) {
+            ListView_SetItemState(lv, index, LVIS_SELECTED | LVIS_FOCUSED,
+                    LVIS_SELECTED | LVIS_FOCUSED);
+        }
+        g_in_set_selection--;
+    }
 }
 int32_t jnative_ui_get_selected_index(int32_t id) {
-    return (id > 0 && id < JN_UI_MAX) ? g_selected_index[id] : -1;
+    if (id <= 0 || id >= JN_UI_MAX) {
+        return -1;
+    }
+    /* Prefer live ListView state — cache can lag if LVN_ITEMCHANGED was missed. */
+    if (g_win32_active && is_table_kind(id) && g_hwnds[id] != NULL) {
+        int live = ListView_GetNextItem(g_hwnds[id], -1, LVNI_SELECTED);
+        if (live >= 0) {
+            g_selected_index[id] = live;
+            return live;
+        }
+    }
+    return g_selected_index[id];
 }
 void jnative_ui_set_visible_rows(int32_t id, int32_t rows) {
     if (id > 0 && id < JN_UI_MAX) g_visible_rows[id] = rows;
+    /* 16..64 is interpreted as a row height in px for list/table views. */
+    if (rows >= 16 && rows <= 64 && is_table_kind(id)) {
+        ensure_table_row_height(id, rows);
+    }
 }
 int32_t jnative_ui_get_visible_rows(int32_t id) {
     return (id > 0 && id < JN_UI_MAX) ? g_visible_rows[id] : 0;
@@ -1137,6 +1696,11 @@ void jnative_ui_list_clear(int32_t id) {
     if (g_win32_active && g_hwnds[id] != NULL
             && (g_kinds[id] == JN_UI_KIND_LISTVIEW || g_kinds[id] == JN_UI_KIND_TABLEVIEW)) {
         ListView_DeleteAllItems(g_hwnds[id]);
+        /* Drop cached icons so refreshes don't grow the imagelist unbounded. */
+        if (g_table_il[id] != NULL) {
+            ImageList_RemoveAll(g_table_il[id]);
+        }
+        icon_cache_free(id);
     }
 }
 void jnative_ui_list_add_item(int32_t id, const char *text) {
@@ -1169,11 +1733,22 @@ void jnative_ui_list_add_item(int32_t id, const char *text) {
     ListView_InsertItem(lv, &item);
     free(w0);
     int sub = 1;
+    int cols = g_col_count[id];
+    const char *iconPath = NULL; /* first field past the declared columns */
     p = (tab == NULL) ? NULL : (tab + 1);
     while (p != NULL) {
         tab = strchr(p, '\t');
         if (tab != NULL) {
             *tab = '\0';
+        }
+        if (cols > 0 && sub >= cols) {
+            /* Remaining TSV field is the icon path (UTF-8), not a cell. */
+            if (iconPath == NULL) {
+                iconPath = p;
+            }
+            sub++;
+            p = (tab == NULL) ? NULL : (tab + 1);
+            continue;
         }
         wchar_t *w = utf8_to_wide(p);
         LVITEMW subitem;
@@ -1188,6 +1763,22 @@ void jnative_ui_list_add_item(int32_t id, const char *text) {
         free(w);
         sub++;
         p = (tab == NULL) ? NULL : (tab + 1);
+    }
+    if (iconPath != NULL || g_table_il[id] != NULL) {
+        LVITEMW img;
+        memset(&img, 0, sizeof(img));
+        img.mask = LVIF_IMAGE;
+        img.iItem = row;
+        img.iSubItem = 0;
+        img.iImage = I_IMAGENONE;
+        if (iconPath != NULL) {
+            /* Empty/failed paths fall back to the default application icon. */
+            int ii = table_icon_index(id, iconPath);
+            if (ii >= 0) {
+                img.iImage = ii;
+            }
+        }
+        SendMessageW(lv, LVM_SETITEMW, 0, (LPARAM)&img);
     }
     free(copy);
     g_item_count[id] = ListView_GetItemCount(lv);
@@ -1369,8 +1960,17 @@ void jnative_ui_platform_set_visual(int32_t id, int32_t bg_rgba, int32_t fg_rgba
     apply_visual_to_hwnd(id);
 }
 
+/* Stores the client-area minimum; WM_GETMINMAXINFO converts it to an outer size. */
+static void store_window_min_size(int32_t windowId, int32_t w, int32_t h) {
+    if (windowId <= 0 || windowId >= JN_UI_MAX) {
+        return;
+    }
+    g_min_w[windowId] = w > 0 ? w : 0;
+    g_min_h[windowId] = h > 0 ? h : 0;
+}
+
 void jnative_ui_platform_window_set_min_size(int32_t windowId, int32_t w, int32_t h) {
-    (void)windowId; (void)w; (void)h;
+    store_window_min_size(windowId, w, h);
 }
 
 void jnative_ui_platform_button_flash(int32_t id, int32_t pressed) {
@@ -1451,16 +2051,37 @@ void jnative_ui_headless_timer_fire(int32_t id) {
     jnative_ui_emit_event(id, JN_UI_EVENT_TIMER);
 }
 int32_t jnative_ui_table_get_scroll_y(int32_t id) {
+    /* Store ListView top index (not SB_VERT — Report view ignores it). */
     if (id <= 0 || id >= JN_UI_MAX || g_hwnds[id] == NULL) {
         return 0;
     }
-    return (int32_t)GetScrollPos(g_hwnds[id], SB_VERT);
+    return (int32_t)ListView_GetTopIndex(g_hwnds[id]);
 }
 void jnative_ui_table_set_scroll_y(int32_t id, int32_t y) {
     if (id <= 0 || id >= JN_UI_MAX || g_hwnds[id] == NULL) {
         return;
     }
-    ListView_Scroll(g_hwnds[id], 0, y - GetScrollPos(g_hwnds[id], SB_VERT));
+    HWND lv = g_hwnds[id];
+    int count = ListView_GetItemCount(lv);
+    if (count <= 0 || y < 0) {
+        return;
+    }
+    if (y >= count) {
+        y = count - 1;
+    }
+    /* Align so item y is the first visible row. */
+    ListView_EnsureVisible(lv, y, FALSE);
+    {
+        int cur = ListView_GetTopIndex(lv);
+        RECT r;
+        memset(&r, 0, sizeof(r));
+        if (cur != y && ListView_GetItemRect(lv, 0, &r, LVIR_BOUNDS)) {
+            int itemH = r.bottom - r.top;
+            if (itemH > 0) {
+                ListView_Scroll(lv, 0, (y - cur) * itemH);
+            }
+        }
+    }
 }
 int32_t jnative_ui_timer_start(int32_t intervalMs, int32_t handleId) {
     if (handleId <= 0 || handleId >= JN_UI_MAX || intervalMs <= 0) {
@@ -1500,7 +2121,7 @@ void jnative_ui_timer_stop(int32_t handleId) {
 }
 
 void jnative_ui_window_set_min_size(int32_t windowId, int32_t w, int32_t h) {
-    (void)windowId; (void)w; (void)h;
+    store_window_min_size(windowId, w, h);
 }
 void jnative_ui_button_flash(int32_t id, int32_t pressed) {
     (void)id; (void)pressed;

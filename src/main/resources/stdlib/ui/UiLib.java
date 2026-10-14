@@ -3448,13 +3448,14 @@ interface TableRowIdProvider<T> {
     String rowId(T row);
 }
 
-/** Column with explicit width (logical pt), align L/C/R, and flex grow. */
+/** Column with explicit width (logical pt), align L/C/R, flex grow, and optional max width. */
 class TableColumnDef<T> implements ColumnRenderer<T> {
     String title;
     ColumnRenderer<T> inner;
     int widthPt;
     String align;
     int flex;
+    int maxWidthPt;
 
     TableColumnDef(String t, ColumnRenderer<T> body, int width, String al, int fl) {
         title = t;
@@ -3466,13 +3467,28 @@ class TableColumnDef<T> implements ColumnRenderer<T> {
             align = al;
         }
         flex = fl;
+        maxWidthPt = 0;
+    }
+
+    TableColumnDef(String t, ColumnRenderer<T> body, int width, String al, int fl, int maxW) {
+        title = t;
+        inner = body;
+        widthPt = width;
+        if (al == null || al.length() == 0) {
+            align = "L";
+        } else {
+            align = al;
+        }
+        flex = fl;
+        maxWidthPt = maxW;
     }
 
     String getTitle() {
-        /* Encode meta for Cocoa: title##width##align##flex (ASCII-safe). */
+        /* Encode meta: title##width##align##flex##max (ASCII-safe; max 0 = uncapped). */
         String w = String.valueOf(widthPt);
         String f = String.valueOf(flex);
-        return title + "##" + w + "##" + align + "##" + f;
+        String m = String.valueOf(maxWidthPt);
+        return title + "##" + w + "##" + align + "##" + f + "##" + m;
     }
 
     String renderRow(T row) {
@@ -3558,6 +3574,28 @@ class TableView<T> extends Control {
 
     void addColumnDef(String title, ColumnRenderer<T> body, int widthPt, String align, int flex) {
         addColumn(new TableColumnDef<T>(title, body, widthPt, align, flex));
+    }
+
+    void addColumnDef(String title, ColumnRenderer<T> body, int widthPt, String align, int flex,
+            int maxWidthPt) {
+        addColumn(new TableColumnDef<T>(title, body, widthPt, align, flex, maxWidthPt));
+    }
+
+    /**
+     * Preferred row height in logical px (16–64). Win32 uses a small imagelist
+     * to enforce ListView row height; other backends may ignore.
+     */
+    void setRowHeight(int h) {
+        ensureAlive("TableView.setRowHeight");
+        if (h < 16) {
+            h = 16;
+        }
+        if (h > 64) {
+            h = 64;
+        }
+        if (nativeId > 0) {
+            UiNative.setVisibleRows(nativeId, h);
+        }
     }
 
     void setRowIdProvider(TableRowIdProvider<T> provider) {
@@ -3706,9 +3744,6 @@ class TableView<T> extends Control {
             }
             UiNative.setItemCount(nativeId, n);
         }
-        if (scrollY >= 0) {
-            UiNative.tableSetScrollY(nativeId, scrollY);
-        }
         if (selectedRowId != null && loading == 0 && sortedIndex.size() > 0) {
             int v = findViewIndexByRowId(selectedRowId);
             if (v >= 0) {
@@ -3720,6 +3755,10 @@ class TableView<T> extends Control {
                 selectedRowId = null;
                 selection.clearSelection();
             }
+        }
+        /* Restore scroll after selection so selection never jumps the viewport. */
+        if (scrollY >= 0) {
+            UiNative.tableSetScrollY(nativeId, scrollY);
         }
     }
 
@@ -4761,7 +4800,7 @@ class Theme {
     static int TOOLBAR_HEIGHT = 36;
     static int STATUS_HEIGHT = 24;
     static int SIDEBAR_ITEM_HEIGHT = 30;
-    static int TABLE_ROW_HEIGHT = 28;
+    static int TABLE_ROW_HEIGHT = 34;
     static int MODE_SYSTEM = 0;
     static int MODE_LIGHT = 1;
     static int MODE_DARK = 2;
