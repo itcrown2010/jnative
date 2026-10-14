@@ -73,7 +73,8 @@ $MergedText = "// AUTO-GENERATED - windows-task-monitor`n" + ($body -join "`n") 
 
 $Out = Join-Path $OutDir "jnative-task-monitor.exe"
 Write-Host "==> jnative → $Out"
-& java -jar $Jar $Merged -o $Out --app-type gui -O1 -L $OutDir -l jn_am
+# version: GetFileVersionInfo* used by jn_am_windows for FileDescription icons/names
+& java -jar $Jar $Merged -o $Out --app-type gui -O1 -L $OutDir -l jn_am -l version
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 Write-Host "OK $Out"
 Write-Host "Run: $Out"
