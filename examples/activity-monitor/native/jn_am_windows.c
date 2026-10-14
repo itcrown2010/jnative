@@ -1,7 +1,8 @@
 /* Author: 张晓达
  * Windows process / host sampling for JNative Task Monitor.
- * Toolhelp32 + GetProcessTimes + GetProcessMemoryInfo + GetSystemTimes.
- * No mock data; unavailable fields clear flag bits and report -1.
+ * Toolhelp32 + GetProcessTimes + GetProcessMemoryInfo + GetSystemTimes +
+ * EnumWindows grouping hints + EcoQoS + version publisher.
+ * No mock metrics; unavailable fields stay -1 / empty / "—".
  */
 #define WIN32_LEAN_AND_MEAN
 #include "jn_am.h"
@@ -10,6 +11,7 @@
 #include <tlhelp32.h>
 #include <psapi.h>
 #include <sddl.h>
+#include <shellapi.h>
 
 #include <errno.h>
 #include <stdarg.h>
@@ -19,6 +21,26 @@
 
 #pragma comment(lib, "psapi.lib")
 #pragma comment(lib, "advapi32.lib")
+#pragma comment(lib, "version.lib")
+#pragma comment(lib, "shell32.lib")
+
+#ifndef PROCESS_POWER_THROTTLING_CURRENT_VERSION
+#define PROCESS_POWER_THROTTLING_CURRENT_VERSION 1
+#endif
+#ifndef PROCESS_POWER_THROTTLING_EXECUTION_SPEED
+#define PROCESS_POWER_THROTTLING_EXECUTION_SPEED 0x1
+#endif
+/* ProcessPowerThrottling = 4 — use int to avoid MinGW header variance. */
+#define JN_ProcessPowerThrottling 4
+
+typedef struct JN_PROCESS_POWER_THROTTLING_STATE {
+    ULONG Version;
+    ULONG ControlMask;
+    ULONG StateMask;
+} JN_PROCESS_POWER_THROTTLING_STATE;
+
+typedef BOOL (WINAPI *GetProcessInformation_fn)(HANDLE, int, LPVOID, DWORD);
+typedef BOOL (WINAPI *SetProcessInformation_fn)(HANDLE, int, LPVOID, DWORD);
 
 static int32_t g_last_errno = 0;
 
@@ -45,7 +67,6 @@ int64_t jn_am_mono_ns(void) {
     if (!QueryPerformanceCounter(&now)) {
         return 0;
     }
-    /* ns = ticks * 1e9 / freq */
     return (int64_t)((now.QuadPart * 1000000000ULL) / (unsigned long long)freq.QuadPart);
 }
 
@@ -102,12 +123,10 @@ static int wide_to_utf8(const wchar_t *w, char *out, size_t out_cap) {
     return 0;
 }
 
-/* FILETIME (100ns since 1601) → Unix sec + usec. */
 static void filetime_to_unix(const FILETIME *ft, int64_t *sec_out, int32_t *usec_out) {
     ULARGE_INTEGER u;
     u.LowPart = ft->dwLowDateTime;
     u.HighPart = ft->dwHighDateTime;
-    /* 116444736000000000 = 100ns ticks from 1601 to 1970 */
     const unsigned long long EPOCH_DIFF = 116444736000000000ULL;
     if (u.QuadPart < EPOCH_DIFF) {
         *sec_out = -1;
@@ -123,7 +142,6 @@ static int64_t filetime_to_ns(const FILETIME *ft) {
     ULARGE_INTEGER u;
     u.LowPart = ft->dwLowDateTime;
     u.HighPart = ft->dwHighDateTime;
-    /* 100-ns units → ns */
     if (u.QuadPart > (unsigned long long)INT64_MAX / 100ULL) {
         return INT64_MAX;
     }
@@ -178,7 +196,6 @@ int32_t jn_am_signal(int32_t pid, int32_t sig) {
         g_last_errno = (int32_t)err;
         return (int32_t)err;
     }
-    /* Re-check still alive before terminate. */
     DWORD code = 0;
     if (GetExitCodeProcess(h, &code) && code != STILL_ACTIVE) {
         CloseHandle(h);
@@ -207,7 +224,6 @@ int32_t jn_am_alive(int32_t pid) {
         if (err == ERROR_INVALID_PARAMETER || err == ERROR_NOT_FOUND) {
             return 0;
         }
-        /* Access denied often means the process still exists. */
         if (err == ERROR_ACCESS_DENIED) {
             return 1;
         }
@@ -221,6 +237,155 @@ int32_t jn_am_alive(int32_t pid) {
         return -1;
     }
     return code == STILL_ACTIVE ? 1 : 0;
+}
+
+static GetProcessInformation_fn load_get_proc_info(void) {
+    static GetProcessInformation_fn fn;
+    static int tried;
+    if (!tried) {
+        tried = 1;
+        HMODULE k = GetModuleHandleW(L"kernel32.dll");
+        if (k != NULL) {
+            fn = (GetProcessInformation_fn)GetProcAddress(k, "GetProcessInformation");
+        }
+    }
+    return fn;
+}
+
+static SetProcessInformation_fn load_set_proc_info(void) {
+    static SetProcessInformation_fn fn;
+    static int tried;
+    if (!tried) {
+        tried = 1;
+        HMODULE k = GetModuleHandleW(L"kernel32.dll");
+        if (k != NULL) {
+            fn = (SetProcessInformation_fn)GetProcAddress(k, "SetProcessInformation");
+        }
+    }
+    return fn;
+}
+
+static int read_eco_handle(HANDLE h) {
+    GetProcessInformation_fn getpi = load_get_proc_info();
+    if (getpi == NULL) {
+        return -1;
+    }
+    JN_PROCESS_POWER_THROTTLING_STATE st;
+    memset(&st, 0, sizeof(st));
+    st.Version = PROCESS_POWER_THROTTLING_CURRENT_VERSION;
+    if (!getpi(h, JN_ProcessPowerThrottling, &st, sizeof(st))) {
+        return -1;
+    }
+    if ((st.StateMask & PROCESS_POWER_THROTTLING_EXECUTION_SPEED) != 0) {
+        return 1;
+    }
+    return 0;
+}
+
+int32_t jn_am_set_efficiency(int32_t pid, int32_t enable) {
+    g_last_errno = 0;
+    if (pid <= 0) {
+        g_last_errno = ERROR_INVALID_PARAMETER;
+        return ERROR_INVALID_PARAMETER;
+    }
+    SetProcessInformation_fn setpi = load_set_proc_info();
+    if (setpi == NULL) {
+        g_last_errno = ERROR_NOT_SUPPORTED;
+        return -1;
+    }
+    HANDLE h = OpenProcess(PROCESS_SET_INFORMATION | PROCESS_QUERY_LIMITED_INFORMATION, FALSE, (DWORD)pid);
+    if (h == NULL) {
+        DWORD err = GetLastError();
+        g_last_errno = (int32_t)err;
+        return (int32_t)err;
+    }
+    JN_PROCESS_POWER_THROTTLING_STATE st;
+    memset(&st, 0, sizeof(st));
+    st.Version = PROCESS_POWER_THROTTLING_CURRENT_VERSION;
+    st.ControlMask = PROCESS_POWER_THROTTLING_EXECUTION_SPEED;
+    st.StateMask = enable ? PROCESS_POWER_THROTTLING_EXECUTION_SPEED : 0;
+    if (!setpi(h, JN_ProcessPowerThrottling, &st, sizeof(st))) {
+        DWORD err = GetLastError();
+        CloseHandle(h);
+        g_last_errno = (int32_t)err;
+        return (int32_t)err;
+    }
+    CloseHandle(h);
+    return 0;
+}
+
+static int query_image_path(DWORD pid, wchar_t *wpath, DWORD cap) {
+    HANDLE h = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION | PROCESS_VM_READ, FALSE, pid);
+    if (h == NULL) {
+        h = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, pid);
+    }
+    if (h == NULL) {
+        return -1;
+    }
+    DWORD n = GetModuleFileNameExW(h, NULL, wpath, cap);
+    if (n == 0) {
+        DWORD c = cap;
+        if (QueryFullProcessImageNameW(h, 0, wpath, &c)) {
+            n = c;
+        }
+    }
+    CloseHandle(h);
+    return n > 0 ? 0 : -1;
+}
+
+int32_t jn_am_open_file_location(int32_t pid) {
+    g_last_errno = 0;
+    if (pid <= 0) {
+        return ERROR_INVALID_PARAMETER;
+    }
+    wchar_t wpath[MAX_PATH * 4];
+    if (query_image_path((DWORD)pid, wpath, (DWORD)(sizeof(wpath) / sizeof(wpath[0]))) != 0) {
+        g_last_errno = (int32_t)GetLastError();
+        return g_last_errno != 0 ? g_last_errno : ERROR_NOT_FOUND;
+    }
+    wchar_t params[MAX_PATH * 4 + 32];
+    _snwprintf(params, sizeof(params) / sizeof(params[0]), L"/select,\"%s\"", wpath);
+    params[(sizeof(params) / sizeof(params[0])) - 1] = L'\0';
+    HINSTANCE r = ShellExecuteW(NULL, L"open", L"explorer.exe", params, NULL, SW_SHOWNORMAL);
+    if ((INT_PTR)r <= 32) {
+        g_last_errno = (int32_t)(INT_PTR)r;
+        return g_last_errno;
+    }
+    return 0;
+}
+
+int32_t jn_am_run_task(const char *cmdline) {
+    g_last_errno = 0;
+    if (cmdline == NULL || cmdline[0] == '\0') {
+        g_last_errno = ERROR_INVALID_PARAMETER;
+        return ERROR_INVALID_PARAMETER;
+    }
+    int wlen = MultiByteToWideChar(CP_UTF8, 0, cmdline, -1, NULL, 0);
+    if (wlen <= 0) {
+        g_last_errno = ERROR_INVALID_PARAMETER;
+        return ERROR_INVALID_PARAMETER;
+    }
+    wchar_t *wcmd = (wchar_t *)malloc(sizeof(wchar_t) * (size_t)wlen);
+    if (wcmd == NULL) {
+        return ERROR_OUTOFMEMORY;
+    }
+    MultiByteToWideChar(CP_UTF8, 0, cmdline, -1, wcmd, wlen);
+    STARTUPINFOW si;
+    PROCESS_INFORMATION pi;
+    memset(&si, 0, sizeof(si));
+    si.cb = sizeof(si);
+    memset(&pi, 0, sizeof(pi));
+    /* CreateProcess may modify the buffer. */
+    BOOL ok = CreateProcessW(NULL, wcmd, NULL, NULL, FALSE, 0, NULL, NULL, &si, &pi);
+    free(wcmd);
+    if (!ok) {
+        DWORD err = GetLastError();
+        g_last_errno = (int32_t)err;
+        return (int32_t)err;
+    }
+    CloseHandle(pi.hThread);
+    CloseHandle(pi.hProcess);
+    return 0;
 }
 
 static void lookup_user(HANDLE proc, char *user, size_t user_cap, int *flags) {
@@ -262,12 +427,66 @@ static void lookup_user(HANDLE proc, char *user, size_t user_cap, int *flags) {
     CloseHandle(token);
 }
 
+static void read_publisher(const char *utf8_path, char *out, size_t out_cap) {
+    out[0] = '\0';
+    if (utf8_path == NULL || utf8_path[0] == '\0' || out_cap == 0) {
+        return;
+    }
+    int wlen = MultiByteToWideChar(CP_UTF8, 0, utf8_path, -1, NULL, 0);
+    if (wlen <= 0) {
+        return;
+    }
+    wchar_t *wpath = (wchar_t *)malloc(sizeof(wchar_t) * (size_t)wlen);
+    if (wpath == NULL) {
+        return;
+    }
+    MultiByteToWideChar(CP_UTF8, 0, utf8_path, -1, wpath, wlen);
+    DWORD h = 0;
+    DWORD sz = GetFileVersionInfoSizeW(wpath, &h);
+    if (sz == 0) {
+        free(wpath);
+        return;
+    }
+    void *block = malloc(sz);
+    if (block == NULL) {
+        free(wpath);
+        return;
+    }
+    if (!GetFileVersionInfoW(wpath, 0, sz, block)) {
+        free(block);
+        free(wpath);
+        return;
+    }
+    free(wpath);
+    struct LANGANDCODEPAGE {
+        WORD wLanguage;
+        WORD wCodePage;
+    } *tr = NULL;
+    UINT tr_len = 0;
+    if (!VerQueryValueW(block, L"\\VarFileInfo\\Translation", (LPVOID *)&tr, &tr_len)
+            || tr == NULL || tr_len < sizeof(*tr)) {
+        free(block);
+        return;
+    }
+    wchar_t sub[64];
+    _snwprintf(sub, 64, L"\\StringFileInfo\\%04x%04x\\CompanyName", tr[0].wLanguage, tr[0].wCodePage);
+    sub[63] = L'\0';
+    wchar_t *company = NULL;
+    UINT clen = 0;
+    if (VerQueryValueW(block, sub, (LPVOID *)&company, &clen) && company != NULL && clen > 0) {
+        wide_to_utf8(company, out, out_cap);
+        sanitize_field(out);
+    }
+    free(block);
+}
+
 static void query_process_extras(DWORD pid, int64_t *cpu_ns, int64_t *rss, int64_t *footprint,
         int64_t *start_sec, int32_t *start_usec, char *user, size_t user_cap,
-        char *path, size_t path_cap, int *flags) {
+        char *path, size_t path_cap, int *flags, int *eco_out) {
     *cpu_ns = -1;
     *rss = -1;
     *footprint = -1;
+    *eco_out = -1;
     path[0] = '\0';
 
     DWORD access = PROCESS_QUERY_LIMITED_INFORMATION | PROCESS_VM_READ;
@@ -296,7 +515,6 @@ static void query_process_extras(DWORD pid, int64_t *cpu_ns, int64_t *rss, int64
     if (GetProcessMemoryInfo(h, (PROCESS_MEMORY_COUNTERS *)&pmc, sizeof(pmc))) {
         *rss = (int64_t)pmc.WorkingSetSize;
         *flags |= 8;
-        /* PrivateUsage ≈ commit / “memory” footprint analogue. */
         if (pmc.PrivateUsage > 0) {
             *footprint = (int64_t)pmc.PrivateUsage;
             *flags |= 16;
@@ -321,7 +539,138 @@ static void query_process_extras(DWORD pid, int64_t *cpu_ns, int64_t *rss, int64
     }
 
     lookup_user(h, user, user_cap, flags);
+    *eco_out = read_eco_handle(h);
     CloseHandle(h);
+}
+
+/* ---- window map for grouping / hung ---- */
+#define JN_WIN_MAP_MAX 8192
+static DWORD g_win_pids[JN_WIN_MAP_MAX];
+static int g_win_counts[JN_WIN_MAP_MAX];
+static int g_win_hung[JN_WIN_MAP_MAX];
+static int g_win_n;
+
+static void win_map_clear(void) {
+    g_win_n = 0;
+}
+
+static void win_map_add(DWORD pid, int hung) {
+    int i;
+    for (i = 0; i < g_win_n; i++) {
+        if (g_win_pids[i] == pid) {
+            g_win_counts[i]++;
+            if (hung) {
+                g_win_hung[i] = 1;
+            }
+            return;
+        }
+    }
+    if (g_win_n >= JN_WIN_MAP_MAX) {
+        return;
+    }
+    g_win_pids[g_win_n] = pid;
+    g_win_counts[g_win_n] = 1;
+    g_win_hung[g_win_n] = hung ? 1 : 0;
+    g_win_n++;
+}
+
+static int win_map_count(DWORD pid) {
+    int i;
+    for (i = 0; i < g_win_n; i++) {
+        if (g_win_pids[i] == pid) {
+            return g_win_counts[i];
+        }
+    }
+    return 0;
+}
+
+static int win_map_hung(DWORD pid) {
+    int i;
+    for (i = 0; i < g_win_n; i++) {
+        if (g_win_pids[i] == pid) {
+            return g_win_hung[i];
+        }
+    }
+    return 0;
+}
+
+static BOOL CALLBACK enum_top_windows(HWND hwnd, LPARAM lp) {
+    (void)lp;
+    if (!IsWindowVisible(hwnd)) {
+        return TRUE;
+    }
+    if (GetWindow(hwnd, GW_OWNER) != NULL) {
+        return TRUE;
+    }
+    LONG_PTR ex = GetWindowLongPtrW(hwnd, GWL_EXSTYLE);
+    if ((ex & WS_EX_TOOLWINDOW) != 0) {
+        return TRUE;
+    }
+    DWORD pid = 0;
+    GetWindowThreadProcessId(hwnd, &pid);
+    if (pid == 0) {
+        return TRUE;
+    }
+    int hung = 0;
+    if (IsHungAppWindow(hwnd)) {
+        hung = 1;
+    }
+    win_map_add(pid, hung);
+    return TRUE;
+}
+
+static int path_is_under_windows(const char *path) {
+    if (path == NULL || path[0] == '\0') {
+        return 0;
+    }
+    /* Case-insensitive search for \Windows\ or /Windows/ */
+    const char *p = path;
+    while (*p) {
+        if ((p[0] == '\\' || p[0] == '/')
+                && (p[1] == 'W' || p[1] == 'w')
+                && (p[2] == 'i' || p[2] == 'I')
+                && (p[3] == 'n' || p[3] == 'N')
+                && (p[4] == 'd' || p[4] == 'D')
+                && (p[5] == 'o' || p[5] == 'O')
+                && (p[6] == 'w' || p[6] == 'W')
+                && (p[7] == 's' || p[7] == 'S')
+                && (p[8] == '\\' || p[8] == '/' || p[8] == '\0')) {
+            return 1;
+        }
+        p++;
+    }
+    return 0;
+}
+
+static int user_is_systemish(const char *user) {
+    if (user == NULL) {
+        return 0;
+    }
+    if (_stricmp(user, "SYSTEM") == 0) return 1;
+    if (_stricmp(user, "LOCAL SERVICE") == 0) return 1;
+    if (_stricmp(user, "NETWORK SERVICE") == 0) return 1;
+    if (_stricmp(user, "LOCALSYSTEM") == 0) return 1;
+    return 0;
+}
+
+static int classify_group(int win_count, const char *name, const char *path, const char *user) {
+    if (win_count > 0) {
+        return 1; /* Apps */
+    }
+    if (user_is_systemish(user) || path_is_under_windows(path)) {
+        return 2; /* Windows processes */
+    }
+    /* Well-known system binaries without path */
+    if (name != NULL) {
+        if (_stricmp(name, "csrss.exe") == 0 || _stricmp(name, "smss.exe") == 0
+                || _stricmp(name, "wininit.exe") == 0 || _stricmp(name, "services.exe") == 0
+                || _stricmp(name, "lsass.exe") == 0 || _stricmp(name, "svchost.exe") == 0
+                || _stricmp(name, "RuntimeBroker.exe") == 0
+                || _stricmp(name, "dwm.exe") == 0) {
+            return 2;
+        }
+    }
+    return 0; /* Background */
 }
 
 char *jn_am_snapshot(void) {
@@ -359,12 +708,10 @@ char *jn_am_snapshot(void) {
     FILETIME idle, kernel, user;
     unsigned int cpu_user = 0, cpu_sys = 0, cpu_idle = 0, cpu_nice = 0;
     if (GetSystemTimes(&idle, &kernel, &user)) {
-        /* Compress FILETIME into 32-bit tick buckets (100ns → ~0.1ms units truncated). */
         ULARGE_INTEGER iu, ku, uu;
         iu.LowPart = idle.dwLowDateTime; iu.HighPart = idle.dwHighDateTime;
         ku.LowPart = kernel.dwLowDateTime; ku.HighPart = kernel.dwHighDateTime;
         uu.LowPart = user.dwLowDateTime; uu.HighPart = user.dwHighDateTime;
-        /* kernel includes idle on Windows — subtract for busy kernel. */
         unsigned long long kbusy = (ku.QuadPart > iu.QuadPart) ? (ku.QuadPart - iu.QuadPart) : 0;
         cpu_idle = (unsigned int)(iu.QuadPart / 100000ULL);
         cpu_sys = (unsigned int)(kbusy / 100000ULL);
@@ -374,7 +721,6 @@ char *jn_am_snapshot(void) {
         sys_err = 1;
     }
 
-    /* pages_active ≈ used; others N/A → 0 */
     unsigned long long pages_active = 0;
     if (mem_total > 0 && page_size > 0) {
         unsigned long long used = mem_total > ms.ullAvailPhys ? (mem_total - ms.ullAvailPhys) : 0;
@@ -390,6 +736,9 @@ char *jn_am_snapshot(void) {
         free(buf);
         return NULL;
     }
+
+    win_map_clear();
+    EnumWindows(enum_top_windows, 0);
 
     HANDLE snap = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
     if (snap == INVALID_HANDLE_VALUE) {
@@ -413,7 +762,7 @@ char *jn_am_snapshot(void) {
             continue;
         }
 
-        int flags = 64; /* info_ok from Toolhelp */
+        int flags = 64;
         int32_t ppid = (int32_t)pe.th32ParentProcessID;
         int32_t uid = -1;
         int64_t start_sec = -1;
@@ -422,41 +771,60 @@ char *jn_am_snapshot(void) {
         int64_t rss = -1;
         int64_t footprint = -1;
         int32_t nthreads = (int32_t)pe.cntThreads;
+        int eco = -1;
         if (nthreads >= 0) {
             flags |= 32;
         }
 
         char name[512];
-        char user[128];
+        char user_name[128];
         char path[1024];
+        char publisher[256];
         name[0] = '\0';
-        user[0] = '\0';
+        user_name[0] = '\0';
         path[0] = '\0';
+        publisher[0] = '\0';
 
         if (wide_to_utf8(pe.szExeFile, name, sizeof(name)) == 0 && name[0] != '\0') {
             flags |= 1;
         }
 
         query_process_extras(pid, &cpu_ns, &rss, &footprint, &start_sec, &start_usec,
-                user, sizeof(user), path, sizeof(path), &flags);
+                user_name, sizeof(user_name), path, sizeof(path), &flags, &eco);
+
+        if ((flags & 128) != 0) {
+            read_publisher(path, publisher, sizeof(publisher));
+        }
 
         sanitize_field(name);
-        sanitize_field(user);
+        sanitize_field(user_name);
         sanitize_field(path);
+        sanitize_field(publisher);
         if (name[0] == '\0') {
             snprintf(name, sizeof(name), "pid-%lu", (unsigned long)pid);
             flags |= 1;
         }
-        if (user[0] == '\0') {
-            snprintf(user, sizeof(user), "N/A");
+        if (user_name[0] == '\0') {
+            snprintf(user_name, sizeof(user_name), "N/A");
+        }
+
+        int win_count = win_map_count(pid);
+        int group_class = classify_group(win_count, name, path, user_name);
+        int status_bits = 0;
+        if (eco == 1) {
+            status_bits |= 1;
+        }
+        if (win_map_hung(pid)) {
+            status_bits |= 2;
         }
 
         if (append_fmt(&buf, &len, &cap,
-                "P\t%lu\t%d\t%d\t%lld\t%d\t%lld\t%lld\t%lld\t%d\t%d\t%s\t%s\t%s\n",
+                "P\t%lu\t%d\t%d\t%lld\t%d\t%lld\t%lld\t%lld\t%d\t%d\t%s\t%s\t%s\t%d\t%d\t%d\t%d\t%s\n",
                 (unsigned long)pid, (int)ppid, (int)uid,
                 (long long)start_sec, (int)start_usec,
                 (long long)cpu_ns, (long long)rss, (long long)footprint,
-                (int)nthreads, flags, user, name, path) != 0) {
+                (int)nthreads, flags, user_name, name, path,
+                win_count, group_class, status_bits, eco, publisher) != 0) {
             CloseHandle(snap);
             free(buf);
             return NULL;

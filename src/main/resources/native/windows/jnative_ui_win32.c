@@ -83,8 +83,14 @@ static int g_col_width_lp[JN_UI_MAX][JN_UI_MAX_COLS];
 static int g_col_flex[JN_UI_MAX][JN_UI_MAX_COLS];
 /* Optional per-column max logical width (0 = unlimited) and heat role. */
 static int g_col_max_lp[JN_UI_MAX][JN_UI_MAX_COLS];
-/* 0 = normal, 1 = cpu, 2 = memory (light heat tint in custom draw). */
+/* 0 = normal, 1 = cpu, 2 = memory, 3 = disk, 4 = network (heat tint in custom draw). */
 static int g_col_role[JN_UI_MAX][JN_UI_MAX_COLS];
+/* Per-table menu children for TrackPopupMenu (context menus). */
+#define JN_MENU_CHILD_MAX 48
+static int32_t g_menu_children[JN_UI_MAX][JN_MENU_CHILD_MAX];
+static int g_menu_child_n[JN_UI_MAX];
+static char *g_item_text[JN_UI_MAX];
+static int g_enabled_flag[JN_UI_MAX]; /* 1 enabled (default), 0 disabled — for menu items without HWND */
 /* Client-area minimum size per top-level window (logical px, 0 = unset). */
 static int g_min_w[JN_UI_MAX], g_min_h[JN_UI_MAX];
 /* Small imagelist per table (16 x rowHeight) + per-table icon path cache. */
@@ -486,6 +492,24 @@ static int lv_heat_from_text(int role, const wchar_t *s) {
         }
         return (int)(t * 100.0 + 0.5);
     }
+    if (role == 3 || role == 4) {
+        /* Disk/network: expect "N.N MB/s" or similar; saturate ~50 MB/s. */
+        double mbs = v;
+        if (end[0] == L'K' || end[0] == L'k') {
+            mbs = v / 1024.0;
+        } else if (end[0] == L'G' || end[0] == L'g') {
+            mbs = v * 1024.0;
+        } else if (end[0] == L'M' || end[0] == L'm' || end[0] == L'\0' || end[0] == L'/') {
+            mbs = v;
+        } else {
+            return -1;
+        }
+        double t = mbs / 50.0;
+        if (t > 1.0) {
+            t = 1.0;
+        }
+        return (int)(t * 100.0 + 0.5);
+    }
     return -1;
 }
 
@@ -510,20 +534,47 @@ static LRESULT listview_customdraw(int32_t id, LPNMLVCUSTOMDRAW cd) {
         return CDRF_NOTIFYITEMDRAW;
     case CDDS_ITEMPREPAINT: {
         int selected = (ListView_GetItemState(lv, row, LVIS_SELECTED) & LVIS_SELECTED) != 0;
+        int hot = (ListView_GetHotItem(lv) == row);
+        LVITEMW li;
+        memset(&li, 0, sizeof(li));
+        li.mask = LVIF_PARAM;
+        li.iItem = row;
+        SendMessageW(lv, LVM_GETITEMW, 0, (LPARAM)&li);
+        if ((LONG_PTR)li.lParam == 1) {
+            /* Section / group header row. */
+            cd->clrTextBk = RGB(0xF8, 0xF8, 0xF8);
+            cd->clrText = kMuted;
+            cd->nmcd.uItemState &= ~(UINT)(CDIS_SELECTED | CDIS_FOCUS);
+            return CDRF_NOTIFYSUBITEMDRAW | CDRF_NEWFONT;
+        }
         if (selected) {
             cd->clrTextBk = kSelBg;
             cd->clrText = kText;
-            /* Keep system text paint; only tint background. */
             cd->nmcd.uItemState &= ~(UINT)(CDIS_SELECTED | CDIS_FOCUS);
+        } else if (hot) {
+            cd->clrTextBk = RGB(0xF5, 0xF5, 0xF5);
+            cd->clrText = kText;
         }
         return CDRF_NOTIFYSUBITEMDRAW | CDRF_NEWFONT;
     }
     case (CDDS_SUBITEM | CDDS_ITEMPREPAINT): {
         int sub = cd->iSubItem;
         int selected = (ListView_GetItemState(lv, row, LVIS_SELECTED) & LVIS_SELECTED) != 0;
+        int hot = (ListView_GetHotItem(lv) == row);
         wchar_t text[96];
-        COLORREF fillBg = selected ? kSelBg : kWhite;
+        COLORREF fillBg = selected ? kSelBg : (hot ? RGB(0xF5, 0xF5, 0xF5) : kWhite);
         int heat = -1;
+        LVITEMW li;
+        memset(&li, 0, sizeof(li));
+        li.mask = LVIF_PARAM;
+        li.iItem = row;
+        SendMessageW(lv, LVM_GETITEMW, 0, (LPARAM)&li);
+        if ((LONG_PTR)li.lParam == 1) {
+            fillBg = RGB(0xF8, 0xF8, 0xF8);
+            cd->clrText = kMuted;
+            cd->clrTextBk = fillBg;
+            return CDRF_NEWFONT;
+        }
         lv_get_cell_text(lv, row, sub, text, 96);
         /* Em-dash "—" (U+2014) or ASCII '-' used as n/a → muted. */
         if ((text[0] == 0x2014 && text[1] == L'\0')
@@ -538,7 +589,15 @@ static LRESULT listview_customdraw(int32_t id, LPNMLVCUSTOMDRAW cd) {
             heat = lv_heat_from_text(g_col_role[id][sub], text);
         }
         if (heat > 0) {
-            cd->clrTextBk = blend_toward(fillBg, RGB(0, 120, 212), heat * 22 / 100);
+            COLORREF tint = RGB(0, 120, 212);
+            if (id > 0 && id < JN_UI_MAX && sub >= 0 && sub < JN_UI_MAX_COLS) {
+                if (g_col_role[id][sub] == 3) {
+                    tint = RGB(232, 128, 48); /* disk-ish orange */
+                } else if (g_col_role[id][sub] == 4) {
+                    tint = RGB(128, 80, 180); /* network-ish purple */
+                }
+            }
+            cd->clrTextBk = blend_toward(fillBg, tint, heat * 22 / 100);
         } else {
             cd->clrTextBk = fillBg;
         }
@@ -679,6 +738,20 @@ static LRESULT CALLBACK JnWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPa
                     }
                 } else if (hdr->code == NM_DBLCLK) {
                     jnative_ui_emit_event(cid, JN_UI_EVENT_ACTION);
+                } else if (hdr->code == NM_RCLICK) {
+                    LPNMITEMACTIVATE ia = (LPNMITEMACTIVATE)lParam;
+                    if (ia != NULL && ia->iItem >= 0
+                            && (g_kinds[cid] == JN_UI_KIND_LISTVIEW
+                                || g_kinds[cid] == JN_UI_KIND_TABLEVIEW)) {
+                        g_selected_index[cid] = ia->iItem;
+                        ListView_SetItemState(g_hwnds[cid], ia->iItem,
+                                LVIS_SELECTED | LVIS_FOCUSED,
+                                LVIS_SELECTED | LVIS_FOCUSED);
+                        jnative_ui_emit_event_ex(cid, JN_UI_EVENT_SELECT, ia->iItem, 0, 0, 0);
+                        /* type=3 click, button=2 right — Java can show ContextMenu */
+                        jnative_ui_emit_event_ex(cid, JN_UI_EVENT_MOUSE, 3,
+                                ia->ptAction.x, ia->ptAction.y, 2);
+                    }
                 } else if (hdr->code == LVN_COLUMNCLICK) {
                     NMLISTVIEW *lv = (NMLISTVIEW *)lParam;
                     jnative_ui_emit_event_ex(cid, JN_UI_EVENT_HEADER, lv->iSubItem, 0, 0, 0);
@@ -1125,6 +1198,73 @@ static int imagelist_add_icon_centered(HIMAGELIST il, HICON icon, int h) {
     return idx;
 }
 
+/* Draw a simple chevron into the imagelist (consistent graphic, not text glyphs). */
+static int imagelist_add_chevron(HIMAGELIST il, int rowH, int expanded) {
+    int h = rowH > 0 ? rowH : 24;
+    HDC screen = GetDC(NULL);
+    HDC mdc = CreateCompatibleDC(screen);
+    BITMAPINFO bi;
+    memset(&bi, 0, sizeof(bi));
+    bi.bmiHeader.biSize = sizeof(BITMAPINFOHEADER);
+    bi.bmiHeader.biWidth = 16;
+    bi.bmiHeader.biHeight = -h;
+    bi.bmiHeader.biPlanes = 1;
+    bi.bmiHeader.biBitCount = 32;
+    bi.bmiHeader.biCompression = BI_RGB;
+    void *bits = NULL;
+    HBITMAP bmp = CreateDIBSection(mdc, &bi, DIB_RGB_COLORS, &bits, NULL, 0);
+    ReleaseDC(NULL, screen);
+    if (bmp == NULL || bits == NULL) {
+        DeleteDC(mdc);
+        return -1;
+    }
+    {
+        unsigned int *px = (unsigned int *)bits;
+        int y;
+        int x;
+        for (y = 0; y < h; y++) {
+            for (x = 0; x < 16; x++) {
+                px[y * 16 + x] = 0x00000000u;
+            }
+        }
+        /* Dark gray chevron strokes. */
+        unsigned int ink = 0xFF5A5A5Au;
+        int cy = h / 2;
+        if (expanded) {
+            /* V shape pointing down */
+            int i;
+            for (i = 0; i < 5; i++) {
+                int lx = 4 + i;
+                int rx = 12 - i;
+                int yy = cy - 2 + i;
+                if (yy >= 0 && yy < h) {
+                    if (lx >= 0 && lx < 16) px[yy * 16 + lx] = ink;
+                    if (rx >= 0 && rx < 16) px[yy * 16 + rx] = ink;
+                }
+            }
+        } else {
+            /* > shape pointing right */
+            int i;
+            for (i = 0; i < 5; i++) {
+                int yy1 = cy - 4 + i;
+                int yy2 = cy + 4 - i;
+                int xx = 5 + i;
+                if (xx >= 0 && xx < 16) {
+                    if (yy1 >= 0 && yy1 < h) px[yy1 * 16 + xx] = ink;
+                    if (yy2 >= 0 && yy2 < h) px[yy2 * 16 + xx] = ink;
+                }
+            }
+        }
+    }
+    SelectObject(mdc, bmp);
+    {
+        int idx = ImageList_Add(il, bmp, NULL);
+        DeleteObject(bmp);
+        DeleteDC(mdc);
+        return idx;
+    }
+}
+
 /* Resolve an exe/file path (UTF-8) to an imagelist index for this table. */
 static int table_icon_index(int32_t id, const char *utf8path) {
     int i;
@@ -1140,6 +1280,42 @@ static int table_icon_index(int32_t id, const char *utf8path) {
     }
     if (g_table_il[id] == NULL) {
         return -1;
+    }
+    /* Built-in glyph paths (not filesystem). */
+    if (utf8path != NULL) {
+        if (strcmp(utf8path, "jn:icon:chevron-right") == 0
+                || strcmp(utf8path, "jn:icon:chevron-down") == 0) {
+            int expanded = (strcmp(utf8path, "jn:icon:chevron-down") == 0) ? 1 : 0;
+            wpath = utf8_to_wide(utf8path);
+            if (wpath == NULL) {
+                return -1;
+            }
+            for (i = 0; i < g_icon_n[id]; i++) {
+                if (wcscmp(g_icon_paths[id][i], wpath) == 0) {
+                    idx = g_icon_idx[id][i];
+                    free(wpath);
+                    return idx;
+                }
+            }
+            idx = imagelist_add_chevron(g_table_il[id], g_table_il_h[id], expanded);
+            if (idx >= 0 && g_icon_n[id] < JN_ICON_CACHE_MAX) {
+                if (g_icon_paths[id] == NULL) {
+                    g_icon_paths[id] = (wchar_t **)calloc(JN_ICON_CACHE_MAX, sizeof(wchar_t *));
+                    g_icon_idx[id] = (int *)calloc(JN_ICON_CACHE_MAX, sizeof(int));
+                }
+                if (g_icon_paths[id] != NULL && g_icon_idx[id] != NULL) {
+                    g_icon_paths[id][g_icon_n[id]] = wpath;
+                    g_icon_idx[id][g_icon_n[id]] = idx;
+                    g_icon_n[id]++;
+                    return idx;
+                }
+            }
+            free(wpath);
+            return idx;
+        }
+        if (strcmp(utf8path, "jn:kind:section") == 0) {
+            return -1; /* no icon; row marked via lParam */
+        }
     }
     wpath = utf8_to_wide(utf8path);
     if (wpath == NULL) {
@@ -1446,8 +1622,11 @@ void jnative_ui_set_visible(int32_t id, int32_t visible) {
     }
 }
 void jnative_ui_set_enabled(int32_t id, int32_t enabled) {
-    if (id > 0 && id < JN_UI_MAX && g_hwnds[id] != NULL) {
-        EnableWindow(g_hwnds[id], enabled != 0);
+    if (id > 0 && id < JN_UI_MAX) {
+        g_enabled_flag[id] = enabled != 0 ? 1 : 0;
+        if (g_hwnds[id] != NULL) {
+            EnableWindow(g_hwnds[id], enabled != 0);
+        }
     }
 }
 void jnative_ui_set_content(int32_t windowId, int32_t childId) {
@@ -1571,11 +1750,20 @@ void jnative_ui_table_set_columns(int32_t id, const char *titles_tsv) {
                 if (m3 != NULL) {
                     *m3 = '\0';
                     char *fstr = m3 + 2;
-                    /* Optional 5th meta field: ...##flex##max (logical px). */
+                    /* Optional: ...##flex##max##role */
                     char *m4 = strstr(fstr, "##");
                     if (m4 != NULL) {
                         *m4 = '\0';
-                        int mx = atoi(m4 + 2);
+                        char *maxstr = m4 + 2;
+                        char *m5 = strstr(maxstr, "##");
+                        if (m5 != NULL) {
+                            *m5 = '\0';
+                            int rl = atoi(m5 + 2);
+                            if (rl >= 0 && rl <= 4) {
+                                role = rl;
+                            }
+                        }
+                        int mx = atoi(maxstr);
                         if (mx > 0) {
                             maxLp = mx;
                         }
@@ -1599,13 +1787,21 @@ void jnative_ui_table_set_columns(int32_t id, const char *titles_tsv) {
         if (title[0] == '\0') {
             title = " ";
         }
-        /* Heat role from the (already stripped) UTF-8 title. */
-        if (strstr(title, "CPU") != NULL) {
-            role = 1;
-        } else if (strstr(title, "\xE5\xB7\xA5" "\xE4\xBD\x9C" "\xE9\x9B\x86") != NULL  /* gong-zuo-ji */
-                || strstr(title, "\xE5\x86\x85" "\xE5\xAD\x98") != NULL                 /* nei-cun */
-                || strstr(title, "Memory") != NULL) {
-            role = 2;
+        /* Fallback heat role from title when meta role omitted. */
+        if (role == 0) {
+            if (strstr(title, "CPU") != NULL) {
+                role = 1;
+            } else if (strstr(title, "\xE5\xB7\xA5" "\xE4\xBD\x9C" "\xE9\x9B\x86") != NULL
+                    || strstr(title, "\xE5\x86\x85" "\xE5\xAD\x98") != NULL
+                    || strstr(title, "Memory") != NULL) {
+                role = 2;
+            } else if (strstr(title, "\xE7\xA3\x81" "\xE7\x9B\x98") != NULL /* ci-pan */
+                    || strstr(title, "Disk") != NULL) {
+                role = 3;
+            } else if (strstr(title, "\xE7\xBD\x91" "\xE7\xBB\x9C") != NULL /* wang-luo */
+                    || strstr(title, "Network") != NULL) {
+                role = 4;
+            }
         }
         g_col_width_lp[id][col] = widthLp;
         g_col_flex[id][col] = flex;
@@ -1627,7 +1823,7 @@ void jnative_ui_table_set_columns(int32_t id, const char *titles_tsv) {
     g_col_count[id] = col;
     ListView_SetExtendedListViewStyle(lv,
             LVS_EX_FULLROWSELECT | LVS_EX_DOUBLEBUFFER | LVS_EX_LABELTIP
-            | LVS_EX_SUBITEMIMAGES);
+            | LVS_EX_SUBITEMIMAGES | LVS_EX_TRACKSELECT);
     /* Ensure report view + extended styles before rows arrive. */
     {
         LONG_PTR st = GetWindowLongPtr(lv, GWL_STYLE);
@@ -1739,10 +1935,11 @@ void jnative_ui_list_add_item(int32_t id, const char *text) {
     wchar_t *w0 = utf8_to_wide(p);
     LVITEMW item;
     memset(&item, 0, sizeof(item));
-    item.mask = LVIF_TEXT;
+    item.mask = LVIF_TEXT | LVIF_PARAM;
     item.iItem = row;
     item.iSubItem = 0;
     item.pszText = w0;
+    item.lParam = 0;
     ListView_InsertItem(lv, &item);
     free(w0);
     int sub = 1;
@@ -1777,6 +1974,14 @@ void jnative_ui_list_add_item(int32_t id, const char *text) {
         sub++;
         p = (tab == NULL) ? NULL : (tab + 1);
     }
+    if (iconPath != NULL && strncmp(iconPath, "jn:kind:section", 15) == 0) {
+        LVITEMW pk;
+        memset(&pk, 0, sizeof(pk));
+        pk.mask = LVIF_PARAM;
+        pk.iItem = row;
+        pk.lParam = 1;
+        SendMessageW(lv, LVM_SETITEMW, 0, (LPARAM)&pk);
+    }
     if (iconPath != NULL || g_table_il[id] != NULL) {
         LVITEMW img;
         memset(&img, 0, sizeof(img));
@@ -1784,8 +1989,7 @@ void jnative_ui_list_add_item(int32_t id, const char *text) {
         img.iItem = row;
         img.iSubItem = 0;
         img.iImage = I_IMAGENONE;
-        if (iconPath != NULL) {
-            /* Empty/failed paths fall back to the default application icon. */
+        if (iconPath != NULL && strncmp(iconPath, "jn:kind:section", 15) != 0) {
             int ii = table_icon_index(id, iconPath);
             if (ii >= 0) {
                 img.iImage = ii;
@@ -1818,14 +2022,45 @@ double jnative_ui_split_get_divider(int32_t id) {
     return (id > 0 && id < JN_UI_MAX) ? g_divider[id] : 0.5;
 }
 int32_t jnative_ui_menu_create_bar(void) { return jnative_ui_create_panel(0); }
-int32_t jnative_ui_menu_create(const char *title) { return jnative_ui_create_label(0, title); }
+int32_t jnative_ui_menu_create(const char *title) {
+    int32_t id = jnative_ui_create_label(0, title);
+    if (id > 0 && id < JN_UI_MAX) {
+        g_menu_child_n[id] = 0;
+        free(g_item_text[id]);
+        g_item_text[id] = title ? _strdup(title) : NULL;
+    }
+    return id;
+}
 int32_t jnative_ui_menu_create_item(const char *text) {
-    return jnative_ui_create_control(JN_UI_KIND_MENUITEM, 0, text);
+    int32_t id = jnative_ui_create_control(JN_UI_KIND_MENUITEM, 0, text);
+    if (id > 0 && id < JN_UI_MAX) {
+        free(g_item_text[id]);
+        g_item_text[id] = text ? _strdup(text) : _strdup("");
+        g_enabled_flag[id] = 1;
+    }
+    return id;
 }
 int32_t jnative_ui_menu_create_separator(void) {
-    return jnative_ui_create_control(JN_UI_KIND_SEPARATOR, 0, "-");
+    int32_t id = jnative_ui_create_control(JN_UI_KIND_SEPARATOR, 0, "-");
+    if (id > 0 && id < JN_UI_MAX) {
+        free(g_item_text[id]);
+        g_item_text[id] = _strdup("-");
+    }
+    return id;
 }
-void jnative_ui_menu_add(int32_t parentMenuId, int32_t childId) { (void)parentMenuId; (void)childId; }
+void jnative_ui_menu_add(int32_t parentMenuId, int32_t childId) {
+    if (parentMenuId <= 0 || parentMenuId >= JN_UI_MAX) {
+        return;
+    }
+    if (childId <= 0 || childId >= JN_UI_MAX) {
+        return;
+    }
+    if (g_menu_child_n[parentMenuId] >= JN_MENU_CHILD_MAX) {
+        return;
+    }
+    g_menu_children[parentMenuId][g_menu_child_n[parentMenuId]] = childId;
+    g_menu_child_n[parentMenuId]++;
+}
 void jnative_ui_window_set_menubar(int32_t windowId, int32_t menuBarId) {
     (void)windowId; (void)menuBarId;
 }
@@ -1939,10 +2174,67 @@ int32_t jnative_ui_platform_context_menu_show(int32_t menuId, int32_t screenX, i
 }
 
 int32_t jnative_ui_context_menu_show(int32_t menuId, int32_t screenX, int32_t screenY) {
+    int i;
+    HMENU h;
+    int cmd;
+    POINT pt;
+    HWND owner = NULL;
+    int32_t wid;
     if (!g_win32_active) {
         return 0;
     }
-    return jnative_ui_platform_context_menu_show(menuId, screenX, screenY);
+    if (menuId <= 0 || menuId >= JN_UI_MAX) {
+        return 0;
+    }
+    h = CreatePopupMenu();
+    if (h == NULL) {
+        return 0;
+    }
+    for (i = 0; i < g_menu_child_n[menuId]; i++) {
+        int32_t cid = g_menu_children[menuId][i];
+        if (cid <= 0 || cid >= JN_UI_MAX) {
+            continue;
+        }
+        if (g_kinds[cid] == JN_UI_KIND_SEPARATOR
+                || (g_item_text[cid] != NULL && g_item_text[cid][0] == '-' && g_item_text[cid][1] == '\0')) {
+            AppendMenuW(h, MF_SEPARATOR, 0, NULL);
+            continue;
+        }
+        {
+            const char *t = g_item_text[cid];
+            if (t == NULL) {
+                t = "";
+            }
+            wchar_t *w = utf8_to_wide(t);
+            UINT flags = MF_STRING;
+            if (g_enabled_flag[cid] == 0) {
+                flags |= MF_GRAYED;
+            }
+            AppendMenuW(h, flags, (UINT_PTR)cid, w);
+            free(w);
+        }
+    }
+    pt.x = screenX;
+    pt.y = screenY;
+    if (screenX == 0 && screenY == 0) {
+        GetCursorPos(&pt);
+    }
+    for (wid = 1; wid < JN_UI_MAX; wid++) {
+        if (g_kinds[wid] == JN_UI_KIND_WINDOW && g_hwnds[wid] != NULL) {
+            owner = g_hwnds[wid];
+            break;
+        }
+    }
+    if (owner == NULL) {
+        owner = GetDesktopWindow();
+    }
+    cmd = (int)TrackPopupMenu(h, TPM_RETURNCMD | TPM_RIGHTBUTTON, pt.x, pt.y, 0, owner, NULL);
+    DestroyMenu(h);
+    if (cmd > 0 && cmd < JN_UI_MAX) {
+        jnative_ui_emit_event((int32_t)cmd, JN_UI_EVENT_CLICK);
+        return 1;
+    }
+    return 0;
 }
 
 void jnative_ui_platform_set_control_style(int32_t id, int32_t style) {

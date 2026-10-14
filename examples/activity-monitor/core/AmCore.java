@@ -193,6 +193,15 @@ class AmNative {
 
     @Native(symbol = "jn_am_last_errno", library = "jn_am")
     static native int lastErrno();
+
+    @Native(symbol = "jn_am_set_efficiency", library = "jn_am")
+    static native int setEfficiency(int pid, int enable);
+
+    @Native(symbol = "jn_am_open_file_location", library = "jn_am")
+    static native int openFileLocation(int pid);
+
+    @Native(symbol = "jn_am_run_task", library = "jn_am")
+    static native int runTask(String cmdline);
 }
 
 class AmFlags {
@@ -226,6 +235,15 @@ class AmProcSample {
     String user;
     String name;
     String path;
+    /** Visible top-level window count (Windows); 0 on macOS / unknown. */
+    int winCount;
+    /** 0 background, 1 app, 2 Windows process. */
+    int groupClass;
+    /** 1 efficiency, 2 not-responding. */
+    int statusBits;
+    /** 1 on, 0 off, -1 unknown/unsupported. */
+    int eco;
+    String publisher;
 
     AmProcSample() {
         pid = 0;
@@ -241,11 +259,27 @@ class AmProcSample {
         user = "";
         name = "";
         path = "";
+        winCount = 0;
+        groupClass = 0;
+        statusBits = 0;
+        eco = -1;
+        publisher = "";
     }
 
     String identityKey() {
         return String.valueOf(pid) + ":" + AmParse.longToString(startSec) + ":" + String.valueOf(startUsec);
     }
+}
+
+class AmStatusBits {
+    static int EFFICIENCY = 1;
+    static int NOT_RESPONDING = 2;
+}
+
+class AmGroupClass {
+    static int BACKGROUND = 0;
+    static int APP = 1;
+    static int WINDOWS = 2;
 }
 
 class AmSnapshot {
@@ -479,6 +513,8 @@ class AmViewState {
             } else if (AmParse.containsIgnoreCase(r.sample.name, q) != 0) {
                 match = 1;
             } else if (AmParse.containsIgnoreCase(r.sample.user, q) != 0) {
+                match = 1;
+            } else if (AmParse.containsIgnoreCase(r.sample.publisher, q) != 0) {
                 match = 1;
             } else if (AmParse.containsIgnoreCase(String.valueOf(r.sample.pid), q) != 0) {
                 match = 1;
@@ -724,6 +760,22 @@ class AmParse {
                     s.path = "";
                     if (c.size() >= 14) {
                         s.path = c.get(13);
+                    }
+                    /* Optional Windows extras: win_count group_class status_bits eco publisher */
+                    if (c.size() >= 15) {
+                        s.winCount = intOr(c.get(14), 0);
+                    }
+                    if (c.size() >= 16) {
+                        s.groupClass = intOr(c.get(15), 0);
+                    }
+                    if (c.size() >= 17) {
+                        s.statusBits = intOr(c.get(16), 0);
+                    }
+                    if (c.size() >= 18) {
+                        s.eco = intOr(c.get(17), -1);
+                    }
+                    if (c.size() >= 19) {
+                        s.publisher = c.get(18);
                     }
                     snap.procs.add(s);
                     snap.parseOk = 1;

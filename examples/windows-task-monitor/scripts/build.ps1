@@ -22,20 +22,16 @@ $Lib = Join-Path $OutDir "libjn_am.a"
 & clang -c -O2 -I"$NativeDir" "$Src" -o "$Obj"
 if (Test-Path $Lib) { Remove-Item $Lib }
 & ar rcs "$Lib" "$Obj"
-# Also produce MSVC-style import name some toolchains expect
 $LibA = Join-Path $OutDir "jn_am.lib"
 Copy-Item $Lib $LibA -Force
 
 Write-Host "==> merge sources"
 $Merged = Join-Path $OutDir "merged-task-monitor.java"
-# PowerShell 5 defaults to the ANSI code page and writes a UTF-8 BOM.
-# Sources are UTF-8; a BOM or a GBK misread breaks the JNative lexer.
 $Utf8 = New-Object System.Text.UTF8Encoding $false
 $CorePath = Join-Path $Root "..\activity-monitor\core\AmCore.java"
 $Core = [System.IO.File]::ReadAllText((Resolve-Path $CorePath), $Utf8)
 if ($Core.Length -gt 0 -and $Core[0] -eq [char]0xFEFF) { $Core = $Core.Substring(1) }
 $Core = $Core -replace "public class AmCore", "class AmCore"
-# Strip AmCore.main (same approach as macOS desktop merge)
 $lines = $Core -split "`n"
 $body = New-Object System.Collections.Generic.List[string]
 $i = 0
@@ -56,9 +52,23 @@ while ($i -lt $lines.Length) {
   $body.Add($lines[$i])
   $i++
 }
-$Desk = [System.IO.File]::ReadAllText((Join-Path $Root "src\TaskMonitor.java"), $Utf8)
-if ($Desk.Length -gt 0 -and $Desk[0] -eq [char]0xFEFF) { $Desk = $Desk.Substring(1) }
-$MergedText = "// AUTO-GENERATED - windows-task-monitor`n" + ($body -join "`n") + "`n" + $Desk
+
+$SrcOrder = @(
+  "TmTokens.java",
+  "TmViewModel.java",
+  "TaskMonitor.java",
+  "TmActions.java",
+  "TmCommands.java"
+)
+$DeskParts = New-Object System.Collections.Generic.List[string]
+foreach ($name in $SrcOrder) {
+  $p = Join-Path $Root "src\$name"
+  if (-not (Test-Path $p)) { Write-Error "Missing $p" }
+  $t = [System.IO.File]::ReadAllText((Resolve-Path $p), $Utf8)
+  if ($t.Length -gt 0 -and $t[0] -eq [char]0xFEFF) { $t = $t.Substring(1) }
+  $DeskParts.Add($t)
+}
+$MergedText = "// AUTO-GENERATED - windows-task-monitor`n" + ($body -join "`n") + "`n" + ($DeskParts -join "`n`n")
 [System.IO.File]::WriteAllText($Merged, $MergedText, $Utf8)
 
 $Out = Join-Path $OutDir "jnative-task-monitor.exe"
@@ -68,3 +78,4 @@ if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 Write-Host "OK $Out"
 Write-Host "Run: $Out"
 Write-Host "Dump: $Out --dump"
+Write-Host "Status: WINDOWS_E2E_UNVERIFIED until Parallel visual QA"

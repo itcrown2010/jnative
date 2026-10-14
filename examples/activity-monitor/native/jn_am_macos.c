@@ -341,3 +341,22 @@ char *jn_am_snapshot(void) {
     free(pids);
     return buf;
 }
+
+int32_t jn_am_set_efficiency(int32_t pid, int32_t enable) {
+    (void)pid;
+    (void)enable;
+    g_last_errno = ENOTSUP;
+    return -1;
+}
+
+int32_t jn_am_open_file_location(int32_t pid) {
+    (void)pid;
+    g_last_errno = ENOTSUP;
+    return -1;
+}
+
+int32_t jn_am_run_task(const char *cmdline) {
+    (void)cmdline;
+    g_last_errno = ENOTSUP;
+    return -1;
+}

@@ -10,15 +10,8 @@ OUT_DIR="${OUT_DIR:-$REPO/build/windows-task-monitor}"
 NATIVE="$(cd "$ROOT/../activity-monitor/native" && pwd)"
 mkdir -p "$OUT_DIR"
 
-OS="$(uname -s 2>/dev/null || echo unknown)"
-if [[ "$OS" == MINGW* || "$OS" == MSYS* || "$OS" == CYGWIN* || "$OS" == Windows_NT ]]; then
-  CC="${CC:-clang}"
-  echo "==> compile jn_am_windows.c ($CC)"
-  "$CC" -c -O2 -I"$NATIVE" "$NATIVE/jn_am_windows.c" -o "$OUT_DIR/jn_am_windows.o"
-  rm -f "$OUT_DIR/libjn_am.a"
-  ar rcs "$OUT_DIR/libjn_am.a" "$OUT_DIR/jn_am_windows.o"
-
-  MERGED="$OUT_DIR/merged-task-monitor.java"
+merge_sources() {
+  local MERGED="$1"
   python3 - "$ROOT" "$MERGED" <<'PY'
 from pathlib import Path
 import sys
@@ -45,10 +38,24 @@ while i < len(lines):
         continue
     body.append(lines[i])
     i += 1
-desk = (root / "src/TaskMonitor.java").read_text()
-out.write_text("// AUTO-GENERATED — windows-task-monitor\n" + "".join(body) + "\n" + desk)
+parts = []
+for name in ("TmTokens.java", "TmViewModel.java", "TaskMonitor.java", "TmActions.java", "TmCommands.java"):
+    parts.append((root / "src" / name).read_text())
+out.write_text("// AUTO-GENERATED — windows-task-monitor\n" + "".join(body) + "\n" + "\n".join(parts))
 print(out)
 PY
+}
+
+OS="$(uname -s 2>/dev/null || echo unknown)"
+if [[ "$OS" == MINGW* || "$OS" == MSYS* || "$OS" == CYGWIN* || "$OS" == Windows_NT ]]; then
+  CC="${CC:-clang}"
+  echo "==> compile jn_am_windows.c ($CC)"
+  "$CC" -c -O2 -I"$NATIVE" "$NATIVE/jn_am_windows.c" -o "$OUT_DIR/jn_am_windows.o"
+  rm -f "$OUT_DIR/libjn_am.a"
+  ar rcs "$OUT_DIR/libjn_am.a" "$OUT_DIR/jn_am_windows.o"
+
+  MERGED="$OUT_DIR/merged-task-monitor.java"
+  merge_sources "$MERGED"
   OUT="$OUT_DIR/jnative-task-monitor.exe"
   echo "==> desktop → $OUT"
   java -jar "$JAR" "$MERGED" -o "$OUT" --app-type gui -O1 \
@@ -57,7 +64,7 @@ PY
   exit 0
 fi
 
-# Non-Windows: cross-compile sampling ABI only (evidence for CI / audit).
+# Non-Windows: cross-compile sampling ABI only + merge smoke
 if command -v x86_64-w64-mingw32-gcc >/dev/null 2>&1; then
   echo "==> cross-compile jn_am_windows.c (MinGW)"
   x86_64-w64-mingw32-gcc -c -O2 -I"$NATIVE" "$NATIVE/jn_am_windows.c" \
@@ -65,6 +72,9 @@ if command -v x86_64-w64-mingw32-gcc >/dev/null 2>&1; then
   rm -f "$OUT_DIR/libjn_am.a"
   x86_64-w64-mingw32-ar rcs "$OUT_DIR/libjn_am.a" "$OUT_DIR/jn_am_windows.o"
   echo "OK $OUT_DIR/libjn_am.a (Windows object; EXE requires Windows host)"
+  MERGED="$OUT_DIR/merged-task-monitor.java"
+  merge_sources "$MERGED"
+  echo "Merged $MERGED"
   echo "WINDOWS_E2E_UNVERIFIED: run scripts/build.ps1 on Windows 10/11 x64"
   exit 0
 fi

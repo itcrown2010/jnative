@@ -3448,7 +3448,7 @@ interface TableRowIdProvider<T> {
     String rowId(T row);
 }
 
-/** Column with explicit width (logical pt), align L/C/R, flex grow, and optional max width. */
+/** Column with explicit width (logical pt), align L/C/R, flex grow, optional max, heat role. */
 class TableColumnDef<T> implements ColumnRenderer<T> {
     String title;
     ColumnRenderer<T> inner;
@@ -3456,6 +3456,8 @@ class TableColumnDef<T> implements ColumnRenderer<T> {
     String align;
     int flex;
     int maxWidthPt;
+    /** 0 none, 1 cpu, 2 memory, 3 disk, 4 network (Win32 custom-draw heat). */
+    int heatRole;
 
     TableColumnDef(String t, ColumnRenderer<T> body, int width, String al, int fl) {
         title = t;
@@ -3468,6 +3470,7 @@ class TableColumnDef<T> implements ColumnRenderer<T> {
         }
         flex = fl;
         maxWidthPt = 0;
+        heatRole = 0;
     }
 
     TableColumnDef(String t, ColumnRenderer<T> body, int width, String al, int fl, int maxW) {
@@ -3481,14 +3484,30 @@ class TableColumnDef<T> implements ColumnRenderer<T> {
         }
         flex = fl;
         maxWidthPt = maxW;
+        heatRole = 0;
+    }
+
+    TableColumnDef(String t, ColumnRenderer<T> body, int width, String al, int fl, int maxW, int role) {
+        title = t;
+        inner = body;
+        widthPt = width;
+        if (al == null || al.length() == 0) {
+            align = "L";
+        } else {
+            align = al;
+        }
+        flex = fl;
+        maxWidthPt = maxW;
+        heatRole = role;
     }
 
     String getTitle() {
-        /* Encode meta: title##width##align##flex##max (ASCII-safe; max 0 = uncapped). */
+        /* Encode meta: title##width##align##flex##max##role (ASCII-safe; max 0 = uncapped). */
         String w = String.valueOf(widthPt);
         String f = String.valueOf(flex);
         String m = String.valueOf(maxWidthPt);
-        return title + "##" + w + "##" + align + "##" + f + "##" + m;
+        String r = String.valueOf(heatRole);
+        return title + "##" + w + "##" + align + "##" + f + "##" + m + "##" + r;
     }
 
     String renderRow(T row) {
@@ -3579,6 +3598,11 @@ class TableView<T> extends Control {
     void addColumnDef(String title, ColumnRenderer<T> body, int widthPt, String align, int flex,
             int maxWidthPt) {
         addColumn(new TableColumnDef<T>(title, body, widthPt, align, flex, maxWidthPt));
+    }
+
+    void addColumnDef(String title, ColumnRenderer<T> body, int widthPt, String align, int flex,
+            int maxWidthPt, int heatRole) {
+        addColumn(new TableColumnDef<T>(title, body, widthPt, align, flex, maxWidthPt, heatRole));
     }
 
     /**
