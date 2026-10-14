@@ -18,6 +18,32 @@
 #include <string.h>
 #include <time.h>
 
+#if defined(_WIN32)
+/* llvm-mingw UCRT does not provide setenv/unsetenv/timegm. */
+static int jn_win_setenv(const char *name, const char *value, int overwrite) {
+    (void)overwrite;
+    return _putenv_s(name, value);
+}
+
+static int jn_win_unsetenv(const char *name) {
+    char buf[288];
+    size_t n = strlen(name);
+    if (n + 2 > sizeof(buf)) {
+        return -1;
+    }
+    memcpy(buf, name, n);
+    buf[n] = '=';
+    buf[n + 1] = '\0';
+    return _putenv(buf);
+}
+
+#define setenv jn_win_setenv
+#define unsetenv jn_win_unsetenv
+#define localtime_r(tp, result) (localtime_s((result), (tp)) == 0 ? (result) : NULL)
+#define gmtime_r(tp, result) (gmtime_s((result), (tp)) == 0 ? (result) : NULL)
+#define timegm _mkgmtime
+#endif
+
 static int32_t jn_tz_offset_unlocked(const char *zone_id, int64_t epoch_ms) {
     char *old = getenv("TZ");
     char old_buf[256];

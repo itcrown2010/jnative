@@ -7,10 +7,12 @@ package io.jnative.backend;
 
 import java.io.BufferedReader;
 import java.io.InputStreamReader;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.Locale;
 
 /**
  * Invokes clang to turn LLVM IR into a native executable.
@@ -87,15 +89,32 @@ public final class NativeLinker {
             boolean debugSymbols
     ) {
         List<String> command = new ArrayList<>(toolchain.linkCommand(llFile, output, optLevel, debugSymbols));
-        // Insert extra C sources before -o so clang compiles and links them.
+        // Insert extra C/.o sources before -o so clang compiles and links them.
         int oIndex = command.indexOf("-o");
         if (oIndex < 0) {
             oIndex = command.size();
         }
         List<String> extras = new ArrayList<>();
+        StringBuilder prepOut = new StringBuilder();
         for (Path src : extraSources) {
-            if (src != null) {
-                extras.add(src.toAbsolutePath().normalize().toString());
+            if (src == null) {
+                continue;
+            }
+            Path abs = src.toAbsolutePath().normalize();
+            String name = abs.getFileName().toString().toLowerCase(Locale.ROOT);
+            if (name.endsWith(".rc")) {
+                Path obj = abs.resolveSibling(
+                        abs.getFileName().toString().replaceAll("(?i)\\.rc$", ".o"));
+                LinkResult rc = compileResource(abs, obj);
+                if (!rc.success()) {
+                    return rc;
+                }
+                if (!rc.output().isBlank()) {
+                    prepOut.append(rc.output());
+                }
+                extras.add(obj.toString());
+            } else {
+                extras.add(abs.toString());
             }
         }
         command.addAll(oIndex, extras);
@@ -129,7 +148,7 @@ public final class NativeLinker {
                 }
             }
             int code = process.waitFor();
-            String text = out.toString();
+            String text = prepOut.toString() + out.toString();
             if (code != 0) {
                 text = rewriteLinkerErrors(text, libraries);
             }
@@ -137,6 +156,61 @@ public final class NativeLinker {
         } catch (Exception e) {
             return new LinkResult(false, -1, e.getMessage());
         }
+    }
+
+    /**
+     * Compile a Windows .rc (e.g. ComCtl6 manifest) to a COFF object with windres/llvm-windres.
+     */
+    private LinkResult compileResource(Path rcFile, Path objFile) {
+        try {
+            Files.createDirectories(objFile.getParent());
+            Path windres = findWindres();
+            if (windres == null) {
+                return new LinkResult(false, -1,
+                        "windres/llvm-windres not found; cannot embed Windows manifest: " + rcFile);
+            }
+            List<String> cmd = List.of(
+                    windres.toString(),
+                    "-i", rcFile.toString(),
+                    "-o", objFile.toString(),
+                    "-O", "coff");
+            ProcessBuilder pb = new ProcessBuilder(cmd);
+            pb.directory(rcFile.getParent().toFile());
+            pb.redirectErrorStream(true);
+            Process process = pb.start();
+            StringBuilder out = new StringBuilder();
+            try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
+                String line;
+                while ((line = reader.readLine()) != null) {
+                    out.append(line).append('\n');
+                }
+            }
+            int code = process.waitFor();
+            if (code != 0 || !Files.isRegularFile(objFile)) {
+                return new LinkResult(false, code,
+                        "windres failed for " + rcFile + "\n" + out);
+            }
+            return new LinkResult(true, 0, out.toString());
+        } catch (Exception e) {
+            return new LinkResult(false, -1, e.getMessage());
+        }
+    }
+
+    private Path findWindres() {
+        Path clang = toolchain.clang();
+        Path dir = clang.getParent();
+        if (dir != null) {
+            for (String name : List.of(
+                    "windres", "windres.exe",
+                    "llvm-windres", "llvm-windres.exe",
+                    "x86_64-w64-mingw32-windres", "x86_64-w64-mingw32-windres.exe")) {
+                Path candidate = dir.resolve(name);
+                if (Files.isExecutable(candidate) || Files.isRegularFile(candidate)) {
+                    return candidate;
+                }
+            }
+        }
+        return null;
     }
 
     private static String rewriteLinkerErrors(String output, Collection<String> libraries) {

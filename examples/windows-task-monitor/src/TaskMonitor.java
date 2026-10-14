@@ -29,6 +29,7 @@ class TmUi {
     static Window window;
     static TableView<AmProcRow> table;
     static SearchField search;
+    static TextField searchField;
     static Label footPrimary;
     static Label footStatus;
     static Button detailBtn;
@@ -101,35 +102,55 @@ class TmWindow {
             }
         });
 
+        int chromeBg = Component.rgba(236, 238, 241, 255);
+        int tableBg = Component.rgba(255, 255, 255, 255);
+
         VBox root = new VBox();
         root.spacing = 0;
         root.padding = 0;
+        root.setBackgroundRgba(chromeBg);
 
         HBox toolbar = new HBox();
-        toolbar.spacing = 8;
-        toolbar.padding = 8;
-        toolbar.prefHeight = 44;
-        toolbar.height = 44;
+        toolbar.spacing = Theme.SPACE_2;
+        toolbar.padding = Theme.SPACE_3;
+        toolbar.prefHeight = 52;
+        toolbar.height = 52;
+        toolbar.setBackgroundRgba(chromeBg);
         TmUi.detailBtn = new Button("详情");
+        TmUi.detailBtn.setPrefSize(88, 32);
+        TmUi.detailBtn.setFilledStyle(Theme.colorOf(Theme.ACCENT),
+                Component.rgba(255, 255, 255, 255), 8, 13);
         TmUi.detailBtn.onClick(() -> { TmActions.showDetail(); });
         TmUi.termBtn = new Button("结束进程");
+        TmUi.termBtn.setPrefSize(108, 32);
+        TmUi.termBtn.setFilledStyle(Component.rgba(220, 50, 47, 255),
+                Component.rgba(255, 255, 255, 255), 8, 13);
         TmUi.termBtn.onClick(() -> { TmActions.confirmTerminate(); });
-        TmUi.search = new SearchField();
-        TmUi.search.setPlaceholder("搜索名称 / PID");
-        TmUi.search.setOnQueryChanged(() -> { TmActions.onSearchChanged(); });
-        TmUi.search.prefWidth = 260;
-        TmUi.search.width = 260;
+        /* Win32 nested HBox SearchField often lays out at zero width; use TextField. */
+        TmUi.search = null;
+        TmUi.searchField = new TextField("");
+        TmUi.searchField.setPrefSize(280, 30);
+        TmUi.searchField.setBackgroundRgba(Component.rgba(255, 255, 255, 255));
+        TmUi.searchField.setForegroundRgba(Component.rgba(30, 30, 30, 255));
+        TmUi.searchField.onChange((ev) -> { TmActions.onSearchChanged(); });
         Label flex = new Label("");
         flex.hgrow = 1;
+        flex.setBackgroundRgba(chromeBg);
+        Label searchHint = new Label("搜索");
+        Theme.applyStyle(searchHint, Theme.STYLE_SECONDARY);
+        searchHint.setPrefSize(40, 28);
+        searchHint.setForegroundRgba(Component.rgba(80, 80, 80, 255));
         toolbar.add(TmUi.detailBtn);
         toolbar.add(TmUi.termBtn);
         toolbar.add(flex);
-        toolbar.add(TmUi.search);
+        toolbar.add(searchHint);
+        toolbar.add(TmUi.searchField);
 
         TmUi.table = new TableView<AmProcRow>();
         TmUi.table.vgrow = 1;
         TmUi.table.prefHeight = 640;
         TmUi.table.height = 640;
+        TmUi.table.setBackgroundRgba(tableBg);
         TmUi.table.setRowIdProvider(new TmRowIds());
         TmUi.table.setEmptyMessage("正在采样…");
         TmActions.rebuildColumns();
@@ -138,18 +159,20 @@ class TmWindow {
         TmUi.table.onHeaderClick((ev) -> { TmActions.sort(ev.selectedIndex); });
 
         HBox footer = new HBox();
-        footer.spacing = 12;
-        footer.padding = 10;
-        footer.prefHeight = 48;
-        footer.height = 48;
-        TmUi.footPrimary = new Label("CPU\n等待采样");
-        TmUi.footPrimary.setPrefSize(420, 36);
+        footer.spacing = Theme.SPACE_3;
+        footer.padding = Theme.SPACE_3;
+        footer.prefHeight = 44;
+        footer.height = 44;
+        footer.setBackgroundRgba(chromeBg);
+        TmUi.footPrimary = new Label("系统 CPU —  ·  等待采样");
+        TmUi.footPrimary.setPrefSize(620, 28);
         Theme.applyStyle(TmUi.footPrimary, Theme.STYLE_BODY);
         TmUi.footStatus = new Label("就绪");
-        TmUi.footStatus.setPrefSize(240, 36);
+        TmUi.footStatus.setPrefSize(180, 28);
         Theme.applyStyle(TmUi.footStatus, Theme.STYLE_SECONDARY);
         Label fflex = new Label("");
         fflex.hgrow = 1;
+        fflex.setBackgroundRgba(chromeBg);
         footer.add(TmUi.footPrimary);
         footer.add(fflex);
         footer.add(TmUi.footStatus);
@@ -266,19 +289,21 @@ class TmActions {
             return;
         }
         TmUi.table.columns.clear();
-        TmUi.table.addColumnDef(colTitle(0, "进程名称"), new TmColName(), 0, "L", 1);
-        TmUi.table.addColumnDef(colTitle(1, "PID"), new TmColPid(), 88, "R", 0);
-        TmUi.table.addColumnDef(colTitle(2, "用户"), new TmColUser(), 120, "L", 0);
-        TmUi.table.addColumnDef(colTitle(3, "CPU %"), new TmColCpu(), 88, "R", 0);
-        TmUi.table.addColumnDef(colTitle(4, "内存占用"), new TmColMem(), 110, "R", 0);
-        TmUi.table.addColumnDef(colTitle(5, "线程"), new TmColThr(), 72, "R", 0);
+        TmUi.table.addColumnDef(colTitle(0, "进程名称"), new TmColName(), 360, "L", 1);
+        TmUi.table.addColumnDef(colTitle(1, "PID"), new TmColPid(), 100, "R", 0);
+        TmUi.table.addColumnDef(colTitle(2, "用户"), new TmColUser(), 180, "L", 0);
+        TmUi.table.addColumnDef(colTitle(3, "CPU %"), new TmColCpu(), 120, "R", 0);
+        TmUi.table.addColumnDef(colTitle(4, "内存占用"), new TmColMem(), 150, "R", 0);
+        TmUi.table.addColumnDef(colTitle(5, "线程"), new TmColThr(), 90, "R", 0);
     }
 
     static void onSearchChanged() {
-        if (TmUi.search == null) {
-            return;
+        String q = "";
+        if (TmUi.searchField != null) {
+            q = TmUi.searchField.getText();
+        } else if (TmUi.search != null) {
+            q = TmUi.search.getQuery();
         }
-        String q = TmUi.search.getQuery();
         if (q == null) {
             q = "";
         }
@@ -435,7 +460,8 @@ class TmActions {
         if (TmUi.cpuHistory != null && TmUi.cpuHistory.size() > 0) {
             hist = "  ·  历史 " + String.valueOf(TmUi.cpuHistory.size()) + "s";
         }
-        TmUi.footPrimary.setText("系统 CPU " + cpu + "\n进程 " + String.valueOf(nproc)
+        TmUi.footPrimary.setText("系统 CPU " + cpu
+                + "  ·  进程 " + String.valueOf(nproc)
                 + "  ·  线程 " + String.valueOf(nthr) + hist);
     }
 

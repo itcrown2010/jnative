@@ -1,0 +1,10 @@
+/* Author: 张晓达
+ * Embed ComCtl 6.0 side-by-side dependency so Win32 controls use modern visuals. */
+#include <winuser.h>
+#ifndef CREATEPROCESS_MANIFEST_RESOURCE_ID
+#define CREATEPROCESS_MANIFEST_RESOURCE_ID 1
+#endif
+#ifndef RT_MANIFEST
+#define RT_MANIFEST 24
+#endif
+CREATEPROCESS_MANIFEST_RESOURCE_ID RT_MANIFEST "jnative_comctl.manifest"

@@ -93,7 +93,8 @@ public final class NativeRuntimeSources {
         copyResource("native/posix/jnative_fs.h", dir.resolve("jnative_fs.h"));
         if (platform == Platform.WINDOWS_X86_64) {
             /* Host Windows (MinGW/clang): enable GC + MT so managed apps can link.
-             * Crash handler stays POSIX/Mach-only; crypto/proc/TLS remain out of Windows set. */
+             * Crypto is included for double formatting and BCrypt CSPRNG.
+             * Crash handler, proc, and TLS stay out of the Windows set. */
             sources.add(copyResource("native/windows/jnative_socket.c", dir.resolve("jnative_socket.c")));
             sources.add(copyResource("native/windows/jnative_fs.c", dir.resolve("jnative_fs.c")));
             copyResource("native/posix/jnative_string.h", dir.resolve("jnative_string.h"));
@@ -103,6 +104,7 @@ public final class NativeRuntimeSources {
             copyResource("native/posix/jnative_gc2.h", dir.resolve("jnative_gc2.h"));
             sources.add(copyResource("native/posix/jnative_gc2.c", dir.resolve("jnative_gc2.c")));
             sources.add(copyResource("native/posix/jnative_tz.c", dir.resolve("jnative_tz.c")));
+            sources.add(copyResource("native/posix/jnative_crypto.c", dir.resolve("jnative_crypto.c")));
         } else {
             sources.add(copyResource("native/posix/jnative_socket.c", dir.resolve("jnative_socket.c")));
             copyResource("native/posix/jnative_crash.h", dir.resolve("jnative_crash.h"));
@@ -153,6 +155,11 @@ public final class NativeRuntimeSources {
             if (platform == Platform.WINDOWS_X86_64) {
                 sources.add(copyResource(
                         "native/windows/jnative_ui_win32.c", dir.resolve("jnative_ui_win32.c")));
+                /* ComCtl 6.0 side-by-side manifest (compiled to .o by NativeLinker via windres). */
+                copyResource("native/windows/jnative_comctl.manifest",
+                        dir.resolve("jnative_comctl.manifest"));
+                sources.add(copyResource(
+                        "native/windows/jnative_comctl.rc", dir.resolve("jnative_comctl.rc")));
                 // Win32 file is self-contained API; no separate jnative_ui.c.
             } else {
                 sources.add(copyResource("native/posix/jnative_ui.c", dir.resolve("jnative_ui.c")));

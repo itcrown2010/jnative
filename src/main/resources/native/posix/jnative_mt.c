@@ -20,6 +20,10 @@
 #if defined(_SC_NPROCESSORS_ONLN)
 #include <unistd.h>
 #endif
+#if defined(_WIN32)
+#define WIN32_LEAN_AND_MEAN
+#include <windows.h>
+#endif
 #if defined(__APPLE__) || defined(__linux__)
 #include <dlfcn.h>
 #include <execinfo.h>
@@ -110,11 +114,15 @@ JNThreadState *jn_thread_current(void) {
 }
 
 /* Runtime Stability 0.8 — crash diagnostics (async-signal-safe handlers). */
+#if !defined(_WIN32)
 extern void jn_crash_install_handlers(void);
+#endif
 
 void jn_thread_attach_main(void) {
     jn_mt_init();
+#if !defined(_WIN32)
     jn_crash_install_handlers();
+#endif
     if (jn_thread_current() != NULL) {
         return;
     }
@@ -761,7 +769,13 @@ void jn_thread_join_remaining(void) {
 
 
 int32_t jnative_cpu_count(void) {
+#if defined(_WIN32)
+    SYSTEM_INFO info;
+    GetSystemInfo(&info);
+    unsigned long n = info.dwNumberOfProcessors;
+#else
     long n = sysconf(_SC_NPROCESSORS_ONLN);
+#endif
     if (n < 1) {
         return 1;
     }

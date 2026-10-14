@@ -103,15 +103,22 @@ public final class Toolchain {
         cmd.add(output.toAbsolutePath().toString());
         cmd.add("-Wno-override-module");
         if (platform == Platform.WINDOWS_X86_64) {
-            /* MinGW/clang on Windows: pthreads via winpthread; no ELF -rdynamic. */
+            /* MinGW/clang on Windows: static winpthread so EXE needs no libwinpthread-1.dll. */
             cmd.add("-pthread");
+            cmd.add("-Wl,-Bstatic");
+            cmd.add("-lwinpthread");
+            cmd.add("-Wl,-Bdynamic");
             cmd.add("-luser32");
             cmd.add("-lgdi32");
             cmd.add("-lcomctl32");
             cmd.add("-lcomdlg32");
             cmd.add("-ladvapi32");
             cmd.add("-lshell32");
+            cmd.add("-lole32");
+            cmd.add("-luuid");
+            cmd.add("-lbcrypt");
             cmd.add("-lpsapi");
+            cmd.add("-luxtheme");
         } else {
             cmd.add("-pthread");
             /* Export symbols for backtrace/dladdr demangling of _JN_* frames. */

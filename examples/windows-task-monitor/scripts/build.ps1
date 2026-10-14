@@ -28,7 +28,12 @@ Copy-Item $Lib $LibA -Force
 
 Write-Host "==> merge sources"
 $Merged = Join-Path $OutDir "merged-task-monitor.java"
-$Core = Get-Content (Join-Path $Root "..\activity-monitor\core\AmCore.java") -Raw
+# PowerShell 5 defaults to the ANSI code page and writes a UTF-8 BOM.
+# Sources are UTF-8; a BOM or a GBK misread breaks the JNative lexer.
+$Utf8 = New-Object System.Text.UTF8Encoding $false
+$CorePath = Join-Path $Root "..\activity-monitor\core\AmCore.java"
+$Core = [System.IO.File]::ReadAllText((Resolve-Path $CorePath), $Utf8)
+if ($Core.Length -gt 0 -and $Core[0] -eq [char]0xFEFF) { $Core = $Core.Substring(1) }
 $Core = $Core -replace "public class AmCore", "class AmCore"
 # Strip AmCore.main (same approach as macOS desktop merge)
 $lines = $Core -split "`n"
@@ -51,8 +56,10 @@ while ($i -lt $lines.Length) {
   $body.Add($lines[$i])
   $i++
 }
-$Desk = Get-Content (Join-Path $Root "src\TaskMonitor.java") -Raw
-Set-Content -Path $Merged -Value ("// AUTO-GENERATED — windows-task-monitor`n" + ($body -join "`n") + "`n" + $Desk) -Encoding UTF8
+$Desk = [System.IO.File]::ReadAllText((Join-Path $Root "src\TaskMonitor.java"), $Utf8)
+if ($Desk.Length -gt 0 -and $Desk[0] -eq [char]0xFEFF) { $Desk = $Desk.Substring(1) }
+$MergedText = "// AUTO-GENERATED - windows-task-monitor`n" + ($body -join "`n") + "`n" + $Desk
+[System.IO.File]::WriteAllText($Merged, $MergedText, $Utf8)
 
 $Out = Join-Path $OutDir "jnative-task-monitor.exe"
 Write-Host "==> jnative → $Out"

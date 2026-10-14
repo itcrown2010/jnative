@@ -1,9 +1,16 @@
-/* Copyright (c) 2026 张晓达
+/* Copyright (c) 2026 ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¥ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¼ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¦ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¨ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¾?
  * SPDX-License-Identifier: MIT
  */
 
-/* Author: 张晓达 */
+/* Author: ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¥ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¼ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¦ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¨ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¾?*/
 /* Win32 UI backend (0.17/0.18). CreateWindowEx + common controls. */
+/* Per-monitor DPI APIs need a Windows 10 WINVER; MinGW defaults to Windows 7. */
+#ifndef _WIN32_WINNT
+#define _WIN32_WINNT 0x0A00
+#endif
+#ifndef WINVER
+#define WINVER 0x0A00
+#endif
 #ifndef UNICODE
 #define UNICODE
 #endif
@@ -12,6 +19,7 @@
 #endif
 #include <windows.h>
 #include <commctrl.h>
+#include <uxtheme.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
@@ -20,6 +28,11 @@
 
 #ifndef JN_UI_MAX
 #define JN_UI_MAX 4096
+#endif
+
+/* UiLib Component.VISUAL_KEEP sentinel. */
+#ifndef JN_VISUAL_KEEP
+#define JN_VISUAL_KEEP 1
 #endif
 
 static HINSTANCE g_inst;
@@ -43,6 +56,48 @@ static int g_live_controls = 0;
 static int g_task_queue = 0;
 static int g_quit = 0;
 static const wchar_t *JN_WCLASS = L"JNativeWindow";
+static const wchar_t *JN_PCLASS = L"JNativePanel";
+/* Child controls are created before UiLib reparents them; Win32 forbids
+ * WS_CHILD with a NULL parent, so park HWNDs under a hidden staging window. */
+static HWND g_staging = NULL;
+
+/* Per-handle visual cache for Theme / setVisual. */
+static int32_t g_bg_rgba[JN_UI_MAX];
+static int32_t g_fg_rgba[JN_UI_MAX];
+static int32_t g_font_pt[JN_UI_MAX];
+static int32_t g_text_align[JN_UI_MAX];
+static int32_t g_corner_radius[JN_UI_MAX];
+static int g_owner_draw[JN_UI_MAX];
+static HFONT g_fonts[JN_UI_MAX];
+static HBRUSH g_bg_brushes[JN_UI_MAX];
+static COLORREF g_window_bg = RGB(243, 244, 246);
+static HBRUSH g_window_brush = NULL;
+static HFONT g_ui_font = NULL;
+
+/* Table column layout (logical widths from UiLib meta; applied in device px). */
+#define JN_UI_MAX_COLS 16
+static int g_col_count[JN_UI_MAX];
+static int g_col_width_lp[JN_UI_MAX][JN_UI_MAX_COLS];
+static int g_col_flex[JN_UI_MAX][JN_UI_MAX_COLS];
+
+static UINT hwnd_dpi(HWND hwnd) {
+    /* GDI-scaled unaware: layout px == GetClientRect px == 96-DPI virtual. */
+    (void)hwnd;
+    return 96;
+}
+
+static void apply_outer_client_size(HWND hwnd, int clientW, int clientH) {
+    RECT wr;
+    wr.left = 0;
+    wr.top = 0;
+    wr.right = clientW;
+    wr.bottom = clientH;
+    DWORD style = (DWORD)GetWindowLongPtr(hwnd, GWL_STYLE);
+    DWORD ex = (DWORD)GetWindowLongPtr(hwnd, GWL_EXSTYLE);
+    AdjustWindowRectEx(&wr, style, FALSE, ex);
+    SetWindowPos(hwnd, NULL, 0, 0, wr.right - wr.left, wr.bottom - wr.top,
+            SWP_NOMOVE | SWP_NOZORDER | SWP_NOACTIVATE);
+}
 
 static wchar_t *utf8_to_wide(const char *utf8) {
     if (utf8 == NULL) {
@@ -59,8 +114,220 @@ static wchar_t *utf8_to_wide(const char *utf8) {
 
 static UINT_PTR g_timers[JN_UI_MAX];
 
+/* UiLib packs AARRGGBB. */
+static COLORREF rgba_to_colorref(int32_t rgba) {
+    int r = (rgba >> 16) & 0xFF;
+    int g = (rgba >> 8) & 0xFF;
+    int b = rgba & 0xFF;
+    return RGB(r, g, b);
+}
+
+static HFONT make_ui_font(int pt) {
+    if (pt <= 0) {
+        pt = 13;
+    }
+    HDC hdc = GetDC(NULL);
+    int dpi = 96;
+    if (hdc != NULL) {
+        dpi = GetDeviceCaps(hdc, LOGPIXELSY);
+        ReleaseDC(NULL, hdc);
+    }
+    int px = -MulDiv(pt, dpi, 72);
+    return CreateFontW(px, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
+            DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
+            CLEARTYPE_QUALITY, DEFAULT_PITCH | FF_SWISS, L"Segoe UI");
+}
+
+static void apply_theme_to_hwnd(HWND hwnd, int kind) {
+    if (hwnd == NULL) {
+        return;
+    }
+    if (kind == JN_UI_KIND_LISTVIEW || kind == JN_UI_KIND_TABLEVIEW
+            || kind == JN_UI_KIND_TEXTFIELD || kind == JN_UI_KIND_TEXTAREA
+            || kind == JN_UI_KIND_TREEVIEW
+            || kind == JN_UI_KIND_CHECKBOX || kind == JN_UI_KIND_RADIO
+            || kind == JN_UI_KIND_COMBOBOX) {
+        SetWindowTheme(hwnd, L"Explorer", NULL);
+    }
+    if (g_ui_font != NULL) {
+        SendMessageW(hwnd, WM_SETFONT, (WPARAM)g_ui_font, TRUE);
+    }
+}
+
+static COLORREF darken_color(COLORREF c, int amount) {
+    int r = GetRValue(c) - amount;
+    int g = GetGValue(c) - amount;
+    int b = GetBValue(c) - amount;
+    if (r < 0) r = 0;
+    if (g < 0) g = 0;
+    if (b < 0) b = 0;
+    return RGB(r, g, b);
+}
+
+static void enable_owner_draw_button(int id) {
+    if (id <= 0 || id >= JN_UI_MAX || g_hwnds[id] == NULL) {
+        return;
+    }
+    if (g_kinds[id] != JN_UI_KIND_BUTTON) {
+        return;
+    }
+    HWND hwnd = g_hwnds[id];
+    LONG_PTR st = GetWindowLongPtr(hwnd, GWL_STYLE);
+    st = (st & ~(LONG_PTR)BS_TYPEMASK) | (LONG_PTR)BS_OWNERDRAW;
+    SetWindowLongPtr(hwnd, GWL_STYLE, st);
+    SetWindowTheme(hwnd, L"", L"");
+    g_owner_draw[id] = 1;
+    InvalidateRect(hwnd, NULL, TRUE);
+}
+
+static void paint_owner_button(const DRAWITEMSTRUCT *dis) {
+    int id = (int)(intptr_t)GetWindowLongPtr(dis->hwndItem, GWLP_USERDATA);
+    COLORREF bg = RGB(0, 122, 255);
+    COLORREF fg = RGB(255, 255, 255);
+    int radius = 8;
+    if (id > 0 && id < JN_UI_MAX) {
+        if (g_bg_rgba[id] != 0 && g_bg_rgba[id] != JN_VISUAL_KEEP) {
+            bg = rgba_to_colorref(g_bg_rgba[id]);
+        }
+        if (g_fg_rgba[id] != 0 && g_fg_rgba[id] != JN_VISUAL_KEEP) {
+            fg = rgba_to_colorref(g_fg_rgba[id]);
+        }
+        if (g_corner_radius[id] > 0) {
+            radius = g_corner_radius[id];
+        }
+    }
+    if (dis->itemState & ODS_SELECTED) {
+        bg = darken_color(bg, 28);
+    } else if (dis->itemState & ODS_DISABLED) {
+        bg = RGB(200, 200, 205);
+        fg = RGB(120, 120, 125);
+    }
+    RECT rc = dis->rcItem;
+    HBRUSH br = CreateSolidBrush(bg);
+    HPEN pen = CreatePen(PS_SOLID, 1, bg);
+    HGDIOBJ oldBr = SelectObject(dis->hDC, br);
+    HGDIOBJ oldPen = SelectObject(dis->hDC, pen);
+    RoundRect(dis->hDC, rc.left, rc.top, rc.right, rc.bottom, radius * 2, radius * 2);
+    SelectObject(dis->hDC, oldBr);
+    SelectObject(dis->hDC, oldPen);
+    DeleteObject(br);
+    DeleteObject(pen);
+
+    wchar_t text[256];
+    GetWindowTextW(dis->hwndItem, text, 256);
+    SetBkMode(dis->hDC, TRANSPARENT);
+    SetTextColor(dis->hDC, fg);
+    HFONT font = (id > 0 && id < JN_UI_MAX && g_fonts[id] != NULL) ? g_fonts[id] : g_ui_font;
+    HGDIOBJ oldFont = NULL;
+    if (font != NULL) {
+        oldFont = SelectObject(dis->hDC, font);
+    }
+    DrawTextW(dis->hDC, text, -1, &rc, DT_CENTER | DT_VCENTER | DT_SINGLELINE | DT_END_ELLIPSIS);
+    if (oldFont != NULL) {
+        SelectObject(dis->hDC, oldFont);
+    }
+    if (dis->itemState & ODS_FOCUS) {
+        RECT fr = rc;
+        InflateRect(&fr, -3, -3);
+        DrawFocusRect(dis->hDC, &fr);
+    }
+}
+
+static void clear_visual(int id) {
+    if (id <= 0 || id >= JN_UI_MAX) {
+        return;
+    }
+    if (g_fonts[id] != NULL) {
+        DeleteObject(g_fonts[id]);
+        g_fonts[id] = NULL;
+    }
+    if (g_bg_brushes[id] != NULL) {
+        DeleteObject(g_bg_brushes[id]);
+        g_bg_brushes[id] = NULL;
+    }
+    g_bg_rgba[id] = 0;
+    g_fg_rgba[id] = 0;
+    g_font_pt[id] = 0;
+    g_text_align[id] = -1;
+    g_corner_radius[id] = 0;
+    g_owner_draw[id] = 0;
+}
+
+static void apply_visual_to_hwnd(int id) {
+    if (id <= 0 || id >= JN_UI_MAX || g_hwnds[id] == NULL) {
+        return;
+    }
+    HWND hwnd = g_hwnds[id];
+    int pt = g_font_pt[id] > 0 ? g_font_pt[id] : 13;
+    if (g_fonts[id] != NULL) {
+        DeleteObject(g_fonts[id]);
+        g_fonts[id] = NULL;
+    }
+    g_fonts[id] = make_ui_font(pt);
+    if (g_fonts[id] != NULL) {
+        SendMessageW(hwnd, WM_SETFONT, (WPARAM)g_fonts[id], TRUE);
+    }
+    if (g_bg_brushes[id] != NULL) {
+        DeleteObject(g_bg_brushes[id]);
+        g_bg_brushes[id] = NULL;
+    }
+    if (g_bg_rgba[id] != 0 && g_bg_rgba[id] != JN_VISUAL_KEEP) {
+        g_bg_brushes[id] = CreateSolidBrush(rgba_to_colorref(g_bg_rgba[id]));
+        if (g_kinds[id] == JN_UI_KIND_BUTTON) {
+            enable_owner_draw_button(id);
+        }
+    }
+    InvalidateRect(hwnd, NULL, TRUE);
+}
+
 static LRESULT CALLBACK JnWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
     int32_t handleId = (int32_t)(intptr_t)GetWindowLongPtr(hwnd, GWLP_USERDATA);
+    if (msg == WM_ERASEBKGND) {
+        HDC hdc = (HDC)wParam;
+        RECT rc;
+        GetClientRect(hwnd, &rc);
+        HBRUSH br = g_window_brush;
+        if (handleId > 0 && handleId < JN_UI_MAX && g_bg_brushes[handleId] != NULL) {
+            br = g_bg_brushes[handleId];
+        }
+        if (br == NULL) {
+            br = (HBRUSH)(COLOR_WINDOW + 1);
+        }
+        FillRect(hdc, &rc, br);
+        return 1;
+    }
+    if (msg == WM_DRAWITEM) {
+        DRAWITEMSTRUCT *dis = (DRAWITEMSTRUCT *)lParam;
+        if (dis != NULL && dis->CtlType == ODT_BUTTON) {
+            paint_owner_button(dis);
+            return TRUE;
+        }
+    }
+    if (msg == WM_CTLCOLORSTATIC || msg == WM_CTLCOLORBTN) {
+        HDC hdc = (HDC)wParam;
+        HWND child = (HWND)lParam;
+        int32_t cid = (int32_t)(intptr_t)GetWindowLongPtr(child, GWLP_USERDATA);
+        COLORREF fg = RGB(28, 28, 30);
+        HBRUSH br = g_window_brush;
+        if (cid > 0 && cid < JN_UI_MAX) {
+            if (g_fg_rgba[cid] != 0 && g_fg_rgba[cid] != JN_VISUAL_KEEP) {
+                fg = rgba_to_colorref(g_fg_rgba[cid]);
+            }
+            if (g_bg_brushes[cid] != NULL) {
+                br = g_bg_brushes[cid];
+            } else if (g_bg_rgba[cid] != 0 && g_bg_rgba[cid] != JN_VISUAL_KEEP) {
+                /* lazily create brush */
+                g_bg_brushes[cid] = CreateSolidBrush(rgba_to_colorref(g_bg_rgba[cid]));
+                br = g_bg_brushes[cid];
+            }
+        }
+        if (br == NULL) {
+            br = (HBRUSH)GetStockObject(WHITE_BRUSH);
+        }
+        SetTextColor(hdc, fg);
+        SetBkMode(hdc, TRANSPARENT);
+        return (LRESULT)br;
+    }
     if (msg == WM_COMMAND) {
         HWND ctrl = (HWND)lParam;
         int32_t cid = (int32_t)(intptr_t)GetWindowLongPtr(ctrl, GWLP_USERDATA);
@@ -116,7 +383,10 @@ static LRESULT CALLBACK JnWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPa
         return 0;
     }
     if (msg == WM_DESTROY) {
-        if (g_live_windows <= 0) {
+        /* Only real top-level windows end the app (panels also use this WndProc). */
+        if (handleId > 0 && handleId < JN_UI_MAX
+                && g_kinds[handleId] == JN_UI_KIND_WINDOW
+                && g_live_windows <= 1) {
             PostQuitMessage(0);
         }
         return 0;
@@ -162,23 +432,54 @@ void jnative_ui_init(int32_t headless) {
         g_win32_active = 0;
         return;
     }
-#if defined(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2)
-    SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
+    /* UiLib layouts in 96-DPI coordinates. Per-monitor V2 made HWND sizes
+     * diverge from layout (200% DPI ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ?half-size chrome / clipped columns).
+     * GDI-scaled unaware keeps 1:1 layout while Windows scales the bitmap. */
+#if defined(DPI_AWARENESS_CONTEXT_UNAWARE_GDISCALED)
+    SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_UNAWARE_GDISCALED);
+#elif defined(DPI_AWARENESS_CONTEXT_UNAWARE)
+    SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_UNAWARE);
 #endif
     g_inst = GetModuleHandleW(NULL);
     INITCOMMONCONTROLSEX icc;
     memset(&icc, 0, sizeof(icc));
     icc.dwSize = sizeof(icc);
-    icc.dwICC = ICC_WIN95_CLASSES | ICC_LISTVIEW_CLASSES | ICC_TREEVIEW_CLASSES | ICC_TAB_CLASSES | ICC_PROGRESS_CLASS;
+    icc.dwICC = ICC_WIN95_CLASSES | ICC_LISTVIEW_CLASSES | ICC_TREEVIEW_CLASSES
+            | ICC_TAB_CLASSES | ICC_PROGRESS_CLASS | ICC_STANDARD_CLASSES;
     InitCommonControlsEx(&icc);
+    if (g_ui_font == NULL) {
+        g_ui_font = make_ui_font(13);
+    }
+    if (g_window_brush == NULL) {
+        g_window_brush = CreateSolidBrush(g_window_bg);
+    }
     WNDCLASSW wc;
     memset(&wc, 0, sizeof(wc));
     wc.lpfnWndProc = JnWndProc;
     wc.hInstance = g_inst;
     wc.lpszClassName = JN_WCLASS;
     wc.hCursor = LoadCursor(NULL, IDC_ARROW);
-    wc.hbrBackground = (HBRUSH)(COLOR_WINDOW + 1);
+    wc.hbrBackground = g_window_brush != NULL ? g_window_brush : (HBRUSH)(COLOR_WINDOW + 1);
+    wc.style = CS_DBLCLKS;
     RegisterClassW(&wc);
+
+    memset(&wc, 0, sizeof(wc));
+    wc.lpfnWndProc = JnWndProc; /* panels need CTLCOLOR / erase for Theme */
+    wc.hInstance = g_inst;
+    wc.lpszClassName = JN_PCLASS;
+    wc.hCursor = LoadCursor(NULL, IDC_ARROW);
+    wc.hbrBackground = g_window_brush != NULL ? g_window_brush : (HBRUSH)(COLOR_WINDOW + 1);
+    wc.style = CS_DBLCLKS;
+    RegisterClassW(&wc);
+
+    /* Staging also receives WM_APP wakeups for invokeLater (must use JnWndProc). */
+    g_staging = CreateWindowExW(
+            0, JN_WCLASS, L"", WS_POPUP,
+            0, 0, 1, 1, NULL, NULL, g_inst, NULL);
+    if (g_staging != NULL) {
+        SetWindowLongPtr(g_staging, GWLP_USERDATA, (LONG_PTR)0);
+        ShowWindow(g_staging, SW_HIDE);
+    }
     g_win32_active = 1;
 }
 
@@ -188,8 +489,20 @@ void jnative_ui_set_dispatcher(void *fn) {
 
 void jnative_ui_post_task(void) {
     g_task_queue++;
-    if (g_win32_active) {
-        PostMessageW(HWND_BROADCAST, WM_APP + 1, 0, 0);
+    if (!g_win32_active) {
+        return;
+    }
+    HWND target = g_staging;
+    if (target == NULL) {
+        for (int i = 1; i < JN_UI_MAX; i++) {
+            if (g_kinds[i] == JN_UI_KIND_WINDOW && g_hwnds[i] != NULL) {
+                target = g_hwnds[i];
+                break;
+            }
+        }
+    }
+    if (target != NULL) {
+        PostMessageW(target, WM_APP + 1, 0, 0);
     }
 }
 
@@ -224,10 +537,24 @@ int32_t jnative_ui_create_window(const char *title, int32_t width, int32_t heigh
         g_live_windows++;
         return id;
     }
+    if (width < 200) {
+        width = 200;
+    }
+    if (height < 120) {
+        height = 120;
+    }
+    /* Java passes client-area size; AdjustWindowRectEx ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ?outer CreateWindow size. */
+    DWORD style = WS_OVERLAPPEDWINDOW | WS_CLIPCHILDREN;
+    RECT wr;
+    wr.left = 0;
+    wr.top = 0;
+    wr.right = width;
+    wr.bottom = height;
+    AdjustWindowRectEx(&wr, style, FALSE, 0);
     wchar_t *wtitle = utf8_to_wide(title);
     HWND hwnd = CreateWindowExW(
-            0, JN_WCLASS, wtitle, WS_OVERLAPPEDWINDOW,
-            CW_USEDEFAULT, CW_USEDEFAULT, width, height,
+            0, JN_WCLASS, wtitle, style,
+            CW_USEDEFAULT, CW_USEDEFAULT, wr.right - wr.left, wr.bottom - wr.top,
             NULL, NULL, g_inst, NULL);
     free(wtitle);
     if (hwnd == NULL) {
@@ -235,8 +562,23 @@ int32_t jnative_ui_create_window(const char *title, int32_t width, int32_t heigh
     }
     SetWindowLongPtr(hwnd, GWLP_USERDATA, (LONG_PTR)id);
     g_hwnds[id] = hwnd;
+    if (g_ui_font != NULL) {
+        SendMessageW(hwnd, WM_SETFONT, (WPARAM)g_ui_font, TRUE);
+    }
     g_live_windows++;
     return id;
+}
+
+static void adopt_child(HWND child, HWND parent) {
+    if (child == NULL || parent == NULL) {
+        return;
+    }
+    LONG_PTR st = GetWindowLongPtr(child, GWL_STYLE);
+    st = (st & ~((LONG_PTR)WS_POPUP)) | (LONG_PTR)WS_CHILD;
+    SetWindowLongPtr(child, GWL_STYLE, st);
+    SetParent(child, parent);
+    SetWindowPos(child, NULL, 0, 0, 0, 0,
+            SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_FRAMECHANGED | SWP_SHOWWINDOW);
 }
 
 static int32_t create_ctrl(int kind, int parentId, const char *text, const wchar_t *cls, DWORD style) {
@@ -251,14 +593,25 @@ static int32_t create_ctrl(int kind, int parentId, const char *text, const wchar
         return id;
     }
     HWND parent = (parentId > 0 && parentId < JN_UI_MAX) ? g_hwnds[parentId] : NULL;
+    if (parent == NULL) {
+        parent = g_staging;
+    }
+    if (parent == NULL) {
+        return id;
+    }
+    DWORD ex = 0;
+    if (kind == JN_UI_KIND_TEXTFIELD || kind == JN_UI_KIND_TEXTAREA) {
+        ex = WS_EX_CLIENTEDGE;
+    }
     wchar_t *wtext = utf8_to_wide(text);
     HWND hwnd = CreateWindowExW(
-            0, cls, wtext, style | WS_CHILD | WS_VISIBLE,
+            ex, cls, wtext, style | WS_CHILD | WS_VISIBLE | WS_CLIPSIBLINGS,
             10, 10, 120, 28, parent, NULL, g_inst, NULL);
     free(wtext);
     if (hwnd != NULL) {
         SetWindowLongPtr(hwnd, GWLP_USERDATA, (LONG_PTR)id);
         g_hwnds[id] = hwnd;
+        apply_theme_to_hwnd(hwnd, kind);
     }
     return id;
 }
@@ -273,7 +626,8 @@ int32_t jnative_ui_create_textfield(int32_t parentId, const char *text) {
     return create_ctrl(JN_UI_KIND_TEXTFIELD, parentId, text, L"EDIT", ES_LEFT | ES_AUTOHSCROLL);
 }
 int32_t jnative_ui_create_panel(int32_t parentId) {
-    return create_ctrl(JN_UI_KIND_PANEL, parentId, "", L"STATIC", SS_LEFT);
+    /* Dedicated panel class (not STATIC) so children are not painted over. */
+    return create_ctrl(JN_UI_KIND_PANEL, parentId, "", JN_PCLASS, WS_CLIPCHILDREN);
 }
 
 int32_t jnative_ui_create_control(int32_t kind, int32_t parentId, const char *text) {
@@ -294,7 +648,16 @@ int32_t jnative_ui_create_control(int32_t kind, int32_t parentId, const char *te
             return create_ctrl(kind, parentId, text, PROGRESS_CLASSW, PBS_SMOOTH);
         case JN_UI_KIND_LISTVIEW:
         case JN_UI_KIND_TABLEVIEW:
-            return create_ctrl(kind, parentId, text, WC_LISTVIEWW, LVS_REPORT | LVS_SINGLESEL | WS_BORDER);
+            {
+                int32_t lid = create_ctrl(kind, parentId, text, WC_LISTVIEWW,
+                        LVS_REPORT | LVS_SINGLESEL | LVS_SHOWSELALWAYS | WS_BORDER | WS_HSCROLL);
+                if (lid > 0 && lid < JN_UI_MAX && g_hwnds[lid] != NULL) {
+                    ListView_SetExtendedListViewStyle(g_hwnds[lid],
+                            LVS_EX_FULLROWSELECT | LVS_EX_DOUBLEBUFFER | LVS_EX_LABELTIP
+                            | LVS_EX_GRIDLINES);
+                }
+                return lid;
+            }
         case JN_UI_KIND_TREEVIEW:
             return create_ctrl(kind, parentId, text, WC_TREEVIEWW, TVS_HASLINES | TVS_LINESATROOT | TVS_HASBUTTONS);
         case JN_UI_KIND_TABPANE:
@@ -324,6 +687,7 @@ void jnative_ui_destroy(int32_t id) {
     } else if (g_kinds[id] != 0) {
         g_live_controls--;
     }
+    clear_visual(id);
     g_kinds[id] = 0;
 }
 
@@ -331,6 +695,13 @@ void jnative_ui_show(int32_t id) {
     if (id > 0 && id < JN_UI_MAX && g_hwnds[id] != NULL) {
         ShowWindow(g_hwnds[id], SW_SHOW);
         UpdateWindow(g_hwnds[id]);
+        /* Sync UiLib layout to the real client size. */
+        if (g_kinds[id] == JN_UI_KIND_WINDOW) {
+            RECT rc;
+            GetClientRect(g_hwnds[id], &rc);
+            jnative_ui_emit_event_ex(id, JN_UI_EVENT_RESIZE,
+                    rc.right - rc.left, rc.bottom - rc.top, 0, 0);
+        }
     }
 }
 void jnative_ui_hide(int32_t id) {
@@ -348,9 +719,95 @@ void jnative_ui_set_title(int32_t id, const char *title) {
 void jnative_ui_set_text(int32_t id, const char *text) {
     jnative_ui_set_title(id, text);
 }
+static void stretch_table_columns(int32_t id) {
+    if (id <= 0 || id >= JN_UI_MAX || g_hwnds[id] == NULL) {
+        return;
+    }
+    HWND lv = g_hwnds[id];
+    int cols = g_col_count[id];
+    if (cols <= 0) {
+        HWND hdr = ListView_GetHeader(lv);
+        if (hdr != NULL) {
+            cols = Header_GetItemCount(hdr);
+        }
+    }
+    if (cols <= 0) {
+        return;
+    }
+    if (cols > JN_UI_MAX_COLS) {
+        cols = JN_UI_MAX_COLS;
+    }
+    RECT rc;
+    GetClientRect(lv, &rc);
+    int view = rc.right - rc.left - 4;
+    if (view < 80) {
+        return;
+    }
+    int widths[JN_UI_MAX_COLS];
+    int flex[JN_UI_MAX_COLS];
+    int c;
+    int total = 0;
+    int flexSum = 0;
+    for (c = 0; c < cols; c++) {
+        int lp = g_col_width_lp[id][c];
+        if (lp <= 0) {
+            lp = (c == 0) ? 220 : 100;
+        }
+        widths[c] = lp;
+        flex[c] = g_col_flex[id][c];
+        if (flex[c] > 0) {
+            flexSum += flex[c];
+        }
+        total += lp;
+    }
+    if (flexSum <= 0) {
+        flex[0] = 1;
+        flexSum = 1;
+    }
+    /* Fit all columns into the view: shrink or grow via flex. */
+    if (total > view) {
+        for (c = 0; c < cols; c++) {
+            widths[c] = widths[c] * view / total;
+            if (widths[c] < 48) {
+                widths[c] = 48;
+            }
+        }
+    } else if (total < view) {
+        int extra = view - total;
+        int given = 0;
+        int lastFlex = -1;
+        for (c = 0; c < cols; c++) {
+            if (flex[c] > 0) {
+                int add = extra * flex[c] / flexSum;
+                widths[c] += add;
+                given += add;
+                lastFlex = c;
+            }
+        }
+        if (lastFlex >= 0 && given < extra) {
+            widths[lastFlex] += (extra - given);
+        }
+    }
+    for (c = 0; c < cols; c++) {
+        ListView_SetColumnWidth(lv, c, widths[c]);
+    }
+}
+
 void jnative_ui_set_bounds(int32_t id, int32_t x, int32_t y, int32_t w, int32_t h) {
     if (id > 0 && id < JN_UI_MAX && g_hwnds[id] != NULL) {
-        MoveWindow(g_hwnds[id], x, y, w, h, TRUE);
+        HWND hwnd = g_hwnds[id];
+        if (g_kinds[id] == JN_UI_KIND_WINDOW) {
+            apply_outer_client_size(hwnd, w, h);
+            if (x != 0 || y != 0) {
+                SetWindowPos(hwnd, NULL, x, y, 0, 0,
+                        SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE);
+            }
+            return;
+        }
+        MoveWindow(hwnd, x, y, w, h, TRUE);
+        if (g_kinds[id] == JN_UI_KIND_TABLEVIEW || g_kinds[id] == JN_UI_KIND_LISTVIEW) {
+            stretch_table_columns(id);
+        }
     }
 }
 void jnative_ui_set_visible(int32_t id, int32_t visible) {
@@ -377,7 +834,7 @@ void jnative_ui_set_content(int32_t windowId, int32_t childId) {
     if (parent == NULL || child == NULL) {
         return;
     }
-    SetParent(child, parent);
+    adopt_child(child, parent);
     RECT rc;
     GetClientRect(parent, &rc);
     MoveWindow(child, 0, 0, rc.right - rc.left, rc.bottom - rc.top, TRUE);
@@ -396,7 +853,7 @@ void jnative_ui_reparent(int32_t childId, int32_t parentId) {
     if (parent == NULL || child == NULL) {
         return;
     }
-    SetParent(child, parent);
+    adopt_child(child, parent);
 }
 int32_t jnative_ui_live_windows(void) { return g_live_windows; }
 int32_t jnative_ui_live_controls(void) { return g_live_controls; }
@@ -437,6 +894,9 @@ void jnative_ui_table_set_columns(int32_t id, const char *titles_tsv) {
     HWND lv = g_hwnds[id];
     while (ListView_DeleteColumn(lv, 0)) {
     }
+    g_col_count[id] = 0;
+    memset(g_col_width_lp[id], 0, sizeof(g_col_width_lp[id]));
+    memset(g_col_flex[id], 0, sizeof(g_col_flex[id]));
     if (titles_tsv == NULL || titles_tsv[0] == '\0') {
         return;
     }
@@ -446,26 +906,77 @@ void jnative_ui_table_set_columns(int32_t id, const char *titles_tsv) {
     }
     int col = 0;
     char *p = copy;
-    while (p != NULL) {
+    while (p != NULL && col < JN_UI_MAX_COLS) {
         char *tab = strchr(p, '\t');
         if (tab != NULL) {
             *tab = '\0';
         }
-        wchar_t *w = utf8_to_wide(p);
+        /* Cocoa meta: title##width##align##flex ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ?strip for Win32 display. */
+        char *title = p;
+        int widthLp = (col == 0) ? 220 : 100;
+        int flex = (col == 0) ? 1 : 0;
+        int fmt = (col == 0) ? LVCFMT_LEFT : LVCFMT_RIGHT;
+        char *m1 = strstr(p, "##");
+        if (m1 != NULL) {
+            *m1 = '\0';
+            char *wstr = m1 + 2;
+            char *m2 = strstr(wstr, "##");
+            if (m2 != NULL) {
+                *m2 = '\0';
+                int parsed = atoi(wstr);
+                if (parsed > 0) {
+                    widthLp = parsed;
+                }
+                char *astr = m2 + 2;
+                char *m3 = strstr(astr, "##");
+                if (m3 != NULL) {
+                    *m3 = '\0';
+                    int fl = atoi(m3 + 2);
+                    if (fl > 0) {
+                        flex = fl;
+                    } else {
+                        flex = 0;
+                    }
+                }
+                if (astr[0] == 'R' || astr[0] == 'r') {
+                    fmt = LVCFMT_RIGHT;
+                } else if (astr[0] == 'C' || astr[0] == 'c') {
+                    fmt = LVCFMT_CENTER;
+                } else {
+                    fmt = LVCFMT_LEFT;
+                }
+            }
+        }
+        if (title[0] == '\0') {
+            title = " ";
+        }
+        g_col_width_lp[id][col] = widthLp;
+        g_col_flex[id][col] = flex;
+        wchar_t *w = utf8_to_wide(title);
         LVCOLUMNW lc;
         memset(&lc, 0, sizeof(lc));
         lc.mask = LVCF_TEXT | LVCF_WIDTH | LVCF_FMT;
         lc.pszText = w;
-        lc.cx = (col == 0) ? 220 : 100;
-        lc.fmt = (col == 0) ? LVCFMT_LEFT : LVCFMT_RIGHT;
+        lc.cx = widthLp;
+        lc.fmt = fmt;
         ListView_InsertColumn(lv, col, &lc);
         free(w);
         col++;
         p = (tab == NULL) ? NULL : (tab + 1);
     }
     free(copy);
+    g_col_count[id] = col;
     ListView_SetExtendedListViewStyle(lv,
-            LVS_EX_FULLROWSELECT | LVS_EX_DOUBLEBUFFER | LVS_EX_LABELTIP);
+            LVS_EX_FULLROWSELECT | LVS_EX_DOUBLEBUFFER | LVS_EX_LABELTIP
+            | LVS_EX_GRIDLINES);
+    /* Ensure report view + extended styles before rows arrive. */
+    {
+        LONG_PTR st = GetWindowLongPtr(lv, GWL_STYLE);
+        st = (st & ~(LONG_PTR)LVS_TYPEMASK) | (LONG_PTR)LVS_REPORT;
+        SetWindowLongPtr(lv, GWL_STYLE, st);
+    }
+    stretch_table_columns(id);
+    InvalidateRect(lv, NULL, TRUE);
 }
 const char *jnative_ui_table_columns(int32_t id) {
     (void)id; return "";
@@ -550,9 +1061,13 @@ void jnative_ui_list_add_item(int32_t id, const char *text) {
         wchar_t *w = utf8_to_wide(p);
         LVITEMW subitem;
         memset(&subitem, 0, sizeof(subitem));
+        subitem.mask = LVIF_TEXT;
+        subitem.iItem = row;
         subitem.iSubItem = sub;
         subitem.pszText = w;
-        SendMessageW(lv, LVM_SETITEMTEXT, (WPARAM)row, (LPARAM)&subitem);
+        if (SendMessageW(lv, LVM_SETITEMW, 0, (LPARAM)&subitem) == 0) {
+            SendMessageW(lv, LVM_SETITEMTEXTW, (WPARAM)row, (LPARAM)&subitem);
+        }
         free(w);
         sub++;
         p = (tab == NULL) ? NULL : (tab + 1);
@@ -702,6 +1217,13 @@ int32_t jnative_ui_platform_context_menu_show(int32_t menuId, int32_t screenX, i
     return 0;
 }
 
+int32_t jnative_ui_context_menu_show(int32_t menuId, int32_t screenX, int32_t screenY) {
+    if (!g_win32_active) {
+        return 0;
+    }
+    return jnative_ui_platform_context_menu_show(menuId, screenX, screenY);
+}
+
 void jnative_ui_platform_set_control_style(int32_t id, int32_t style) {
     (void)id;
     (void)style;
@@ -709,8 +1231,25 @@ void jnative_ui_platform_set_control_style(int32_t id, int32_t style) {
 
 void jnative_ui_platform_set_visual(int32_t id, int32_t bg_rgba, int32_t fg_rgba,
                                     int32_t corner_radius, int32_t font_size, int32_t text_align) {
-    (void)id; (void)bg_rgba; (void)fg_rgba;
-    (void)corner_radius; (void)font_size; (void)text_align;
+    if (id <= 0 || id >= JN_UI_MAX) {
+        return;
+    }
+    if (bg_rgba != JN_VISUAL_KEEP) {
+        g_bg_rgba[id] = bg_rgba;
+    }
+    if (fg_rgba != JN_VISUAL_KEEP) {
+        g_fg_rgba[id] = fg_rgba;
+    }
+    if (corner_radius >= 0) {
+        g_corner_radius[id] = corner_radius;
+    }
+    if (font_size > 0) {
+        g_font_pt[id] = font_size;
+    }
+    if (text_align >= 0) {
+        g_text_align[id] = text_align;
+    }
+    apply_visual_to_hwnd(id);
 }
 
 void jnative_ui_platform_window_set_min_size(int32_t windowId, int32_t w, int32_t h) {
@@ -848,21 +1387,12 @@ void jnative_ui_button_flash(int32_t id, int32_t pressed) {
 }
 void jnative_ui_set_visual(int32_t id, int32_t bg_rgba, int32_t fg_rgba,
                            int32_t corner_radius, int32_t font_size, int32_t text_align) {
-    (void)id; (void)bg_rgba; (void)fg_rgba;
-    (void)corner_radius; (void)font_size; (void)text_align;
+    jnative_ui_platform_set_visual(id, bg_rgba, fg_rgba, corner_radius, font_size, text_align);
 }
 int32_t jnative_ui_get_scale_percent(int32_t windowId) {
-    if (!g_win32_active || windowId <= 0 || windowId >= JN_UI_MAX || g_hwnds[windowId] == NULL) {
-        return 100;
-    }
-    UINT dpi = 96;
-#if defined(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2)
-    dpi = GetDpiForWindow(g_hwnds[windowId]);
-#endif
-    if (dpi == 0) {
-        dpi = 96;
-    }
-    return (int32_t)((dpi * 100) / 96);
+    (void)windowId;
+    /* GDI-scaled unaware: report 100 so UiLib stays in layout pixels. */
+    return 100;
 }
 int32_t jnative_ui_system_dark(void) {
     return jnative_ui_platform_system_dark();
