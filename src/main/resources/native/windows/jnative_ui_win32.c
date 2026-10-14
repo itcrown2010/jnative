@@ -79,6 +79,8 @@ static HFONT g_ui_font = NULL;
 static int g_col_count[JN_UI_MAX];
 static int g_col_width_lp[JN_UI_MAX][JN_UI_MAX_COLS];
 static int g_col_flex[JN_UI_MAX][JN_UI_MAX_COLS];
+/* TrendChart sample CSV: "ymin,ymax,cap|v0,v1,..." (display units). */
+static char *g_trend_csv[JN_UI_MAX];
 
 static UINT hwnd_dpi(HWND hwnd) {
     /* GDI-scaled unaware: layout px == GetClientRect px == 96-DPI virtual. */
@@ -280,9 +282,110 @@ static void apply_visual_to_hwnd(int id) {
     InvalidateRect(hwnd, NULL, TRUE);
 }
 
+static void paint_trend_chart(HWND hwnd, int32_t id) {
+    PAINTSTRUCT ps;
+    HDC hdc = BeginPaint(hwnd, &ps);
+    RECT rc;
+    GetClientRect(hwnd, &rc);
+    HBRUSH bg = CreateSolidBrush(RGB(255, 255, 255));
+    FillRect(hdc, &rc, bg);
+    DeleteObject(bg);
+    HPEN border = CreatePen(PS_SOLID, 1, RGB(210, 214, 220));
+    HGDIOBJ oldPen = SelectObject(hdc, border);
+    HGDIOBJ oldBr = SelectObject(hdc, GetStockObject(NULL_BRUSH));
+    Rectangle(hdc, rc.left, rc.top, rc.right, rc.bottom);
+    SelectObject(hdc, oldBr);
+    SelectObject(hdc, oldPen);
+    DeleteObject(border);
+
+    const char *csv = (id > 0 && id < JN_UI_MAX) ? g_trend_csv[id] : NULL;
+    if (csv == NULL || csv[0] == '\0') {
+        EndPaint(hwnd, &ps);
+        return;
+    }
+    char *copy = _strdup(csv);
+    if (copy == NULL) {
+        EndPaint(hwnd, &ps);
+        return;
+    }
+    char *bar = strchr(copy, '|');
+    double ymin = 0.0;
+    double ymax = 100.0;
+    if (bar != NULL) {
+        *bar = '\0';
+        char *p = copy;
+        ymin = atof(p);
+        char *c1 = strchr(p, ',');
+        if (c1 != NULL) {
+            ymax = atof(c1 + 1);
+        }
+        p = bar + 1;
+    } else {
+        char *p = copy;
+        /* no meta — treat whole string as values */
+        (void)p;
+    }
+    if (ymax <= ymin) {
+        ymax = ymin + 1.0;
+    }
+    char *vals = (bar != NULL) ? (bar + 1) : copy;
+    double samples[256];
+    int n = 0;
+    char *tok = vals;
+    while (tok != NULL && *tok != '\0' && n < 256) {
+        char *comma = strchr(tok, ',');
+        if (comma != NULL) {
+            *comma = '\0';
+        }
+        samples[n++] = atof(tok);
+        tok = (comma == NULL) ? NULL : (comma + 1);
+    }
+    if (n >= 2) {
+        int pad = 6;
+        int w = (rc.right - rc.left) - pad * 2;
+        int h = (rc.bottom - rc.top) - pad * 2;
+        if (w > 4 && h > 4) {
+            HPEN line = CreatePen(PS_SOLID, 2, RGB(0, 120, 212));
+            HGDIOBJ oldL = SelectObject(hdc, line);
+            int i;
+            for (i = 0; i < n; i++) {
+                double t = (samples[i] - ymin) / (ymax - ymin);
+                if (t < 0.0) {
+                    t = 0.0;
+                }
+                if (t > 1.0) {
+                    t = 1.0;
+                }
+                int x = rc.left + pad + (i * w) / (n - 1);
+                int y = rc.bottom - pad - (int)(t * (double)h);
+                if (i == 0) {
+                    MoveToEx(hdc, x, y, NULL);
+                } else {
+                    LineTo(hdc, x, y);
+                }
+            }
+            SelectObject(hdc, oldL);
+            DeleteObject(line);
+        }
+    }
+    free(copy);
+    EndPaint(hwnd, &ps);
+}
+
 static LRESULT CALLBACK JnWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
     int32_t handleId = (int32_t)(intptr_t)GetWindowLongPtr(hwnd, GWLP_USERDATA);
+    if (msg == WM_PAINT) {
+        if (handleId > 0 && handleId < JN_UI_MAX
+                && g_kinds[handleId] == JN_UI_KIND_TRENDCHART) {
+            paint_trend_chart(hwnd, handleId);
+            return 0;
+        }
+    }
     if (msg == WM_ERASEBKGND) {
+        if (handleId > 0 && handleId < JN_UI_MAX
+                && g_kinds[handleId] == JN_UI_KIND_TRENDCHART) {
+            return 1; /* painted in WM_PAINT */
+        }
         HDC hdc = (HDC)wParam;
         RECT rc;
         GetClientRect(hwnd, &rc);
@@ -665,6 +768,8 @@ int32_t jnative_ui_create_control(int32_t kind, int32_t parentId, const char *te
         case JN_UI_KIND_SCROLL:
         case JN_UI_KIND_SPLIT:
             return create_ctrl(kind, parentId, text, L"STATIC", SS_LEFT);
+        case JN_UI_KIND_TRENDCHART:
+            return create_ctrl(kind, parentId, text, JN_PCLASS, WS_CLIPCHILDREN);
         case JN_UI_KIND_MENUITEM:
         case JN_UI_KIND_SEPARATOR:
             return create_ctrl(kind, parentId, text, L"STATIC", SS_LEFT);
@@ -688,6 +793,10 @@ void jnative_ui_destroy(int32_t id) {
         g_live_controls--;
     }
     clear_visual(id);
+    if (id > 0 && id < JN_UI_MAX) {
+        free(g_trend_csv[id]);
+        g_trend_csv[id] = NULL;
+    }
     g_kinds[id] = 0;
 }
 
@@ -717,6 +826,14 @@ void jnative_ui_set_title(int32_t id, const char *title) {
     }
 }
 void jnative_ui_set_text(int32_t id, const char *text) {
+    if (id > 0 && id < JN_UI_MAX && g_kinds[id] == JN_UI_KIND_TRENDCHART) {
+        free(g_trend_csv[id]);
+        g_trend_csv[id] = text != NULL ? _strdup(text) : NULL;
+        if (g_hwnds[id] != NULL) {
+            InvalidateRect(g_hwnds[id], NULL, TRUE);
+        }
+        return;
+    }
     jnative_ui_set_title(id, text);
 }
 static void stretch_table_columns(int32_t id) {
@@ -1316,7 +1433,10 @@ void jnative_ui_window_set_default_button(int32_t windowId, int32_t buttonId) {
 void jnative_ui_window_set_cancel_button(int32_t windowId, int32_t buttonId) {
     (void)windowId; (void)buttonId;
 }
-int32_t jnative_ui_features(void) { return 0; }
+int32_t jnative_ui_features(void) {
+    return JN_UI_FEAT_TABLE | JN_UI_FEAT_TRENDCHART | JN_UI_FEAT_DIALOGS
+            | JN_UI_FEAT_SEARCH_FIELD;
+}
 int32_t jnative_ui_prefers_reduced_motion(void) { return 0; }
 int32_t jnative_ui_prefers_increased_contrast(void) { return 0; }
 char *jnative_ui_dialog_dir_open(int32_t windowId) {

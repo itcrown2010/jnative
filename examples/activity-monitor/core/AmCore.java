@@ -888,7 +888,7 @@ class AmFormat {
     }
 
     static String waiting() {
-        return "—";
+        return "采样中";
     }
 
     static String cpuPct(int milli) {
