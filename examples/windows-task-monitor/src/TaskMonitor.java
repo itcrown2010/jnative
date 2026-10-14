@@ -1206,11 +1206,12 @@ class TmActions {
             si = si + 1;
         }
         TmUi.viewRows = shown;
-        /* Seed row-id so setItems restores selection without EnsureVisible jump. */
+        String want = null;
         if (TmUi.selPid > 0) {
-            TmUi.table.selectedRowId = String.valueOf(TmUi.selPid) + ":"
+            want = String.valueOf(TmUi.selPid) + ":"
                     + AmParse.longToString(TmUi.selStartSec) + ":"
                     + String.valueOf(TmUi.selStartUsec);
+            TmUi.table.selectedRowId = want;
         }
         int keepTop = -1;
         if (TmUi.table.nativeId > 0) {
@@ -1220,12 +1221,21 @@ class TmActions {
         if (keepTop >= 0 && TmUi.table.nativeId > 0) {
             UiNative.tableSetScrollY(TmUi.table.nativeId, keepTop);
         }
-        if (TmUi.selPid > 0) {
-            String want = String.valueOf(TmUi.selPid) + ":"
-                    + AmParse.longToString(TmUi.selStartSec) + ":"
-                    + String.valueOf(TmUi.selStartUsec);
-            if (TmUi.table.getSelectedRowId() == null
-                    || !want.equals(TmUi.table.getSelectedRowId())) {
+        if (want != null) {
+            int still = 0;
+            int vi = 0;
+            while (vi < TmUi.viewRows.size()) {
+                AmProcRow rr = TmUi.viewRows.get(vi);
+                if (rr != null && rr.sample != null && want.equals(rr.sample.identityKey())) {
+                    still = 1;
+                    break;
+                }
+                vi = vi + 1;
+            }
+            if (still != 0) {
+                /* Keep Java-side selection even if native SELECT event was missed. */
+                TmUi.table.selectByRowId(want);
+            } else {
                 TmUi.selPid = -1;
                 TmUi.table.selectedRowId = null;
             }
@@ -1242,20 +1252,51 @@ class TmActions {
             out.add(src.get(i));
             i = i + 1;
         }
-        int a = 0;
-        while (a < out.size()) {
-            int b = a + 1;
-            while (b < out.size()) {
-                if (cmp(out.get(a), out.get(b), col, asc) > 0) {
-                    AmProcRow tmp = out.get(a);
-                    out.set(a, out.get(b));
-                    out.set(b, tmp);
-                }
-                b = b + 1;
-            }
-            a = a + 1;
-        }
+        heapSort(out, col, asc);
         return out;
+    }
+
+    /** O(n log n) — bubble sort froze the UI with hundreds of processes at 1Hz. */
+    static void heapSort(ArrayList<AmProcRow> a, int col, int asc) {
+        int n = a.size();
+        if (n < 2) {
+            return;
+        }
+        int i = n / 2 - 1;
+        while (i >= 0) {
+            heapify(a, n, i, col, asc);
+            i = i - 1;
+        }
+        int end = n - 1;
+        while (end > 0) {
+            AmProcRow t = a.get(0);
+            a.set(0, a.get(end));
+            a.set(end, t);
+            heapify(a, end, 0, col, asc);
+            end = end - 1;
+        }
+    }
+
+    static void heapify(ArrayList<AmProcRow> a, int n, int i, int col, int asc) {
+        int largest = i;
+        for (;;) {
+            int l = 2 * i + 1;
+            int r = 2 * i + 2;
+            largest = i;
+            if (l < n && cmp(a.get(l), a.get(largest), col, asc) > 0) {
+                largest = l;
+            }
+            if (r < n && cmp(a.get(r), a.get(largest), col, asc) > 0) {
+                largest = r;
+            }
+            if (largest == i) {
+                return;
+            }
+            AmProcRow t = a.get(i);
+            a.set(i, a.get(largest));
+            a.set(largest, t);
+            i = largest;
+        }
     }
 
     /* Columns: 0 Name | 1 CPU | 2 Memory | 3 PID | 4 User | 5 Threads */
@@ -1269,7 +1310,16 @@ class TmActions {
             String ny = y.sample.name != null ? y.sample.name : "";
             c = nx.compareTo(ny);
         } else if (col == 1) {
-            c = x.cpuMilli - y.cpuMilli;
+            /* Waiting (-1) / N/A (-2) sort below real samples. */
+            int cx = x.cpuMilli;
+            int cy = y.cpuMilli;
+            if (cx < 0) {
+                cx = 0 - 1;
+            }
+            if (cy < 0) {
+                cy = 0 - 1;
+            }
+            c = cx - cy;
         } else if (col == 2) {
             long mx = -1;
             long my = -1;
@@ -1313,9 +1363,14 @@ class TmActions {
         }
         String mem = TmFormat.na();
         if ((r.sample.flags & AmFlags.FOOTPRINT) != 0) {
-            mem = TmFormat.bytes(r.sample.footprint) + "（工作集）";
-        } else if ((r.sample.flags & AmFlags.RSS) != 0) {
-            mem = TmFormat.bytes(r.sample.rss) + "（工作集）";
+            mem = TmFormat.bytes(r.sample.footprint) + "（专用字节）";
+        }
+        if ((r.sample.flags & AmFlags.RSS) != 0) {
+            if (mem.equals(TmFormat.na())) {
+                mem = TmFormat.bytes(r.sample.rss) + "（工作集）";
+            } else {
+                mem = mem + " · 工作集 " + TmFormat.bytes(r.sample.rss);
+            }
         }
         String user = TmFormat.na();
         if ((r.sample.flags & AmFlags.USER) != 0 && r.sample.user != null

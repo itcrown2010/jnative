@@ -1008,6 +1008,15 @@ static int is_table_kind(int32_t id) {
             && (g_kinds[id] == JN_UI_KIND_LISTVIEW || g_kinds[id] == JN_UI_KIND_TABLEVIEW);
 }
 
+static void table_end_bulk_update(int32_t id) {
+    if (!g_win32_active || !is_table_kind(id) || g_hwnds[id] == NULL) {
+        return;
+    }
+    HWND lv = g_hwnds[id];
+    SendMessageW(lv, WM_SETREDRAW, TRUE, 0);
+    InvalidateRect(lv, NULL, FALSE);
+}
+
 static void icon_cache_free(int32_t id) {
     int i;
     for (i = 0; i < g_icon_n[id]; i++) {
@@ -1499,6 +1508,8 @@ void jnative_ui_set_item_count(int32_t id, int32_t count) {
         g_item_count[id] = count;
         if (g_kinds[id] == JN_UI_KIND_TABLEVIEW || g_kinds[id] == JN_UI_KIND_LISTVIEW) {
             stretch_table_columns(id);
+            /* list_clear freezes WM_SETREDRAW; always thaw after bulk rebuild. */
+            table_end_bulk_update(id);
         }
     }
 }
@@ -1629,6 +1640,7 @@ void jnative_ui_table_set_columns(int32_t id, const char *titles_tsv) {
 const char *jnative_ui_table_columns(int32_t id) {
     (void)id; return "";
 }
+
 void jnative_ui_set_selected_index(int32_t id, int32_t index) {
     if (id > 0 && id < JN_UI_MAX) g_selected_index[id] = index;
     if (g_win32_active && is_table_kind(id) && g_hwnds[id] != NULL) {
@@ -1643,6 +1655,7 @@ void jnative_ui_set_selected_index(int32_t id, int32_t index) {
                     LVIS_SELECTED | LVIS_FOCUSED);
         }
         g_in_set_selection--;
+        table_end_bulk_update(id);
     }
 }
 int32_t jnative_ui_get_selected_index(int32_t id) {
@@ -1695,12 +1708,12 @@ void jnative_ui_list_clear(int32_t id) {
     g_item_count[id] = 0;
     if (g_win32_active && g_hwnds[id] != NULL
             && (g_kinds[id] == JN_UI_KIND_LISTVIEW || g_kinds[id] == JN_UI_KIND_TABLEVIEW)) {
-        ListView_DeleteAllItems(g_hwnds[id]);
-        /* Drop cached icons so refreshes don't grow the imagelist unbounded. */
-        if (g_table_il[id] != NULL) {
-            ImageList_RemoveAll(g_table_il[id]);
-        }
-        icon_cache_free(id);
+        HWND lv = g_hwnds[id];
+        /* Freeze paint across clear+bulk insert (Task Monitor refreshes ~1Hz). */
+        SendMessageW(lv, WM_SETREDRAW, FALSE, 0);
+        ListView_DeleteAllItems(lv);
+        /* Keep HIMAGELIST + path→index cache across refreshes to avoid icon flicker
+         * and repeated ExtractIconEx work. Cache is freed on control destroy. */
     }
 }
 void jnative_ui_list_add_item(int32_t id, const char *text) {
@@ -2064,24 +2077,27 @@ void jnative_ui_table_set_scroll_y(int32_t id, int32_t y) {
     HWND lv = g_hwnds[id];
     int count = ListView_GetItemCount(lv);
     if (count <= 0 || y < 0) {
+        table_end_bulk_update(id);
         return;
     }
     if (y >= count) {
         y = count - 1;
     }
-    /* Align so item y is the first visible row. */
-    ListView_EnsureVisible(lv, y, FALSE);
+    /* Restore top index without EnsureVisible (that jumps selection into view). */
     {
         int cur = ListView_GetTopIndex(lv);
-        RECT r;
-        memset(&r, 0, sizeof(r));
-        if (cur != y && ListView_GetItemRect(lv, 0, &r, LVIR_BOUNDS)) {
-            int itemH = r.bottom - r.top;
-            if (itemH > 0) {
-                ListView_Scroll(lv, 0, (y - cur) * itemH);
+        if (cur != y) {
+            RECT r;
+            memset(&r, 0, sizeof(r));
+            if (ListView_GetItemRect(lv, 0, &r, LVIR_BOUNDS)) {
+                int itemH = r.bottom - r.top;
+                if (itemH > 0) {
+                    ListView_Scroll(lv, 0, (y - cur) * itemH);
+                }
             }
         }
     }
+    table_end_bulk_update(id);
 }
 int32_t jnative_ui_timer_start(int32_t intervalMs, int32_t handleId) {
     if (handleId <= 0 || handleId >= JN_UI_MAX || intervalMs <= 0) {

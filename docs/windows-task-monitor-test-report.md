@@ -58,9 +58,22 @@ macOS smoke 二进制约 **1.3 MB**（参考，非交付物）。
 - `examples/windows-task-monitor/**`  
 - `docs/windows-task-monitor-*.md`  
 
+## 2026-10-14 稳定性修补（待 Windows 复验）
+
+| 项 | 改动 |
+|----|------|
+| 每秒排序卡顿 | `TaskMonitor` 气泡排序 → 堆排序 O(n log n) |
+| 图标闪烁 / ExtractIcon 过重 | `list_clear` 不再清空 HIMAGELIST 与路径缓存 |
+| 刷新闪白 | `WM_SETREDRAW` 包住 clear+insert，结束后再 thaw |
+| 滚动跳动 | `table_set_scroll_y` 去掉 `EnsureVisible`，仅 `ListView_Scroll` |
+| 选中丢失 | 行仍在视图内则 `selectByRowId` 重绑，不因 native 事件丢失清 sel |
+| 详情内存文案 | 专用字节 vs 工作集区分 |
+
+Mac 侧：`jn_am` + TaskMonitor 合并 smoke/`--dump` **PASS**。完整 GUI：**WINDOWS_E2E 待 Parallel 复验**。
+
 ## 下一阶段建议
 
-1. 在 `windows-latest` CI 跑 `build.ps1` + `--dump` + 最短 GUI 冒烟。  
-2. 补 LLVM `x86_64-pc-windows-gnu` 交叉目标（可选）。  
-3. Win32 `TrendChart` 真实绘制、DPI/深色主题完善。  
+1. 在 Parallel Windows 上 `git pull` + `build.ps1` 复验上表项。  
+2. 在 `windows-latest` CI 跑 `build.ps1` + `--dump` + 最短 GUI 冒烟。  
+3. 补 LLVM `x86_64-pc-windows-gnu` 交叉目标（可选）。  
 4. Windows GC stress / 多线程回归测试。  
