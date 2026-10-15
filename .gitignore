@@ -37,3 +37,7 @@ examples/https/certs/*.key
 # Local project locks / demo build outputs
 **/jnative.lock
 examples/ui-controls-pkg/consumer/build/
+examples/jnative-archive/build/
+examples/jnative-archive/third_party/build-macos/
+examples/jnative-archive/third_party/build-windows/
+examples/jnative-archive/third_party/build-linux/

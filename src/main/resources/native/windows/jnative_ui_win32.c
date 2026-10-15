@@ -1049,7 +1049,7 @@ int32_t jnative_ui_create_control(int32_t kind, int32_t parentId, const char *te
         case JN_UI_KIND_TABLEVIEW:
             {
                 int32_t lid = create_ctrl(kind, parentId, text, WC_LISTVIEWW,
-                        LVS_REPORT | LVS_SINGLESEL | LVS_SHOWSELALWAYS | WS_BORDER | WS_HSCROLL);
+                        LVS_REPORT | LVS_SHOWSELALWAYS | WS_BORDER | WS_HSCROLL);
                 if (lid > 0 && lid < JN_UI_MAX && g_hwnds[lid] != NULL) {
                     ListView_SetExtendedListViewStyle(g_hwnds[lid],
                             LVS_EX_FULLROWSELECT | LVS_EX_DOUBLEBUFFER | LVS_EX_LABELTIP
@@ -2238,8 +2238,14 @@ int32_t jnative_ui_context_menu_show(int32_t menuId, int32_t screenX, int32_t sc
 }
 
 void jnative_ui_platform_set_control_style(int32_t id, int32_t style) {
-    (void)id;
-    (void)style;
+    if (id <= 0 || id >= JN_UI_MAX || g_hwnds[id] == NULL) {
+        return;
+    }
+    /* style 5 = password field (mask input). */
+    if (style == 5 && g_kinds[id] == JN_UI_KIND_TEXTFIELD) {
+        SendMessageW(g_hwnds[id], EM_SETPASSWORDCHAR, (WPARAM)L'\x25CF', 0);
+        InvalidateRect(g_hwnds[id], NULL, TRUE);
+    }
 }
 
 void jnative_ui_platform_set_visual(int32_t id, int32_t bg_rgba, int32_t fg_rgba,
@@ -2431,6 +2437,38 @@ void jnative_ui_timer_stop(int32_t handleId) {
 void jnative_ui_window_set_min_size(int32_t windowId, int32_t w, int32_t h) {
     store_window_min_size(windowId, w, h);
 }
+
+void jnative_ui_window_center_on_parent(int32_t childId, int32_t parentId) {
+    if (childId <= 0 || childId >= JN_UI_MAX || g_hwnds[childId] == NULL) {
+        return;
+    }
+    HWND child = g_hwnds[childId];
+    RECT cr;
+    GetWindowRect(child, &cr);
+    int cw = cr.right - cr.left;
+    int ch = cr.bottom - cr.top;
+    int nx = 0;
+    int ny = 0;
+    if (parentId > 0 && parentId < JN_UI_MAX && g_hwnds[parentId] != NULL) {
+        RECT pr;
+        GetWindowRect(g_hwnds[parentId], &pr);
+        nx = pr.left + ((pr.right - pr.left) - cw) / 2;
+        ny = pr.top + ((pr.bottom - pr.top) - ch) / 3;
+    } else {
+        int sw = GetSystemMetrics(SM_CXSCREEN);
+        int sh = GetSystemMetrics(SM_CYSCREEN);
+        nx = (sw - cw) / 2;
+        ny = (sh - ch) / 3;
+    }
+    if (nx < 0) {
+        nx = 0;
+    }
+    if (ny < 0) {
+        ny = 0;
+    }
+    SetWindowPos(child, NULL, nx, ny, 0, 0, SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE);
+}
+
 void jnative_ui_button_flash(int32_t id, int32_t pressed) {
     (void)id; (void)pressed;
 }

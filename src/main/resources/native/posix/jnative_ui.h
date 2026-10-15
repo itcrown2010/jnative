@@ -269,6 +269,9 @@ void jnative_ui_platform_set_visual(int32_t id, int32_t bg_rgba, int32_t fg_rgba
                                     int32_t corner_radius, int32_t font_size, int32_t text_align);
 void jnative_ui_window_set_min_size(int32_t windowId, int32_t w, int32_t h);
 void jnative_ui_platform_window_set_min_size(int32_t windowId, int32_t w, int32_t h);
+/** Center child window over parent (or screen if parentId==0). Uses platform frame coords. */
+void jnative_ui_window_center_on_parent(int32_t childId, int32_t parentId);
+void jnative_ui_platform_window_center_on_parent(int32_t childId, int32_t parentId);
 /** Bitmask of JN_UI_FEAT_* (0 when headless / unsupported backend). */
 int32_t jnative_ui_features(void);
 int32_t jnative_ui_platform_features(void);

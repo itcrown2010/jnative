@@ -299,6 +299,35 @@ static int32_t jn_lighten_rgba(int32_t rgba, int delta) {
 }
 @end
 
+@interface JnUiSecureTextField : NSSecureTextField <NSTextFieldDelegate>
+@property(nonatomic, assign) int32_t jnHandleId;
+@end
+@implementation JnUiSecureTextField
+- (BOOL)becomeFirstResponder {
+    BOOL ok = [super becomeFirstResponder];
+    if (ok && self.jnHandleId > 0) {
+        jnative_ui_emit_event_ex(self.jnHandleId, JN_UI_EVENT_FOCUS, 1, 0, 0, 0);
+    }
+    return ok;
+}
+- (BOOL)resignFirstResponder {
+    if (self.jnHandleId > 0) {
+        jnative_ui_emit_event_ex(self.jnHandleId, JN_UI_EVENT_FOCUS, 2, 0, 0, 0);
+    }
+    return [super resignFirstResponder];
+}
+- (void)controlTextDidChange:(NSNotification *)obj {
+    (void)obj;
+    if (self.jnHandleId <= 0) {
+        return;
+    }
+    NSString *s = [self stringValue];
+    const char *utf8 = s.UTF8String;
+    jnative_ui_store_text(self.jnHandleId, utf8 ? utf8 : "");
+    jnative_ui_emit_event(self.jnHandleId, JN_UI_EVENT_CHANGE);
+}
+@end
+
 @interface JnUiCombo : NSComboBox
 @property(nonatomic, assign) int32_t jnHandleId;
 @end
@@ -424,6 +453,52 @@ static int32_t jn_lighten_rgba(int32_t rgba, int delta) {
 @end
 
 
+/**
+ * Table that paints zebra only for real rows — the empty clip region below
+ * data stays solid (system usesAlternatingRowBackgroundColors stripes the
+ * whole clip view even when row count is small).
+ */
+@interface JnTableView : NSTableView
+@end
+@implementation JnTableView
+- (void)drawBackgroundInClipRect:(NSRect)clipRect {
+    NSColor *base = [NSColor textBackgroundColor];
+    NSColor *alt = [NSColor alternatingContentBackgroundColors].count > 1
+                       ? [NSColor alternatingContentBackgroundColors][1]
+                       : [NSColor controlBackgroundColor];
+    [base setFill];
+    NSRectFill(clipRect);
+    NSInteger rows = self.numberOfRows;
+    if (rows <= 0) {
+        return;
+    }
+    CGFloat rowH = self.rowHeight + self.intercellSpacing.height;
+    if (rowH < 1.0) {
+        rowH = 22.0;
+    }
+    NSInteger first = (NSInteger)floor(NSMinY(clipRect) / rowH);
+    if (first < 0) {
+        first = 0;
+    }
+    NSInteger last = (NSInteger)ceil(NSMaxY(clipRect) / rowH);
+    if (last > rows) {
+        last = rows;
+    }
+    NSInteger r;
+    for (r = first; r < last; r++) {
+        if ((r % 2) != 0) {
+            NSRect rowRect = NSMakeRect(NSMinX(clipRect), (CGFloat)r * rowH,
+                                       NSWidth(clipRect), rowH);
+            rowRect = NSIntersectionRect(rowRect, clipRect);
+            if (!NSIsEmptyRect(rowRect)) {
+                [alt setFill];
+                NSRectFill(rowRect);
+            }
+        }
+    }
+}
+@end
+
 /** Bridges C peer item arrays into AppKit table/outline views. */
 @interface JnTableBridge : NSObject <NSTableViewDataSource, NSTableViewDelegate,
                                      NSOutlineViewDataSource, NSOutlineViewDelegate>
@@ -496,12 +571,16 @@ static void jn_size_scroll_document(NSScrollView *scroll) {
             headerH = NSHeight(tv.headerView.frame);
         }
         CGFloat rowsH = (CGFloat)tv.numberOfRows * rowPitch;
+        /* Keep document height row-intrinsic so empty clip stays solid. */
         if (rowsH < 1.0) {
-            rowsH = rowPitch;
+            rowsH = 0.0;
         }
+        [tv setUsesAlternatingRowBackgroundColors:NO];
         [tv setFrame:NSMakeRect(0, 0, content.width, rowsH + headerH)];
         if (tv.tableColumns.count > 0) {
-            [tv sizeLastColumnToFit];
+            if (tv.columnAutoresizingStyle != NSTableViewFirstColumnOnlyAutoresizingStyle) {
+                [tv setColumnAutoresizingStyle:NSTableViewFirstColumnOnlyAutoresizingStyle];
+            }
         }
     } else {
         CGFloat h = content.height;
@@ -1169,7 +1248,7 @@ int32_t jnative_ui_platform_create_window(int32_t peerId, const char *title, int
     if (!g_cocoa_active || peerId <= 0 || peerId >= JN_UI_MAX) {
         return 0;
     }
-    NSRect rect = NSMakeRect(100, 100, w > 0 ? w : 800, h > 0 ? h : 600);
+    NSRect rect = NSMakeRect(0, 0, w > 0 ? w : 800, h > 0 ? h : 600);
     JnUiWindow *win = [[JnUiWindow alloc]
         initWithContentRect:rect
                   styleMask:(NSWindowStyleMaskTitled | NSWindowStyleMaskClosable
@@ -1179,6 +1258,8 @@ int32_t jnative_ui_platform_create_window(int32_t peerId, const char *title, int
     win.jnHandleId = peerId;
     win.delegate = win;
     [win setTitle:jn_nsstring(title)];
+    /* Screen-center by default — avoids stacking every dialog at a fixed corner. */
+    [win center];
     g_peers[peerId] = win;
     return 1;
 }
@@ -1364,9 +1445,10 @@ int32_t jnative_ui_platform_create_control(int32_t peerId, int32_t kind, int32_t
         [scroll setBorderType:NSNoBorder];
         [scroll setDrawsBackground:YES];
         [scroll setBackgroundColor:[NSColor textBackgroundColor]];
-        NSTableView *table = [[NSTableView alloc] initWithFrame:scroll.bounds];
+        JnTableView *table = [[JnTableView alloc] initWithFrame:scroll.bounds];
         [table setHeaderView:[[NSTableHeaderView alloc] init]];
-        [table setUsesAlternatingRowBackgroundColors:YES];
+        /* Custom drawBackgroundInClipRect — do not use system full-clip zebra. */
+        [table setUsesAlternatingRowBackgroundColors:NO];
         /* Compact system row height (~22–24pt). */
         [table setRowHeight:22.0];
         [table setIntercellSpacing:NSMakeSize(4.0, 1.0)];
@@ -1386,6 +1468,7 @@ int32_t jnative_ui_platform_create_control(int32_t peerId, int32_t kind, int32_t
         [table setDelegate:bridge];
         [table setTarget:bridge];
         [table setDoubleAction:@selector(jnDoubleActivate:)];
+        [table setAllowsMultipleSelection:YES];
         [scroll setDocumentView:table];
         if (parentView != nil) {
             [parentView addSubview:scroll];
@@ -1641,6 +1724,28 @@ void jnative_ui_platform_set_bounds(int32_t handleId, int32_t x, int32_t y, int3
     }
 }
 
+void jnative_ui_platform_window_center_on_parent(int32_t childId, int32_t parentId) {
+    id childObj = (childId > 0 && childId < JN_UI_MAX) ? g_peers[childId] : nil;
+    if (![childObj isKindOfClass:[NSWindow class]]) {
+        return;
+    }
+    NSWindow *child = (NSWindow *)childObj;
+    id parentObj = (parentId > 0 && parentId < JN_UI_MAX) ? g_peers[parentId] : nil;
+    if ([parentObj isKindOfClass:[NSWindow class]]) {
+        NSWindow *parent = (NSWindow *)parentObj;
+        /* Center over owner only. Do NOT setParentWindow — that can clip the
+           dialog to the parent frame and hide footer buttons. */
+        NSRect pf = [parent frame];
+        NSRect cf = [child frame];
+        CGFloat nx = NSMidX(pf) - cf.size.width * (CGFloat)0.5;
+        CGFloat ny = NSMidY(pf) - cf.size.height * (CGFloat)0.45;
+        [child setFrameOrigin:NSMakePoint(nx, ny)];
+        [child setLevel:[parent level]];
+    } else {
+        [child center];
+    }
+}
+
 void jnative_ui_platform_set_visible(int32_t handleId, int32_t visible) {
     if (visible) {
         jnative_ui_platform_show(handleId);
@@ -1882,6 +1987,12 @@ void jnative_ui_platform_table_set_columns(int32_t peerId, const char *titles_ts
         if (meta.count >= 4) {
             flex = [meta[3] intValue];
         }
+        if (meta.count >= 5) {
+            CGFloat parsedMax = [meta[4] doubleValue];
+            if (parsedMax > 0.0) {
+                maxW = parsedMax;
+            }
+        }
         if (title.length == 0) {
             title = [NSString stringWithFormat:@"Col%lu", (unsigned long)i];
         }
@@ -1891,9 +2002,11 @@ void jnative_ui_platform_table_set_columns(int32_t peerId, const char *titles_ts
         BOOL right = (align == 2);
         if (width > 0) {
             [col setWidth:width];
-            if (minW < 0) minW = width * 0.6;
+            if (minW < 0) {
+                minW = flex ? 160.0 : width * 0.75;
+            }
             if (maxW < 0) {
-                maxW = flex ? 100000.0 : width * 1.5;
+                maxW = flex ? 100000.0 : width * 1.25;
             }
             [col setMinWidth:minW];
             [col setMaxWidth:maxW];
@@ -2186,8 +2299,31 @@ void jnative_ui_platform_set_control_style(int32_t peerId, int32_t style) {
                 [btn setBezelStyle:NSBezelStyleRounded];
             }
         }
-    } else if ([obj isKindOfClass:[NSTextField class]]) {
+    } else if ([obj isKindOfClass:[NSTextField class]]
+            || [obj isKindOfClass:[NSSecureTextField class]]) {
         NSTextField *tf = (NSTextField *)obj;
+        if (style == 5) {
+            /* Password / secure entry — replace with NSSecureTextField once. */
+            if ([obj isKindOfClass:[NSSecureTextField class]]) {
+                return;
+            }
+            NSView *parent = [tf superview];
+            NSRect frame = tf.frame;
+            NSString *cur = [tf stringValue];
+            JnUiSecureTextField *sec = [[JnUiSecureTextField alloc] initWithFrame:frame];
+            sec.jnHandleId = peerId;
+            [sec setStringValue:cur ? cur : @""];
+            [sec setDelegate:sec];
+            [sec setBezeled:YES];
+            [sec setDrawsBackground:YES];
+            [sec setFont:[NSFont systemFontOfSize:13.0]];
+            if (parent != nil) {
+                [parent addSubview:sec];
+                [tf removeFromSuperview];
+            }
+            g_peers[peerId] = sec;
+            return;
+        }
         if (style == 2) {
             [tf setFont:[NSFont systemFontOfSize:12.0]];
             [tf setTextColor:[NSColor secondaryLabelColor]];

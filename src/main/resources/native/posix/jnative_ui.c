@@ -534,6 +534,20 @@ void jnative_ui_window_set_min_size(int32_t windowId, int32_t w, int32_t h) {
     }
 }
 
+__attribute__((weak)) void jnative_ui_platform_window_center_on_parent(
+        int32_t childId, int32_t parentId) {
+    (void)childId;
+    (void)parentId;
+}
+
+void jnative_ui_window_center_on_parent(int32_t childId, int32_t parentId) {
+    JnUiPeer *p = peer(childId);
+    if (p == NULL) return;
+    if (g_platform_active && !g_headless) {
+        jnative_ui_platform_window_center_on_parent(childId, parentId);
+    }
+}
+
 void jnative_ui_button_flash(int32_t id, int32_t pressed) {
     JnUiPeer *p = peer(id);
     if (p == NULL) return;

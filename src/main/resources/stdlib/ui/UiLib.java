@@ -199,6 +199,9 @@ class UiNative {
     @Native(symbol = "jnative_ui_window_set_min_size")
     static native void windowSetMinSize(int windowId, int w, int h);
 
+    @Native(symbol = "jnative_ui_window_center_on_parent")
+    static native void windowCenterOnParent(int childId, int parentId);
+
     @Native(symbol = "jnative_ui_button_flash")
     static native void buttonFlash(int id, int pressed);
 
@@ -2880,6 +2883,27 @@ class TextField extends Control {
         setText(t);
     }
 
+    /**
+     * Mask input (password). Style channel 5 → NSSecureTextField / Win32 password char.
+     * Call once after construction; clear text when dialog closes.
+     */
+    void setPasswordMode(boolean on) {
+        ensureAlive("TextField.setPasswordMode");
+        if (nativeId > 0) {
+            if (on) {
+                UiNative.setValueI32(nativeId, 5);
+            } else {
+                UiNative.setValueI32(nativeId, 0);
+            }
+        }
+    }
+
+    /** Clear visible/stored text (use after password dialogs). */
+    void clearSensitive() {
+        ensureAlive("TextField.clearSensitive");
+        setText("");
+    }
+
     void fireChange() {
         if (disposed != 0) {
             return;
@@ -4623,6 +4647,19 @@ class Window extends Component {
         if (primary != null) {
             primary.childWindows.add(this);
         }
+    }
+
+    /**
+     * Center this window over its owner (or the screen). Call after setContent /
+     * setSize so the frame size is final. Prefer this over hard-coded coordinates.
+     */
+    void centerOnOwner() {
+        ensureAlive("Window.centerOnOwner");
+        int pid = 0;
+        if (ownerWindow != null && ownerWindow.disposed == 0) {
+            pid = ownerWindow.nativeId;
+        }
+        UiNative.windowCenterOnParent(nativeId, pid);
     }
 
     void activate() {
