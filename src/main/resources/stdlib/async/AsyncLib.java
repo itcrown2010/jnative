@@ -1451,9 +1451,24 @@ class FutureBlocker {
             if (f.isDone()) {
                 alive = 0;
             } else {
-                /* Drain ready tasks if wait races a still-idle loop (queued completions). */
-                if (f.loop != null && f.loop.running == 0) {
-                    f.loop.processReady();
+                /* Drain ready tasks while waiting:
+                 * - before EventLoop.run() (running==0): completions may already be queued
+                 * - on the loop thread after run(): DbTransactionWork often calls blockingGet
+                 *   on conn.query/execute; those complete via loop.execute, so we must pump
+                 *   processReady or nested waits deadlock forever (HTTP SO/PO create hangs).
+                 * Worker threads must not call processReady — the loop thread owns the queue. */
+                if (f.loop != null) {
+                    int drain = 0;
+                    if (f.loop.running == 0) {
+                        drain = 1;
+                    } else {
+                        if (f.loop.isLoopThread()) {
+                            drain = 1;
+                        }
+                    }
+                    if (drain != 0) {
+                        f.loop.processReady();
+                    }
                 }
                 if (f.isDone()) {
                     alive = 0;

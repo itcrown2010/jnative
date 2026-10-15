@@ -49,9 +49,19 @@ class OrderLineDto {
     long id;
     long itemId;
     String itemSku;
+    String itemName;
+    String uom;
     int quantity;
     int fulfilledQty;
+    int returnedQty;
+    int reservedQty;
+    int openQty;
+    int shortfallQty;
     long unitPriceCents;
+    /** Basis points: 1300 = 13%. */
+    int discountBps;
+    int taxBps;
+    long lineAmountCents;
 }
 
 class PurchaseOrderDto {
@@ -60,15 +70,32 @@ class PurchaseOrderDto {
     String status;
     long supplierId;
     String supplierName;
+    long warehouseId;
+    long orderDate;
+    long expectedDate;
+    String notes;
+    String currency;
+    String contactName;
+    long createdAt;
     ArrayList<Object> lines;
 }
 
 class SalesOrderDto {
     long id;
     String docNo;
+    /** Compat composite (approval + fulfillment) for existing list UI. */
     String status;
+    String approvalStatus;
+    String fulfillmentStatus;
     long customerId;
     String customerName;
+    long warehouseId;
+    long orderDate;
+    long deliveryDate;
+    String notes;
+    String currency;
+    String contactName;
+    long createdAt;
     ArrayList<Object> lines;
 }
 
@@ -92,6 +119,18 @@ class InventoryBalanceDto {
     long warehouseId;
     long itemId;
     int quantityOnHand;
+    /** Reserved qty — always 0 until reservation is implemented. */
+    int quantityReserved;
+    int quantityAvailable;
+    int reservedSupported;
+    String warehouseCode;
+    String warehouseName;
+    String itemSku;
+    String itemName;
+    long valueAmount;
+    int minQty;
+    /** OK | PENDING_COST | VALUE_WITHOUT_QTY | ZERO_COST */
+    String costState;
 }
 
 class PostLineRequest {
@@ -136,6 +175,34 @@ class GlAccountDto {
     long parentAccountId;
     int postingAllowed;
     int active;
+    String normalBalance;
+    int isControl;
+    int requirePartner;
+}
+
+class GlPostingEventDto {
+    long id;
+    String eventType;
+    String sourceType;
+    long sourceId;
+    long sourceLineId;
+    String status;
+    long journalEntryId;
+    long amount;
+    long partnerId;
+    long warehouseId;
+    long bizDate;
+    String errorCode;
+    String errorMessage;
+}
+
+class GlReconCheckDto {
+    String checkName;
+    int ok;
+    long expectedAmount;
+    long actualAmount;
+    long diffAmount;
+    String detail;
 }
 
 class FiscalPeriodDto {
@@ -169,14 +236,6 @@ class JournalEntryDto {
     ArrayList<Object> lines;
 }
 
-class PostingLineInput {
-    long accountId;
-    long debitAmount;
-    long creditAmount;
-    long businessPartnerId;
-    String description;
-}
-
 class PostingRequest {
     String sourceType;
     long sourceId;
@@ -184,7 +243,19 @@ class PostingRequest {
     long documentDate;
     String description;
     String idempotencyKey;
+    /** DRAFT / APPROVED / POSTED; empty defaults to POSTED (legacy). */
+    String initialStatus;
+    String eventType;
     ArrayList<Object> lines;
+}
+
+class PostingLineInput {
+    long accountId;
+    long debitAmount;
+    long creditAmount;
+    long businessPartnerId;
+    long warehouseId;
+    String description;
 }
 
 class ArInvoiceDto {
@@ -196,7 +267,10 @@ class ArInvoiceDto {
     long totalAmount;
     long paidAmount;
     long openAmount;
+    long adjustedAmount;
     String status;
+    String settlementStatus;
+    String currency;
 }
 
 class ApInvoiceDto {
@@ -208,7 +282,10 @@ class ApInvoiceDto {
     long totalAmount;
     long paidAmount;
     long openAmount;
+    long adjustedAmount;
     String status;
+    String settlementStatus;
+    String currency;
 }
 
 class PaymentAllocationInput {
@@ -222,6 +299,11 @@ class IncomingPaymentRequest {
     long amount;
     long bankAccountId;
     String idempotencyKey;
+    String paymentMethod;
+    String externalRef;
+    String notes;
+    /** 0=draft then post via separate call; 1=create+post in one step (default for legacy). */
+    int postNow;
     ArrayList<Object> allocations;
 }
 
@@ -231,7 +313,24 @@ class OutgoingPaymentRequest {
     long amount;
     long bankAccountId;
     String idempotencyKey;
+    String paymentMethod;
+    String externalRef;
+    String notes;
+    int postNow;
     ArrayList<Object> allocations;
+}
+
+class SettlementAllocateRequest {
+    long paymentId;
+    String idempotencyKey;
+    String reason;
+    ArrayList<Object> allocations;
+}
+
+class SettlementReverseRequest {
+    long allocationId;
+    String idempotencyKey;
+    String reason;
 }
 
 class TrialBalanceRowDto {

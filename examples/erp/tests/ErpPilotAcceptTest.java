@@ -207,7 +207,8 @@ class ErpPilotAcceptTest {
         sl.quantity = 3;
         sl.unitPriceCents = 8000L;
         lines.add(sl);
-        SalesOrderDto so = ErpSales.createDraft(companyId, customerId, lines);
+        SalesOrderDto so = ErpSales.createDraftFull(companyId, customerId, warehouseId, 0L, 0L, "pilot", "CNY",
+                lines);
         ErpSales.approve(companyId, so.id);
         SalesOrderDto full = ErpSales.get(companyId, so.id);
         OrderLineDto ol = (OrderLineDto) full.lines.get(0);

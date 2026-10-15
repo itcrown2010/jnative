@@ -79,7 +79,7 @@ class OpeningStockDraftWork implements DbTransactionWork {
     public JnFuture run(DbConnection conn) {
         long now = AsyncClockNative.wallMillis();
         String cached = ErpPosting.cachedIdempotencyConn(conn, companyId, idempotencyKey);
-        if (cached.length() > 0) {
+        if (cached != null && cached.length() > 0) {
             return JnFuture.completed(Erp.loop, ErpPosting.resultFromJson(cached));
         }
         if (notes == null) {
@@ -140,7 +140,7 @@ class OpeningStockPostWork implements DbTransactionWork {
     public JnFuture run(DbConnection conn) {
         long now = AsyncClockNative.wallMillis();
         String cached = ErpPosting.cachedIdempotencyConn(conn, companyId, idempotencyKey);
-        if (cached.length() > 0) {
+        if (cached != null && cached.length() > 0) {
             return JnFuture.completed(Erp.loop, ErpPosting.resultFromJson(cached));
         }
         ArrayList<Object> hp = new ArrayList<Object>();
@@ -227,7 +227,7 @@ class OpeningArWork implements DbTransactionWork {
             throw new TransactionException("Idempotency-Key required");
         }
         String cached = ErpPosting.cachedIdempotencyConn(conn, companyId, idempotencyKey);
-        if (cached.length() > 0) {
+        if (cached != null && cached.length() > 0) {
             return JnFuture.completed(Erp.loop, ErpPosting.resultFromJson(cached));
         }
         if (amount <= 0L) {
@@ -294,7 +294,7 @@ class OpeningApWork implements DbTransactionWork {
             throw new TransactionException("Idempotency-Key required");
         }
         String cached = ErpPosting.cachedIdempotencyConn(conn, companyId, idempotencyKey);
-        if (cached.length() > 0) {
+        if (cached != null && cached.length() > 0) {
             return JnFuture.completed(Erp.loop, ErpPosting.resultFromJson(cached));
         }
         if (amount <= 0L) {

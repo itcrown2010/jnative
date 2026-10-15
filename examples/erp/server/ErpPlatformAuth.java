@@ -14,6 +14,10 @@ class ErpPlatformAuth {
         seedPermission("FINANCE.JOURNAL.READ", "Read journals");
         seedPermission("FINANCE.JOURNAL.POST", "Post journals");
         seedPermission("FINANCE.OPENING.POST", "Post opening AR/AP");
+        seedPermission("FINANCE.PAYMENT.CREATE", "Create receipts/payments");
+        seedPermission("FINANCE.PAYMENT.POST", "Post receipts/payments");
+        seedPermission("FINANCE.PAYMENT.ALLOCATE", "Allocate receipts/payments");
+        seedPermission("FINANCE.PAYMENT.REVERSE", "Reverse allocations / refunds");
         seedPermission("PURCHASE.ORDER.READ", "Read POs");
         seedPermission("PURCHASE.ORDER.CREATE", "Create POs");
         seedPermission("PURCHASE.ORDER.APPROVE", "Approve POs");
@@ -47,6 +51,10 @@ class ErpPlatformAuth {
         grant(financeRole, "FINANCE.JOURNAL.READ");
         grant(financeRole, "FINANCE.JOURNAL.POST");
         grant(financeRole, "FINANCE.OPENING.POST");
+        grant(financeRole, "FINANCE.PAYMENT.CREATE");
+        grant(financeRole, "FINANCE.PAYMENT.POST");
+        grant(financeRole, "FINANCE.PAYMENT.ALLOCATE");
+        grant(financeRole, "FINANCE.PAYMENT.REVERSE");
         grant(financeRole, "ADMIN.REPORT.RUN");
         grant(purchaseRole, "PURCHASE.ORDER.READ");
         grant(purchaseRole, "PURCHASE.ORDER.CREATE");
@@ -67,6 +75,10 @@ class ErpPlatformAuth {
         grant(roleId, "FINANCE.JOURNAL.READ");
         grant(roleId, "FINANCE.JOURNAL.POST");
         grant(roleId, "FINANCE.OPENING.POST");
+        grant(roleId, "FINANCE.PAYMENT.CREATE");
+        grant(roleId, "FINANCE.PAYMENT.POST");
+        grant(roleId, "FINANCE.PAYMENT.ALLOCATE");
+        grant(roleId, "FINANCE.PAYMENT.REVERSE");
         grant(roleId, "PURCHASE.ORDER.READ");
         grant(roleId, "PURCHASE.ORDER.CREATE");
         grant(roleId, "PURCHASE.ORDER.APPROVE");

@@ -21,33 +21,70 @@
     return d.getFullYear() + "-" + (m < 10 ? "0" : "") + m + "-" + (day < 10 ? "0" : "") + day;
   }
 
+  function defaultTaxBps() {
+    var book = (window.JnData && JnData.active && JnData.active.book) || null;
+    if (book && book.defaultTaxBps != null) return Number(book.defaultTaxBps) || 0;
+    return 0;
+  }
+
+  function isPersistedId(id) {
+    if (id == null || id === "") return false;
+    var s = String(id);
+    if (s.indexOf("NEW") === 0) return false;
+    return /^\d+$/.test(s) && Number(s) > 0;
+  }
+
+  function dateToMillis(v) {
+    if (v == null || v === "" || v === 0 || v === "0") return 0;
+    var n = Number(v);
+    if (isFinite(n) && n > 1e11) return Math.floor(n);
+    if (isFinite(n) && n > 1e8 && n < 1e11) return Math.floor(n * 1000);
+    var s = String(v);
+    if (/^\d{4}-\d{2}-\d{2}/.test(s)) {
+      var p = s.slice(0, 10).split("-");
+      return Date.UTC(Number(p[0]), Number(p[1]) - 1, Number(p[2]), 12, 0, 0);
+    }
+    return 0;
+  }
+
   function normalizeRecord(def, rec) {
     rec = rec ? JSON.parse(JSON.stringify(rec)) : {};
     if (!rec.id) rec.id = "NEW-" + Date.now();
     if (!rec.status) rec.status = "DRAFT";
     if (!rec.date) rec.date = today();
+    else if (typeof rec.date !== "string" || !/^\d{4}-\d{2}-\d{2}/.test(rec.date)) {
+      /* list/get may supply epoch millis */
+      var fd = (window.JnData && JnData.active && typeof formatBizDate === "function")
+        ? null
+        : null;
+      var n = Number(rec.date);
+      if (isFinite(n) && n > 1e11) {
+        var d = new Date(n);
+        var mo = d.getMonth() + 1;
+        var day = d.getDate();
+        rec.date = d.getFullYear() + "-" + (mo < 10 ? "0" : "") + mo + "-" + (day < 10 ? "0" : "") + day;
+      }
+    }
     if (!rec.currency) rec.currency = "CNY";
     if (!rec.lines) rec.lines = [];
     if (!rec.attachments) rec.attachments = [];
-    if (!rec.approvals) {
-      rec.approvals = [
-        { who: "System", when: today() + " 09:00", result: "CREATED", note: "" }
-      ];
-    }
-    if (!rec.audit) {
-      rec.audit = [
-        { when: today() + " 09:00", user: "System", action: "CREATE", detail: "" }
-      ];
+    if (!isPersistedId(rec.id)) {
+      rec.approvals = [];
+      rec.audit = [];
+    } else {
+      if (!rec.approvals) rec.approvals = [];
+      if (!rec.audit) rec.audit = [];
     }
     if (!rec.references) {
       rec.references = { source: rec.sourceDocNo || "", targets: [] };
     }
-    /* migrate legacy total/price fields to cents */
+    var taxDef = defaultTaxBps();
     (rec.lines || []).forEach(function (l, i) {
       if (l.unitPriceCents == null && l.price != null) l.unitPriceCents = Math.round(Number(l.price) * 100);
       if (l.lineAmountCents == null && l.amount != null) l.lineAmountCents = Math.round(Number(l.amount) * 100);
       if (l.discountBps == null) l.discountBps = 0;
-      if (l.taxBps == null) l.taxBps = 1300; /* default 13% */
+      if (l.taxBps == null) l.taxBps = taxDef;
+      if (!l.name && l.itemName) l.name = l.itemName;
       if (!l.uom) l.uom = "EA";
       if (!l.id) l.id = "L" + i + "-" + Date.now();
     });
@@ -59,6 +96,9 @@
     if (!rec.partnerName) {
       rec.partnerName = rec.customerName || rec.supplierName || "";
     }
+    if (rec.warehouseId && !rec.warehouseCode && !rec.warehouseName) {
+      rec.warehouseCode = String(rec.warehouseId);
+    }
     JnDocumentCalc.calcDocument(rec, def);
     return rec;
   }
@@ -69,14 +109,20 @@
     return status === "DRAFT" || status === "SUBMITTED";
   }
 
-  function actionEnabled(action, mode, status, dirty) {
+  function actionEnabled(action, mode, status, dirty, recordId) {
     if (action === "close") return true;
+    var persisted = isPersistedId(recordId);
+    /* Unsaved CREATE: only save / dismiss */
+    if (mode === "CREATE" || !persisted) {
+      return action === "save" || action === "close" || action === "cancel";
+    }
     if (mode === "VIEW") return action === "copy" || action === "close";
     if (action === "save") return canEdit(mode, status);
     if (action === "submit") return canEdit(mode, status) && status === "DRAFT";
     if (action === "approve") return status === "SUBMITTED";
     if (action === "reject") return status === "SUBMITTED";
-    if (action === "cancel") return status !== "CANCELLED" && status !== "APPROVED";
+    if (action === "cancel") return status !== "CANCELLED" && status !== "APPROVED" && status !== "POSTED"
+      && status !== "RECEIVED" && status !== "PARTIALLY_RECEIVED";
     if (action === "copy") return true;
     return false;
   }
@@ -139,12 +185,20 @@
       return '<div class="jn-doc-header jn-form-grid">' + def.headerFields.map(function (f) {
         var val = rec[f.key];
         if (f.key === "partnerId") val = rec.partnerName || "";
-        if (f.key === "warehouseId") val = rec.warehouseCode || rec.warehouseId || "";
-        if (f.key === "employeeId") val = rec.employeeName || rec.employeeId || "";
+        if (f.key === "warehouseId") {
+          val = (rec.warehouseCode && rec.warehouseName)
+            ? (rec.warehouseCode + " · " + rec.warehouseName)
+            : (rec.warehouseName || rec.warehouseCode || "");
+        }
+        if (f.key === "employeeId") val = rec.employeeName || "";
+        if (f.key === "contactName") val = rec.contactName || "";
+        if (f.key === "docNo" && (!val || !isPersistedId(rec.id))) {
+          val = (window.JnI18n && JnI18n.t("doc.autoNumberHint", null, null)) || "保存后自动生成";
+        }
         var ro = !editable || f.readOnly || mode === "VIEW";
         var ctrl = "";
         if (f.type === "partner" || f.type === "warehouse" || f.type === "employee" || f.type === "contact") {
-          ctrl = '<div class="jn-selector-field"><input class="jn-input" data-h="' + f.key + '" value="' + JnUI.esc(val || "") + '" ' + (ro ? "readonly" : "readonly") + " />" +
+          ctrl = '<div class="jn-selector-field"><input class="jn-input" data-h="' + f.key + '" value="' + JnUI.esc(val || "") + '" readonly />' +
             (ro ? "" : '<button type="button" class="jn-btn" data-pick="' + f.key + '">...</button>') +
             (ro ? "" : '<button type="button" class="jn-btn" data-clear-h="' + f.key + '" title="Clear">x</button>') + "</div>";
         } else if (f.type === "currency") {
@@ -159,7 +213,13 @@
         } else {
           ctrl = '<input class="jn-input" data-h="' + f.key + '" value="' + JnUI.esc(val == null ? "" : val) + '" ' + (ro ? "readonly" : "") + " />";
         }
-        return '<div class="jn-field" data-hf="' + f.key + '"><label>' + JnUI.esc(f.label) +
+        var label = f.label;
+        if (window.JnI18n) {
+          var lk = "doc.field." + f.key;
+          var tr = JnI18n.t(lk, null, null);
+          if (tr && tr !== lk) label = tr;
+        }
+        return '<div class="jn-field" data-hf="' + f.key + '"><label>' + JnUI.esc(label) +
           (f.required ? " *" : "") + "</label>" + ctrl + "</div>";
       }).join("") + "</div>";
     }
@@ -194,9 +254,10 @@
               '<button type="button" class="jn-btn" data-pick-item="' + ri + '">...</button></div>' +
               (err ? '<div class="err-msg">' + JnUI.esc(err) + "</div>" : "") + "</td>";
           }
-          return '<td class="' + (err ? "jn-cell-err" : "") + '">' +
+          var amtAttr = c.key === "lineAmountCents" ? ' data-line-amount="' + ri + '"' : "";
+          return '<td class="' + (err ? "jn-cell-err" : "") + '"' + amtAttr + ">" +
             (ro
-              ? '<span class="jn-cell-ro">' + JnUI.esc(display == null ? "" : display) + "</span>"
+              ? '<span class="jn-cell-ro" data-line-amount-val="' + ri + '">' + JnUI.esc(display == null ? "" : display) + "</span>"
               : '<input class="jn-input jn-cell" data-r="' + ri + '" data-c="' + ci + '" data-k="' + c.key + '" value="' + JnUI.esc(display == null ? "" : display) + '" />') +
             (err ? '<div class="err-msg">' + JnUI.esc(err) + "</div>" : "") + "</td>";
         }).join("");
@@ -228,33 +289,41 @@
 
     function panelsHtml() {
       var refs = rec.references || { source: "", targets: [] };
-      var src = refs.source ? '<button type="button" class="jn-btn" data-ref-go="source">' + JnUI.esc(refs.source) + "</button>" : "<span>(none)</span>";
+      var src = refs.source ? '<button type="button" class="jn-btn" data-ref-go="source">' + JnUI.esc(refs.source) + "</button>" : "<span>—</span>";
       var tg = (refs.targets || []).map(function (t) {
         return '<button type="button" class="jn-btn" data-ref-go="' + JnUI.esc(t) + '">' + JnUI.esc(t) + "</button>";
-      }).join(" ") || "<span>(none)</span>";
-      var atts = (rec.attachments || []).map(function (a, i) {
-        return '<div class="jn-todo-item"><span>' + JnUI.esc(a.name) + ' <em style="color:var(--jn-color-text-muted)">(local only)</em></span>' +
-          (editable ? '<button type="button" class="jn-btn danger" data-del-att="' + i + '">Del</button>' : "") + "</div>";
-      }).join("") || '<div class="jn-empty">No attachments</div>';
-      var appr = (rec.approvals || []).map(function (a) {
-        return "<li><strong>" + JnUI.esc(a.result) + "</strong> " + JnUI.esc(a.who) + " @ " + JnUI.esc(a.when) + " - " + JnUI.esc(a.note || "") + "</li>";
-      }).join("");
-      var aud = (rec.audit || []).map(function (a) {
-        return "<li>" + JnUI.esc(a.when) + " | " + JnUI.esc(a.user) + " | " + JnUI.esc(a.action) + " | " + JnUI.esc(a.detail) + "</li>";
-      }).join("");
+      }).join(" ") || "<span>—</span>";
+      var unsavedHint = (window.JnI18n && JnI18n.t("doc.notSavedYet", null, null)) || "尚未保存";
+      var attUnavailable = (window.JnI18n && JnI18n.t("doc.attachUnavailable", null, null)) || "附件上传未接入，当前不可用";
+      var atts = '<div class="jn-empty">' + JnUI.esc(attUnavailable) + "</div>";
+      var appr = "";
+      var aud = "";
+      if (!isPersistedId(rec.id)) {
+        appr = "<li>" + JnUI.esc(unsavedHint) + "</li>";
+        aud = "<li>" + JnUI.esc(unsavedHint) + "</li>";
+      } else {
+        appr = (rec.approvals || []).map(function (a) {
+          return "<li><strong>" + JnUI.esc(a.result) + "</strong> " + JnUI.esc(a.who) + " @ " + JnUI.esc(a.when) + " - " + JnUI.esc(a.note || "") + "</li>";
+        }).join("") || "<li>—</li>";
+        aud = (rec.audit || []).map(function (a) {
+          return "<li>" + JnUI.esc(a.when) + " | " + JnUI.esc(a.user) + " | " + JnUI.esc(a.action) + " | " + JnUI.esc(a.detail) + "</li>";
+        }).join("") || "<li>—</li>";
+      }
+      var tRef = (window.JnI18n && JnI18n.t("doc.panel.refs", null, null)) || "关联单据";
+      var tAtt = (window.JnI18n && JnI18n.t("doc.panel.attachments", null, null)) || "附件";
+      var tAppr = (window.JnI18n && JnI18n.t("doc.panel.approvals", null, null)) || "审批时间线";
+      var tAud = (window.JnI18n && JnI18n.t("doc.panel.audit", null, null)) || "审计";
       return '<div class="jn-doc-panels jn-dash-grid" style="grid-template-columns:1fr 1fr 1fr">' +
-        '<div class="jn-card"><div class="jn-panel-title">Document References</div><div>Source: ' + src + "</div><div style=\"margin-top:8px\">Targets: " + tg + "</div></div>" +
-        '<div class="jn-card"><div class="jn-panel-title">Attachments</div>' + atts +
-        (editable ? '<div class="jn-toolbar" style="margin-top:8px"><input type="file" data-file multiple /><button type="button" class="jn-btn" data-add-att>Add file</button></div>' : "") +
-        '<div class="jn-demo-save-note">Files are not uploaded to server.</div></div>' +
-        '<div class="jn-card"><div class="jn-panel-title">Approval Timeline</div><ul class="jn-timeline">' + appr + "</ul>" +
-        '<div class="jn-panel-title" style="margin-top:12px">Audit</div><ul class="jn-timeline">' + aud + "</ul></div></div>";
+        '<div class="jn-card"><div class="jn-panel-title">' + JnUI.esc(tRef) + "</div><div>Source: " + src + "</div><div style=\"margin-top:8px\">Targets: " + tg + "</div></div>" +
+        '<div class="jn-card"><div class="jn-panel-title">' + JnUI.esc(tAtt) + "</div>" + atts + "</div>" +
+        '<div class="jn-card"><div class="jn-panel-title">' + JnUI.esc(tAppr) + '</div><ul class="jn-timeline">' + appr + "</ul>" +
+        '<div class="jn-panel-title" style="margin-top:12px">' + JnUI.esc(tAud) + '</div><ul class="jn-timeline">' + aud + "</ul></div></div>";
     }
 
     function toolbarHtml() {
       var actions = def.availableActions || [];
       var btns = actions.map(function (a) {
-        var en = actionEnabled(a, mode, rec.status, dirty);
+        var en = actionEnabled(a, mode, rec.status, dirty, rec.id);
         var label = a.charAt(0).toUpperCase() + a.slice(1);
         if (window.JnI18n) {
           var lk = "doc." + a;
@@ -264,8 +333,10 @@
         } else if (a === "save") {
           label = "Save Draft";
         }
-        return '<button type="button" class="jn-btn' + (a === "save" || a === "submit" ? " primary" : "") + '
-          (a === "cancel" || a === "reject" ? " danger" : "") + '" data-act="' + a + '" ' + (en ? "" : "disabled") + ">" + label + "</button>";
+        var cls = "jn-btn";
+        if (a === "save" || a === "submit") cls = cls + " primary";
+        if (a === "cancel" || a === "reject") cls = cls + " danger";
+        return '<button type="button" class="' + cls + '" data-act="' + a + '" ' + (en ? "" : "disabled") + ">" + label + "</button>";
       }).join("");
       return '<div class="jn-doc-toolbar jn-toolbar">' +
         "<strong>" + JnUI.esc(def.title) + " | " + JnUI.esc(mode) + "</strong> " +
@@ -276,10 +347,11 @@
 
     function paint() {
       JnDocumentCalc.calcDocument(rec, def);
+      var tip = (window.JnI18n && JnI18n.t("doc.saveHint", null, null)) || "保存后由服务端生成单据编号；未保存关闭不会产生业务单据。";
       shell.innerHTML =
         toolbarHtml() +
         '<div class="jn-modal-body" style="overflow:auto">' +
-        '<div class="jn-muted" style="margin-top:8px">Document posting APIs are used when available; otherwise save is refused.</div>' +
+        '<div class="jn-muted" style="margin-top:8px">' + JnUI.esc(tip) + "</div>" +
         headerHtml() + linesHtml() + footerHtml() + panelsHtml() +
         "</div>";
       bind();
@@ -319,7 +391,7 @@
         qty: 1,
         unitPriceCents: 0,
         discountBps: 0,
-        taxBps: 1300,
+        taxBps: defaultTaxBps(),
         lineAmountCents: 0
       }, prefill || {});
       rec.lines.push(line);
@@ -339,7 +411,7 @@
         var qty = JnDocumentCalc.toInt(parts[2]);
         var priceCents = JnDocumentCalc.parseMoneyToCents(parts[3]);
         var disc = parts[4] != null && parts[4] !== "" ? Math.round(Number(parts[4]) * 100) : 0;
-        var tax = parts[5] != null && parts[5] !== "" ? Math.round(Number(parts[5]) * 100) : 1300;
+        var tax = parts[5] != null && parts[5] !== "" ? Math.round(Number(parts[5]) * 100) : defaultTaxBps();
         if (!sku) { errs.push("Row " + (i + 1) + ": SKU required"); return; }
         if (!(qty > 0)) { errs.push("Row " + (i + 1) + ": qty must be > 0"); return; }
         if (priceCents < 0) { errs.push("Row " + (i + 1) + ": price invalid"); return; }
@@ -367,16 +439,22 @@
           var k = btn.getAttribute("data-pick");
           if (k === "partnerId") {
             JnSelectors.openPartnerSelector(def.partnerKind, function (p) {
+              var prev = rec.partnerId;
               rec.partnerId = p.id;
               rec.partnerName = p.name;
               if (def.partnerKind === "CUSTOMER") { rec.customerId = p.id; rec.customerName = p.name; }
               if (def.partnerKind === "SUPPLIER") { rec.supplierId = p.id; rec.supplierName = p.name; }
+              if (String(prev) !== String(p.id)) {
+                rec.contactName = "";
+                rec.contactId = "";
+              }
               paint();
             });
           } else if (k === "warehouseId") {
             JnSelectors.openWarehouseSelector(function (w) {
               rec.warehouseId = w.id;
               rec.warehouseCode = w.code;
+              rec.warehouseName = w.name || "";
               paint();
             });
           } else if (k === "employeeId") {
@@ -386,8 +464,13 @@
               paint();
             });
           } else if (k === "contactName") {
-            JnSelectors.openPartnerSelector(def.partnerKind, function (p) {
-              rec.contactName = p.name;
+            if (!rec.partnerId) {
+              JnUI.toast((window.JnI18n && JnI18n.t("doc.pickPartnerFirst", null, null)) || "请先选择客户/供应商", "err");
+              return;
+            }
+            JnSelectors.openContactSelector(rec.partnerId, function (c) {
+              rec.contactName = c.name;
+              rec.contactId = c.id;
               paint();
             });
           }
@@ -397,7 +480,17 @@
         btn.onclick = function () {
           var k = btn.getAttribute("data-clear-h");
           rec[k] = "";
-          if (k === "partnerId") { rec.partnerName = ""; rec.customerName = ""; rec.supplierName = ""; }
+          if (k === "partnerId") {
+            rec.partnerName = "";
+            rec.customerName = "";
+            rec.supplierName = "";
+            rec.customerId = "";
+            rec.supplierId = "";
+            rec.contactName = "";
+            rec.contactId = "";
+          }
+          if (k === "warehouseId") { rec.warehouseCode = ""; rec.warehouseName = ""; }
+          if (k === "contactName") { rec.contactId = ""; }
           paint();
         };
       });
@@ -471,36 +564,31 @@
       });
       shell.querySelectorAll("input.jn-cell").forEach(function (inp) {
         inp.addEventListener("input", function () {
+          var active = document.activeElement;
+          var ar = active && active.getAttribute("data-r");
+          var ak = active && active.getAttribute("data-k");
+          var selStart = active && active.selectionStart;
+          var selEnd = active && active.selectionEnd;
           syncLinesFromDom();
-          /* live footer update without full repaint */
+          JnDocumentCalc.calcDocument(rec, def);
           var foot = shell.querySelector(".jn-doc-footer");
-          if (foot) {
-            JnDocumentCalc.calcDocument(rec, def);
-            foot.outerHTML = footerHtml();
+          if (foot) foot.outerHTML = footerHtml();
+          (rec.lines || []).forEach(function (l, ri) {
+            var el = shell.querySelector('[data-line-amount-val="' + ri + '"]');
+            if (el) el.textContent = (Number(l.lineAmountCents || 0) / 100).toFixed(2);
+          });
+          if (ar != null && ak) {
+            var restore = shell.querySelector('input.jn-cell[data-r="' + ar + '"][data-k="' + ak + '"]');
+            if (restore) {
+              restore.focus();
+              try {
+                if (typeof selStart === "number") restore.setSelectionRange(selStart, selEnd);
+              } catch (e) {}
+            }
           }
           markDirty();
         });
         inp.addEventListener("keydown", onCellKey);
-      });
-      var addAtt = shell.querySelector("[data-add-att]");
-      if (addAtt) addAtt.onclick = function () {
-        var fileInput = shell.querySelector("[data-file]");
-        var files = fileInput && fileInput.files;
-        if (!files || !files.length) {
-          JnUI.toast("Choose a file first", "err");
-          return;
-        }
-        for (var i = 0; i < files.length; i++) {
-          rec.attachments.push({ name: files[i].name, size: files[i].size, demo: true });
-        }
-        paint();
-        JnUI.toast("Attachment metadata added (local only; upload API not available)", "ok");
-      };
-      shell.querySelectorAll("[data-del-att]").forEach(function (btn) {
-        btn.onclick = function () {
-          rec.attachments.splice(Number(btn.getAttribute("data-del-att")), 1);
-          paint();
-        };
       });
     }
 
@@ -575,6 +663,28 @@
       saveSessionDrafts(map);
     }
 
+    function useRpc() {
+      return global.JnData && JnData.active && JnData.active.kind === "rpc";
+    }
+
+    function prepareRec() {
+      JnDocumentCalc.calcDocument(rec, def);
+      if (def.partnerKind === "CUSTOMER") {
+        rec.customerName = rec.partnerName;
+        rec.customerId = rec.partnerId;
+      }
+      if (def.partnerKind === "SUPPLIER") {
+        rec.supplierName = rec.partnerName;
+        rec.supplierId = rec.partnerId;
+      }
+      rec.orderDate = dateToMillis(rec.date || rec.orderDate);
+      rec.total = (rec.totalCents || 0) / 100;
+      (rec.lines || []).forEach(function (l) {
+        if (l.unitPriceCents != null) l.price = l.unitPriceCents / 100;
+        if (l.lineAmountCents != null) l.amount = l.lineAmountCents / 100;
+      });
+    }
+
     function runAction(act) {
       syncHeader();
       syncLinesFromDom();
@@ -586,17 +696,26 @@
           paint();
           return;
         }
-        JnDocumentCalc.calcDocument(rec, def);
-        if (def.partnerKind === "CUSTOMER") rec.customerName = rec.partnerName;
-        if (def.partnerKind === "SUPPLIER") rec.supplierName = rec.partnerName;
-        rec.total = rec.totalCents / 100;
-        /* sync line price yuan for ApplicationService */
-        (rec.lines || []).forEach(function (l) {
-          if (l.unitPriceCents != null) l.price = l.unitPriceCents / 100;
-          if (l.lineAmountCents != null) l.amount = l.lineAmountCents / 100;
-        });
-        rec.audit.push({ when: today() + " " + new Date().toTimeString().slice(0, 5), user: "System", action: "EDIT", detail: "Save draft" });
+        prepareRec();
         persistDraft();
+        if (useRpc() && (def.collection === "purchaseOrders" || def.collection === "goodsReceipts"
+            || def.collection === "salesOrders" || def.collection === "deliveries")) {
+          JnData.active.save(def.collection, rec).then(function (saved) {
+            Object.assign(rec, normalizeRecord(def, saved));
+            mode = "EDIT";
+            editable = canEdit(mode, rec.status);
+            baseline = JSON.stringify(rec);
+            dirty = false;
+            JnUI.toast((window.JnI18n && JnI18n.t("doc.saved", null, null)) || "已保存", "ok");
+            paint();
+            if (opts.onSaved) opts.onSaved(rec);
+          }).catch(function (e) {
+            JnUI.toast((e && e.message) || String(e), "err");
+            /* keep user input; do not wipe form */
+            paint();
+          });
+          return;
+        }
         try {
           var saved = JnAppService.saveDocument(def.documentType, rec);
           Object.assign(rec, saved);
@@ -612,6 +731,29 @@
       }
       if (act === "submit") {
         if (validate().length) { JnUI.toast("Fix errors before submit", "err"); paint(); return; }
+        prepareRec();
+        if (useRpc() && (def.collection === "purchaseOrders" || def.collection === "salesOrders")) {
+          var submitFn = def.collection === "salesOrders"
+            ? function (id) { return JnData.active.submitSalesOrder(id); }
+            : function (id) { return JnData.active.submitPurchaseOrder(id); };
+          JnData.active.save(def.collection, rec).then(function (saved) {
+            Object.assign(rec, saved);
+            return submitFn(rec.id);
+          }).then(function (sub) {
+            Object.assign(rec, sub);
+            rec.approvals = rec.approvals || [];
+            rec.approvals.push({ who: "User", when: today(), result: "SUBMITTED", note: "" });
+            persistDraft();
+            baseline = JSON.stringify(rec);
+            JnUI.toast("Submitted", "ok");
+            paint();
+            if (opts.onSaved) opts.onSaved(rec);
+          }).catch(function (e) {
+            JnUI.toast((e && e.message) || String(e), "err");
+            paint();
+          });
+          return;
+        }
         try {
           JnAppService.saveDocument(def.documentType, rec);
           var sub = JnAppService.submitDocument(def.collection, rec.id);
@@ -627,6 +769,69 @@
         return;
       }
       if (act === "approve") {
+        prepareRec();
+        if (useRpc() && (def.collection === "purchaseOrders" || def.collection === "salesOrders")) {
+          var isSo = def.collection === "salesOrders";
+          var approveFn = isSo
+            ? function (id) { return JnData.active.approveSalesOrder(id); }
+            : function (id) { return JnData.active.approvePurchaseOrder(id); };
+          var submitFn2 = isSo
+            ? function (id) { return JnData.active.submitSalesOrder(id); }
+            : function (id) { return JnData.active.submitPurchaseOrder(id); };
+          var chain = Promise.resolve(rec);
+          if (rec.status === "DRAFT" || String(rec.id).indexOf("NEW") === 0) {
+            chain = JnData.active.save(def.collection, rec).then(function (saved) {
+              Object.assign(rec, saved);
+              if (rec.status === "DRAFT" || rec.approvalStatus === "DRAFT") {
+                return submitFn2(rec.id).then(function (sub) {
+                  Object.assign(rec, sub);
+                  return rec;
+                });
+              }
+              return rec;
+            });
+          }
+          chain.then(function () {
+            return approveFn(rec.id);
+          }).then(function (posted) {
+            Object.assign(rec, posted);
+            rec.approvals = rec.approvals || [];
+            rec.approvals.push({ who: "Approver", when: today(), result: "APPROVED", note: "" });
+            persistDraft();
+            baseline = JSON.stringify(rec);
+            mode = canEdit("EDIT", rec.status) ? mode : "VIEW";
+            editable = canEdit(mode, rec.status);
+            JnUI.toast(isSo
+              ? "Approved — reserved available stock (on-hand unchanged)"
+              : "Approved (inventory unchanged until goods receipt)", "ok");
+            paint();
+            if (opts.onSaved) opts.onSaved(rec);
+          }).catch(function (e) {
+            JnUI.toast((e && e.message) || String(e), "err");
+            paint();
+          });
+          return;
+        }
+        if (useRpc() && (def.collection === "goodsReceipts" || def.collection === "deliveries")) {
+          JnData.active.save(def.collection, rec).then(function (posted) {
+            Object.assign(rec, posted);
+            rec.status = "POSTED";
+            persistDraft();
+            baseline = JSON.stringify(rec);
+            mode = "VIEW";
+            editable = false;
+            var note = "";
+            if (posted.provisionalApId) note = " provisional AP #" + posted.provisionalApId;
+            if (posted.provisionalArId) note = " provisional AR #" + posted.provisionalArId;
+            JnUI.toast((def.collection === "deliveries" ? "Delivery posted" : "Goods receipt posted") + note, "ok");
+            paint();
+            if (opts.onSaved) opts.onSaved(rec);
+          }).catch(function (e) {
+            JnUI.toast((e && e.message) || String(e), "err");
+            paint();
+          });
+          return;
+        }
         try {
           (rec.lines || []).forEach(function (l) {
             if (l.unitPriceCents != null) l.price = l.unitPriceCents / 100;
@@ -658,10 +863,27 @@
         return;
       }
       if (act === "cancel") {
+        /* Unsaved: 取消 = dismiss form (not business void). */
+        if (mode === "CREATE" || !isPersistedId(rec.id)) {
+          close(true);
+          return;
+        }
+        if (useRpc() && (def.collection === "salesOrders" || def.collection === "purchaseOrders")) {
+          var cancelPath = def.collection === "salesOrders"
+            ? "/api/erp/salesOrders/" + encodeURIComponent(rec.id) + "/cancel"
+            : "/api/erp/purchaseOrders/" + encodeURIComponent(rec.id) + "/cancel";
+          JnData.active._fetch(cancelPath, { method: "POST", body: "{}" }).then(function (saved) {
+            Object.assign(rec, normalizeRecord(def, saved));
+            baseline = JSON.stringify(rec);
+            JnUI.toast((window.JnI18n && JnI18n.t("doc.cancelled", null, null)) || "已取消", "ok");
+            paint();
+          }).catch(function (e) {
+            JnUI.toast((e && e.message) || String(e), "err");
+          });
+          return;
+        }
         rec.status = "CANCELLED";
-        rec.audit.push({ when: today(), user: "System", action: "CANCEL", detail: "" });
         persistDraft();
-        JnData.active.save(def.collection, rec);
         baseline = JSON.stringify(rec);
         paint();
         return;
@@ -671,6 +893,10 @@
         copy.id = "NEW-" + Date.now();
         copy.docNo = "";
         copy.status = "DRAFT";
+        copy.approvalStatus = "DRAFT";
+        copy.approvals = [];
+        copy.audit = [];
+        copy.attachments = [];
         open({ def: def, mode: "CREATE", record: copy, onSaved: opts.onSaved });
         close(true);
       }
@@ -686,7 +912,7 @@
       var mod = e.ctrlKey || e.metaKey;
       if (mod && (e.key === "s" || e.key === "S")) {
         e.preventDefault();
-        if (actionEnabled("save", mode, rec.status, dirty)) runAction("save");
+        if (actionEnabled("save", mode, rec.status, dirty, rec.id)) runAction("save");
       }
     }
 

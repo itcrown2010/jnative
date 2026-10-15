@@ -77,6 +77,34 @@ class ErpItems {
         }
         return (ItemDto) v;
     }
+
+    /**
+     * Update name/price for an existing item. SKU is immutable (unique business key).
+     * Returns null when item missing or validation fails.
+     */
+    static ItemDto update(long companyId, long itemId, String name, long unitPriceCents) {
+        if (itemId <= 0L) {
+            return null;
+        }
+        if (name == null || name.length() == 0) {
+            return null;
+        }
+        if (unitPriceCents < 0L) {
+            return null;
+        }
+        ItemDto existing = get(companyId, itemId);
+        if (existing == null) {
+            return null;
+        }
+        String safeName = name.replace("'", "''");
+        ErpDb.exec(
+                "UPDATE items SET name='" + safeName + "', unit_price_cents="
+                        + CryptoParse.longToString(unitPriceCents)
+                        + " WHERE id=" + CryptoParse.longToString(itemId)
+                        + " AND company_id=" + CryptoParse.longToString(companyId),
+                new ArrayList<Object>());
+        return get(companyId, itemId);
+    }
 }
 
 class ItemRowMapper implements RowMapper {

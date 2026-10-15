@@ -81,6 +81,90 @@ class ErpFinanceArAp {
         return runPostWork(work);
     }
 
+    /**
+     * Create provisional customer AR from delivery (same txn).
+     * Sub-ledger only — not formal invoice / revenue recognition.
+     */
+    static long createProvisionalArConn(DbConnection conn, long companyId, long customerId, long totalAmount,
+            long sourceDeliveryId, long now) {
+        if (totalAmount <= 0L || sourceDeliveryId <= 0L) {
+            return 0L;
+        }
+        ArrayList<Object> ex = new ArrayList<Object>();
+        ex.add(CryptoParse.longToString(companyId));
+        ex.add(CryptoParse.longToString(sourceDeliveryId));
+        Object existing = ErpDb.queryOneConn(conn,
+                "SELECT id FROM ar_invoices WHERE company_id=? AND source_delivery_id=?", ex, new LongMapper());
+        if (existing != null) {
+            return ErpNum.asLong(existing);
+        }
+        long seq = ErpDb.nextDocNoConn(conn, companyId, "AR");
+        String no = "AR-DL-" + CryptoParse.longToString(seq);
+        long due = now + (30L * 24L * 60L * 60L * 1000L);
+        String notes = "PROVISIONAL from DL — not formal invoice / revenue recognition";
+        String ins = "INSERT INTO ar_invoices(company_id, customer_id, invoice_number, invoice_date, due_date, currency, total_amount, paid_amount, open_amount, status, source_delivery_id, created_at, is_provisional, notes, settlement_status, adjusted_amount) VALUES ("
+                + CryptoParse.longToString(companyId) + ","
+                + CryptoParse.longToString(customerId) + ",'"
+                + no + "',"
+                + CryptoParse.longToString(now) + ","
+                + CryptoParse.longToString(due) + ",'CNY',"
+                + CryptoParse.longToString(totalAmount) + ",0,"
+                + CryptoParse.longToString(totalAmount) + ",'"
+                + InvoiceStatus.PROVISIONAL + "',"
+                + CryptoParse.longToString(sourceDeliveryId) + ","
+                + CryptoParse.longToString(now) + ",1,'"
+                + notes + "','" + SettlementStatus.OPEN + "',0)";
+        long arId = ErpDb.insertReturningIdConn(conn, ins, new ArrayList<Object>());
+        ErpFinanceSettlement.recordSourceEventConn(conn, companyId, "DELIVERY", sourceDeliveryId,
+                FinanceEventType.PROVISIONAL_AR, arId, now);
+        return arId;
+    }
+
+    /** Credit provisional AR open amount for a sales return (linked adjustment; no cash refund). */
+    static void adjustArOpenConn(DbConnection conn, long companyId, long sourceDeliveryId, long creditCents,
+            long salesReturnId, long now) {
+        ErpFinanceSettlement.adjustArConn(conn, companyId, sourceDeliveryId, creditCents, salesReturnId, 0L, now);
+    }
+
+    /**
+     * Create provisional supplier AP from goods receipt (same txn).
+     * Sub-ledger open amount only — does not post AP journal (GR already posted Inv/GR-IR).
+     */
+    static long createProvisionalApConn(DbConnection conn, long companyId, long supplierId, long totalAmount,
+            long sourceGrId, long now) {
+        if (totalAmount <= 0L || sourceGrId <= 0L) {
+            return 0L;
+        }
+        ArrayList<Object> ex = new ArrayList<Object>();
+        ex.add(CryptoParse.longToString(companyId));
+        ex.add(CryptoParse.longToString(sourceGrId));
+        Object existing = ErpDb.queryOneConn(conn,
+                "SELECT id FROM ap_invoices WHERE company_id=? AND source_gr_id=?", ex, new LongMapper());
+        if (existing != null) {
+            return ErpNum.asLong(existing);
+        }
+        long seq = ErpDb.nextDocNoConn(conn, companyId, "AP");
+        String no = "AP-GR-" + CryptoParse.longToString(seq);
+        long due = now + (30L * 24L * 60L * 60L * 1000L);
+        String notes = "PROVISIONAL from GR — not vendor invoice confirmation";
+        String ins = "INSERT INTO ap_invoices(company_id, supplier_id, invoice_number, invoice_date, due_date, currency, total_amount, paid_amount, open_amount, status, source_gr_id, created_at, is_provisional, notes, settlement_status, adjusted_amount) VALUES ("
+                + CryptoParse.longToString(companyId) + ","
+                + CryptoParse.longToString(supplierId) + ",'"
+                + no + "',"
+                + CryptoParse.longToString(now) + ","
+                + CryptoParse.longToString(due) + ",'CNY',"
+                + CryptoParse.longToString(totalAmount) + ",0,"
+                + CryptoParse.longToString(totalAmount) + ",'"
+                + InvoiceStatus.PROVISIONAL + "',"
+                + CryptoParse.longToString(sourceGrId) + ","
+                + CryptoParse.longToString(now) + ",1,'"
+                + notes + "','" + SettlementStatus.OPEN + "',0)";
+        long apId = ErpDb.insertReturningIdConn(conn, ins, new ArrayList<Object>());
+        ErpFinanceSettlement.recordSourceEventConn(conn, companyId, "GOODS_RECEIPT", sourceGrId,
+                FinanceEventType.PROVISIONAL_AP, apId, now);
+        return apId;
+    }
+
     static ApInvoiceDto createApInvoice(long companyId, long supplierId, long totalAmount, long invoiceDate,
             long dueDate, long sourceGrId) {
         if (totalAmount <= 0L) {
@@ -184,6 +268,12 @@ class ErpFinanceArAp {
         d.paidAmount = row.getLong(6);
         d.openAmount = row.getLong(7);
         d.status = row.getString(8);
+        d.adjustedAmount = 0L;
+        d.settlementStatus = SettlementStatus.OPEN;
+        if (row.columnCount() > 9) {
+            d.adjustedAmount = row.getLong(9);
+            d.settlementStatus = row.getString(10);
+        }
         return d;
     }
 
@@ -198,6 +288,12 @@ class ErpFinanceArAp {
         d.paidAmount = row.getLong(6);
         d.openAmount = row.getLong(7);
         d.status = row.getString(8);
+        d.adjustedAmount = 0L;
+        d.settlementStatus = SettlementStatus.OPEN;
+        if (row.columnCount() > 9) {
+            d.adjustedAmount = row.getLong(9);
+            d.settlementStatus = row.getString(10);
+        }
         return d;
     }
 
@@ -205,7 +301,7 @@ class ErpFinanceArAp {
         ArrayList<Object> p = new ArrayList<Object>();
         p.add(CryptoParse.longToString(companyId));
         DbQueryResult r = ErpDb.query(
-                "SELECT id, customer_id, invoice_number, invoice_date, due_date, total_amount, paid_amount, open_amount, status FROM ar_invoices WHERE company_id=? ORDER BY id",
+                "SELECT id, customer_id, invoice_number, invoice_date, due_date, total_amount, paid_amount, open_amount, status, adjusted_amount, settlement_status FROM ar_invoices WHERE company_id=? ORDER BY id",
                 p);
         ArrayList<Object> out = new ArrayList<Object>();
         int i = 0;
@@ -220,7 +316,7 @@ class ErpFinanceArAp {
         ArrayList<Object> p = new ArrayList<Object>();
         p.add(CryptoParse.longToString(companyId));
         DbQueryResult r = ErpDb.query(
-                "SELECT id, supplier_id, invoice_number, invoice_date, due_date, total_amount, paid_amount, open_amount, status FROM ap_invoices WHERE company_id=? ORDER BY id",
+                "SELECT id, supplier_id, invoice_number, invoice_date, due_date, total_amount, paid_amount, open_amount, status, adjusted_amount, settlement_status FROM ap_invoices WHERE company_id=? ORDER BY id",
                 p);
         ArrayList<Object> out = new ArrayList<Object>();
         int i = 0;
@@ -333,7 +429,7 @@ class IncomingPaymentWork implements DbTransactionWork {
     public JnFuture run(DbConnection conn) {
         long now = AsyncClockNative.wallMillis();
         String cached = ErpPosting.cachedIdempotencyConn(conn, companyId, req.idempotencyKey);
-        if (cached.length() > 0) {
+        if (cached != null && cached.length() > 0) {
             return JnFuture.completed(Erp.loop, ErpPosting.resultFromJson(cached));
         }
         if (req.amount <= 0L) {
@@ -383,13 +479,16 @@ class IncomingPaymentWork implements DbTransactionWork {
                     lockSql = lockSql + " FOR UPDATE";
                 }
                 DbQueryResult ir = ErpDb.queryConn(conn, lockSql, new ArrayList<Object>());
-                if (ir.rows.size() == 0) {
+                if (ir == null || ir.rows == null || ir.rows.size() == 0) {
                     throw new TransactionException("AR invoice not found");
                 }
                 Row irow = ir.rows.get(0);
                 long open = irow.getLong(1);
                 long paid = irow.getLong(2);
                 String st = irow.getString(3);
+                if (st == null) {
+                    st = "";
+                }
                 if (st.equals(InvoiceStatus.POSTED) == false && st.equals(InvoiceStatus.PARTIALLY_PAID) == false) {
                     throw new TransactionException("invoice not open for payment");
                 }
@@ -499,7 +598,8 @@ class ApInvoicePostWork implements DbTransactionWork {
             throw new TransactionException("AP not found");
         }
         ApInvoiceDto inv = ErpFinanceArAp.mapAp(r.rows.get(0));
-        if (inv.status.equals(InvoiceStatus.DRAFT) == false) {
+        if (inv.status.equals(InvoiceStatus.DRAFT) == false
+                && inv.status.equals(InvoiceStatus.PROVISIONAL) == false) {
             PostResultDto replay = new PostResultDto();
             replay.ok = 1;
             replay.code = "ALREADY_POSTED";
@@ -545,7 +645,7 @@ class OutgoingPaymentWork implements DbTransactionWork {
     public JnFuture run(DbConnection conn) {
         long now = AsyncClockNative.wallMillis();
         String cached = ErpPosting.cachedIdempotencyConn(conn, companyId, req.idempotencyKey);
-        if (cached.length() > 0) {
+        if (cached != null && cached.length() > 0) {
             return JnFuture.completed(Erp.loop, ErpPosting.resultFromJson(cached));
         }
         if (req.amount <= 0L) {
@@ -595,13 +695,16 @@ class OutgoingPaymentWork implements DbTransactionWork {
                     lockSql = lockSql + " FOR UPDATE";
                 }
                 DbQueryResult ir = ErpDb.queryConn(conn, lockSql, new ArrayList<Object>());
-                if (ir.rows.size() == 0) {
+                if (ir == null || ir.rows == null || ir.rows.size() == 0) {
                     throw new TransactionException("AP invoice not found");
                 }
                 Row irow = ir.rows.get(0);
                 long open = irow.getLong(1);
                 long paid = irow.getLong(2);
                 String st = irow.getString(3);
+                if (st == null) {
+                    st = "";
+                }
                 if (st.equals(InvoiceStatus.POSTED) == false && st.equals(InvoiceStatus.PARTIALLY_PAID) == false) {
                     throw new TransactionException("invoice not open for payment");
                 }

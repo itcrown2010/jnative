@@ -200,6 +200,22 @@ public final class JNativeCompiler {
                 if (source == null) {
                     source = Path.of(userSources.units().getFirst().path()).toAbsolutePath().normalize();
                 }
+            } else if (options.inputSourceFiles() != null && !options.inputSourceFiles().isEmpty()) {
+                java.util.List<SourceUnit> units = new java.util.ArrayList<>();
+                for (Path raw : options.inputSourceFiles()) {
+                    Path abs = raw.toAbsolutePath().normalize();
+                    if (!Files.isRegularFile(abs)) {
+                        reporter.error(new SourceLocation(abs.toString(), 0, 0),
+                                "source file not found: " + abs);
+                        return fail(reporter);
+                    }
+                    units.add(SourceUnit.ofPath(abs, Files.readString(abs, StandardCharsets.UTF_8)));
+                }
+                userSources = ProgramSources.of(units);
+                if (source == null) {
+                    source = options.inputSourceFiles().get(
+                            options.inputSourceFiles().size() - 1).toAbsolutePath().normalize();
+                }
             } else {
                 String userSource = Files.readString(source, StandardCharsets.UTF_8);
                 userSources = ProgramSources.of(SourceUnit.ofPath(source, userSource));

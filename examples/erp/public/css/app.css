@@ -501,3 +501,32 @@ thead .jn-pin-right { z-index: 3; background: var(--jn-color-surface-2); }
 @media (max-width: 1100px) {
   .jn-settings-layout, .jn-detail-layout { grid-template-columns: 1fr; }
 }
+
+/* Narrow / ~663px: keep book chip readable, tuck secondary topbar actions, icon nav */
+@media (max-width: 720px) {
+  .jn-book-chip {
+    max-width: 140px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    display: inline-block !important; vertical-align: middle;
+  }
+  .jn-search { display: none !important; }
+  .jn-density-toggle { display: none !important; }
+  .jn-topbar #btn-notif { display: none !important; }
+  .jn-user-menu #user-name { display: none; }
+  .jn-topbar { gap: 6px; padding: 0 8px; }
+  .jn-app:not(.collapsed) .jn-sidebar { width: var(--jn-sidebar-w-collapsed); }
+  .jn-app:not(.collapsed) .jn-sidebar-brand .label { display: none; }
+  .jn-app:not(.collapsed) .jn-nav-item .lbl { display: none; }
+  .jn-app:not(.collapsed) .jn-nav-item { justify-content: center; padding: 10px 0; }
+  .jn-app:not(.collapsed) .jn-nav-group-title {
+    font-size: 9px; text-align: center; padding-left: 0; padding-right: 0;
+    overflow: hidden; text-overflow: ellipsis;
+  }
+  .jn-nav-item .ico {
+    font-size: 12px; font-weight: 700; opacity: 1;
+    width: 22px; height: 22px; line-height: 22px;
+    border-radius: 4px; background: rgba(255,255,255,0.12);
+  }
+  .jn-workspace { overflow: auto; -webkit-overflow-scrolling: touch; }
+  .jn-table-wrap, .jn-grid-scroll { overflow: auto; max-width: 100%; }
+  .jn-tabbar { overflow-x: auto; white-space: nowrap; }
+}

@@ -397,13 +397,14 @@ class ErpDemoScenarioSeed {
         if (grId == 0L) {
             grId = parseIdFromDoc(gr2r.documentJson);
         }
+        /* GR already wrote PROVISIONAL AP per receipt (source_gr_id). Formal vendor invoice is separate (source_gr_id=0). */
         long apTotal = 30L * 4500L + 10L * 2800L;
         ApInvoiceDto ap = null;
         int apCreateAttempt = 0;
         while (apCreateAttempt < 3 && ap == null) {
             ErpDb.reconnect();
             ap = ErpFinanceArAp.createApInvoice(companyId, supplierId, apTotal,
-                    SEED_EPOCH + DAY * 40, SEED_EPOCH + DAY * 70, grId);
+                    SEED_EPOCH + DAY * 40, SEED_EPOCH + DAY * 70, 0L);
             apCreateAttempt = apCreateAttempt + 1;
         }
         if (ap == null) {
@@ -464,7 +465,8 @@ class ErpDemoScenarioSeed {
         sl.quantity = 20;
         sl.unitPriceCents = 8000L;
         soLines.add(sl);
-        SalesOrderDto so = ErpSales.createDraft(companyId, customerId, soLines);
+        SalesOrderDto so = ErpSales.createDraftFull(companyId, customerId, warehouseId, SEED_EPOCH + DAY * 45,
+                SEED_EPOCH + DAY * 50, "demo sales", "CNY", soLines);
         so = ErpSales.approve(companyId, so.id);
         so = ErpSales.get(companyId, so.id);
         OrderLineDto line = (OrderLineDto) so.lines.get(0);
@@ -501,13 +503,14 @@ class ErpDemoScenarioSeed {
         if (dlId == 0L) {
             dlId = parseIdFromDoc(r2.documentJson);
         }
+        /* DL already wrote PROVISIONAL AR per delivery; formal invoice is separate (source_delivery_id=0). */
         long arTotal = 20L * 8000L;
         ArInvoiceDto ar = ErpFinanceArAp.createArInvoice(companyId, customerId, arTotal,
-                SEED_EPOCH + DAY * 50, SEED_EPOCH + DAY * 80, dlId);
+                SEED_EPOCH + DAY * 50, SEED_EPOCH + DAY * 80, 0L);
         if (ar == null) {
             ErpDb.reconnect();
             ar = ErpFinanceArAp.createArInvoice(companyId, customerId, arTotal,
-                    SEED_EPOCH + DAY * 50, SEED_EPOCH + DAY * 80, dlId);
+                    SEED_EPOCH + DAY * 50, SEED_EPOCH + DAY * 80, 0L);
         }
         if (ar == null) {
             throw new TransactionException("AR create failed");

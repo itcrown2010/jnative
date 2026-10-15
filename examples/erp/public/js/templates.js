@@ -73,13 +73,16 @@
     );
   }
 
-  function formFieldsHtml(fields, record) {
+  function formFieldsHtml(fields, record, opts) {
     record = record || {};
+    opts = opts || {};
+    var readonlyFields = opts.readonlyFields || [];
     return '<div class="jn-form-grid">' + fields.map(function (f) {
       var val = record[f] == null ? "" : record[f];
       var type = (f.indexOf("date") >= 0 || f === "due" || f === "expiry") ? "date" :
         (f === "qty" || f === "price" || f === "cost" || f === "amount" || f === "value" || f === "rate" || f === "creditLimit" || f === "balance" || f === "total" || f === "openAmount" || f === "probability" || f === "permissions" || f === "fields" || f === "steps" || f === "next" || f === "onHand") ? "number" : "text";
-      return '<div class="jn-field"><label>' + JnUI.esc(f) + '</label><input class="jn-input" data-field="' + JnUI.esc(f) + '" type="' + type + '" value="' + JnUI.esc(val) + '" /></div>';
+      var ro = readonlyFields.indexOf(f) >= 0 ? " readonly" : "";
+      return '<div class="jn-field"><label>' + JnUI.esc(f) + '</label><input class="jn-input" data-field="' + JnUI.esc(f) + '" type="' + type + '" value="' + JnUI.esc(val) + '"' + ro + " /></div>";
     }).join("") + "</div>";
   }
 
@@ -132,11 +135,15 @@
         return;
       }
       var fields = page.formFields || Object.keys(rec).filter(function (k) { return k !== "id" && k !== "lines"; });
-      if (!id && page.collection === "items") {
+      if (page.collection === "items") {
         fields = ["sku", "name", "price"];
-        rec = { sku: "", name: "", price: 0, status: "ACTIVE" };
+        if (!id) {
+          rec = { sku: "", name: "", price: 0, status: "ACTIVE" };
+        } else if (rec.price == null && rec.unitPriceCents != null) {
+          rec.price = Number(rec.unitPriceCents) / 100;
+        }
       }
-      var body = formFieldsHtml(fields, rec);
+      var body = formFieldsHtml(fields, rec, { readonlyFields: (page.collection === "items" && id) ? ["sku"] : [] });
       JnUI.modal({
         title: id ? tt("common.editPrefix", { title: page.title }) : tt("common.newPrefix", { title: page.title }),
         bodyHtml: body,
@@ -338,37 +345,79 @@
   }
 
   function renderDashboard(host, page) {
+    var kind = page.dashKind || "executive";
     var kpiLabel = {
       customers: tt("dash.kpi.customers"),
       suppliers: tt("dash.kpi.suppliers"),
       items: tt("dash.kpi.items"),
       openPo: tt("dash.kpi.openPo"),
-      openSo: tt("dash.kpi.openSo")
+      openSo: tt("dash.kpi.openSo"),
+      arOpen: tt("dash.kpi.arOpen", null, "AR Open"),
+      apOpen: tt("dash.kpi.apOpen", null, "AP Open"),
+      periodReceipts: tt("dash.kpi.periodReceipts", null, "Period Receipts"),
+      periodPayments: tt("dash.kpi.periodPayments", null, "Period Payments"),
+      pendingGlEvents: tt("dash.kpi.pendingGlEvents", null, "Pending GL Events")
     };
-    JnData.active.dashboard(page.dashKind || "executive").then(function (data) {
+    host.innerHTML = '<div class="jn-loading" role="status">' + JnUI.esc(tt("common.loading")) + "</div>";
+    JnData.active.dashboard(kind).then(function (data) {
+      var meta = '<div class="jn-muted" style="margin:8px 0">' +
+        JnUI.esc(tt("dash.finance.meta", {
+          currency: data.currency || "CNY",
+          period: data.periodLabel || ""
+        }, "Currency {currency} · Period {period}")) +
+        (data.basis ? '<br/>' + JnUI.esc(data.basis) : "") +
+        "</div>";
+      var extraLabels = {
+        periodOrderAmount: tt("dash.kpi.periodOrderAmount", null, "Period order amount"),
+        openDeliveryQty: tt("dash.kpi.openDeliveryQty", null, "Open delivery qty"),
+        openDeliveryAmount: tt("dash.kpi.openDeliveryAmount", null, "Open delivery amount"),
+        overdueDeliveryCount: tt("dash.kpi.overdueDeliveryCount", null, "Overdue deliveries"),
+        openReceiptQty: tt("dash.kpi.openReceiptQty", null, "Open receipt qty"),
+        openReceiptAmount: tt("dash.kpi.openReceiptAmount", null, "Open receipt amount"),
+        overdueReceiptCount: tt("dash.kpi.overdueReceiptCount", null, "Overdue receipts"),
+        onHandQty: tt("dash.kpi.onHandQty", null, "On-hand qty"),
+        valuedAmount: tt("dash.kpi.valuedAmount", null, "Costed stock value"),
+        zeroOrNegStockCount: tt("dash.kpi.zeroOrNegStock", null, "Zero/neg stock"),
+        pendingCostCount: tt("dash.kpi.pendingCost", null, "Pending cost"),
+        draftSoCount: tt("dash.kpi.draftSo", null, "Draft/submitted SO"),
+        draftPoCount: tt("dash.kpi.draftPo", null, "Draft/submitted PO")
+      };
       var kpis = (data.kpis || []).map(function (k) {
-        var label = kpiLabel[k.k] || k.k;
-        return '<div class="jn-kpi" role="group" aria-label="' + JnUI.esc(label) + '"><div class="k">' + JnUI.esc(label) +
-          '</div><div class="v">' + JnUI.esc(k.v) + '</div><div class="d">' + JnUI.esc(k.d || "") + "</div></div>";
+        var label = kpiLabel[k.k] || extraLabels[k.k] || k.k;
+        var val = k.v;
+        if (k.money && val !== "—") val = JnUI.money(k.v);
+        var go = k.go ? ' data-go="' + JnUI.esc(k.go) + '" style="cursor:pointer"' : "";
+        return '<div class="jn-kpi" role="button" tabindex="0"' + go + ' aria-label="' + JnUI.esc(label) + '"><div class="k">' + JnUI.esc(label) +
+          '</div><div class="v">' + JnUI.esc(val) + '</div><div class="d">' + JnUI.esc(k.d || "") + "</div></div>";
+      }).join("");
+      if (!(data.kpis || []).length) {
+        kpis = '<div class="jn-empty">' + JnUI.esc(tt("common.empty", null, "No data")) + "</div>";
+      }
+      var actions = data.quickActions && data.quickActions.length
+        ? data.quickActions
+        : ["sales.orders", "pur.orders", "fin.ar"];
+      var actionBtns = actions.map(function (id, idx) {
+        var p = global.JnRegistry.get(id);
+        var label = p ? p.title : id;
+        return '<button type="button" class="jn-btn' + (idx === 0 ? " primary" : "") + '" data-go="' +
+          JnUI.esc(id) + '">' + JnUI.esc(label) + "</button>";
       }).join("");
       host.innerHTML =
         '<div class="jn-toolbar"><h2 class="jn-card-title" style="margin:0">' + JnUI.esc(page.title) + '</h2>' +
-        '<span class="spacer"></span>' +
-        '<button type="button" class="jn-btn" data-go="md.items">' + JnUI.esc(tt("page.md.items")) + "</button>" +
-        '<button type="button" class="jn-btn" data-go="md.customers">' + JnUI.esc(tt("page.md.customers")) + "</button></div>" +
+        '<span class="spacer"></span></div>' + meta +
         '<div class="jn-kpi-grid">' + kpis + "</div>" +
         '<div class="jn-card" style="margin-top:16px"><div class="jn-card-title">' + JnUI.esc(tt("dash.quickActions")) +
-        '</div><div class="jn-toolbar">' +
-        '<button type="button" class="jn-btn primary" data-go="md.items">' + JnUI.esc(tt("page.md.items")) + "</button>" +
-        '<button type="button" class="jn-btn" data-go="pur.orders">' + JnUI.esc(tt("page.pur.orders")) + "</button>" +
-        '<button type="button" class="jn-btn" data-go="sales.orders">' + JnUI.esc(tt("page.sales.orders")) + "</button>" +
-        "</div></div>";
+        '</div><div class="jn-toolbar">' + actionBtns + "</div></div>";
       host.querySelectorAll("[data-go]").forEach(function (btn) {
         btn.addEventListener("click", function () {
           global.JnApp.navigate(btn.getAttribute("data-go"));
         });
       });
     }).catch(function (err) {
+      if (err && err.authRequired) {
+        host.innerHTML = '<div class="jn-error" role="alert">' + JnUI.esc(tt("login.required", null, "登录已失效，请重新登录")) + "</div>";
+        return;
+      }
       host.innerHTML = '<div class="jn-error" role="alert">' + JnUI.esc((err && err.message) || tt("common.loadFailed")) + "</div>";
     });
   }

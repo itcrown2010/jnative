@@ -139,7 +139,7 @@
         if (!p) return "";
         return '<button type="button" class="jn-nav-item' + (activePageId === id ? " active" : "") +
           '" data-nav="' + p.pageId + '" title="' + JnUI.esc(p.title) + '">' +
-          '<span class="ico">' + JnUI.esc(p.icon || "*") + '</span><span class="lbl">' + JnUI.esc(p.title) + "</span></button>";
+          '<span class="ico" aria-hidden="true">' + JnUI.esc(p.icon || "#") + '</span><span class="lbl">' + JnUI.esc(p.title) + "</span></button>";
       }).join("");
       if (!items) return "";
       return '<div class="jn-nav-group"><div class="jn-nav-group-title">' + JnUI.esc(g.title) + "</div>" + items + "</div>";
@@ -442,6 +442,21 @@
     currentUser: userDisplay,
     bookInfo: function () { return bookInfo; }
   };
+
+  document.addEventListener("jn:auth-required", function () {
+    authed = false;
+    sessionUser = null;
+    bookInfo = null;
+    tabs = [];
+    activePageId = null;
+    try {
+      sessionStorage.removeItem("jn_auth");
+      sessionStorage.removeItem("jn_rpc_auth");
+    } catch (e) {}
+    renderLogin();
+    var errEl = document.getElementById("login-err");
+    if (errEl) errEl.textContent = t("login.required", null, "登录已失效，请重新登录");
+  });
 
   document.addEventListener("DOMContentLoaded", function () {
     if (window.JnI18n) {

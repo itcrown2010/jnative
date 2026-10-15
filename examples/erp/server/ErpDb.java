@@ -12,6 +12,8 @@ class Erp {
  */
     static int schemaReady = 0;
     static String schemaError = "";
+    /** Accumulated fatal migrate diagnostics (non-empty ⇒ readiness must fail). */
+    static String migrateFatal = "";
 }
 
 class ErpDb {
@@ -40,6 +42,7 @@ class ErpDb {
             throw new ConnectionException("db connect failed");
         }
         Erp.db = (Database) dbF.getValue();
+        applySqlitePragmas();
         try {
             migrate();
         } catch (Exception migEx) {
@@ -55,6 +58,8 @@ class ErpDb {
     }
 
     static void migrate() {
+        Erp.migrateFatal = "";
+        Erp.schemaReady = 0;
         String path = "examples/erp/migrations/001_init.sql";
         String path2 = "examples/erp/migrations/002_finance.sql";
         String path3 = "examples/erp/migrations/003_manufacturing.sql";
@@ -73,35 +78,20 @@ class ErpDb {
             coreReady = 1;
         }
         if (coreReady == 0) {
-            String sql = File.readString(path);
-            if (sql == null) {
-                throw new RuntimeException("migration read failed: " + path);
-            }
-            runScriptSoft(sql, "001");
-            String sql2 = File.readString(path2);
-            if (sql2 == null) {
-                throw new RuntimeException("migration read failed: " + path2);
-            }
-            runScriptSoft(sql2, "002");
-            String sql3 = File.readString(path3);
-            if (sql3 == null) {
-                throw new RuntimeException("migration read failed: " + path3);
-            }
-            runScriptSoft(sql3, "003");
+            runScriptFileLabeled(path, "001");
+            runScriptFileLabeled(path2, "002");
+            runScriptFileLabeled(path3, "003");
         } else {
             System.out.println("MIGRATE_SKIP 001-003 (business schema present)");
         }
         if (tableExists("platform_permissions") == 0) {
-            String sql4 = File.readString(path4);
-            if (sql4 == null) {
-                throw new RuntimeException("migration read failed: " + path4);
-            }
-            runScriptSoft(sql4, "004");
+            runScriptFileLabeled(path4, "004");
         } else {
             System.out.println("MIGRATE_SKIP 004_enterprise (platform_permissions present)");
         }
         /* Explicit core DDL — script splitter / sqlite FFI can skip or corrupt mid-file. */
         ensureCoreTables();
+        ensureBusinessDocTables();
         if (Erp.dialect.equals("sqlite")) {
             ensureSqliteInventoryValueColumns();
             ensureSqliteUserDeptColumns();
@@ -125,11 +115,335 @@ class ErpDb {
         } catch (Exception ignored) {
             reconnect();
         }
+        ensurePurchaseOpsSchema();
+        try {
+            recordMigration("007_purchase_ops");
+        } catch (Exception ignored) {
+            reconnect();
+        }
+        ensureSalesOpsSchema();
+        try {
+            recordMigration("008_sales_ops");
+        } catch (Exception ignored) {
+            reconnect();
+        }
+        ensureFinanceSettlementSchema();
+        try {
+            recordMigration("009_finance_settlement");
+        } catch (Exception ignored) {
+            reconnect();
+        }
+        ensureInventoryCostingSchema();
+        try {
+            recordMigration("010_inventory_costing");
+        } catch (Exception ignored) {
+            reconnect();
+        }
+        ensureGlLedgerSchema();
+        try {
+            recordMigration("011_gl_ledger");
+        } catch (Exception ignored) {
+            reconnect();
+        }
         if (tableExists("companies") == 0) {
             throw new RuntimeException("migrate failed: companies table missing after ensure");
         }
+        if (Erp.dialect.equals("sqlite")) {
+            requireTable("purchase_orders");
+            requireTable("sales_orders");
+            requireTable("gl_accounts");
+            requireTable("production_issues");
+            requireTable("bank_cash_movements");
+        }
+        if (Erp.migrateFatal.length() > 0) {
+            /* Necessary migration failures always block readiness — never clear fatals silently. */
+            Erp.schemaReady = 0;
+            Erp.schemaError = Erp.migrateFatal;
+            throw new RuntimeException("migrate failed: " + Erp.migrateFatal);
+        }
         Erp.schemaReady = 1;
         Erp.schemaError = "";
+    }
+
+    static void requireTable(String name) {
+        if (tableExists(name) == 0) {
+            Erp.schemaReady = 0;
+            Erp.schemaError = "required table missing: " + name;
+            throw new RuntimeException("migrate failed: required table missing: " + name);
+        }
+    }
+
+    /** Management GL: company policy, JE lifecycle cols, gl_posting_events. */
+    static void ensureGlLedgerSchema() {
+        ArrayList<Object> empty = new ArrayList<Object>();
+        String path11 = "examples/erp/migrations/011_gl_ledger.sql";
+        if (Erp.dialect.equals("sqlite")) {
+            path11 = "examples/erp/migrations/011_gl_ledger_sqlite.sql";
+        }
+        runScriptFileLabeled(path11, "011");
+        tryAlter("ALTER TABLE companies ADD COLUMN gl_policy TEXT NOT NULL DEFAULT 'PROVISIONAL_CLEARING'");
+        tryAlter("ALTER TABLE companies ADD COLUMN functional_currency TEXT NOT NULL DEFAULT 'CNY'");
+        tryAlter("ALTER TABLE gl_accounts ADD COLUMN normal_balance TEXT NOT NULL DEFAULT 'DEBIT'");
+        tryAlter("ALTER TABLE gl_accounts ADD COLUMN is_control INTEGER NOT NULL DEFAULT 0");
+        tryAlter("ALTER TABLE gl_accounts ADD COLUMN require_partner INTEGER NOT NULL DEFAULT 0");
+        tryAlter("ALTER TABLE gl_accounts ADD COLUMN require_warehouse INTEGER NOT NULL DEFAULT 0");
+        tryAlter("ALTER TABLE journal_entries ADD COLUMN approved_by INTEGER NOT NULL DEFAULT 0");
+        tryAlter("ALTER TABLE journal_entries ADD COLUMN approved_at INTEGER NOT NULL DEFAULT 0");
+        tryAlter("ALTER TABLE journal_entries ADD COLUMN posted_by INTEGER NOT NULL DEFAULT 0");
+        tryAlter("ALTER TABLE journal_entries ADD COLUMN posted_at INTEGER NOT NULL DEFAULT 0");
+        tryAlter("ALTER TABLE journal_entries ADD COLUMN rejected_reason TEXT NOT NULL DEFAULT ''");
+        tryAlter("ALTER TABLE journal_entries ADD COLUMN event_type TEXT NOT NULL DEFAULT ''");
+        tryAlter("ALTER TABLE journal_entries ADD COLUMN fiscal_period_id INTEGER NOT NULL DEFAULT 0");
+        tryAlter("ALTER TABLE journal_entry_lines ADD COLUMN warehouse_id INTEGER NOT NULL DEFAULT 0");
+        if (Erp.dialect.equals("sqlite")) {
+            execRetry(
+                    "CREATE TABLE IF NOT EXISTS gl_posting_events (id INTEGER PRIMARY KEY AUTOINCREMENT, company_id INTEGER NOT NULL, event_type TEXT NOT NULL, source_type TEXT NOT NULL, source_id INTEGER NOT NULL, source_line_id INTEGER NOT NULL DEFAULT 0, status TEXT NOT NULL, journal_entry_id INTEGER NOT NULL DEFAULT 0, amount INTEGER NOT NULL DEFAULT 0, partner_id INTEGER NOT NULL DEFAULT 0, warehouse_id INTEGER NOT NULL DEFAULT 0, biz_date INTEGER NOT NULL, payload_json TEXT NOT NULL DEFAULT '', error_code TEXT NOT NULL DEFAULT '', error_message TEXT NOT NULL DEFAULT '', retry_count INTEGER NOT NULL DEFAULT 0, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL, posted_at INTEGER NOT NULL DEFAULT 0, UNIQUE (company_id, event_type, source_type, source_id, source_line_id))",
+                    empty);
+        } else {
+            execRetry(
+                    "CREATE TABLE IF NOT EXISTS gl_posting_events (id BIGSERIAL PRIMARY KEY, company_id BIGINT NOT NULL, event_type TEXT NOT NULL, source_type TEXT NOT NULL, source_id BIGINT NOT NULL, source_line_id BIGINT NOT NULL DEFAULT 0, status TEXT NOT NULL, journal_entry_id BIGINT NOT NULL DEFAULT 0, amount BIGINT NOT NULL DEFAULT 0, partner_id BIGINT NOT NULL DEFAULT 0, warehouse_id BIGINT NOT NULL DEFAULT 0, biz_date BIGINT NOT NULL, payload_json TEXT NOT NULL DEFAULT '', error_code TEXT NOT NULL DEFAULT '', error_message TEXT NOT NULL DEFAULT '', retry_count INT NOT NULL DEFAULT 0, created_at BIGINT NOT NULL, updated_at BIGINT NOT NULL, posted_at BIGINT NOT NULL DEFAULT 0, UNIQUE (company_id, event_type, source_type, source_id, source_line_id))",
+                    empty);
+        }
+        execRetry("CREATE INDEX IF NOT EXISTS idx_gl_events_status ON gl_posting_events(company_id, status)", empty);
+        execRetry("CREATE INDEX IF NOT EXISTS idx_gl_events_source ON gl_posting_events(company_id, source_type, source_id)", empty);
+    }
+
+    /** Moving-average costing: DL/GR cost cols, inventory_cost_events. */
+    static void ensureInventoryCostingSchema() {
+        ArrayList<Object> empty = new ArrayList<Object>();
+        String path10 = "examples/erp/migrations/010_inventory_costing.sql";
+        if (Erp.dialect.equals("sqlite")) {
+            path10 = "examples/erp/migrations/010_inventory_costing_sqlite.sql";
+        }
+        runScriptFileLabeled(path10, "010");
+        tryAlter("ALTER TABLE delivery_lines ADD COLUMN unit_cost_amount INTEGER NOT NULL DEFAULT 0");
+        tryAlter("ALTER TABLE delivery_lines ADD COLUMN cogs_amount INTEGER NOT NULL DEFAULT 0");
+        tryAlter("ALTER TABLE delivery_lines ADD COLUMN cogs_returned_amount INTEGER NOT NULL DEFAULT 0");
+        tryAlter("ALTER TABLE goods_receipt_lines ADD COLUMN unit_cost_amount INTEGER NOT NULL DEFAULT 0");
+        tryAlter("ALTER TABLE goods_receipt_lines ADD COLUMN line_value_amount INTEGER NOT NULL DEFAULT 0");
+        tryAlter("ALTER TABLE inventory_transactions ADD COLUMN biz_date INTEGER NOT NULL DEFAULT 0");
+        tryAlter("ALTER TABLE inventory_transactions ADD COLUMN posted_by INTEGER NOT NULL DEFAULT 0");
+        tryAlter("ALTER TABLE inventory_transactions ADD COLUMN notes TEXT NOT NULL DEFAULT ''");
+        if (Erp.dialect.equals("sqlite")) {
+            execRetry(
+                    "CREATE TABLE IF NOT EXISTS inventory_cost_events (id INTEGER PRIMARY KEY AUTOINCREMENT, company_id INTEGER NOT NULL, warehouse_id INTEGER NOT NULL, item_id INTEGER NOT NULL, event_type TEXT NOT NULL, quantity_delta INTEGER NOT NULL, unit_cost_amount INTEGER NOT NULL DEFAULT 0, value_delta_amount INTEGER NOT NULL, qty_before INTEGER NOT NULL DEFAULT 0, value_before INTEGER NOT NULL DEFAULT 0, qty_after INTEGER NOT NULL DEFAULT 0, value_after INTEGER NOT NULL DEFAULT 0, avg_cost_after INTEGER NOT NULL DEFAULT 0, source_type TEXT NOT NULL, source_id INTEGER NOT NULL, source_line_id INTEGER NOT NULL DEFAULT 0, related_event_id INTEGER NOT NULL DEFAULT 0, biz_date INTEGER NOT NULL, posted_at INTEGER NOT NULL, posted_by INTEGER NOT NULL DEFAULT 0, reason TEXT NOT NULL DEFAULT '', idempotency_key TEXT NOT NULL DEFAULT '', UNIQUE (company_id, idempotency_key))",
+                    empty);
+        } else {
+            execRetry(
+                    "CREATE TABLE IF NOT EXISTS inventory_cost_events (id BIGSERIAL PRIMARY KEY, company_id BIGINT NOT NULL, warehouse_id BIGINT NOT NULL, item_id BIGINT NOT NULL, event_type TEXT NOT NULL, quantity_delta INT NOT NULL, unit_cost_amount BIGINT NOT NULL DEFAULT 0, value_delta_amount BIGINT NOT NULL, qty_before INT NOT NULL DEFAULT 0, value_before BIGINT NOT NULL DEFAULT 0, qty_after INT NOT NULL DEFAULT 0, value_after BIGINT NOT NULL DEFAULT 0, avg_cost_after BIGINT NOT NULL DEFAULT 0, source_type TEXT NOT NULL, source_id BIGINT NOT NULL, source_line_id BIGINT NOT NULL DEFAULT 0, related_event_id BIGINT NOT NULL DEFAULT 0, biz_date BIGINT NOT NULL, posted_at BIGINT NOT NULL, posted_by BIGINT NOT NULL DEFAULT 0, reason TEXT NOT NULL DEFAULT '', idempotency_key TEXT NOT NULL DEFAULT '', UNIQUE (company_id, idempotency_key))",
+                    empty);
+        }
+    }
+
+    /** Bank cash, AR/AP settlement columns, alloc reverse, source-event uniqueness. */
+    static void ensureFinanceSettlementSchema() {
+        ArrayList<Object> empty = new ArrayList<Object>();
+        String path9 = "examples/erp/migrations/009_finance_settlement.sql";
+        if (Erp.dialect.equals("sqlite")) {
+            path9 = "examples/erp/migrations/009_finance_settlement_sqlite.sql";
+        }
+        runScriptFileLabeled(path9, "009");
+        tryAlter("ALTER TABLE bank_accounts ADD COLUMN balance INTEGER NOT NULL DEFAULT 0");
+        tryAlter("ALTER TABLE bank_accounts ADD COLUMN allow_overdraft INTEGER NOT NULL DEFAULT 0");
+        tryAlter("ALTER TABLE ar_invoices ADD COLUMN adjusted_amount INTEGER NOT NULL DEFAULT 0");
+        tryAlter("ALTER TABLE ar_invoices ADD COLUMN settlement_status TEXT NOT NULL DEFAULT 'OPEN'");
+        tryAlter("ALTER TABLE ar_invoices ADD COLUMN currency_code TEXT NOT NULL DEFAULT 'CNY'");
+        tryAlter("ALTER TABLE ap_invoices ADD COLUMN adjusted_amount INTEGER NOT NULL DEFAULT 0");
+        tryAlter("ALTER TABLE ap_invoices ADD COLUMN settlement_status TEXT NOT NULL DEFAULT 'OPEN'");
+        tryAlter("ALTER TABLE ap_invoices ADD COLUMN currency_code TEXT NOT NULL DEFAULT 'CNY'");
+        tryAlter("ALTER TABLE incoming_payments ADD COLUMN unallocated_amount INTEGER NOT NULL DEFAULT 0");
+        tryAlter("ALTER TABLE incoming_payments ADD COLUMN payment_method TEXT NOT NULL DEFAULT ''");
+        tryAlter("ALTER TABLE incoming_payments ADD COLUMN external_ref TEXT NOT NULL DEFAULT ''");
+        tryAlter("ALTER TABLE incoming_payments ADD COLUMN notes TEXT NOT NULL DEFAULT ''");
+        tryAlter("ALTER TABLE incoming_payments ADD COLUMN doc_no TEXT NOT NULL DEFAULT ''");
+        tryAlter("ALTER TABLE incoming_payments ADD COLUMN posted_at INTEGER NOT NULL DEFAULT 0");
+        tryAlter("ALTER TABLE incoming_payments ADD COLUMN posted_by INTEGER NOT NULL DEFAULT 0");
+        tryAlter("ALTER TABLE incoming_payments ADD COLUMN created_by INTEGER NOT NULL DEFAULT 0");
+        tryAlter("ALTER TABLE outgoing_payments ADD COLUMN unallocated_amount INTEGER NOT NULL DEFAULT 0");
+        tryAlter("ALTER TABLE outgoing_payments ADD COLUMN payment_method TEXT NOT NULL DEFAULT ''");
+        tryAlter("ALTER TABLE outgoing_payments ADD COLUMN external_ref TEXT NOT NULL DEFAULT ''");
+        tryAlter("ALTER TABLE outgoing_payments ADD COLUMN notes TEXT NOT NULL DEFAULT ''");
+        tryAlter("ALTER TABLE outgoing_payments ADD COLUMN doc_no TEXT NOT NULL DEFAULT ''");
+        tryAlter("ALTER TABLE outgoing_payments ADD COLUMN posted_at INTEGER NOT NULL DEFAULT 0");
+        tryAlter("ALTER TABLE outgoing_payments ADD COLUMN posted_by INTEGER NOT NULL DEFAULT 0");
+        tryAlter("ALTER TABLE outgoing_payments ADD COLUMN created_by INTEGER NOT NULL DEFAULT 0");
+        if (Erp.dialect.equals("sqlite")) {
+            execRetry(
+                    "CREATE TABLE IF NOT EXISTS bank_cash_movements (id INTEGER PRIMARY KEY AUTOINCREMENT, company_id INTEGER NOT NULL, bank_account_id INTEGER NOT NULL, movement_type TEXT NOT NULL, amount INTEGER NOT NULL, balance_after INTEGER NOT NULL, biz_date INTEGER NOT NULL, source_type TEXT NOT NULL, source_id INTEGER NOT NULL, party_id INTEGER NOT NULL DEFAULT 0, notes TEXT NOT NULL DEFAULT '', created_by INTEGER NOT NULL DEFAULT 0, created_at INTEGER NOT NULL, idempotency_key TEXT NOT NULL, UNIQUE (company_id, idempotency_key))",
+                    empty);
+            execRetry(
+                    "CREATE TABLE IF NOT EXISTS ar_ap_adjustments (id INTEGER PRIMARY KEY AUTOINCREMENT, company_id INTEGER NOT NULL, side TEXT NOT NULL, invoice_id INTEGER NOT NULL, adjust_amount INTEGER NOT NULL, reason TEXT NOT NULL DEFAULT '', source_type TEXT NOT NULL, source_id INTEGER NOT NULL, created_by INTEGER NOT NULL DEFAULT 0, biz_time INTEGER NOT NULL, created_at INTEGER NOT NULL, idempotency_key TEXT NOT NULL, UNIQUE (company_id, idempotency_key))",
+                    empty);
+            execRetry(
+                    "CREATE TABLE IF NOT EXISTS ar_settlement_allocs (id INTEGER PRIMARY KEY AUTOINCREMENT, company_id INTEGER NOT NULL, payment_id INTEGER NOT NULL, invoice_id INTEGER NOT NULL, allocated_amount INTEGER NOT NULL, status TEXT NOT NULL, reverse_of_id INTEGER NOT NULL DEFAULT 0, reversed_by_id INTEGER NOT NULL DEFAULT 0, reason TEXT NOT NULL DEFAULT '', created_by INTEGER NOT NULL DEFAULT 0, created_at INTEGER NOT NULL, idempotency_key TEXT NOT NULL DEFAULT '', UNIQUE (company_id, idempotency_key))",
+                    empty);
+            execRetry(
+                    "CREATE TABLE IF NOT EXISTS ap_settlement_allocs (id INTEGER PRIMARY KEY AUTOINCREMENT, company_id INTEGER NOT NULL, payment_id INTEGER NOT NULL, invoice_id INTEGER NOT NULL, allocated_amount INTEGER NOT NULL, status TEXT NOT NULL, reverse_of_id INTEGER NOT NULL DEFAULT 0, reversed_by_id INTEGER NOT NULL DEFAULT 0, reason TEXT NOT NULL DEFAULT '', created_by INTEGER NOT NULL DEFAULT 0, created_at INTEGER NOT NULL, idempotency_key TEXT NOT NULL DEFAULT '', UNIQUE (company_id, idempotency_key))",
+                    empty);
+            execRetry(
+                    "CREATE TABLE IF NOT EXISTS finance_source_events (id INTEGER PRIMARY KEY AUTOINCREMENT, company_id INTEGER NOT NULL, source_type TEXT NOT NULL, source_id INTEGER NOT NULL, event_type TEXT NOT NULL, ref_id INTEGER NOT NULL DEFAULT 0, created_at INTEGER NOT NULL, UNIQUE (company_id, source_type, source_id, event_type))",
+                    empty);
+        } else {
+            execRetry(
+                    "CREATE TABLE IF NOT EXISTS bank_cash_movements (id BIGSERIAL PRIMARY KEY, company_id BIGINT NOT NULL, bank_account_id BIGINT NOT NULL, movement_type TEXT NOT NULL, amount BIGINT NOT NULL, balance_after BIGINT NOT NULL, biz_date BIGINT NOT NULL, source_type TEXT NOT NULL, source_id BIGINT NOT NULL, party_id BIGINT NOT NULL DEFAULT 0, notes TEXT NOT NULL DEFAULT '', created_by BIGINT NOT NULL DEFAULT 0, created_at BIGINT NOT NULL, idempotency_key TEXT NOT NULL, UNIQUE (company_id, idempotency_key))",
+                    empty);
+            execRetry(
+                    "CREATE TABLE IF NOT EXISTS ar_ap_adjustments (id BIGSERIAL PRIMARY KEY, company_id BIGINT NOT NULL, side TEXT NOT NULL, invoice_id BIGINT NOT NULL, adjust_amount BIGINT NOT NULL, reason TEXT NOT NULL DEFAULT '', source_type TEXT NOT NULL, source_id BIGINT NOT NULL, created_by BIGINT NOT NULL DEFAULT 0, biz_time BIGINT NOT NULL, created_at BIGINT NOT NULL, idempotency_key TEXT NOT NULL, UNIQUE (company_id, idempotency_key))",
+                    empty);
+            execRetry(
+                    "CREATE TABLE IF NOT EXISTS ar_settlement_allocs (id BIGSERIAL PRIMARY KEY, company_id BIGINT NOT NULL, payment_id BIGINT NOT NULL, invoice_id BIGINT NOT NULL, allocated_amount BIGINT NOT NULL, status TEXT NOT NULL, reverse_of_id BIGINT NOT NULL DEFAULT 0, reversed_by_id BIGINT NOT NULL DEFAULT 0, reason TEXT NOT NULL DEFAULT '', created_by BIGINT NOT NULL DEFAULT 0, created_at BIGINT NOT NULL, idempotency_key TEXT NOT NULL DEFAULT '', UNIQUE (company_id, idempotency_key))",
+                    empty);
+            execRetry(
+                    "CREATE TABLE IF NOT EXISTS ap_settlement_allocs (id BIGSERIAL PRIMARY KEY, company_id BIGINT NOT NULL, payment_id BIGINT NOT NULL, invoice_id BIGINT NOT NULL, allocated_amount BIGINT NOT NULL, status TEXT NOT NULL, reverse_of_id BIGINT NOT NULL DEFAULT 0, reversed_by_id BIGINT NOT NULL DEFAULT 0, reason TEXT NOT NULL DEFAULT '', created_by BIGINT NOT NULL DEFAULT 0, created_at BIGINT NOT NULL, idempotency_key TEXT NOT NULL DEFAULT '', UNIQUE (company_id, idempotency_key))",
+                    empty);
+            execRetry(
+                    "CREATE TABLE IF NOT EXISTS finance_source_events (id BIGSERIAL PRIMARY KEY, company_id BIGINT NOT NULL, source_type TEXT NOT NULL, source_id BIGINT NOT NULL, event_type TEXT NOT NULL, ref_id BIGINT NOT NULL DEFAULT 0, created_at BIGINT NOT NULL, UNIQUE (company_id, source_type, source_id, event_type))",
+                    empty);
+        }
+    }
+
+    /** SO approval/fulfillment columns, reservations, sales returns, AR provisional cols. */
+    static void ensureSalesOpsSchema() {
+        ArrayList<Object> empty = new ArrayList<Object>();
+        String path8 = "examples/erp/migrations/008_sales_ops.sql";
+        if (Erp.dialect.equals("sqlite")) {
+            path8 = "examples/erp/migrations/008_sales_ops_sqlite.sql";
+        }
+        runScriptFileLabeled(path8, "008");
+        tryAlter("ALTER TABLE sales_orders ADD COLUMN warehouse_id INTEGER NOT NULL DEFAULT 0");
+        tryAlter("ALTER TABLE sales_orders ADD COLUMN order_date INTEGER NOT NULL DEFAULT 0");
+        tryAlter("ALTER TABLE sales_orders ADD COLUMN delivery_date INTEGER NOT NULL DEFAULT 0");
+        tryAlter("ALTER TABLE sales_orders ADD COLUMN notes TEXT NOT NULL DEFAULT ''");
+        tryAlter("ALTER TABLE sales_orders ADD COLUMN currency TEXT NOT NULL DEFAULT 'CNY'");
+        tryAlter("ALTER TABLE sales_orders ADD COLUMN approval_status TEXT NOT NULL DEFAULT 'DRAFT'");
+        tryAlter("ALTER TABLE sales_orders ADD COLUMN fulfillment_status TEXT NOT NULL DEFAULT 'NONE'");
+        tryAlter("ALTER TABLE sales_order_lines ADD COLUMN returned_qty INTEGER NOT NULL DEFAULT 0");
+        tryAlter("ALTER TABLE sales_order_lines ADD COLUMN discount_bps INTEGER NOT NULL DEFAULT 0");
+        tryAlter("ALTER TABLE sales_order_lines ADD COLUMN tax_bps INTEGER NOT NULL DEFAULT 0");
+        tryAlter("ALTER TABLE purchase_order_lines ADD COLUMN discount_bps INTEGER NOT NULL DEFAULT 0");
+        tryAlter("ALTER TABLE purchase_order_lines ADD COLUMN tax_bps INTEGER NOT NULL DEFAULT 0");
+        tryAlter("ALTER TABLE sales_orders ADD COLUMN contact_name TEXT NOT NULL DEFAULT ''");
+        tryAlter("ALTER TABLE purchase_orders ADD COLUMN contact_name TEXT NOT NULL DEFAULT ''");
+        tryAlter("ALTER TABLE companies ADD COLUMN default_tax_bps INTEGER NOT NULL DEFAULT 0");
+        tryAlter("ALTER TABLE delivery_lines ADD COLUMN returned_qty INTEGER NOT NULL DEFAULT 0");
+        tryAlter("ALTER TABLE ar_invoices ADD COLUMN is_provisional INTEGER NOT NULL DEFAULT 0");
+        tryAlter("ALTER TABLE ar_invoices ADD COLUMN notes TEXT NOT NULL DEFAULT ''");
+        if (Erp.dialect.equals("sqlite")) {
+            execRetry(
+                    "CREATE TABLE IF NOT EXISTS inventory_reservations (id INTEGER PRIMARY KEY AUTOINCREMENT, company_id INTEGER NOT NULL, sales_order_id INTEGER NOT NULL, sales_order_line_id INTEGER NOT NULL, warehouse_id INTEGER NOT NULL, item_id INTEGER NOT NULL, quantity INTEGER NOT NULL, quantity_consumed INTEGER NOT NULL DEFAULT 0, quantity_released INTEGER NOT NULL DEFAULT 0, status TEXT NOT NULL, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL)",
+                    empty);
+            execRetry(
+                    "CREATE TABLE IF NOT EXISTS sales_returns (id INTEGER PRIMARY KEY AUTOINCREMENT, company_id INTEGER NOT NULL, doc_no TEXT NOT NULL, sales_order_id INTEGER NOT NULL, delivery_id INTEGER NOT NULL, warehouse_id INTEGER NOT NULL, status TEXT NOT NULL, resellable INTEGER NOT NULL DEFAULT 1, idempotency_key TEXT NOT NULL, notes TEXT NOT NULL DEFAULT '', created_at INTEGER NOT NULL, UNIQUE (company_id, doc_no), UNIQUE (company_id, idempotency_key))",
+                    empty);
+            execRetry(
+                    "CREATE TABLE IF NOT EXISTS sales_return_lines (id INTEGER PRIMARY KEY AUTOINCREMENT, company_id INTEGER NOT NULL, sales_return_id INTEGER NOT NULL, delivery_line_id INTEGER NOT NULL, sales_order_line_id INTEGER NOT NULL, item_id INTEGER NOT NULL, quantity INTEGER NOT NULL)",
+                    empty);
+            execRetry(
+                    "CREATE UNIQUE INDEX IF NOT EXISTS ux_ar_source_dl ON ar_invoices (company_id, source_delivery_id) WHERE source_delivery_id > 0",
+                    empty);
+        } else {
+            execRetry(
+                    "CREATE TABLE IF NOT EXISTS inventory_reservations (id BIGSERIAL PRIMARY KEY, company_id BIGINT NOT NULL, sales_order_id BIGINT NOT NULL, sales_order_line_id BIGINT NOT NULL, warehouse_id BIGINT NOT NULL, item_id BIGINT NOT NULL, quantity INT NOT NULL, quantity_consumed INT NOT NULL DEFAULT 0, quantity_released INT NOT NULL DEFAULT 0, status TEXT NOT NULL, created_at BIGINT NOT NULL, updated_at BIGINT NOT NULL)",
+                    empty);
+            execRetry(
+                    "CREATE TABLE IF NOT EXISTS sales_returns (id BIGSERIAL PRIMARY KEY, company_id BIGINT NOT NULL, doc_no TEXT NOT NULL, sales_order_id BIGINT NOT NULL, delivery_id BIGINT NOT NULL, warehouse_id BIGINT NOT NULL, status TEXT NOT NULL, resellable INT NOT NULL DEFAULT 1, idempotency_key TEXT NOT NULL, notes TEXT NOT NULL DEFAULT '', created_at BIGINT NOT NULL, UNIQUE (company_id, doc_no), UNIQUE (company_id, idempotency_key))",
+                    empty);
+            execRetry(
+                    "CREATE TABLE IF NOT EXISTS sales_return_lines (id BIGSERIAL PRIMARY KEY, company_id BIGINT NOT NULL, sales_return_id BIGINT NOT NULL, delivery_line_id BIGINT NOT NULL, sales_order_line_id BIGINT NOT NULL, item_id BIGINT NOT NULL, quantity INT NOT NULL)",
+                    empty);
+        }
+        /* Backfill approval/fulfillment from legacy status when still DRAFT defaults. */
+        try {
+            execRetry(
+                    "UPDATE sales_orders SET approval_status=status WHERE (approval_status='DRAFT' OR approval_status='' OR approval_status IS NULL) AND status IN ('DRAFT','SUBMITTED','APPROVED','CANCELLED')",
+                    empty);
+        } catch (Exception ignored) {
+        }
+    }
+
+    /** PO header fields, provisional AP columns, inventory adjust/count, item min_qty. */
+    static void ensurePurchaseOpsSchema() {
+        ArrayList<Object> empty = new ArrayList<Object>();
+        String path7 = "examples/erp/migrations/007_purchase_ops.sql";
+        if (Erp.dialect.equals("sqlite")) {
+            path7 = "examples/erp/migrations/007_purchase_ops_sqlite.sql";
+        }
+        runScriptFileLabeled(path7, "007");
+        tryAlter("ALTER TABLE purchase_orders ADD COLUMN warehouse_id INTEGER NOT NULL DEFAULT 0");
+        tryAlter("ALTER TABLE purchase_orders ADD COLUMN order_date INTEGER NOT NULL DEFAULT 0");
+        tryAlter("ALTER TABLE purchase_orders ADD COLUMN expected_date INTEGER NOT NULL DEFAULT 0");
+        tryAlter("ALTER TABLE purchase_orders ADD COLUMN notes TEXT NOT NULL DEFAULT ''");
+        tryAlter("ALTER TABLE purchase_orders ADD COLUMN currency TEXT NOT NULL DEFAULT 'CNY'");
+        tryAlter("ALTER TABLE items ADD COLUMN min_qty INTEGER NOT NULL DEFAULT 0");
+        tryAlter("ALTER TABLE ap_invoices ADD COLUMN is_provisional INTEGER NOT NULL DEFAULT 0");
+        tryAlter("ALTER TABLE ap_invoices ADD COLUMN notes TEXT NOT NULL DEFAULT ''");
+        if (Erp.dialect.equals("sqlite")) {
+            execRetry(
+                    "CREATE TABLE IF NOT EXISTS inventory_adjustments (id INTEGER PRIMARY KEY AUTOINCREMENT, company_id INTEGER NOT NULL, doc_no TEXT NOT NULL, warehouse_id INTEGER NOT NULL, item_id INTEGER NOT NULL, quantity_delta INTEGER NOT NULL, reason TEXT NOT NULL DEFAULT '', status TEXT NOT NULL, idempotency_key TEXT NOT NULL, created_by INTEGER NOT NULL DEFAULT 0, created_at INTEGER NOT NULL, UNIQUE (company_id, doc_no), UNIQUE (company_id, idempotency_key))",
+                    empty);
+            execRetry(
+                    "CREATE TABLE IF NOT EXISTS inventory_counts (id INTEGER PRIMARY KEY AUTOINCREMENT, company_id INTEGER NOT NULL, doc_no TEXT NOT NULL, warehouse_id INTEGER NOT NULL, status TEXT NOT NULL, idempotency_key TEXT NOT NULL, notes TEXT NOT NULL DEFAULT '', created_by INTEGER NOT NULL DEFAULT 0, created_at INTEGER NOT NULL, posted_at INTEGER NOT NULL DEFAULT 0, UNIQUE (company_id, doc_no), UNIQUE (company_id, idempotency_key))",
+                    empty);
+            execRetry(
+                    "CREATE TABLE IF NOT EXISTS inventory_count_lines (id INTEGER PRIMARY KEY AUTOINCREMENT, company_id INTEGER NOT NULL, inventory_count_id INTEGER NOT NULL, item_id INTEGER NOT NULL, system_qty INTEGER NOT NULL, counted_qty INTEGER NOT NULL, variance_qty INTEGER NOT NULL)",
+                    empty);
+            execRetry(
+                    "CREATE UNIQUE INDEX IF NOT EXISTS ux_ap_source_gr ON ap_invoices (company_id, source_gr_id) WHERE source_gr_id > 0",
+                    empty);
+        } else {
+            execRetry(
+                    "CREATE TABLE IF NOT EXISTS inventory_adjustments (id BIGSERIAL PRIMARY KEY, company_id BIGINT NOT NULL, doc_no TEXT NOT NULL, warehouse_id BIGINT NOT NULL, item_id BIGINT NOT NULL, quantity_delta INT NOT NULL, reason TEXT NOT NULL DEFAULT '', status TEXT NOT NULL, idempotency_key TEXT NOT NULL, created_by BIGINT NOT NULL DEFAULT 0, created_at BIGINT NOT NULL, UNIQUE (company_id, doc_no), UNIQUE (company_id, idempotency_key))",
+                    empty);
+            execRetry(
+                    "CREATE TABLE IF NOT EXISTS inventory_counts (id BIGSERIAL PRIMARY KEY, company_id BIGINT NOT NULL, doc_no TEXT NOT NULL, warehouse_id BIGINT NOT NULL, status TEXT NOT NULL, idempotency_key TEXT NOT NULL, notes TEXT NOT NULL DEFAULT '', created_by BIGINT NOT NULL DEFAULT 0, created_at BIGINT NOT NULL, posted_at BIGINT NOT NULL DEFAULT 0, UNIQUE (company_id, doc_no), UNIQUE (company_id, idempotency_key))",
+                    empty);
+            execRetry(
+                    "CREATE TABLE IF NOT EXISTS inventory_count_lines (id BIGSERIAL PRIMARY KEY, company_id BIGINT NOT NULL, inventory_count_id BIGINT NOT NULL, item_id BIGINT NOT NULL, system_qty INT NOT NULL, counted_qty INT NOT NULL, variance_qty INT NOT NULL)",
+                    empty);
+        }
+    }
+
+    /** PO/SO/GR/DL/inventory tables when 001 script splitter skips CREATE. */
+    static void ensureBusinessDocTables() {
+        ArrayList<Object> empty = new ArrayList<Object>();
+        if (Erp.dialect.equals("sqlite") == false) {
+            return;
+        }
+        execRetry(
+                "CREATE TABLE IF NOT EXISTS purchase_orders (id INTEGER PRIMARY KEY AUTOINCREMENT, company_id INTEGER NOT NULL, doc_no TEXT NOT NULL, supplier_id INTEGER NOT NULL, status TEXT NOT NULL, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL, warehouse_id INTEGER NOT NULL DEFAULT 0, order_date INTEGER NOT NULL DEFAULT 0, expected_date INTEGER NOT NULL DEFAULT 0, notes TEXT NOT NULL DEFAULT '', currency TEXT NOT NULL DEFAULT 'CNY', UNIQUE (company_id, doc_no))",
+                empty);
+        execRetry(
+                "CREATE TABLE IF NOT EXISTS purchase_order_lines (id INTEGER PRIMARY KEY AUTOINCREMENT, company_id INTEGER NOT NULL, purchase_order_id INTEGER NOT NULL, line_no INTEGER NOT NULL, item_id INTEGER NOT NULL, quantity INTEGER NOT NULL, received_qty INTEGER NOT NULL DEFAULT 0, unit_price_cents INTEGER NOT NULL, UNIQUE (purchase_order_id, line_no))",
+                empty);
+        execRetry(
+                "CREATE TABLE IF NOT EXISTS sales_orders (id INTEGER PRIMARY KEY AUTOINCREMENT, company_id INTEGER NOT NULL, doc_no TEXT NOT NULL, customer_id INTEGER NOT NULL, status TEXT NOT NULL, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL, UNIQUE (company_id, doc_no))",
+                empty);
+        execRetry(
+                "CREATE TABLE IF NOT EXISTS sales_order_lines (id INTEGER PRIMARY KEY AUTOINCREMENT, company_id INTEGER NOT NULL, sales_order_id INTEGER NOT NULL, line_no INTEGER NOT NULL, item_id INTEGER NOT NULL, quantity INTEGER NOT NULL, delivered_qty INTEGER NOT NULL DEFAULT 0, unit_price_cents INTEGER NOT NULL, UNIQUE (sales_order_id, line_no))",
+                empty);
+        execRetry(
+                "CREATE TABLE IF NOT EXISTS goods_receipts (id INTEGER PRIMARY KEY AUTOINCREMENT, company_id INTEGER NOT NULL, doc_no TEXT NOT NULL, purchase_order_id INTEGER NOT NULL, warehouse_id INTEGER NOT NULL, status TEXT NOT NULL, created_at INTEGER NOT NULL, UNIQUE (company_id, doc_no))",
+                empty);
+        execRetry(
+                "CREATE TABLE IF NOT EXISTS goods_receipt_lines (id INTEGER PRIMARY KEY AUTOINCREMENT, company_id INTEGER NOT NULL, goods_receipt_id INTEGER NOT NULL, purchase_order_line_id INTEGER NOT NULL, item_id INTEGER NOT NULL, quantity INTEGER NOT NULL)",
+                empty);
+        execRetry(
+                "CREATE TABLE IF NOT EXISTS deliveries (id INTEGER PRIMARY KEY AUTOINCREMENT, company_id INTEGER NOT NULL, doc_no TEXT NOT NULL, sales_order_id INTEGER NOT NULL, warehouse_id INTEGER NOT NULL, status TEXT NOT NULL, created_at INTEGER NOT NULL, UNIQUE (company_id, doc_no))",
+                empty);
+        execRetry(
+                "CREATE TABLE IF NOT EXISTS delivery_lines (id INTEGER PRIMARY KEY AUTOINCREMENT, company_id INTEGER NOT NULL, delivery_id INTEGER NOT NULL, sales_order_line_id INTEGER NOT NULL, item_id INTEGER NOT NULL, quantity INTEGER NOT NULL)",
+                empty);
+        execRetry(
+                "CREATE TABLE IF NOT EXISTS inventory_balances (id INTEGER PRIMARY KEY AUTOINCREMENT, company_id INTEGER NOT NULL, warehouse_id INTEGER NOT NULL, item_id INTEGER NOT NULL, quantity_on_hand INTEGER NOT NULL DEFAULT 0, value_amount INTEGER NOT NULL DEFAULT 0, row_version INTEGER NOT NULL DEFAULT 0, UNIQUE (company_id, warehouse_id, item_id))",
+                empty);
+        execRetry(
+                "CREATE TABLE IF NOT EXISTS inventory_transactions (id INTEGER PRIMARY KEY AUTOINCREMENT, company_id INTEGER NOT NULL, warehouse_id INTEGER NOT NULL, item_id INTEGER NOT NULL, txn_type TEXT NOT NULL, quantity_delta INTEGER NOT NULL, unit_cost_amount INTEGER NOT NULL DEFAULT 0, value_delta_amount INTEGER NOT NULL DEFAULT 0, ref_doc_type TEXT NOT NULL, ref_doc_id INTEGER NOT NULL, created_at INTEGER NOT NULL)",
+                empty);
+        execRetry(
+                "CREATE TABLE IF NOT EXISTS document_references (id INTEGER PRIMARY KEY AUTOINCREMENT, company_id INTEGER NOT NULL, ref_kind TEXT NOT NULL, from_doc_type TEXT NOT NULL, from_doc_id INTEGER NOT NULL, to_doc_type TEXT NOT NULL, to_doc_id INTEGER NOT NULL, created_at INTEGER NOT NULL)",
+                empty);
+        tryAlter("ALTER TABLE items ADD COLUMN unit_cost_amount INTEGER NOT NULL DEFAULT 0");
+        tryAlter("ALTER TABLE items ADD COLUMN min_qty INTEGER NOT NULL DEFAULT 0");
     }
 
     /** Purchase requests, light masters, demo_seed_log. */
@@ -139,17 +453,7 @@ class ErpDb {
         if (Erp.dialect.equals("sqlite")) {
             path6 = "examples/erp/migrations/006_demo_ops_sqlite.sql";
         }
-        String sql6 = File.readString(path6);
-        if (sql6 != null && sql6.length() > 0) {
-            try {
-                runScriptSafe(sql6);
-            } catch (Exception ex) {
-                System.out.println("006_demo_ops_script_partial");
-                if (ex.getMessage() != null) {
-                    System.out.println(ex.getMessage());
-                }
-            }
-        }
+        runScriptFileLabeled(path6, "006");
         if (Erp.dialect.equals("sqlite")) {
             execRetry(
                     "CREATE TABLE IF NOT EXISTS item_categories (id INTEGER PRIMARY KEY AUTOINCREMENT, company_id INTEGER NOT NULL, code TEXT NOT NULL, name TEXT NOT NULL, created_at INTEGER NOT NULL, UNIQUE (company_id, code))",
@@ -233,19 +537,18 @@ class ErpDb {
         if (Erp.dialect.equals("sqlite")) {
             path5 = "examples/erp/migrations/005_pilot_sqlite.sql";
         }
-        String sql5 = File.readString(path5);
-        if (sql5 != null && sql5.length() > 0) {
-            try {
-                runScriptSafe(sql5);
-            } catch (Exception ex) {
-                /* Script may fail mid-file (e.g. INDEX before TABLE on SQLite). Explicit
-                   CREATE TABLE/INDEX below repairs; do not abort boot. */
-                System.out.println("005_pilot_script_partial");
-                if (ex.getMessage() != null) {
-                    System.out.println(ex.getMessage());
-                }
+        /* 005 best-effort: INDEX/TABLE order noise; ensure* DDL below is authoritative. */
+        String fatalBefore005 = Erp.migrateFatal;
+        try {
+            runScriptFileLabeled(path5, "005");
+        } catch (Exception ex) {
+            System.out.println("005_pilot_script_partial");
+            if (ex.getMessage() != null) {
+                System.out.println(ex.getMessage());
             }
+            reconnect();
         }
+        Erp.migrateFatal = fatalBefore005;
         tryAlter("ALTER TABLE companies ADD COLUMN book_kind TEXT NOT NULL DEFAULT 'FORMAL'");
         tryAlter("ALTER TABLE companies ADD COLUMN timezone TEXT NOT NULL DEFAULT 'UTC'");
         tryAlter("ALTER TABLE companies ADD COLUMN currency_code TEXT NOT NULL DEFAULT 'CNY'");
@@ -375,41 +678,57 @@ class ErpDb {
                 new ArrayList<Object>());
     }
 
+    /** Repair manufacturing tables if 003 script was incomplete (short literals only). */
     static void ensureMfgTables() {
         ArrayList<Object> empty = new ArrayList<Object>();
         reconnect();
         if (Erp.dialect.equals("sqlite")) {
-            try {
-                exec(
-                        "CREATE TABLE IF NOT EXISTS production_receipts (id INTEGER PRIMARY KEY AUTOINCREMENT, company_id INTEGER NOT NULL, doc_no TEXT NOT NULL, production_order_id INTEGER NOT NULL, warehouse_id INTEGER NOT NULL, quantity INTEGER NOT NULL, unit_cost_amount INTEGER NOT NULL DEFAULT 0, total_cost INTEGER NOT NULL DEFAULT 0, posting_date INTEGER NOT NULL, status TEXT NOT NULL, idempotency_key TEXT NOT NULL, created_at INTEGER NOT NULL)",
-                        empty);
-                execRetry("CREATE UNIQUE INDEX IF NOT EXISTS ux_production_receipts_idem ON production_receipts (company_id, idempotency_key)", empty);
-                execRetry("CREATE UNIQUE INDEX IF NOT EXISTS ux_production_receipts_doc ON production_receipts (company_id, doc_no)", empty);
-            } catch (Exception ex) {
-                reconnect();
-                try {
-                    exec(
-                            "CREATE TABLE IF NOT EXISTS production_receipts (id INTEGER PRIMARY KEY AUTOINCREMENT, company_id INTEGER NOT NULL, doc_no TEXT NOT NULL, production_order_id INTEGER NOT NULL, warehouse_id INTEGER NOT NULL, quantity INTEGER NOT NULL, unit_cost_amount INTEGER NOT NULL DEFAULT 0, total_cost INTEGER NOT NULL DEFAULT 0, posting_date INTEGER NOT NULL, status TEXT NOT NULL, idempotency_key TEXT NOT NULL, created_at INTEGER NOT NULL)",
-                            empty);
-                } catch (Exception ex2) {
-                    System.out.println("ENSURE_MFG_RECEIPTS_FAIL");
-                }
-            }
+            execRetry(
+                    "CREATE TABLE IF NOT EXISTS bills_of_material (id INTEGER PRIMARY KEY AUTOINCREMENT, company_id INTEGER NOT NULL, parent_item_id INTEGER NOT NULL, bom_code TEXT NOT NULL, version INTEGER NOT NULL DEFAULT 1, base_quantity INTEGER NOT NULL DEFAULT 1, status TEXT NOT NULL, effective_from INTEGER NOT NULL DEFAULT 0, effective_to INTEGER NOT NULL DEFAULT 4102444800000, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL, UNIQUE (company_id, bom_code, version))",
+                    empty);
+            execRetry(
+                    "CREATE TABLE IF NOT EXISTS bom_lines (id INTEGER PRIMARY KEY AUTOINCREMENT, company_id INTEGER NOT NULL, bom_id INTEGER NOT NULL, component_item_id INTEGER NOT NULL, quantity INTEGER NOT NULL, uom TEXT NOT NULL DEFAULT 'PCS', scrap_rate_bp INTEGER NOT NULL DEFAULT 0, warehouse_id INTEGER, sequence INTEGER NOT NULL DEFAULT 10)",
+                    empty);
+            execRetry(
+                    "CREATE TABLE IF NOT EXISTS production_orders (id INTEGER PRIMARY KEY AUTOINCREMENT, company_id INTEGER NOT NULL, order_number TEXT NOT NULL, item_id INTEGER NOT NULL, bom_id INTEGER NOT NULL, bom_version INTEGER NOT NULL, planned_quantity INTEGER NOT NULL, completed_quantity INTEGER NOT NULL DEFAULT 0, scrapped_quantity INTEGER NOT NULL DEFAULT 0, status TEXT NOT NULL, warehouse_id INTEGER NOT NULL, planned_start_date INTEGER NOT NULL DEFAULT 0, planned_end_date INTEGER NOT NULL DEFAULT 0, actual_start_date INTEGER NOT NULL DEFAULT 0, actual_end_date INTEGER NOT NULL DEFAULT 0, over_issue_tolerance_bp INTEGER NOT NULL DEFAULT 0, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL, UNIQUE (company_id, order_number))",
+                    empty);
+            execRetry(
+                    "CREATE TABLE IF NOT EXISTS production_order_components (id INTEGER PRIMARY KEY AUTOINCREMENT, company_id INTEGER NOT NULL, production_order_id INTEGER NOT NULL, component_item_id INTEGER NOT NULL, required_quantity INTEGER NOT NULL, issued_quantity INTEGER NOT NULL DEFAULT 0, returned_quantity INTEGER NOT NULL DEFAULT 0, warehouse_id INTEGER NOT NULL, unit_cost_amount INTEGER NOT NULL DEFAULT 0)",
+                    empty);
+            execRetry(
+                    "CREATE TABLE IF NOT EXISTS production_wip (production_order_id INTEGER PRIMARY KEY, company_id INTEGER NOT NULL, material_cost INTEGER NOT NULL DEFAULT 0, labor_cost INTEGER NOT NULL DEFAULT 0, overhead_cost INTEGER NOT NULL DEFAULT 0, transferred_cost INTEGER NOT NULL DEFAULT 0, remaining_cost INTEGER NOT NULL DEFAULT 0)",
+                    empty);
+            execRetry(
+                    "CREATE TABLE IF NOT EXISTS production_issues (id INTEGER PRIMARY KEY AUTOINCREMENT, company_id INTEGER NOT NULL, doc_no TEXT NOT NULL, production_order_id INTEGER NOT NULL, warehouse_id INTEGER NOT NULL, posting_date INTEGER NOT NULL, status TEXT NOT NULL, idempotency_key TEXT NOT NULL, created_at INTEGER NOT NULL, UNIQUE (company_id, idempotency_key), UNIQUE (company_id, doc_no))",
+                    empty);
+            execRetry(
+                    "CREATE TABLE IF NOT EXISTS production_issue_lines (id INTEGER PRIMARY KEY AUTOINCREMENT, company_id INTEGER NOT NULL, issue_id INTEGER NOT NULL, component_item_id INTEGER NOT NULL, quantity INTEGER NOT NULL, unit_cost_amount INTEGER NOT NULL DEFAULT 0, amount INTEGER NOT NULL DEFAULT 0)",
+                    empty);
+            execRetry(
+                    "CREATE TABLE IF NOT EXISTS production_returns (id INTEGER PRIMARY KEY AUTOINCREMENT, company_id INTEGER NOT NULL, doc_no TEXT NOT NULL, production_order_id INTEGER NOT NULL, issue_id INTEGER NOT NULL, warehouse_id INTEGER NOT NULL, posting_date INTEGER NOT NULL, status TEXT NOT NULL, idempotency_key TEXT NOT NULL, created_at INTEGER NOT NULL, UNIQUE (company_id, idempotency_key))",
+                    empty);
+            execRetry(
+                    "CREATE TABLE IF NOT EXISTS production_return_lines (id INTEGER PRIMARY KEY AUTOINCREMENT, company_id INTEGER NOT NULL, return_id INTEGER NOT NULL, component_item_id INTEGER NOT NULL, quantity INTEGER NOT NULL, unit_cost_amount INTEGER NOT NULL DEFAULT 0, amount INTEGER NOT NULL DEFAULT 0)",
+                    empty);
+            execRetry(
+                    "CREATE TABLE IF NOT EXISTS production_receipts (id INTEGER PRIMARY KEY AUTOINCREMENT, company_id INTEGER NOT NULL, doc_no TEXT NOT NULL, production_order_id INTEGER NOT NULL, warehouse_id INTEGER NOT NULL, quantity INTEGER NOT NULL, unit_cost_amount INTEGER NOT NULL DEFAULT 0, total_cost INTEGER NOT NULL DEFAULT 0, posting_date INTEGER NOT NULL, status TEXT NOT NULL, idempotency_key TEXT NOT NULL, created_at INTEGER NOT NULL, UNIQUE (company_id, idempotency_key), UNIQUE (company_id, doc_no))",
+                    empty);
+            execRetry(
+                    "CREATE TABLE IF NOT EXISTS production_scraps (id INTEGER PRIMARY KEY AUTOINCREMENT, company_id INTEGER NOT NULL, production_order_id INTEGER NOT NULL, quantity INTEGER NOT NULL, reason TEXT NOT NULL DEFAULT '', cost_amount INTEGER NOT NULL DEFAULT 0, cost_policy TEXT NOT NULL DEFAULT 'ABSORB_TO_COMPLETED', created_at INTEGER NOT NULL)",
+                    empty);
+            execRetry(
+                    "CREATE TABLE IF NOT EXISTS mrp_runs (id INTEGER PRIMARY KEY AUTOINCREMENT, company_id INTEGER NOT NULL, run_code TEXT NOT NULL, planning_start_date INTEGER NOT NULL, planning_end_date INTEGER NOT NULL, status TEXT NOT NULL, created_at INTEGER NOT NULL, UNIQUE (company_id, run_code))",
+                    empty);
+            execRetry(
+                    "CREATE TABLE IF NOT EXISTS mrp_requirements (id INTEGER PRIMARY KEY AUTOINCREMENT, company_id INTEGER NOT NULL, mrp_run_id INTEGER NOT NULL, item_id INTEGER NOT NULL, bucket_date INTEGER NOT NULL, gross_requirement INTEGER NOT NULL DEFAULT 0, scheduled_receipts INTEGER NOT NULL DEFAULT 0, projected_available INTEGER NOT NULL DEFAULT 0, net_requirement INTEGER NOT NULL DEFAULT 0, planned_order_receipt INTEGER NOT NULL DEFAULT 0, planned_order_release INTEGER NOT NULL DEFAULT 0)",
+                    empty);
+            execRetry(
+                    "CREATE TABLE IF NOT EXISTS mrp_suggestions (id INTEGER PRIMARY KEY AUTOINCREMENT, company_id INTEGER NOT NULL, mrp_run_id INTEGER NOT NULL, suggestion_kind TEXT NOT NULL, item_id INTEGER NOT NULL, required_quantity INTEGER NOT NULL, required_date INTEGER NOT NULL, suggested_order_date INTEGER NOT NULL, supplier_id INTEGER NOT NULL DEFAULT 0, status TEXT NOT NULL DEFAULT 'OPEN', converted_doc_id INTEGER NOT NULL DEFAULT 0)",
+                    empty);
         } else {
-            try {
-                exec(
-                        "CREATE TABLE IF NOT EXISTS production_receipts (id BIGSERIAL PRIMARY KEY, company_id BIGINT NOT NULL, doc_no TEXT NOT NULL, production_order_id BIGINT NOT NULL, warehouse_id BIGINT NOT NULL, quantity INT NOT NULL, unit_cost_amount BIGINT NOT NULL DEFAULT 0, total_cost BIGINT NOT NULL DEFAULT 0, posting_date BIGINT NOT NULL, status TEXT NOT NULL, idempotency_key TEXT NOT NULL, created_at BIGINT NOT NULL)",
-                        empty);
-            } catch (Exception ex) {
-                reconnect();
-                try {
-                    exec(
-                            "CREATE TABLE IF NOT EXISTS production_receipts (id BIGSERIAL PRIMARY KEY, company_id BIGINT NOT NULL, doc_no TEXT NOT NULL, production_order_id BIGINT NOT NULL, warehouse_id BIGINT NOT NULL, quantity INT NOT NULL, unit_cost_amount BIGINT NOT NULL DEFAULT 0, total_cost BIGINT NOT NULL DEFAULT 0, posting_date BIGINT NOT NULL, status TEXT NOT NULL, idempotency_key TEXT NOT NULL, created_at BIGINT NOT NULL)",
-                            empty);
-                } catch (Exception ex2) {
-                    System.out.println("ENSURE_MFG_RECEIPTS_FAIL");
-                }
-            }
+            execRetry(
+                    "CREATE TABLE IF NOT EXISTS production_receipts (id BIGSERIAL PRIMARY KEY, company_id BIGINT NOT NULL, doc_no TEXT NOT NULL, production_order_id BIGINT NOT NULL, warehouse_id BIGINT NOT NULL, quantity INT NOT NULL, unit_cost_amount BIGINT NOT NULL DEFAULT 0, total_cost BIGINT NOT NULL DEFAULT 0, posting_date BIGINT NOT NULL, status TEXT NOT NULL, idempotency_key TEXT NOT NULL, created_at BIGINT NOT NULL)",
+                    empty);
         }
     }
 
@@ -427,54 +746,151 @@ class ErpDb {
             throw new ConnectionException("db reconnect failed");
         }
         Erp.db = (Database) dbF.getValue();
+        applySqlitePragmas();
     }
 
-    /** Soft-fail whole script — ensure* DDL below repairs missing objects. */
-    static void runScriptSoft(String sql, String label) {
-        try {
-            runScriptSafe(sql);
-        } catch (Exception ex) {
-            System.out.println("MIGRATE_SCRIPT_PARTIAL " + label);
-            if (ex.getMessage() != null) {
-                System.out.println(ex.getMessage());
-            }
-            reconnect();
+    /** Concurrent HTTP writes need a busy wait; WAL reduces reader/writer blocking. */
+    static void applySqlitePragmas() {
+        if (Erp.dialect.equals("sqlite") == false) {
+            return;
         }
+        ArrayList<Object> empty = new ArrayList<Object>();
+        try {
+            exec("PRAGMA busy_timeout=8000", empty);
+        } catch (Exception ignored) {
+        }
+        try {
+            exec("PRAGMA journal_mode=WAL", empty);
+        } catch (Exception ignored) {
+        }
+    }
+
+    /**
+     * Load migration file as bytes and execute statement-by-statement.
+     * Avoid File.readString + String concat loops — those produced mid-CREATE fragments
+     * (e.g. production_issues split) under JNative string/GC pressure.
+     */
+    static void runScriptFileLabeled(String path, String label) {
+        byte[] raw = File.readBytes(path);
+        if (raw == null) {
+            throw new RuntimeException("migration read failed: " + path);
+        }
+        runScriptBytesLabeled(raw, label, path);
     }
 
     static void runScriptSafe(String sql) {
+        if (sql == null || sql.length() == 0) {
+            return;
+        }
+        ByteBuf buf = new ByteBuf();
+        appendSqlBytes(buf, sql);
+        runScriptBytesLabeled(buf.toArray(), "script", "inline");
+    }
+
+    static void runScriptSafeLabeled(String sql, String label) {
+        if (sql == null || sql.length() == 0) {
+            return;
+        }
+        ByteBuf buf = new ByteBuf();
+        appendSqlBytes(buf, sql);
+        runScriptBytesLabeled(buf.toArray(), label, "inline");
+    }
+
+    static void runScriptBytesLabeled(byte[] raw, String label, String path) {
         ArrayList<Object> empty = new ArrayList<Object>();
-        /* Split on ';' via indexOf — avoids charAt scan bugs on large migration files. */
-        String cleaned = stripSqlLineComments(sql);
-        int start = 0;
-        int alive = 1;
-        while (alive != 0) {
-            String rest = cleaned.substring(start, cleaned.length());
-            int rel = rest.indexOf(";");
-            if (rel < 0) {
-                alive = 0;
-            } else {
-                String stmt = collapseSql(cleaned.substring(start, start + rel));
-                if (stmt.length() > 0) {
-                    execRetry(stmt, empty);
+        if (raw == null || raw.length == 0) {
+            return;
+        }
+        ByteBuf stmt = new ByteBuf();
+        int i = 0;
+        int inQuote = 0;
+        int lineStart = 1;
+        int stmtIdx = 0;
+        while (i < raw.length) {
+            int c = raw[i];
+            if (lineStart != 0 && c == 45 && i + 1 < raw.length && raw[i + 1] == 45) {
+                while (i < raw.length && raw[i] != 10) {
+                    i = i + 1;
                 }
-                start = start + rel + 1;
+                if (i < raw.length && raw[i] == 10) {
+                    i = i + 1;
+                }
+                lineStart = 1;
+            } else {
+                if (c == 39) {
+                    stmt.appendByte(c);
+                    if (inQuote != 0 && i + 1 < raw.length && raw[i + 1] == 39) {
+                        stmt.appendByte(39);
+                        i = i + 2;
+                        lineStart = 0;
+                    } else {
+                        if (inQuote != 0) {
+                            inQuote = 0;
+                        } else {
+                            inQuote = 1;
+                        }
+                        lineStart = 0;
+                        i = i + 1;
+                    }
+                } else {
+                    if (inQuote == 0 && c == 59) {
+                        String one = collapseSql(stmt.toStringUtf8());
+                        stmt = new ByteBuf();
+                        if (one.length() > 0) {
+                            stmtIdx = stmtIdx + 1;
+                            execRetryLabeled(one, empty, label, stmtIdx);
+                        }
+                        lineStart = 1;
+                        i = i + 1;
+                    } else {
+                        stmt.appendByte(c);
+                        if (c == 10) {
+                            lineStart = 1;
+                        } else {
+                            if (c != 13 && c != 32 && c != 9) {
+                                lineStart = 0;
+                            }
+                        }
+                        i = i + 1;
+                    }
+                }
             }
         }
-        String tail = collapseSql(cleaned.substring(start, cleaned.length()));
+        String tail = collapseSql(stmt.toStringUtf8());
         if (tail.length() > 0) {
-            execRetry(tail, empty);
+            stmtIdx = stmtIdx + 1;
+            execRetryLabeled(tail, empty, label, stmtIdx);
+        }
+        if (Erp.migrateFatal.length() > 0) {
+            /* Keep going so ensure* can repair; migrate() final check decides readiness. */
+            System.out.println("MIGRATE_SCRIPT_HAS_FATAL " + path + " " + label);
         }
     }
 
-    /** Drop full-line "-- ..." comments so they never prefix CREATE statements. */
+    static void appendSqlBytes(ByteBuf buf, String s) {
+        if (s == null || s.length() == 0) {
+            return;
+        }
+        int i = 0;
+        while (i < s.length()) {
+            int c = s.charAt(i);
+            if (c >= 0 && c <= 255) {
+                buf.appendByte(c);
+            }
+            i = i + 1;
+        }
+    }
+
+    /** Kept for callers/tests that still strip whole scripts. */
     static String stripSqlLineComments(String sql) {
         if (sql == null || sql.length() == 0) {
             return "";
         }
+        /* Prefer statement runner; this helper only strips full-line comments lightly. */
         String out = "";
         int start = 0;
         int alive = 1;
+        int parts = 0;
         while (alive != 0) {
             String rest = sql.substring(start, sql.length());
             int rel = rest.indexOf("\n");
@@ -488,15 +904,54 @@ class ErpDb {
             }
             String t = trimStmt(line);
             if (t.length() >= 2 && t.charAt(0) == 45 && t.charAt(1) == 45) {
-                /* skip comment line */
+                /* skip */
             } else {
-                out = out + line + "\n";
+                if (parts == 0) {
+                    out = stripInlineSqlComment(line);
+                } else {
+                    out = out + "\n" + stripInlineSqlComment(line);
+                }
+                parts = parts + 1;
             }
         }
         return out;
     }
 
-    /** Trim + flatten newlines so sqlite3_prepare_v2 FFI sees one line. */
+    /** Remove " -- ..." tail when -- is outside single quotes. */
+    static String stripInlineSqlComment(String line) {
+        if (line == null || line.length() < 2) {
+            return line == null ? "" : line;
+        }
+        int i = 0;
+        int inQuote = 0;
+        while (i < line.length()) {
+            int c = line.charAt(i);
+            if (c == 39) {
+                /* SQL single quote; '' escape */
+                if (inQuote != 0 && i + 1 < line.length() && line.charAt(i + 1) == 39) {
+                    i = i + 2;
+                } else {
+                    if (inQuote != 0) {
+                        inQuote = 0;
+                    } else {
+                        inQuote = 1;
+                    }
+                    i = i + 1;
+                }
+            } else {
+                if (inQuote == 0 && c == 45 && i + 1 < line.length() && line.charAt(i + 1) == 45) {
+                    return line.substring(0, i);
+                }
+                i = i + 1;
+            }
+        }
+        return line;
+    }
+
+    /**
+     * Trim leading comment lines. Keep newlines — sqlite3_prepare accepts them.
+     * Former char-by-char flatten truncated long CREATE TABLE text (DEFAULT→DEFAUL).
+     */
     static String collapseSql(String s) {
         String t = trimStmt(s);
         if (t.length() == 0) {
@@ -509,35 +964,111 @@ class ErpDb {
             }
             t = trimStmt(t.substring(nl + 1, t.length()));
         }
-        String out = "";
-        int i = 0;
-        int space = 0;
-        while (i < t.length()) {
-            int c = t.charAt(i);
-            if (c == 10 || c == 13 || c == 9) {
-                space = 1;
-            } else {
-                if (c == 32) {
-                    space = 1;
-                } else {
-                    if (space != 0 && out.length() > 0) {
-                        out = out + " ";
-                    }
-                    space = 0;
-                    out = out + t.substring(i, i + 1);
-                }
-            }
-            i = i + 1;
-        }
-        return out;
+        return t;
     }
 
     static void execRetry(String sql, ArrayList<Object> params) {
+        execRetryLabeled(sql, params, "ddl", 0);
+    }
+
+    static int migrateIgnorable(String msg) {
+        if (msg == null) {
+            return 0;
+        }
+        /* Truncated / incomplete SQL must never be treated as ignorable. */
+        if (msg.indexOf("incomplete input") >= 0) {
+            return 0;
+        }
+        if (msg.indexOf("syntax error") >= 0) {
+            return 0;
+        }
+        if (msg.indexOf("already exists") >= 0) {
+            return 1;
+        }
+        if (msg.indexOf("duplicate column") >= 0) {
+            return 1;
+        }
+        if (msg.indexOf("duplicate") >= 0 && msg.indexOf("syntax") < 0) {
+            return 1;
+        }
+        /* SQLite ALTER ADD COLUMN when column present */
+        if (msg.indexOf("duplicate column name") >= 0) {
+            return 1;
+        }
+        return 0;
+    }
+
+    /** incomplete input / syntax on DDL is structural — retry will not heal truncated SQL. */
+    static int migrateNonRetryable(String msg) {
+        if (msg == null) {
+            return 0;
+        }
+        if (msg.indexOf("incomplete input") >= 0) {
+            return 1;
+        }
+        if (msg.indexOf("syntax error") >= 0) {
+            return 1;
+        }
+        return 0;
+    }
+
+    static int migrateLooksTruncated(String sql) {
+        if (sql == null || sql.length() == 0) {
+            return 0;
+        }
+        String t = trimStmt(sql);
+        if (t.length() < 8) {
+            return 0;
+        }
+        /* Valid DDL/DML starts with known keywords (ASCII case variants). */
+        if (t.indexOf("CREATE ") == 0 || t.indexOf("create ") == 0 || t.indexOf("Create ") == 0) {
+            return 0;
+        }
+        if (t.indexOf("ALTER ") == 0 || t.indexOf("alter ") == 0) {
+            return 0;
+        }
+        if (t.indexOf("INSERT ") == 0 || t.indexOf("insert ") == 0) {
+            return 0;
+        }
+        if (t.indexOf("UPDATE ") == 0 || t.indexOf("update ") == 0) {
+            return 0;
+        }
+        if (t.indexOf("DELETE ") == 0 || t.indexOf("delete ") == 0) {
+            return 0;
+        }
+        if (t.indexOf("DROP ") == 0 || t.indexOf("drop ") == 0) {
+            return 0;
+        }
+        if (t.indexOf("PRAGMA ") == 0 || t.indexOf("pragma ") == 0) {
+            return 0;
+        }
+        if (t.indexOf("SELECT ") == 0 || t.indexOf("select ") == 0) {
+            return 0;
+        }
+        /* Fragments like "company_id INTEGER NOT NULL, ..." without a verb. */
+        if (t.indexOf("INTEGER") >= 0 || t.indexOf("TEXT") >= 0 || t.indexOf("BIGINT") >= 0) {
+            return 1;
+        }
+        return 0;
+    }
+
+    static void execRetryLabeled(String sql, ArrayList<Object> params, String label, int stmtIdx) {
         if (sql == null) {
             return;
         }
         String oneLine = trimStmt(sql);
         if (oneLine.length() == 0) {
+            return;
+        }
+        if (migrateLooksTruncated(oneLine) != 0) {
+            String detail = "truncated SQL fragment in " + label + " stmt#" + String.valueOf(stmtIdx)
+                    + ": " + oneLine;
+            System.out.println("MIGRATE_FATAL " + detail);
+            if (Erp.migrateFatal.length() == 0) {
+                Erp.migrateFatal = detail;
+            } else {
+                Erp.migrateFatal = Erp.migrateFatal + "; " + detail;
+            }
             return;
         }
         try {
@@ -548,20 +1079,21 @@ class ErpDb {
             if (ex.getMessage() != null) {
                 msg = ex.getMessage();
             }
-            if (msg.indexOf("already exists") >= 0) {
+            if (migrateIgnorable(msg) != 0) {
                 return;
             }
-            if (msg.indexOf("duplicate") >= 0) {
+            if (migrateNonRetryable(msg) != 0) {
+                String detail = label + " stmt#" + String.valueOf(stmtIdx) + " " + msg + " SQL=" + oneLine;
+                System.out.println("MIGRATE_FATAL " + detail);
+                if (Erp.migrateFatal.length() == 0) {
+                    Erp.migrateFatal = detail;
+                } else {
+                    Erp.migrateFatal = Erp.migrateFatal + "; " + detail;
+                }
                 return;
             }
-            if (msg.indexOf("not an error") >= 0) {
-                return;
-            }
-            if (msg.indexOf("incomplete input") >= 0) {
-                return;
-            }
-            /* Empty / flaky sqlite errors: reconnect and retry once, then skip. */
-            System.out.println("MIGRATE_RETRY " + msg);
+            /* Transient prepare/bind: reconnect and retry once. */
+            System.out.println("MIGRATE_RETRY " + label + "#" + String.valueOf(stmtIdx) + " " + msg);
             reconnect();
             try {
                 exec(oneLine, params);
@@ -571,17 +1103,16 @@ class ErpDb {
                 if (ex2.getMessage() != null) {
                     msg2 = ex2.getMessage();
                 }
-                if (msg2.indexOf("already exists") >= 0) {
+                if (migrateIgnorable(msg2) != 0) {
                     return;
                 }
-                if (msg2.indexOf("duplicate") >= 0) {
-                    return;
+                String detail = label + " stmt#" + String.valueOf(stmtIdx) + " " + msg2 + " SQL=" + oneLine;
+                System.out.println("MIGRATE_FATAL " + detail);
+                if (Erp.migrateFatal.length() == 0) {
+                    Erp.migrateFatal = detail;
+                } else {
+                    Erp.migrateFatal = Erp.migrateFatal + "; " + detail;
                 }
-                if (msg2.indexOf("not an error") >= 0) {
-                    return;
-                }
-                System.out.println("MIGRATE_SKIP_STMT " + msg2);
-                System.out.println("MIGRATE_SKIP_SQL " + oneLine);
                 reconnect();
                 return;
             }
@@ -593,6 +1124,21 @@ class ErpDb {
         if (Erp.dialect.equals("sqlite")) {
             execRetry(
                     "CREATE TABLE IF NOT EXISTS gl_accounts (id INTEGER PRIMARY KEY AUTOINCREMENT, company_id INTEGER NOT NULL, account_code TEXT NOT NULL, account_name TEXT NOT NULL, account_type TEXT NOT NULL, parent_account_id INTEGER, posting_allowed INTEGER NOT NULL DEFAULT 1, active INTEGER NOT NULL DEFAULT 1, UNIQUE (company_id, account_code))",
+                    empty);
+            execRetry(
+                    "CREATE TABLE IF NOT EXISTS account_mappings (company_id INTEGER NOT NULL, mapping_key TEXT NOT NULL, account_id INTEGER NOT NULL, PRIMARY KEY (company_id, mapping_key))",
+                    empty);
+            execRetry(
+                    "CREATE TABLE IF NOT EXISTS fiscal_periods (id INTEGER PRIMARY KEY AUTOINCREMENT, company_id INTEGER NOT NULL, fiscal_year INTEGER NOT NULL, period_number INTEGER NOT NULL, start_date INTEGER NOT NULL, end_date INTEGER NOT NULL, status TEXT NOT NULL, UNIQUE (company_id, fiscal_year, period_number))",
+                    empty);
+            execRetry(
+                    "CREATE TABLE IF NOT EXISTS journal_entries (id INTEGER PRIMARY KEY AUTOINCREMENT, company_id INTEGER NOT NULL, journal_number TEXT NOT NULL, posting_date INTEGER NOT NULL, document_date INTEGER NOT NULL, source_type TEXT NOT NULL, source_id INTEGER NOT NULL DEFAULT 0, status TEXT NOT NULL, description TEXT NOT NULL DEFAULT '', created_by INTEGER NOT NULL DEFAULT 0, created_at INTEGER NOT NULL, reversed_journal_id INTEGER, UNIQUE (company_id, journal_number))",
+                    empty);
+            execRetry(
+                    "CREATE TABLE IF NOT EXISTS journal_entry_lines (id INTEGER PRIMARY KEY AUTOINCREMENT, company_id INTEGER NOT NULL, journal_entry_id INTEGER NOT NULL, line_no INTEGER NOT NULL, account_id INTEGER NOT NULL, debit_amount INTEGER NOT NULL DEFAULT 0, credit_amount INTEGER NOT NULL DEFAULT 0, business_partner_id INTEGER, description TEXT NOT NULL DEFAULT '')",
+                    empty);
+            execRetry(
+                    "CREATE TABLE IF NOT EXISTS bank_accounts (id INTEGER PRIMARY KEY AUTOINCREMENT, company_id INTEGER NOT NULL, account_name TEXT NOT NULL, currency TEXT NOT NULL DEFAULT 'CNY', ledger_account_id INTEGER NOT NULL, active INTEGER NOT NULL DEFAULT 1, UNIQUE (company_id, account_name))",
                     empty);
             execRetry(
                     "CREATE TABLE IF NOT EXISTS ar_invoices (id INTEGER PRIMARY KEY AUTOINCREMENT, company_id INTEGER NOT NULL, customer_id INTEGER NOT NULL, invoice_number TEXT NOT NULL, invoice_date INTEGER NOT NULL, due_date INTEGER NOT NULL, currency TEXT NOT NULL DEFAULT 'USD', total_amount INTEGER NOT NULL, paid_amount INTEGER NOT NULL DEFAULT 0, open_amount INTEGER NOT NULL, status TEXT NOT NULL, source_delivery_id INTEGER, journal_entry_id INTEGER, created_at INTEGER NOT NULL, UNIQUE (company_id, invoice_number))",
@@ -716,7 +1262,14 @@ class ErpDb {
     }
 
     static DbQueryResult queryConn(DbConnection conn, String sql, ArrayList<Object> params) {
-        return (DbQueryResult) FutureBlocker.blockingGet(conn.query(sql, params));
+        DbQueryResult r = (DbQueryResult) FutureBlocker.blockingGet(conn.query(sql, params));
+        if (r == null) {
+            r = new DbQueryResult();
+        }
+        if (r.rows == null) {
+            r.rows = new ArrayList<Row>();
+        }
+        return r;
     }
 
     static Object queryOneConn(DbConnection conn, String sql, ArrayList<Object> params, RowMapper mapper) {
@@ -724,11 +1277,57 @@ class ErpDb {
     }
 
     static Object queryOne(String sql, ArrayList<Object> params, RowMapper mapper) {
-        return FutureBlocker.blockingGet(Erp.db.queryOne(sql, params, mapper));
+        int attempt = 0;
+        while (attempt < 3) {
+            try {
+                return FutureBlocker.blockingGet(Erp.db.queryOne(sql, params, mapper));
+            } catch (Exception ex) {
+                String em = "";
+                if (ex.getMessage() != null) {
+                    em = ex.getMessage();
+                }
+                if (attempt < 2 && (em.length() == 0 || em.indexOf("prepare returned null") >= 0
+                        || em.indexOf("not an error") >= 0 || em.indexOf("database is locked") >= 0)) {
+                    reconnect();
+                    attempt = attempt + 1;
+                } else {
+                    throw ex;
+                }
+            }
+        }
+        return null;
     }
 
     static DbQueryResult query(String sql, ArrayList<Object> params) {
-        return (DbQueryResult) FutureBlocker.blockingGet(Erp.db.query(sql, params));
+        int attempt = 0;
+        while (attempt < 3) {
+            try {
+                DbQueryResult r = (DbQueryResult) FutureBlocker.blockingGet(Erp.db.query(sql, params));
+                if (r == null) {
+                    r = new DbQueryResult();
+                    r.rows = new ArrayList<Row>();
+                }
+                if (r.rows == null) {
+                    r.rows = new ArrayList<Row>();
+                }
+                return r;
+            } catch (Exception ex) {
+                String em = "";
+                if (ex.getMessage() != null) {
+                    em = ex.getMessage();
+                }
+                if (attempt < 2 && (em.length() == 0 || em.indexOf("prepare returned null") >= 0
+                        || em.indexOf("not an error") >= 0 || em.indexOf("database is locked") >= 0)) {
+                    reconnect();
+                    attempt = attempt + 1;
+                } else {
+                    throw ex;
+                }
+            }
+        }
+        DbQueryResult empty = new DbQueryResult();
+        empty.rows = new ArrayList<Row>();
+        return empty;
     }
 
     static long insertReturningIdConn(DbConnection conn, String sql, ArrayList<Object> params) {
@@ -747,49 +1346,58 @@ class ErpDb {
     }
 
     static long nextDocNo(long companyId, String seqName) {
+        /* Prefer conn path inside transactions; this standalone path still uses atomic bump. */
         ArrayList<Object> p = new ArrayList<Object>();
         p.add(CryptoParse.longToString(companyId));
         p.add(seqName);
-        Object row = queryOne(
+        Object exists = queryOne(
                 "SELECT next_val FROM number_sequences WHERE company_id=? AND seq_name=?",
                 p, new LongColMapper());
-        long n = 0L;
-        if (row != null) {
-            n = ErpNum.asLong(row);
-        } else {
-            ArrayList<Object> ins = new ArrayList<Object>();
-            ins.add(CryptoParse.longToString(companyId));
-            ins.add(seqName);
-            ins.add("2");
-            exec("INSERT INTO number_sequences(company_id, seq_name, next_val) VALUES (?,?,?)", ins);
-            n = 1L;
+        if (exists == null) {
+            try {
+                ArrayList<Object> ins = new ArrayList<Object>();
+                ins.add(CryptoParse.longToString(companyId));
+                ins.add(seqName);
+                ins.add("1");
+                exec("INSERT INTO number_sequences(company_id, seq_name, next_val) VALUES (?,?,?)",
+                        ins);
+            } catch (Exception ignored) {
+            }
         }
         ArrayList<Object> up = new ArrayList<Object>();
         up.add(CryptoParse.longToString(companyId));
         up.add(seqName);
         exec("UPDATE number_sequences SET next_val = next_val + 1 WHERE company_id=? AND seq_name=?", up);
-        return n;
+        Object row = queryOne(
+                "SELECT next_val - 1 FROM number_sequences WHERE company_id=? AND seq_name=?",
+                p, new LongColMapper());
+        return ErpNum.asLong(row);
     }
 
+    /**
+     * Allocate next document sequence value under the caller's transaction.
+     * UPDATE increments first (row lock), then read next_val-1 — avoids SELECT/UPDATE races
+     * that issued duplicate doc numbers under concurrent HTTP creates.
+     */
     static long nextDocNoConn(DbConnection conn, long companyId, String seqName) {
         ArrayList<Object> p = new ArrayList<Object>();
         p.add(CryptoParse.longToString(companyId));
         p.add(seqName);
-        Object row = queryOneConn(conn,
+        Object exists = queryOneConn(conn,
                 "SELECT next_val FROM number_sequences WHERE company_id=? AND seq_name=?",
                 p, new LongColMapper());
-        long n = 0L;
-        if (row != null) {
-            n = ErpNum.asLong(row);
-        } else {
-            ArrayList<Object> ins = new ArrayList<Object>();
-            ins.add(CryptoParse.longToString(companyId));
-            ins.add(seqName);
-            ins.add("2");
-            execConn(conn,
-                    "INSERT INTO number_sequences(company_id, seq_name, next_val) VALUES (?,?,?)",
-                    ins);
-            n = 1L;
+        if (exists == null) {
+            try {
+                ArrayList<Object> ins = new ArrayList<Object>();
+                ins.add(CryptoParse.longToString(companyId));
+                ins.add(seqName);
+                ins.add("1");
+                execConn(conn,
+                        "INSERT INTO number_sequences(company_id, seq_name, next_val) VALUES (?,?,?)",
+                        ins);
+            } catch (Exception ignored) {
+                /* peer txn inserted the same sequence row */
+            }
         }
         ArrayList<Object> up = new ArrayList<Object>();
         up.add(CryptoParse.longToString(companyId));
@@ -797,6 +1405,13 @@ class ErpDb {
         execConn(conn,
                 "UPDATE number_sequences SET next_val = next_val + 1 WHERE company_id=? AND seq_name=?",
                 up);
+        Object row = queryOneConn(conn,
+                "SELECT next_val - 1 FROM number_sequences WHERE company_id=? AND seq_name=?",
+                p, new LongColMapper());
+        long n = ErpNum.asLong(row);
+        if (n <= 0L) {
+            throw new TransactionException("number sequence failed: " + seqName);
+        }
         return n;
     }
 }

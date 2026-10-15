@@ -6,9 +6,10 @@
       .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
   }
   function money(n) {
-    if (global.JnI18n) return global.JnI18n.formatMoney(n, "USD");
+    if (typeof n === "string" && n && isNaN(Number(n))) return n;
+    if (global.JnI18n) return global.JnI18n.formatMoney(n, "CNY");
     var v = Number(n) || 0;
-    return "USD " + v.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    return "CNY " + v.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   }
   function qty(n) {
     if (global.JnI18n) return global.JnI18n.formatNumber(n);

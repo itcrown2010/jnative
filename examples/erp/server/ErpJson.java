@@ -2,6 +2,15 @@
  * @author 张晓达
  */
 class ErpJson {
+    static String hex4(int n) {
+        String h = "0123456789abcdef";
+        int a = (n >> 12) & 15;
+        int b = (n >> 8) & 15;
+        int c = (n >> 4) & 15;
+        int d = n & 15;
+        return h.substring(a, a + 1) + h.substring(b, b + 1) + h.substring(c, c + 1) + h.substring(d, d + 1);
+    }
+
     static String esc(String s) {
         if (s == null) {
             return "";
@@ -19,7 +28,20 @@ class ErpJson {
                     if (c == 10) {
                         out = out + "\\n";
                     } else {
-                        out = out + WebUtil.byteChar(c);
+                        if (c == 13) {
+                            out = out + "\\r";
+                        } else {
+                            if (c == 9) {
+                                out = out + "\\t";
+                            } else {
+                                if (c >= 32 && c <= 126) {
+                                    out = out + WebUtil.byteChar(c);
+                                } else {
+                                    /* JSON \\uXXXX — WebUtil.byteChar maps non-ASCII to '?' */
+                                    out = out + "\\u" + hex4(c);
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -75,9 +97,33 @@ class ErpJson {
     }
 
     static String balance(InventoryBalanceDto b) {
+        long avg = 0L;
+        if (b.quantityOnHand > 0) {
+            avg = b.valueAmount / (0L + b.quantityOnHand);
+        }
+        String costState = b.costState;
+        if (costState == null || costState.length() == 0) {
+            costState = "OK";
+        }
+        String whName = b.warehouseName;
+        if (whName == null) {
+            whName = "";
+        }
         return "{\"warehouseId\":" + num(b.warehouseId)
                 + ",\"itemId\":" + num(b.itemId)
                 + ",\"quantityOnHand\":" + String.valueOf(b.quantityOnHand)
+                + ",\"quantityReserved\":" + String.valueOf(b.quantityReserved)
+                + ",\"quantityAvailable\":" + String.valueOf(b.quantityAvailable)
+                + ",\"reservedSupported\":" + String.valueOf(b.reservedSupported)
+                + ",\"warehouseCode\":" + str(b.warehouseCode)
+                + ",\"warehouseName\":" + str(whName)
+                + ",\"itemSku\":" + str(b.itemSku)
+                + ",\"itemName\":" + str(b.itemName)
+                + ",\"value\":" + num(b.valueAmount)
+                + ",\"valueAmount\":" + num(b.valueAmount)
+                + ",\"avgUnitCost\":" + num(avg)
+                + ",\"minQty\":" + String.valueOf(b.minQty)
+                + ",\"costState\":" + str(costState)
                 + "}";
     }
 

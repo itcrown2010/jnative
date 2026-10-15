@@ -14,6 +14,12 @@ import java.util.List;
  */
 public final class CompilerOptions {
     private Path sourceFile;
+    /**
+     * Optional multi-file input paths from the CLI (not yet loaded).
+     * When non-empty and {@link #programSources()} is unset, the compiler loads each path
+     * as an independent compilation unit. {@link #sourceFile()} remains the primary/entry path.
+     */
+    private List<Path> inputSourceFiles = List.of();
     /** When set, compile these units independently (multi-CU); {@link #sourceFile()} is the entry/main. */
     private ProgramSources programSources;
     private Path outputFile;
@@ -172,6 +178,16 @@ public final class CompilerOptions {
 
     public void setSourceFile(Path sourceFile) {
         this.sourceFile = sourceFile;
+    }
+
+    public List<Path> inputSourceFiles() {
+        return inputSourceFiles;
+    }
+
+    public void setInputSourceFiles(List<Path> inputSourceFiles) {
+        this.inputSourceFiles = inputSourceFiles == null || inputSourceFiles.isEmpty()
+                ? List.of()
+                : List.copyOf(inputSourceFiles);
     }
 
     public ProgramSources programSources() {

@@ -8,6 +8,8 @@ package io.jnative.cli;
 import io.jnative.compiler.CompilerOptions;
 
 import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * @author 张晓达
@@ -23,6 +25,8 @@ public final class CliArguments {
             options.setHelp(true);
             return options;
         }
+
+        List<Path> sourcePaths = new ArrayList<>();
 
         for (int i = 0; i < args.length; i++) {
             String arg = args[i];
@@ -161,12 +165,16 @@ public final class CliArguments {
                     if (arg.startsWith("-")) {
                         throw new IllegalArgumentException("unknown option: " + arg);
                     }
-                    if (options.sourceFile() != null) {
-                        throw new IllegalArgumentException("multiple source files are not supported");
-                    }
-                    options.setSourceFile(Path.of(arg));
+                    sourcePaths.add(Path.of(arg));
                 }
             }
+        }
+
+        if (!sourcePaths.isEmpty()) {
+            // Paths only — existence/read deferred to JNativeCompiler (parse stays side-effect light).
+            // Last path is primary (default -o name). Multi-file → independent CUs via package/import.
+            options.setSourceFile(sourcePaths.get(sourcePaths.size() - 1));
+            options.setInputSourceFiles(sourcePaths);
         }
         return options;
     }

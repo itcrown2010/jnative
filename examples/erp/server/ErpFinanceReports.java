@@ -33,20 +33,35 @@ class ErpFinanceReports {
         p.add(CryptoParse.longToString(fromDate));
         p.add(CryptoParse.longToString(toDate));
         DbQueryResult r = ErpDb.query(
-                "SELECT id, journal_number, posting_date, source_type, source_id, status, description FROM journal_entries WHERE company_id=? AND posting_date>=? AND posting_date<=? ORDER BY posting_date, id",
+                "SELECT id, journal_number, posting_date, source_type, source_id, status, COALESCE(description,'') FROM journal_entries WHERE company_id=? AND posting_date>=? AND posting_date<=? ORDER BY posting_date, id",
                 p);
         ArrayList<Object> out = new ArrayList<Object>();
+        if (r == null || r.rows == null) {
+            return out;
+        }
         int i = 0;
         while (i < r.rows.size()) {
             Row row = r.rows.get(i);
             JournalEntryDto d = new JournalEntryDto();
             d.id = row.getLong(0);
             d.journalNumber = row.getString(1);
+            if (d.journalNumber == null) {
+                d.journalNumber = "";
+            }
             d.postingDate = row.getLong(2);
             d.sourceType = row.getString(3);
+            if (d.sourceType == null) {
+                d.sourceType = "";
+            }
             d.sourceId = row.getLong(4);
             d.status = row.getString(5);
+            if (d.status == null) {
+                d.status = "";
+            }
             d.description = row.getString(6);
+            if (d.description == null) {
+                d.description = "";
+            }
             d.lines = journalLines(companyId, d.id);
             long td = 0L;
             long tc = 0L;
@@ -113,7 +128,15 @@ class ErpFinanceReports {
             ln.debitAmount = row.getLong(1);
             ln.creditAmount = row.getLong(2);
             ln.businessPartnerId = row.getLong(3);
-            ln.description = row.getString(4) + " [" + row.getString(6) + "]";
+            String d4 = row.getString(4);
+            String d6 = row.getString(6);
+            if (d4 == null) {
+                d4 = "";
+            }
+            if (d6 == null) {
+                d6 = "";
+            }
+            ln.description = d4 + " [" + d6 + "]";
             out.add(ln);
             i = i + 1;
         }
@@ -123,6 +146,9 @@ class ErpFinanceReports {
     static ArrayList<Object> trialBalance(long companyId, long fromDate, long toDate) {
         ArrayList<Object> accounts = chartOfAccounts(companyId);
         ArrayList<Object> out = new ArrayList<Object>();
+        if (accounts == null) {
+            return out;
+        }
         int i = 0;
         while (i < accounts.size()) {
             GlAccountDto a = (GlAccountDto) accounts.get(i);
@@ -267,17 +293,24 @@ class ErpFinanceReports {
         ArrayList<Object> p = new ArrayList<Object>();
         p.add(CryptoParse.longToString(companyId));
         DbQueryResult r = ErpDb.query(
-                "SELECT id, account_name, currency, ledger_account_id, active FROM bank_accounts WHERE company_id=? ORDER BY id",
+                "SELECT id, account_name, currency, ledger_account_id, active, balance FROM bank_accounts WHERE company_id=? ORDER BY id",
                 p);
         ArrayList<Object> out = new ArrayList<Object>();
         int i = 0;
         while (i < r.rows.size()) {
             Row row = r.rows.get(i);
+            long bal = 0L;
+            if (row.columnCount() > 5) {
+                bal = row.getLong(5);
+            }
             String json = "{\"id\":" + ErpJson.num(row.getLong(0))
                     + ",\"accountName\":" + ErpJson.str(row.getString(1))
                     + ",\"currency\":" + ErpJson.str(row.getString(2))
                     + ",\"ledgerAccountId\":" + ErpJson.num(row.getLong(3))
-                    + ",\"active\":" + String.valueOf(row.getInt(4)) + "}";
+                    + ",\"active\":" + String.valueOf(row.getInt(4))
+                    + ",\"balance\":" + ErpJson.num(bal)
+                    + ",\"code\":" + ErpJson.str(row.getString(1))
+                    + ",\"name\":" + ErpJson.str(row.getString(1)) + "}";
             out.add(json);
             i = i + 1;
         }

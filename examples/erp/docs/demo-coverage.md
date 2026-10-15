@@ -34,9 +34,46 @@
 | Users / roles / settings / audit | `/api/erp/admin/*` | platform | ensurePlatform | present |
 | Setup wizard / help / import | existing | — | — | available |
 
+## Purchase → GR → inventory → provisional AP (formal path)
+
+See [purchase-inventory-rules.md](./purchase-inventory-rules.md) and [sales-order-rules.md](./sales-order-rules.md). Money = integer cents; qty = integer. GR/DL post stock + provisional AP/AR. Reservations implemented (`inventory_reservations`; available = on-hand − reserved).
+
+## Inventory costing (moving average)
+
+See [inventory-costing-rules.md](./inventory-costing-rules.md). Perpetual MAV by item×warehouse; sales return restores original DL COGS.
+
+```bash
+DATABASE_URL='sqlite:./build/erp/costing-accept.db' \
+  examples/erp/.jnative/build/erp-server --costing-test
+```
+
+## Finance settlement (sub-ledger)
+
+See [finance-settlement-rules.md](./finance-settlement-rules.md). Receipts/payments + allocation/reverse + bank cash + ageing.
+
+```bash
+DATABASE_URL='sqlite:./build/erp/settlement-accept.db' \
+  examples/erp/.jnative/build/erp-server --settlement-test
+# or: examples/erp/scripts/settlement-accept.sh
+```
+
+Evidence (integer cents): AR 1000 SETTLED + AR 600 open 200 after reverse of 200; IP-1 unalloc 200; IP-2 unalloc 100; bank cash movements reconcile to `bank_accounts.balance`. Full GL close / tax / FX / costing out of scope.
+
+## Management GL (accrual, single book)
+
+See [gl-ledger-rules.md](./gl-ledger-rules.md). Policy `MGMT_DIRECT_ACCRUAL` for acceptance; default books remain `PROVISIONAL_CLEARING` (GR clearing). Period lock ≠ P&amp;L/year-end close.
+
+```bash
+DATABASE_URL='sqlite:./build/erp/gl-accept.db' \
+  examples/erp/.jnative/build/erp-server --gl-test
+# or: examples/erp/scripts/gl-accept.sh
+```
+
+Evidence: opening 1000 → buy 100 → sell rev80/cogs40 → receipt50 → pay60 → bank990 / AR30 / inv60 / AP40 / equity1000 / profit40; trial + subledger recon; idempotent events; unbalanced rejected; reverse; closed period blocks post.
+
 ## Hidden (not implemented — not seeded)
 
-Sales quotations/returns · purchase quotations/returns · inventory transfer/count/adjust/batch/serial/valuation · manufacturing execution · CRM · most analytic reports · price lists/currencies.
+Sales quotations · purchase quotations/returns · inventory transfer/batch/serial · manufacturing execution · CRM · most analytic reports · price lists/multi-currency · formal AP invoice confirmation / full GL close · historical as-of party statement replay · automatic AR↔AP netting.
 
 ## Practice path (qty 0)
 

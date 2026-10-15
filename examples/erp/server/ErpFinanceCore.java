@@ -12,6 +12,8 @@ class ErpFinanceCore {
                 "SELECT id FROM gl_accounts WHERE company_id=? AND account_code=?", chk, new LongMapper());
         if (existing != null) {
             ensureMfgAccounts(companyId);
+            ensureEquityMapping(companyId);
+            applyAccountMeta(companyId);
             ensureBankIfMissing(companyId);
             return;
         }
@@ -34,9 +36,11 @@ class ErpFinanceCore {
         mapAccount(companyId, AccountMapKey.FINISHED_GOODS, "1400");
         mapAccount(companyId, AccountMapKey.AP, "2000");
         mapAccount(companyId, AccountMapKey.GR_CLEARING, "2100");
+        mapAccount(companyId, AccountMapKey.EQUITY, "3000");
         mapAccount(companyId, AccountMapKey.REVENUE, "4000");
         mapAccount(companyId, AccountMapKey.COGS, "5000");
 
+        applyAccountMeta(companyId);
         ensureBankIfMissing(companyId);
 
         /* Wide open period covering demo horizon (epoch±years). */
@@ -96,6 +100,40 @@ class ErpFinanceCore {
                         + CryptoParse.longToString(companyId) + ",'Operating Bank','USD',"
                         + CryptoParse.longToString(ErpNum.asLong(bankGl)) + ",1)",
                 empty);
+    }
+
+    static void ensureEquityMapping(long companyId) {
+        Object eq = accountIdByCode(companyId, "3000");
+        if (ErpNum.asLong(eq) == 0L) {
+            ensureAccount(companyId, "3000", "Equity", AccountType.EQUITY, 0L);
+        }
+        Object mapEq = ErpDb.queryOne(
+                "SELECT account_id FROM account_mappings WHERE company_id=? AND mapping_key=?",
+                mapParams(companyId, AccountMapKey.EQUITY), new LongMapper());
+        if (ErpNum.asLong(mapEq) == 0L) {
+            mapAccount(companyId, AccountMapKey.EQUITY, "3000");
+        }
+    }
+
+    /** Normal balance + control/partner flags for seeded COA (idempotent). */
+    static void applyAccountMeta(long companyId) {
+        String cid = CryptoParse.longToString(companyId);
+        ArrayList<Object> empty = new ArrayList<Object>();
+        try {
+            ErpDb.exec("UPDATE gl_accounts SET normal_balance='" + NormalBalance.DEBIT
+                    + "', is_control=0, require_partner=0 WHERE company_id=" + cid
+                    + " AND account_code IN ('1000','1200','1300','1400','5000')", empty);
+            ErpDb.exec("UPDATE gl_accounts SET normal_balance='" + NormalBalance.DEBIT
+                    + "', is_control=1, require_partner=1 WHERE company_id=" + cid
+                    + " AND account_code='1100'", empty);
+            ErpDb.exec("UPDATE gl_accounts SET normal_balance='" + NormalBalance.CREDIT
+                    + "', is_control=1, require_partner=1 WHERE company_id=" + cid
+                    + " AND account_code='2000'", empty);
+            ErpDb.exec("UPDATE gl_accounts SET normal_balance='" + NormalBalance.CREDIT
+                    + "', is_control=0, require_partner=0 WHERE company_id=" + cid
+                    + " AND account_code IN ('2100','3000','4000')", empty);
+        } catch (Exception ignored) {
+        }
     }
 
     static void ensureMfgAccounts(long companyId) {
@@ -191,12 +229,28 @@ class ErpFinanceCore {
                 "SELECT status FROM fiscal_periods WHERE company_id=? AND start_date<=? AND end_date>=? ORDER BY period_number LIMIT 1",
                 p, new StringMapper());
         if (st == null) {
+            /* No overlapping period row — keep legacy allow (seed creates wide OPEN period). */
             return 1;
         }
-        if (((String) st).equals(FiscalPeriodStatus.OPEN)) {
+        String status = (String) st;
+        if (status == null || status.length() == 0) {
+            return 1;
+        }
+        if (status.equals(FiscalPeriodStatus.OPEN)) {
             return 1;
         }
         return 0;
+    }
+
+    static long periodIdForDateConn(DbConnection conn, long companyId, long postingDate) {
+        ArrayList<Object> p = new ArrayList<Object>();
+        p.add(CryptoParse.longToString(companyId));
+        p.add(CryptoParse.longToString(postingDate));
+        p.add(CryptoParse.longToString(postingDate));
+        Object id = ErpDb.queryOneConn(conn,
+                "SELECT id FROM fiscal_periods WHERE company_id=? AND start_date<=? AND end_date>=? ORDER BY period_number LIMIT 1",
+                p, new LongMapper());
+        return ErpNum.asLong(id);
     }
 
     static PostResultDto postJournalConn(DbConnection conn, long companyId, long userId, PostingRequest req) {
@@ -207,10 +261,16 @@ class ErpFinanceCore {
             bad.message = "empty journal";
             return bad;
         }
-        if (assertOpenPeriodConn(conn, companyId, req.postingDate) == 0) {
-            bad.code = "PERIOD_CLOSED";
-            bad.message = "fiscal period closed";
-            return bad;
+        String status = JournalStatus.POSTED;
+        if (req.initialStatus != null && req.initialStatus.length() > 0) {
+            status = req.initialStatus;
+        }
+        if (status.equals(JournalStatus.POSTED) || status.equals(JournalStatus.APPROVED)) {
+            if (assertOpenPeriodConn(conn, companyId, req.postingDate) == 0) {
+                bad.code = "PERIOD_CLOSED";
+                bad.message = "fiscal period closed or missing for posting date";
+                return bad;
+            }
         }
         long debit = 0L;
         long credit = 0L;
@@ -235,12 +295,30 @@ class ErpFinanceCore {
             ArrayList<Object> ap = new ArrayList<Object>();
             ap.add(CryptoParse.longToString(ln.accountId));
             ap.add(CryptoParse.longToString(companyId));
-            Object acc = ErpDb.queryOneConn(conn,
-                    "SELECT posting_allowed FROM gl_accounts WHERE id=? AND company_id=? AND active=1", ap,
-                    new IntMapper());
-            if (acc == null || ErpNum.parseInt((String) acc) == 0) {
+            DbQueryResult ar = ErpDb.queryConn(conn,
+                    "SELECT posting_allowed, COALESCE(require_partner,0), COALESCE(require_warehouse,0) FROM gl_accounts WHERE id=? AND company_id=? AND active=1",
+                    ap);
+            if (ar.rows.size() == 0) {
                 bad.code = "BAD_ACCOUNT";
-                bad.message = "invalid account";
+                bad.message = "account missing or inactive id=" + CryptoParse.longToString(ln.accountId);
+                return bad;
+            }
+            Row arow = ar.rows.get(0);
+            if (arow.getInt(0) == 0) {
+                bad.code = "BAD_ACCOUNT";
+                bad.message = "account not posting-allowed";
+                return bad;
+            }
+            if (arow.getInt(1) != 0 && ln.businessPartnerId <= 0L) {
+                bad.code = "PARTNER_REQUIRED";
+                bad.message = "auxiliary partner required for account "
+                        + CryptoParse.longToString(ln.accountId);
+                return bad;
+            }
+            if (arow.getInt(2) != 0 && ln.warehouseId <= 0L) {
+                bad.code = "WAREHOUSE_REQUIRED";
+                bad.message = "auxiliary warehouse required for account "
+                        + CryptoParse.longToString(ln.accountId);
                 return bad;
             }
             debit = debit + ln.debitAmount;
@@ -249,18 +327,35 @@ class ErpFinanceCore {
         }
         if (debit != credit) {
             bad.code = "UNBALANCED";
-            bad.message = "debit != credit";
+            bad.message = "debit != credit; debit=" + CryptoParse.longToString(debit)
+                    + " credit=" + CryptoParse.longToString(credit)
+                    + " diff=" + CryptoParse.longToString(debit - credit);
             return bad;
         }
         if (req.idempotencyKey != null && req.idempotencyKey.length() > 0) {
             String cached = ErpPosting.cachedIdempotencyConn(conn, companyId, req.idempotencyKey);
-            if (cached.length() > 0) {
+            if (cached != null && cached.length() > 0) {
                 return ErpPosting.resultFromJson(cached);
             }
         }
         long now = AsyncClockNative.wallMillis();
+        long periodId = periodIdForDateConn(conn, companyId, req.postingDate);
         long seq = ErpDb.nextDocNoConn(conn, companyId, "JE");
         String jn = "JE-" + CryptoParse.longToString(seq);
+        String eventType = "";
+        if (req.eventType != null) {
+            eventType = req.eventType;
+        }
+        String descHdr = "";
+        if (req.description != null) {
+            descHdr = req.description;
+        }
+        long postedBy = 0L;
+        long postedAt = 0L;
+        if (status.equals(JournalStatus.POSTED)) {
+            postedBy = userId;
+            postedAt = now;
+        }
         ArrayList<Object> hdr = new ArrayList<Object>();
         hdr.add(CryptoParse.longToString(companyId));
         hdr.add(jn);
@@ -268,17 +363,30 @@ class ErpFinanceCore {
         hdr.add(CryptoParse.longToString(req.documentDate));
         hdr.add(req.sourceType);
         hdr.add(CryptoParse.longToString(req.sourceId));
-        hdr.add(JournalStatus.POSTED);
-        if (req.description == null) {
-            hdr.add("");
-        } else {
-            hdr.add(req.description);
-        }
+        hdr.add(status);
+        hdr.add(descHdr);
         hdr.add(CryptoParse.longToString(userId));
         hdr.add(CryptoParse.longToString(now));
-        long jeId = ErpDb.insertReturningIdConn(conn,
-                "INSERT INTO journal_entries(company_id, journal_number, posting_date, document_date, source_type, source_id, status, description, created_by, created_at) VALUES (?,?,?,?,?,?,?,?,?,?)",
-                hdr);
+        long jeId = 0L;
+        try {
+            ArrayList<Object> hdr2 = new ArrayList<Object>();
+            int hi = 0;
+            while (hi < hdr.size()) {
+                hdr2.add(hdr.get(hi));
+                hi = hi + 1;
+            }
+            hdr2.add(eventType);
+            hdr2.add(CryptoParse.longToString(periodId));
+            hdr2.add(CryptoParse.longToString(postedBy));
+            hdr2.add(CryptoParse.longToString(postedAt));
+            jeId = ErpDb.insertReturningIdConn(conn,
+                    "INSERT INTO journal_entries(company_id, journal_number, posting_date, document_date, source_type, source_id, status, description, created_by, created_at, event_type, fiscal_period_id, posted_by, posted_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                    hdr2);
+        } catch (Exception colEx) {
+            jeId = ErpDb.insertReturningIdConn(conn,
+                    "INSERT INTO journal_entries(company_id, journal_number, posting_date, document_date, source_type, source_id, status, description, created_by, created_at) VALUES (?,?,?,?,?,?,?,?,?,?)",
+                    hdr);
+        }
         int lineNo = 1;
         int li = 0;
         while (li < req.lines.size()) {
@@ -287,25 +395,41 @@ class ErpFinanceCore {
             if (ln.description != null) {
                 desc = ln.description;
             }
-            ErpDb.execConn(conn,
-                    "INSERT INTO journal_entry_lines(company_id, journal_entry_id, line_no, account_id, debit_amount, credit_amount, business_partner_id, description) VALUES ("
-                            + CryptoParse.longToString(companyId) + ","
-                            + CryptoParse.longToString(jeId) + ","
-                            + CryptoParse.longToString(lineNo) + ","
-                            + CryptoParse.longToString(ln.accountId) + ","
-                            + CryptoParse.longToString(ln.debitAmount) + ","
-                            + CryptoParse.longToString(ln.creditAmount) + ","
-                            + CryptoParse.longToString(ln.businessPartnerId) + ",'"
-                            + desc + "')",
-                    new ArrayList<Object>());
+            try {
+                ErpDb.execConn(conn,
+                        "INSERT INTO journal_entry_lines(company_id, journal_entry_id, line_no, account_id, debit_amount, credit_amount, business_partner_id, warehouse_id, description) VALUES ("
+                                + CryptoParse.longToString(companyId) + ","
+                                + CryptoParse.longToString(jeId) + ","
+                                + CryptoParse.longToString(lineNo) + ","
+                                + CryptoParse.longToString(ln.accountId) + ","
+                                + CryptoParse.longToString(ln.debitAmount) + ","
+                                + CryptoParse.longToString(ln.creditAmount) + ","
+                                + CryptoParse.longToString(ln.businessPartnerId) + ","
+                                + CryptoParse.longToString(ln.warehouseId) + ",'"
+                                + desc + "')",
+                        new ArrayList<Object>());
+            } catch (Exception lineEx) {
+                ErpDb.execConn(conn,
+                        "INSERT INTO journal_entry_lines(company_id, journal_entry_id, line_no, account_id, debit_amount, credit_amount, business_partner_id, description) VALUES ("
+                                + CryptoParse.longToString(companyId) + ","
+                                + CryptoParse.longToString(jeId) + ","
+                                + CryptoParse.longToString(lineNo) + ","
+                                + CryptoParse.longToString(ln.accountId) + ","
+                                + CryptoParse.longToString(ln.debitAmount) + ","
+                                + CryptoParse.longToString(ln.creditAmount) + ","
+                                + CryptoParse.longToString(ln.businessPartnerId) + ",'"
+                                + desc + "')",
+                        new ArrayList<Object>());
+            }
             lineNo = lineNo + 1;
             li = li + 1;
         }
         PostResultDto ok = new PostResultDto();
         ok.ok = 1;
         ok.code = "OK";
-        ok.message = "posted";
+        ok.message = status;
         ok.documentJson = "{\"id\":" + ErpJson.num(jeId) + ",\"journalNumber\":" + ErpJson.str(jn)
+                + ",\"status\":" + ErpJson.str(status)
                 + ",\"debit\":" + ErpJson.num(debit) + ",\"credit\":" + ErpJson.num(credit) + "}";
         if (req.idempotencyKey != null && req.idempotencyKey.length() > 0) {
             ErpPosting.storeIdempotencyConn(conn, companyId, req.idempotencyKey, "JE", ok.documentJson, now);
@@ -313,12 +437,121 @@ class ErpFinanceCore {
         return ok;
     }
 
+    static PostResultDto reverseJournalConn(DbConnection conn, long companyId, long userId, long journalId,
+            String reason, String idempotencyKey) {
+        PostResultDto bad = new PostResultDto();
+        bad.ok = 0;
+        if (idempotencyKey != null && idempotencyKey.length() > 0) {
+            String cached = ErpPosting.cachedIdempotencyConn(conn, companyId, idempotencyKey);
+            if (cached != null && cached.length() > 0) {
+                return ErpPosting.resultFromJson(cached);
+            }
+        }
+        ArrayList<Object> hp = new ArrayList<Object>();
+        hp.add(CryptoParse.longToString(journalId));
+        hp.add(CryptoParse.longToString(companyId));
+        DbQueryResult hr = ErpDb.queryConn(conn,
+                "SELECT journal_number, posting_date, document_date, status, COALESCE(reversed_journal_id,0), COALESCE(event_type,'') FROM journal_entries WHERE id=? AND company_id=?",
+                hp);
+        if (hr.rows.size() == 0) {
+            bad.code = "NOT_FOUND";
+            bad.message = "journal not found";
+            return bad;
+        }
+        Row h = hr.rows.get(0);
+        String status = h.getString(3);
+        long already = h.getLong(4);
+        if (status.equals(JournalStatus.POSTED) == false) {
+            bad.code = "NOT_POSTED";
+            bad.message = "only POSTED journals can be reversed; status=" + status;
+            return bad;
+        }
+        if (already != 0L) {
+            bad.code = "ALREADY_REVERSED";
+            bad.message = "already reversed by " + CryptoParse.longToString(already);
+            return bad;
+        }
+        if (assertOpenPeriodConn(conn, companyId, h.getLong(1)) == 0) {
+            bad.code = "PERIOD_CLOSED";
+            bad.message = "period closed; cannot reverse";
+            return bad;
+        }
+        ArrayList<Object> lp = new ArrayList<Object>();
+        lp.add(CryptoParse.longToString(journalId));
+        lp.add(CryptoParse.longToString(companyId));
+        DbQueryResult lines = ErpDb.queryConn(conn,
+                "SELECT account_id, debit_amount, credit_amount, COALESCE(business_partner_id,0), COALESCE(warehouse_id,0), description FROM journal_entry_lines WHERE journal_entry_id=? AND company_id=? ORDER BY line_no",
+                lp);
+        PostingRequest req = new PostingRequest();
+        req.sourceType = JournalSource.REVERSAL;
+        req.sourceId = journalId;
+        req.postingDate = h.getLong(1);
+        req.documentDate = h.getLong(2);
+        req.eventType = GlEventType.REVERSAL;
+        if (reason == null || reason.length() == 0) {
+            req.description = "Reversal of " + h.getString(0);
+        } else {
+            req.description = "Reversal of " + h.getString(0) + ": " + reason;
+        }
+        req.idempotencyKey = idempotencyKey;
+        req.initialStatus = JournalStatus.POSTED;
+        req.lines = new ArrayList<Object>();
+        int i = 0;
+        while (i < lines.rows.size()) {
+            Row ln = lines.rows.get(i);
+            req.lines.add(lineWh(ln.getLong(0), ln.getLong(2), ln.getLong(1), ln.getLong(3), ln.getLong(4),
+                    ln.getString(5)));
+            i = i + 1;
+        }
+        PostResultDto rev = postJournalConn(conn, companyId, userId, req);
+        if (rev.ok == 0) {
+            return rev;
+        }
+        long revId = 0L;
+        if (rev.documentJson != null) {
+            int idx = rev.documentJson.indexOf("\"id\":");
+            if (idx >= 0) {
+                int j = idx + 5;
+                String n = "";
+                while (j < rev.documentJson.length()) {
+                    int c = rev.documentJson.charAt(j);
+                    if (c >= 48 && c <= 57) {
+                        n = n + WebUtil.byteChar(c);
+                    } else {
+                        if (n.length() > 0) {
+                            break;
+                        }
+                    }
+                    j = j + 1;
+                }
+                if (n.length() > 0) {
+                    revId = ErpNum.parseLong(n);
+                }
+            }
+        }
+        /* Keep original POSTED (still queryable in books); reversing JE nets out.
+           Mark link via reversed_journal_id; do not drop original from TB. */
+        ErpDb.execConn(conn,
+                "UPDATE journal_entries SET reversed_journal_id=" + CryptoParse.longToString(revId)
+                        + " WHERE id=" + CryptoParse.longToString(journalId)
+                        + " AND company_id=" + CryptoParse.longToString(companyId)
+                        + " AND status='" + JournalStatus.POSTED + "'"
+                        + " AND COALESCE(reversed_journal_id,0)=0",
+                new ArrayList<Object>());
+        return rev;
+    }
+
     static PostingLineInput line(long accountId, long debit, long credit, long bpId, String desc) {
+        return lineWh(accountId, debit, credit, bpId, 0L, desc);
+    }
+
+    static PostingLineInput lineWh(long accountId, long debit, long credit, long bpId, long whId, String desc) {
         PostingLineInput ln = new PostingLineInput();
         ln.accountId = accountId;
         ln.debitAmount = debit;
         ln.creditAmount = credit;
         ln.businessPartnerId = bpId;
+        ln.warehouseId = whId;
         ln.description = desc;
         return ln;
     }

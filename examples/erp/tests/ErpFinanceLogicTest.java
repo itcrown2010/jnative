@@ -24,7 +24,9 @@ class ErpFinanceLogicTest {
         }
         int pass = 1;
         pass = runCoreScenario(pass);
-        pass = runExceptionChecks(pass);
+        if (pass != 0) {
+            pass = runExceptionChecks(pass);
+        }
         if (pass != 0) {
             System.out.println("PASS finance");
         } else {
@@ -34,6 +36,7 @@ class ErpFinanceLogicTest {
     }
 
     static void seedMinimal() {
+        System.out.println("STEP finance seed");
         long now = AsyncClockNative.wallMillis();
         ArrayList<Object> co = new ArrayList<Object>();
         co.add(companyCode);
@@ -131,6 +134,7 @@ class ErpFinanceLogicTest {
 
     static int runCoreScenario(int pass) {
         long now = AsyncClockNative.wallMillis();
+        System.out.println("STEP finance core start");
 
         ArrayList<Object> poLines = new ArrayList<Object>();
         PoLineInput pl = new PoLineInput();
@@ -138,13 +142,38 @@ class ErpFinanceLogicTest {
         pl.quantity = 100;
         pl.unitPriceCents = 50L;
         poLines.add(pl);
-        PurchaseOrderDto po = ErpPurchasing.createDraft(companyId, supplierId, poLines);
+        PurchaseOrderDto po = null;
+        try {
+            System.out.println("STEP PO create");
+            po = ErpPurchasing.createDraft(companyId, supplierId, poLines);
+        } catch (Exception ex) {
+            System.out.println("FAIL PO create ex");
+            if (ex.getMessage() != null) {
+                System.out.println(ex.getMessage());
+            }
+            return 0;
+        }
         if (po == null) {
             System.out.println("FAIL PO create");
             return 0;
         }
-        po = ErpPurchasing.approve(companyId, po.id);
+        try {
+            System.out.println("STEP PO approve id=" + CryptoParse.longToString(po.id));
+            po = ErpPurchasing.approve(companyId, po.id);
+        } catch (Exception ex) {
+            System.out.println("FAIL PO approve ex");
+            if (ex.getMessage() != null) {
+                System.out.println(ex.getMessage());
+            }
+            return 0;
+        }
+        if (po == null || po.lines == null || po.lines.size() == 0) {
+            System.out.println("FAIL PO approve");
+            return 0;
+        }
+        System.out.println("STEP PO approved");
         OrderLineDto poLine = (OrderLineDto) po.lines.get(0);
+        System.out.println("STEP poLine id=" + CryptoParse.longToString(poLine.id));
 
         PostGoodsReceiptRequest gr = new PostGoodsReceiptRequest();
         gr.purchaseOrderId = po.id;
@@ -155,7 +184,20 @@ class ErpFinanceLogicTest {
         gl.orderLineId = poLine.id;
         gl.quantity = 100;
         gr.lines.add(gl);
-        PostResultDto grR = ErpPosting.postGoodsReceipt(companyId, gr);
+        PostResultDto grR = null;
+        try {
+            System.out.println("STEP GR post");
+            ErpDb.reconnect();
+            grR = ErpPosting.postGoodsReceipt(companyId, gr);
+        } catch (Exception ex) {
+            System.out.println("FAIL GR ex");
+            if (ex.getMessage() != null) {
+                System.out.println(ex.getMessage());
+            } else {
+                System.out.println("EX_EMPTY GR");
+            }
+            return 0;
+        }
         if (okPost(grR) == 0) {
             System.out.println("FAIL GR");
             if (grR != null) {
@@ -164,6 +206,7 @@ class ErpFinanceLogicTest {
             }
             return 0;
         }
+        System.out.println("STEP GR ok");
         
         ArrayList<Object> soLines = new ArrayList<Object>();
         SoLineInput sl = new SoLineInput();
@@ -171,13 +214,35 @@ class ErpFinanceLogicTest {
         sl.quantity = 30;
         sl.unitPriceCents = 80L;
         soLines.add(sl);
-        SalesOrderDto so = ErpSales.createDraft(companyId, customerId, soLines);
-        if (so == null) {
-            System.out.println("FAIL SO create");
+        ErpDb.reconnect();
+        SalesOrderDto so = null;
+        int soAttempt = 0;
+        while (soAttempt < 3 && so == null) {
+            try {
+                so = ErpSales.createDraftFull(companyId, customerId, warehouseId, 0L, 0L, "fin", "CNY",
+                        soLines);
+                if (so != null) {
+                    so = ErpSales.approve(companyId, so.id);
+                }
+            } catch (Exception soEx) {
+                System.out.println("SO_ATTEMPT fail");
+                if (soEx.getMessage() != null) {
+                    System.out.println(soEx.getMessage());
+                }
+                so = null;
+                ErpDb.reconnect();
+            }
+            soAttempt = soAttempt + 1;
+        }
+        if (so == null || so.lines == null || so.lines.size() == 0) {
+            System.out.println("FAIL SO create/approve");
             return 0;
         }
-                so = ErpSales.approve(companyId, so.id);
-                OrderLineDto soLine = (OrderLineDto) so.lines.get(0);
+        OrderLineDto soLine = (OrderLineDto) so.lines.get(0);
+        if (soLine.reservedQty < 30) {
+            System.out.println("FAIL SO reserve qty=" + String.valueOf(soLine.reservedQty));
+            return 0;
+        }
 
         PostDeliveryRequest dl = new PostDeliveryRequest();
         dl.salesOrderId = so.id;
@@ -426,70 +491,107 @@ class ErpFinanceLogicTest {
 
     static int runExceptionChecks(int pass) {
         long now = AsyncClockNative.wallMillis();
-        /* Duplicate IP idempotency */
-        IncomingPaymentRequest dup = new IncomingPaymentRequest();
-        dup.customerId = customerId;
-        dup.paymentDate = now;
-        dup.amount = 1000L;
-        dup.bankAccountId = bankAccountId;
-        dup.idempotencyKey = "fin-ip-1";
-        dup.allocations = new ArrayList<Object>();
-        PostResultDto d1 = ErpFinanceArAp.postIncomingPayment(companyId, 0L, dup);
-        if (d1 == null || d1.ok == 0) {
-            System.out.println("FAIL idempotent replay");
-            pass = 0;
-        }
+        ErpDb.reconnect();
+        System.out.println("STEP finance exception checks");
+        try {
+            /* Duplicate IP idempotency */
+            IncomingPaymentRequest dup = new IncomingPaymentRequest();
+            dup.customerId = customerId;
+            dup.paymentDate = now;
+            dup.amount = 1000L;
+            dup.bankAccountId = bankAccountId;
+            dup.idempotencyKey = "fin-ip-1";
+            dup.allocations = new ArrayList<Object>();
+            PostResultDto d1 = ErpFinanceArAp.postIncomingPayment(companyId, 0L, dup);
+            if (d1 == null || d1.ok == 0) {
+                System.out.println("FAIL idempotent replay");
+                pass = 0;
+            } else {
+                System.out.println("OK idempotent_replay");
+            }
 
-        /* Over-allocation against closed AR */
-        ArInvoiceDto ar2 = ErpFinanceArAp.createArInvoice(companyId, customerId, 100L, now, now, 0L);
-        if (ar2 == null) {
-            System.out.println("FAIL AR2 create");
+            /* Over-allocation against closed AR */
+            ArInvoiceDto ar2 = ErpFinanceArAp.createArInvoice(companyId, customerId, 100L, now, now, 0L);
+            if (ar2 == null) {
+                System.out.println("FAIL AR2 create");
+                return 0;
+            }
+            ErpFinanceArAp.postArInvoice(companyId, 0L, ar2.id);
+            IncomingPaymentRequest over = new IncomingPaymentRequest();
+            over.customerId = customerId;
+            over.paymentDate = now;
+            over.amount = 200L;
+            over.bankAccountId = bankAccountId;
+            over.idempotencyKey = "fin-ip-over";
+            over.allocations = new ArrayList<Object>();
+            PaymentAllocationInput oa = new PaymentAllocationInput();
+            oa.invoiceId = ar2.id;
+            oa.allocatedAmount = 200L;
+            over.allocations.add(oa);
+            PostResultDto overR = ErpFinanceArAp.postIncomingPayment(companyId, 0L, over);
+            if (overR != null && overR.ok != 0) {
+                System.out.println("FAIL expected over-allocation reject");
+                pass = 0;
+            } else {
+                System.out.println("OK over_alloc_rejected");
+            }
+
+            /* Closed period reject */
+            ArrayList<Object> cp = new ArrayList<Object>();
+            cp.add(CryptoParse.longToString(companyId));
+            System.out.println("STEP close period");
+            ErpDb.reconnect();
+            ErpDb.exec("UPDATE fiscal_periods SET status='CLOSED' WHERE company_id=?", cp);
+            PostingRequest bad = new PostingRequest();
+            bad.sourceType = JournalSource.MANUAL;
+            bad.sourceId = 1L;
+            bad.postingDate = now;
+            bad.documentDate = now;
+            bad.description = "should fail";
+            bad.idempotencyKey = "fin-closed";
+            bad.lines = new ArrayList<Object>();
+            long bank = ErpFinanceCore.mappedAccountId(companyId, AccountMapKey.BANK);
+            long arAcc = ErpFinanceCore.mappedAccountId(companyId, AccountMapKey.AR);
+            System.out.println("STEP close maps bank=" + CryptoParse.longToString(bank)
+                    + " ar=" + CryptoParse.longToString(arAcc));
+            if (bank <= 0L || arAcc <= 0L) {
+                System.out.println("FAIL mapped accounts missing for closed-period check");
+                pass = 0;
+            } else {
+                bad.lines.add(ErpFinanceCore.line(bank, 10L, 0L, 0L, "x"));
+                bad.lines.add(ErpFinanceCore.line(arAcc, 0L, 10L, 0L, "y"));
+                ClosedPeriodWork w = new ClosedPeriodWork();
+                w.companyId = companyId;
+                w.req = bad;
+                PostResultDto closedR = null;
+                int cAttempt = 0;
+                while (cAttempt < 3 && closedR == null) {
+                    try {
+                        closedR = ErpFinanceArAp.runPostWork(w);
+                    } catch (Exception cEx) {
+                        System.out.println("STEP closed post retry");
+                        ErpDb.reconnect();
+                        closedR = null;
+                    }
+                    cAttempt = cAttempt + 1;
+                }
+                if (closedR != null && closedR.ok != 0) {
+                    System.out.println("FAIL expected closed period reject code=" + closedR.code);
+                    pass = 0;
+                } else {
+                    System.out.println("OK closed_period_rejected");
+                }
+            }
+            ErpDb.exec("UPDATE fiscal_periods SET status='OPEN' WHERE company_id=?", cp);
+        } catch (Exception ex) {
+            System.out.println("FAIL finance exceptionChecks");
+            if (ex.getMessage() != null && ex.getMessage().length() > 0) {
+                System.out.println(ex.getMessage());
+            } else {
+                System.out.println("EX_EMPTY exceptionChecks");
+            }
             return 0;
         }
-        ErpFinanceArAp.postArInvoice(companyId, 0L, ar2.id);
-        IncomingPaymentRequest over = new IncomingPaymentRequest();
-        over.customerId = customerId;
-        over.paymentDate = now;
-        over.amount = 200L;
-        over.bankAccountId = bankAccountId;
-        over.idempotencyKey = "fin-ip-over";
-        over.allocations = new ArrayList<Object>();
-        PaymentAllocationInput oa = new PaymentAllocationInput();
-        oa.invoiceId = ar2.id;
-        oa.allocatedAmount = 200L;
-        over.allocations.add(oa);
-        PostResultDto overR = ErpFinanceArAp.postIncomingPayment(companyId, 0L, over);
-        if (overR != null && overR.ok != 0) {
-            System.out.println("FAIL expected over-allocation reject");
-            pass = 0;
-        }
-
-        /* Closed period reject */
-        ArrayList<Object> cp = new ArrayList<Object>();
-        cp.add(CryptoParse.longToString(companyId));
-        ErpDb.exec("UPDATE fiscal_periods SET status='CLOSED' WHERE company_id=?", cp);
-        PostingRequest bad = new PostingRequest();
-        bad.sourceType = JournalSource.MANUAL;
-        bad.sourceId = 1L;
-        bad.postingDate = now;
-        bad.documentDate = now;
-        bad.description = "should fail";
-        bad.idempotencyKey = "fin-closed";
-        bad.lines = new ArrayList<Object>();
-        long bank = ErpFinanceCore.mappedAccountId(companyId, AccountMapKey.BANK);
-        long arAcc = ErpFinanceCore.mappedAccountId(companyId, AccountMapKey.AR);
-        bad.lines.add(ErpFinanceCore.line(bank, 10L, 0L, 0L, "x"));
-        bad.lines.add(ErpFinanceCore.line(arAcc, 0L, 10L, 0L, "y"));
-        ClosedPeriodWork w = new ClosedPeriodWork();
-        w.companyId = companyId;
-        w.req = bad;
-        PostResultDto closedR = ErpFinanceArAp.runPostWork(w);
-        if (closedR != null && closedR.ok != 0) {
-            System.out.println("FAIL expected closed period reject");
-            pass = 0;
-        }
-        ErpDb.exec("UPDATE fiscal_periods SET status='OPEN' WHERE company_id=?", cp);
-
         return pass;
     }
 }

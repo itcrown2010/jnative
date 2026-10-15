@@ -1,6 +1,6 @@
 /**
- * Headless acceptance: PO 100 → GR 60+40 → stock 100 → SO 30 → DL 10+20 → stock 70;
- * duplicate idempotency replay; over-receive / over-delivery rejected.
+ * Headless acceptance: PO 10 → GR 4+6 → stock 10 + provisional AP;
+ * also PO 100 → GR 60+40 → SO/DL path; idempotency; over-receive rejected.
  * @author 张晓达
  */
 class ErpLogicTest {
@@ -133,8 +133,117 @@ class ErpLogicTest {
         }
     }
 
+    static int provisionalApCount() {
+        ArrayList<Object> p = new ArrayList<Object>();
+        p.add(CryptoParse.longToString(companyId));
+        Object v = ErpDb.queryOne(
+                "SELECT COUNT(*) FROM ap_invoices WHERE company_id=? AND status='PROVISIONAL'", p,
+                new IntMapper());
+        if (v == null) {
+            return 0;
+        }
+        return ErpNum.parseInt((String) v);
+    }
+
+    static long provisionalApOpenSum() {
+        ArrayList<Object> p = new ArrayList<Object>();
+        p.add(CryptoParse.longToString(companyId));
+        Object v = ErpDb.queryOne(
+                "SELECT COALESCE(SUM(open_amount),0) FROM ap_invoices WHERE company_id=? AND status='PROVISIONAL'",
+                p, new LongMapper());
+        return ErpNum.asLong(v);
+    }
+
     static int runScenario(int pass) {
         ErpDb.reconnect();
+        /* --- Stage A: PO 10 → GR 4 + 6, provisional AP, open qty --- */
+        ArrayList<Object> po10Lines = new ArrayList<Object>();
+        PoLineInput pl10 = new PoLineInput();
+        pl10.itemId = itemId;
+        pl10.quantity = 10;
+        pl10.unitPriceCents = 250L;
+        po10Lines.add(pl10);
+        PurchaseOrderDto po10 = null;
+        String po10Step = "create";
+        try {
+            po10 = ErpPurchasing.createDraftFull(companyId, supplierId, warehouseId, 0L, 0L, "accept-10", "CNY",
+                    po10Lines);
+            po10Step = "submit";
+            po10 = ErpPurchasing.submit(companyId, po10.id);
+            po10Step = "approve";
+            po10 = ErpPurchasing.approve(companyId, po10.id);
+        } catch (Exception ex) {
+            System.out.println("FAIL po10_lifecycle step=" + po10Step);
+            if (ex.getMessage() != null && ex.getMessage().length() > 0) {
+                System.out.println(ex.getMessage());
+            } else {
+                System.out.println("EX_EMPTY step=" + po10Step);
+            }
+            return 0;
+        }
+        OrderLineDto po10Line = (OrderLineDto) po10.lines.get(0);
+        PostGoodsReceiptRequest grA = new PostGoodsReceiptRequest();
+        grA.purchaseOrderId = po10.id;
+        grA.warehouseId = warehouseId;
+        grA.idempotencyKey = "gr-a4-" + companyCode;
+        grA.lines = new ArrayList<Object>();
+        PostLineRequest glA = new PostLineRequest();
+        glA.orderLineId = po10Line.id;
+        glA.quantity = 4;
+        grA.lines.add(glA);
+        PostResultDto grAr = ErpPosting.postGoodsReceipt(companyId, grA);
+        if (okPost(grAr) == 0) {
+            failPost("gr_a4", grAr);
+            return 0;
+        }
+        if (stockQty() != 4) {
+            System.out.println("FAIL stock_after_4=" + String.valueOf(stockQty()));
+            return 0;
+        }
+        po10 = ErpPurchasing.get(companyId, po10.id);
+        po10Line = (OrderLineDto) po10.lines.get(0);
+        if (po10Line.fulfilledQty != 4 || (po10Line.quantity - po10Line.fulfilledQty) != 6) {
+            System.out.println("FAIL open_qty_after_4 rcv=" + String.valueOf(po10Line.fulfilledQty));
+            return 0;
+        }
+        if (provisionalApCount() < 1 || provisionalApOpenSum() != 1000L) {
+            System.out.println("FAIL provisional_ap_after_4 count=" + String.valueOf(provisionalApCount())
+                    + " open=" + CryptoParse.longToString(provisionalApOpenSum()));
+            return 0;
+        }
+        PostGoodsReceiptRequest grB = new PostGoodsReceiptRequest();
+        grB.purchaseOrderId = po10.id;
+        grB.warehouseId = warehouseId;
+        grB.idempotencyKey = "gr-b6-" + companyCode;
+        grB.lines = new ArrayList<Object>();
+        PostLineRequest glB = new PostLineRequest();
+        glB.orderLineId = po10Line.id;
+        glB.quantity = 6;
+        grB.lines.add(glB);
+        if (okPost(ErpPosting.postGoodsReceipt(companyId, grB)) == 0) {
+            System.out.println("FAIL gr_b6");
+            return 0;
+        }
+        if (stockQty() != 10) {
+            System.out.println("FAIL stock_after_10=" + String.valueOf(stockQty()));
+            return 0;
+        }
+        if (provisionalApOpenSum() != 2500L) {
+            System.out.println("FAIL provisional_ap_total=" + CryptoParse.longToString(provisionalApOpenSum()));
+            return 0;
+        }
+        if (okPost(ErpPosting.postGoodsReceipt(companyId, grA)) == 0) {
+            System.out.println("FAIL gr_a4_idempotent");
+            return 0;
+        }
+        if (stockQty() != 10 || provisionalApCount() != 2) {
+            System.out.println("FAIL idempotent_side_effect stock=" + String.valueOf(stockQty())
+                    + " ap=" + String.valueOf(provisionalApCount()));
+            return 0;
+        }
+        System.out.println("OK stage_a_po10_gr4_6");
+
+        /* --- Stage B: classic 100 path for SO/DL --- */
         ArrayList<Object> poLines = new ArrayList<Object>();
         PoLineInput pl = new PoLineInput();
         pl.itemId = itemId;
@@ -199,7 +308,7 @@ class ErpLogicTest {
         }
 
         int stockAfterGr = stockQty();
-        if (stockAfterGr != 100) {
+        if (stockAfterGr != 110) {
             System.out.println("FAIL stock_after_gr=" + String.valueOf(stockAfterGr));
             pass = 0;
         }
@@ -208,7 +317,7 @@ class ErpLogicTest {
             System.out.println("FAIL gr1_idempotent_replay");
             pass = 0;
         }
-        if (stockQty() != 100) {
+        if (stockQty() != 110) {
             System.out.println("FAIL stock_after_idempotent");
             pass = 0;
         }
@@ -235,7 +344,7 @@ class ErpLogicTest {
         soLines.add(sl);
         SalesOrderDto so = null;
         try {
-            so = ErpSales.createDraft(companyId, customerId, soLines);
+            so = ErpSales.createDraftFull(companyId, customerId, warehouseId, 0L, 0L, "logic", "CNY", soLines);
         } catch (Exception ex) {
             System.out.println("FAIL so_create");
             if (ex.getMessage() != null) {
@@ -292,7 +401,7 @@ class ErpLogicTest {
         }
 
         int stockFinal = stockQty();
-        if (stockFinal != 70) {
+        if (stockFinal != 80) {
             System.out.println("FAIL stock_final=" + String.valueOf(stockFinal));
             pass = 0;
         }

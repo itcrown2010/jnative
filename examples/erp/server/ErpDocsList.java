@@ -83,14 +83,19 @@ class ErpDocsList {
                 out = out + ",";
             }
             Row row = r.rows.get(i);
+            String refType = row.getString(5);
+            if (refType == null) {
+                refType = "";
+            }
+            String refNo = refType + "-" + CryptoParse.longToString(row.getLong(6));
             out = out + "{\"id\":" + ErpJson.num(row.getLong(0))
                     + ",\"warehouseId\":" + ErpJson.num(row.getLong(1))
                     + ",\"itemId\":" + ErpJson.num(row.getLong(2))
                     + ",\"txnType\":" + ErpJson.str(row.getString(3))
                     + ",\"type\":" + ErpJson.str(row.getString(3))
                     + ",\"quantity\":" + String.valueOf(row.getInt(4))
-                    + ",\"refDocType\":" + ErpJson.str(row.getString(5))
-                    + ",\"refDocNo\":" + ErpJson.str(row.getString(5) + "-" + CryptoParse.longToString(row.getLong(6)))
+                    + ",\"refDocType\":" + ErpJson.str(refType)
+                    + ",\"refDocNo\":" + ErpJson.str(refNo)
                     + ",\"createdAt\":" + ErpJson.num(row.getLong(7))
                     + ",\"warehouseCode\":" + ErpJson.str(row.getString(8))
                     + ",\"itemSku\":" + ErpJson.str(row.getString(9)) + "}";
@@ -104,7 +109,8 @@ class ErpDocsList {
         p.add(CryptoParse.longToString(companyId));
         DbQueryResult r = ErpDb.query(
                 "SELECT ip.id, ip.customer_id, ip.payment_date, ip.amount, ip.status, "
-                        + "(SELECT bp.name FROM business_partners bp WHERE bp.id=ip.customer_id) "
+                        + "(SELECT bp.name FROM business_partners bp WHERE bp.id=ip.customer_id), "
+                        + "ip.unallocated_amount, ip.doc_no "
                         + "FROM incoming_payments ip WHERE ip.company_id=? ORDER BY ip.id",
                 p);
         String out = "[";
@@ -114,13 +120,22 @@ class ErpDocsList {
                 out = out + ",";
             }
             Row row = r.rows.get(i);
+            long unalloc = 0L;
+            String docNo = "IP-" + CryptoParse.longToString(row.getLong(0));
+            if (row.columnCount() > 6) {
+                unalloc = row.getLong(6);
+                if (row.getString(7) != null && row.getString(7).length() > 0) {
+                    docNo = row.getString(7);
+                }
+            }
             out = out + "{\"id\":" + ErpJson.num(row.getLong(0))
                     + ",\"customerId\":" + ErpJson.num(row.getLong(1))
                     + ",\"paymentDate\":" + ErpJson.num(row.getLong(2))
                     + ",\"date\":" + ErpJson.num(row.getLong(2))
                     + ",\"amount\":" + ErpJson.num(row.getLong(3))
                     + ",\"status\":" + ErpJson.str(row.getString(4))
-                    + ",\"docNo\":" + ErpJson.str("IP-" + CryptoParse.longToString(row.getLong(0)))
+                    + ",\"unallocatedAmount\":" + ErpJson.num(unalloc)
+                    + ",\"docNo\":" + ErpJson.str(docNo)
                     + ",\"customerName\":" + ErpJson.str(row.getString(5)) + "}";
             i = i + 1;
         }
@@ -132,7 +147,8 @@ class ErpDocsList {
         p.add(CryptoParse.longToString(companyId));
         DbQueryResult r = ErpDb.query(
                 "SELECT op.id, op.supplier_id, op.payment_date, op.amount, op.status, "
-                        + "(SELECT bp.name FROM business_partners bp WHERE bp.id=op.supplier_id) "
+                        + "(SELECT bp.name FROM business_partners bp WHERE bp.id=op.supplier_id), "
+                        + "op.unallocated_amount, op.doc_no "
                         + "FROM outgoing_payments op WHERE op.company_id=? ORDER BY op.id",
                 p);
         String out = "[";
@@ -142,13 +158,22 @@ class ErpDocsList {
                 out = out + ",";
             }
             Row row = r.rows.get(i);
+            long unalloc = 0L;
+            String docNo = "OP-" + CryptoParse.longToString(row.getLong(0));
+            if (row.columnCount() > 6) {
+                unalloc = row.getLong(6);
+                if (row.getString(7) != null && row.getString(7).length() > 0) {
+                    docNo = row.getString(7);
+                }
+            }
             out = out + "{\"id\":" + ErpJson.num(row.getLong(0))
                     + ",\"supplierId\":" + ErpJson.num(row.getLong(1))
                     + ",\"paymentDate\":" + ErpJson.num(row.getLong(2))
                     + ",\"date\":" + ErpJson.num(row.getLong(2))
                     + ",\"amount\":" + ErpJson.num(row.getLong(3))
                     + ",\"status\":" + ErpJson.str(row.getString(4))
-                    + ",\"docNo\":" + ErpJson.str("OP-" + CryptoParse.longToString(row.getLong(0)))
+                    + ",\"unallocatedAmount\":" + ErpJson.num(unalloc)
+                    + ",\"docNo\":" + ErpJson.str(docNo)
                     + ",\"supplierName\":" + ErpJson.str(row.getString(5)) + "}";
             i = i + 1;
         }

@@ -385,15 +385,18 @@ public final class CliDispatcher {
                   jnative run [--project DIR]
                   jnative test [--project DIR]
                   jnative build [--project DIR] [--registry DIR] [--debug] [--release] [--explain] [--offline] [--format json]
-                  jnative <source.jn|.java> --debug [-O0..-O3] [-o out]
+                  jnative <source.jn|.java> [more sources...] --debug [-O0..-O3] [-o out]
                   jnative analyze <file.jn|.java> | --stdin [--path name] [--format json]
                   jnative lsp
                   jnative processors [list|explain <Type>]
                   jnative generated <SymbolOrPath>
                   jnative add|remove|update|deps|search|info|publish|audit|licenses [--registry DIR]
                   jnative cert|serve|dev|clean|cache
-                  jnative <source.jn|.java> [-o out] [-O0..-O3] [--run]
+                  jnative <source.jn|.java> [more sources...] [-o out] [-O0..-O3] [--run]
                   jnative --version | --help
+
+                Multiple positional sources are separate compilation units (package/import
+                resolution). The last source is the primary file for default -o naming.
                 """;
     }
 
