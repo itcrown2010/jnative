@@ -356,6 +356,14 @@ class WcLoopServices {
             return WcResult.success("OK", "already published",
                     "{\"feedbackId\":" + CryptoParse.longToString(feedbackId) + "}");
         }
+        ArrayList<Object> badMedia = new ArrayList<Object>();
+        badMedia.add(CryptoParse.longToString(feedbackId));
+        Object pending = WcDb.queryOne(
+                "SELECT COUNT(*) FROM wc_media_assets WHERE feedback_id=? AND deleted_at=0 AND size_bytes<=0",
+                badMedia, new LongMapper());
+        if (WcNum.asLong(pending) > 0L) {
+            return WcResult.fail("MEDIA_INCOMPLETE", "存在未完成上传的作品，请等待上传完成或删除后再发布");
+        }
         long now = AsyncClockNative.wallMillis();
         ArrayList<Object> u = new ArrayList<Object>();
         u.add(WcFeedbackStatus.PUBLISHED);
@@ -401,14 +409,16 @@ class WcLoopServices {
             if (i > 0) {
                 out = out + ",";
             }
-            out = out + "{\"id\":" + CryptoParse.longToString(r.rows.get(i).getLong(0)) + ",\"sessionId\":"
+            long fid = r.rows.get(i).getLong(0);
+            out = out + "{\"id\":" + CryptoParse.longToString(fid) + ",\"sessionId\":"
                     + CryptoParse.longToString(r.rows.get(i).getLong(1)) + ",\"explored\":\""
                     + r.rows.get(i).getString(2) + "\",\"attempt\":\"" + r.rows.get(i).getString(3)
                     + "\",\"encouragement\":\"" + r.rows.get(i).getString(4) + "\",\"publishedAt\":"
                     + CryptoParse.longToString(r.rows.get(i).getLong(5)) + ",\"sessionStartAt\":"
                     + CryptoParse.longToString(r.rows.get(i).getLong(6)) + ",\"teacherUserId\":"
                     + CryptoParse.longToString(r.rows.get(i).getLong(7)) + ",\"campusId\":"
-                    + CryptoParse.longToString(r.rows.get(i).getLong(8)) + "}";
+                    + CryptoParse.longToString(r.rows.get(i).getLong(8))
+                    + ",\"mediaIds\":" + mediaIdsForFeedback(fid) + "}";
             i = i + 1;
         }
         out = out + "]";
@@ -446,21 +456,118 @@ class WcLoopServices {
         ArrayList<Object> p = new ArrayList<Object>();
         p.add(CryptoParse.longToString(mediaId));
         DbQueryResult r = WcDb.query(
-                "SELECT owner_user_id, student_id, deleted_at FROM wc_media_assets WHERE id=?", p);
+                "SELECT owner_user_id, student_id, deleted_at, feedback_id, size_bytes FROM wc_media_assets WHERE id=?",
+                p);
         if (r.rows.size() == 0 || r.rows.get(0).getLong(2) > 0L) {
             return 0;
         }
         if (r.rows.get(0).getLong(0) == userId) {
             return 1;
         }
-        if (identity.equals(WcIdentity.ADMIN)) {
+        if (identity.equals(WcIdentity.ADMIN) || identity.equals(WcIdentity.TEACHER)) {
             return 1;
         }
-        if (identity.equals(WcIdentity.PARENT)
-                && WcServices.isGuardianOf(userId, r.rows.get(0).getLong(1)) != 0) {
-            return 1;
+        /* 家长仅可读：本人监护孩子 + 已发布反馈关联 + 已完成上传的作品 */
+        if (identity.equals(WcIdentity.PARENT) == false) {
+            return 0;
         }
-        return 0;
+        if (WcServices.isGuardianOf(userId, r.rows.get(0).getLong(1)) == 0) {
+            return 0;
+        }
+        long feedbackId = r.rows.get(0).getLong(3);
+        if (feedbackId <= 0L || r.rows.get(0).getLong(4) <= 0L) {
+            return 0;
+        }
+        ArrayList<Object> fp = new ArrayList<Object>();
+        fp.add(CryptoParse.longToString(feedbackId));
+        Object st = WcDb.queryOne("SELECT status FROM wc_feedback WHERE id=?", fp, new StringMapper());
+        if (st == null || st.equals(WcFeedbackStatus.PUBLISHED) == false) {
+            return 0;
+        }
+        return 1;
+    }
+
+    /** Display names for session cards (course/class/teacher/campus/room). */
+    static String sessionLabelsJson(long classId, long teacherId, long campusId, long roomId) {
+        String className = "";
+        String courseName = "";
+        String subject = "";
+        String teacherName = "";
+        String campusName = "";
+        String roomName = "";
+        if (classId > 0L) {
+            ArrayList<Object> cp = new ArrayList<Object>();
+            cp.add(CryptoParse.longToString(classId));
+            DbQueryResult cr = WcDb.query(
+                    "SELECT cl.name, COALESCE(co.name,''), COALESCE(co.subject,'') FROM wc_classes cl"
+                            + " LEFT JOIN wc_courses co ON co.id=cl.course_id WHERE cl.id=?",
+                    cp);
+            if (cr.rows.size() > 0) {
+                className = cr.rows.get(0).getString(0);
+                courseName = cr.rows.get(0).getString(1);
+                subject = cr.rows.get(0).getString(2);
+            }
+        }
+        if (teacherId > 0L) {
+            ArrayList<Object> tp = new ArrayList<Object>();
+            tp.add(CryptoParse.longToString(teacherId));
+            Object tn = WcDb.queryOne("SELECT display_name FROM wc_users WHERE id=?", tp, new StringMapper());
+            if (tn != null) {
+                teacherName = (String) tn;
+            }
+        }
+        if (campusId > 0L) {
+            ArrayList<Object> mp = new ArrayList<Object>();
+            mp.add(CryptoParse.longToString(campusId));
+            Object cn = WcDb.queryOne("SELECT name FROM wc_campuses WHERE id=?", mp, new StringMapper());
+            if (cn != null) {
+                campusName = (String) cn;
+            }
+        }
+        if (roomId > 0L) {
+            ArrayList<Object> rp = new ArrayList<Object>();
+            rp.add(CryptoParse.longToString(roomId));
+            Object rn = WcDb.queryOne("SELECT name FROM wc_rooms WHERE id=?", rp, new StringMapper());
+            if (rn != null) {
+                roomName = (String) rn;
+            }
+        }
+        String theme = courseName;
+        if (theme.length() == 0) {
+            theme = className;
+        }
+        if (theme.length() == 0) {
+            theme = "课程";
+        }
+        return ",\"className\":\"" + themeEscape(className) + "\",\"courseName\":\"" + themeEscape(courseName)
+                + "\",\"subject\":\"" + themeEscape(subject) + "\",\"theme\":\"" + themeEscape(theme)
+                + "\",\"teacherName\":\"" + themeEscape(teacherName) + "\",\"campusName\":\""
+                + themeEscape(campusName) + "\",\"roomName\":\"" + themeEscape(roomName) + "\"";
+    }
+
+    static String themeEscape(String s) {
+        if (s == null) {
+            return "";
+        }
+        return s.replace("\\", "\\\\").replace("\"", "\\\"");
+    }
+
+    static String mediaIdsForFeedback(long feedbackId) {
+        ArrayList<Object> p = new ArrayList<Object>();
+        p.add(CryptoParse.longToString(feedbackId));
+        DbQueryResult r = WcDb.query(
+                "SELECT id FROM wc_media_assets WHERE feedback_id=? AND deleted_at=0 AND size_bytes>0 ORDER BY id",
+                p);
+        String out = "[";
+        int i = 0;
+        while (i < r.rows.size()) {
+            if (i > 0) {
+                out = out + ",";
+            }
+            out = out + CryptoParse.longToString(r.rows.get(i).getLong(0));
+            i = i + 1;
+        }
+        return out + "]";
     }
 
     static String sessionRosterJson(long sessionId) {
@@ -521,6 +628,7 @@ class WcLoopServices {
                 + ",\"teacherUserId\":" + CryptoParse.longToString(teacherId)
                 + ",\"roomId\":" + CryptoParse.longToString(roomId)
                 + ",\"classId\":" + CryptoParse.longToString(classId)
+                + sessionLabelsJson(classId, teacherId, campusId, roomId)
                 + ",\"roster\":" + out + "}";
     }
 
@@ -549,14 +657,24 @@ class WcLoopServices {
             if (i > 0) {
                 items = items + ",";
             }
+            long campusId = r.rows.get(i).getLong(1);
+            long teacherId = r.rows.get(i).getLong(2);
+            long roomId = r.rows.get(i).getLong(3);
+            ArrayList<Object> lp = new ArrayList<Object>();
+            lp.add(CryptoParse.longToString(r.rows.get(i).getLong(0)));
+            Object classIdObj = WcDb.queryOne("SELECT class_id FROM wc_lesson_sessions WHERE id=?", lp,
+                    new LongMapper());
+            long classId = WcNum.asLong(classIdObj);
             items = items + "{\"id\":" + CryptoParse.longToString(r.rows.get(i).getLong(0)) + ",\"campusId\":"
-                    + CryptoParse.longToString(r.rows.get(i).getLong(1)) + ",\"teacherUserId\":"
-                    + CryptoParse.longToString(r.rows.get(i).getLong(2)) + ",\"roomId\":"
-                    + CryptoParse.longToString(r.rows.get(i).getLong(3)) + ",\"startAt\":"
+                    + CryptoParse.longToString(campusId) + ",\"teacherUserId\":"
+                    + CryptoParse.longToString(teacherId) + ",\"roomId\":"
+                    + CryptoParse.longToString(roomId) + ",\"startAt\":"
                     + CryptoParse.longToString(r.rows.get(i).getLong(4)) + ",\"endAt\":"
                     + CryptoParse.longToString(r.rows.get(i).getLong(5)) + ",\"status\":\""
                     + r.rows.get(i).getString(6) + "\",\"studentId\":"
-                    + CryptoParse.longToString(r.rows.get(i).getLong(7)) + "}";
+                    + CryptoParse.longToString(r.rows.get(i).getLong(7))
+                    + ",\"classId\":" + CryptoParse.longToString(classId)
+                    + sessionLabelsJson(classId, teacherId, campusId, roomId) + "}";
             i = i + 1;
         }
         items = items + "]";

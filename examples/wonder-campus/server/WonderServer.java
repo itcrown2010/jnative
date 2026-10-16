@@ -566,16 +566,21 @@ class WcTodaySessionsHandler implements AsyncWebHandler {
             if (i > 0) {
                 out = out + ",";
             }
+            long classId = r.rows.get(i).getLong(9);
+            long teacherId = r.rows.get(i).getLong(5);
+            long campusId = r.rows.get(i).getLong(7);
+            long roomId = r.rows.get(i).getLong(8);
             out = out + "{\"id\":" + CryptoParse.longToString(r.rows.get(i).getLong(0))
                     + ",\"startAt\":" + CryptoParse.longToString(r.rows.get(i).getLong(1))
                     + ",\"endAt\":" + CryptoParse.longToString(r.rows.get(i).getLong(2))
                     + ",\"status\":\"" + r.rows.get(i).getString(3) + "\""
                     + ",\"studentId\":" + CryptoParse.longToString(r.rows.get(i).getLong(4))
-                    + ",\"teacherUserId\":" + CryptoParse.longToString(r.rows.get(i).getLong(5))
+                    + ",\"teacherUserId\":" + CryptoParse.longToString(teacherId)
                     + ",\"contractId\":" + CryptoParse.longToString(r.rows.get(i).getLong(6))
-                    + ",\"campusId\":" + CryptoParse.longToString(r.rows.get(i).getLong(7))
-                    + ",\"roomId\":" + CryptoParse.longToString(r.rows.get(i).getLong(8))
-                    + ",\"classId\":" + CryptoParse.longToString(r.rows.get(i).getLong(9)) + "}";
+                    + ",\"campusId\":" + CryptoParse.longToString(campusId)
+                    + ",\"roomId\":" + CryptoParse.longToString(roomId)
+                    + ",\"classId\":" + CryptoParse.longToString(classId)
+                    + WcLoopServices.sessionLabelsJson(classId, teacherId, campusId, roomId) + "}";
             i = i + 1;
         }
         out = out + "]";
