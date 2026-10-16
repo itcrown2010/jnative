@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="Theme.WonderCampus" parent="Theme.MaterialComponents.DayNight.NoActionBar">
+        <item name="colorPrimary">#E07A3A</item>
+        <item name="android:statusBarColor">#FFE8D2</item>
+        <item name="android:navigationBarColor">#FFF7EF</item>
+        <item name="android:windowBackground">#FFF7EF</item>
+    </style>
+</resources>

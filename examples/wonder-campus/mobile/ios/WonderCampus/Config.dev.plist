@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>WC_ENV</key>
+	<string>dev</string>
+	<!-- 模拟器默认指向本机；真机请改为电脑局域网 IP，切勿使用真机上的 127.0.0.1 -->
+	<key>WC_API_BASE</key>
+	<string>http://127.0.0.1:18880</string>
+	<key>WC_ALLOW_DEMO_LOGIN</key>
+	<true/>
+	<!-- 模拟器优先加载同源页面，Cookie 会话可用 -->
+	<key>WC_LOAD_REMOTE</key>
+	<true/>
+	<!-- 仅开发构建允许明文 HTTP；正式包见 Config.prod.plist -->
+	<key>WC_ALLOW_INSECURE_HTTP</key>
+	<true/>
+</dict>
+</plist>

@@ -1,0 +1,9 @@
+# Build / runtime artifacts
+.jnative/
+**/.jnative/
+mobile/ios/build/
+mobile/android/**/build/
+mobile/android/.gradle/
+*.db
+*.db-journal
+*.log

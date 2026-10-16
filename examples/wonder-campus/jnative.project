@@ -1,0 +1,33 @@
+{
+  "name": "wonder-campus",
+  "modules": {
+    "shared": {
+      "kind": "lib",
+      "src": "shared"
+    },
+    "server": {
+      "kind": "server",
+      "src": "server",
+      "dependsOn": [
+        "shared",
+        "tests"
+      ]
+    },
+    "tests": {
+      "kind": "lib",
+      "src": "tests",
+      "dependsOn": [
+        "shared"
+      ]
+    }
+  },
+  "targets": [
+    {
+      "name": "server",
+      "triple": "native",
+      "module": "server",
+      "main": "WonderServer",
+      "output": ".jnative/build/wonder-server"
+    }
+  ]
+}

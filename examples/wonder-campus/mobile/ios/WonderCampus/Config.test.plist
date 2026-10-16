@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>WC_ENV</key>
+	<string>test</string>
+	<key>WC_API_BASE</key>
+	<string>http://127.0.0.1:18880</string>
+	<key>WC_ALLOW_DEMO_LOGIN</key>
+	<true/>
+	<key>WC_LOAD_REMOTE</key>
+	<true/>
+	<key>WC_ALLOW_INSECURE_HTTP</key>
+	<true/>
+</dict>
+</plist>
