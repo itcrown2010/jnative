@@ -102,6 +102,7 @@ public class WonderServer {
         app.futurePost("/api/wc/media/upload", new WcMediaUploadHandler(loop));
         app.futureGet("/api/wc/media/:id/content", new WcMediaContentHandler(loop));
         app.futurePost("/api/wc/media/:id/delete", new WcMediaDeleteHandler(loop));
+        WcRouter.register(app, loop);
 
         String host = Env.get("WC_LISTEN_HOST");
         if (host == null || host.length() == 0) {
@@ -119,6 +120,8 @@ public class WonderServer {
 
     static void ensureDemoSeed() {
         WonderDemoSeed.seedAll();
+        WonderDemoSeed.seedCommercial();
+        WcBizAuth.seedDemoPasswords();
         System.out.println("WONDER_CAMPUS demo seed OK");
     }
 }
@@ -312,7 +315,9 @@ class WcMeHandler implements AsyncWebHandler {
             i = i + 1;
         }
         arr = arr + "]";
+        String dname = WcApi.oneStr("SELECT display_name FROM wc_users WHERE id=?", WcApi.P1(es.userId));
         ctx.jsonString("{\"ok\":1,\"userId\":" + CryptoParse.longToString(es.userId)
+                + ",\"displayName\":" + WcApi.q(dname)
                 + ",\"orgId\":" + CryptoParse.longToString(es.orgId)
                 + ",\"identity\":\"" + es.identity + "\",\"identities\":" + arr + "}");
         return JnFuture.completed(loop, null);

@@ -40,6 +40,7 @@ class WcDb {
     static void migrate() {
         applyMigrationFile("001", "examples/wonder-campus/migrations/001_init_sqlite.sql");
         applyMigrationFile("002", "examples/wonder-campus/migrations/002_mobile_loop_sqlite.sql");
+        applyMigrationFile("003", "examples/wonder-campus/migrations/003_commercial_sqlite.sql");
         tryAlter("ALTER TABLE wc_contracts ADD COLUMN billing_entity_id INTEGER NOT NULL DEFAULT 0");
         tryAlter("ALTER TABLE wc_payments ADD COLUMN billing_entity_id INTEGER NOT NULL DEFAULT 0");
         tryAlter("ALTER TABLE wc_lesson_sessions ADD COLUMN completed_at INTEGER NOT NULL DEFAULT 0");
@@ -50,6 +51,24 @@ class WcDb {
         tryAlter("ALTER TABLE wc_feedback ADD COLUMN published_at INTEGER NOT NULL DEFAULT 0");
         tryAlter("ALTER TABLE wc_leave_requests ADD COLUMN cancelled_at INTEGER NOT NULL DEFAULT 0");
         tryAlter("ALTER TABLE wc_attendance ADD COLUMN note TEXT NOT NULL DEFAULT ''");
+        /* 003 commercial columns (idempotent: duplicate-column errors ignored) */
+        tryAlter("ALTER TABLE wc_users ADD COLUMN phone TEXT NOT NULL DEFAULT ''");
+        tryAlter("ALTER TABLE wc_users ADD COLUMN status TEXT NOT NULL DEFAULT 'ACTIVE'");
+        tryAlter("ALTER TABLE wc_users ADD COLUMN last_login_at INTEGER NOT NULL DEFAULT 0");
+        tryAlter("ALTER TABLE wc_users ADD COLUMN fail_count INTEGER NOT NULL DEFAULT 0");
+        tryAlter("ALTER TABLE wc_users ADD COLUMN locked_until INTEGER NOT NULL DEFAULT 0");
+        tryAlter("ALTER TABLE wc_students ADD COLUMN gender TEXT NOT NULL DEFAULT ''");
+        tryAlter("ALTER TABLE wc_students ADD COLUMN birthday TEXT NOT NULL DEFAULT ''");
+        tryAlter("ALTER TABLE wc_students ADD COLUMN school TEXT NOT NULL DEFAULT ''");
+        tryAlter("ALTER TABLE wc_students ADD COLUMN note TEXT NOT NULL DEFAULT ''");
+        tryAlter("ALTER TABLE wc_students ADD COLUMN status TEXT NOT NULL DEFAULT 'ACTIVE'");
+        tryAlter("ALTER TABLE wc_courses ADD COLUMN description TEXT NOT NULL DEFAULT ''");
+        tryAlter("ALTER TABLE wc_courses ADD COLUMN status TEXT NOT NULL DEFAULT 'ACTIVE'");
+        tryAlter("ALTER TABLE wc_classes ADD COLUMN capacity INTEGER NOT NULL DEFAULT 8");
+        tryAlter("ALTER TABLE wc_classes ADD COLUMN status TEXT NOT NULL DEFAULT 'ACTIVE'");
+        tryAlter("ALTER TABLE wc_rooms ADD COLUMN capacity INTEGER NOT NULL DEFAULT 8");
+        tryAlter("ALTER TABLE wc_campuses ADD COLUMN address TEXT NOT NULL DEFAULT ''");
+        tryAlter("ALTER TABLE wc_campuses ADD COLUMN phone TEXT NOT NULL DEFAULT ''");
     }
 
     static void applyMigrationFile(String version, String path) {
