@@ -164,6 +164,21 @@ static int32_t jn_utf8_encode_units(const uint16_t *u, int32_t n, uint8_t *out) 
     return o;
 }
 
+/*
+ * Moving GC2 updates managed stack roots, but C locals that hold object
+ * pointers are not roots. Any jnative_gc_alloc / jnative_array_alloc may
+ * relocate nursery objects; reading jn_str_data(old_ptr) after that is a
+ * use-after-move. Snapshot UTF-16 (or UTF-8) into malloc memory before
+ * allocating the result object.
+ */
+static uint16_t *jn_str_snapshot_u16(void *s, int32_t n) {
+    if (n <= 0) return NULL;
+    uint16_t *buf = (uint16_t *)malloc((size_t)n * 2u);
+    if (buf == NULL) return NULL;
+    memcpy(buf, jn_str_data(s), (size_t)n * 2u);
+    return buf;
+}
+
 static void *jn_str_alloc(void *meta, int32_t unitLen) {
     if (unitLen < 0) {
         jnative_throw_illegal_argument();
@@ -259,11 +274,23 @@ void *jnative_string_concat(void *a, void *b) {
     }
     int32_t sum = (int32_t)sum64;
     void *meta = *(void **)a;
+    /* Snapshot before alloc — GC may relocate a/b. */
+    uint16_t *snap = NULL;
+    if (sum > 0) {
+        snap = (uint16_t *)malloc((size_t)sum * 2u);
+        if (snap == NULL) return NULL;
+        if (la > 0) memcpy(snap, jn_str_data(a), (size_t)la * 2u);
+        if (lb > 0) memcpy(snap + la, jn_str_data(b), (size_t)lb * 2u);
+    }
     void *obj = jn_str_alloc(meta, sum);
-    if (obj == NULL) return NULL;
-    uint16_t *d = jn_str_data(obj);
-    if (la > 0) memcpy(d, jn_str_data(a), (size_t)la * 2u);
-    if (lb > 0) memcpy(d + la, jn_str_data(b), (size_t)lb * 2u);
+    if (obj == NULL) {
+        free(snap);
+        return NULL;
+    }
+    if (snap != NULL) {
+        memcpy(jn_str_data(obj), snap, (size_t)sum * 2u);
+        free(snap);
+    }
     return obj;
 }
 
@@ -346,10 +373,20 @@ void *jnative_string_substring(void *s, int32_t begin, int32_t end) {
     }
     void *meta = *(void **)s;
     int32_t len = end - begin;
-    void *obj = jn_str_alloc(meta, len);
-    if (obj == NULL) return NULL;
+    uint16_t *snap = NULL;
     if (len > 0) {
-        memcpy(jn_str_data(obj), jn_str_data(s) + begin, (size_t)len * 2u);
+        snap = (uint16_t *)malloc((size_t)len * 2u);
+        if (snap == NULL) return NULL;
+        memcpy(snap, jn_str_data(s) + begin, (size_t)len * 2u);
+    }
+    void *obj = jn_str_alloc(meta, len);
+    if (obj == NULL) {
+        free(snap);
+        return NULL;
+    }
+    if (snap != NULL) {
+        memcpy(jn_str_data(obj), snap, (size_t)len * 2u);
+        free(snap);
     }
     return obj;
 }
@@ -438,11 +475,16 @@ void *jnative_string_to_lower(void *s) {
     jnative_null_check(s);
     void *meta = *(void **)s;
     int32_t n = jn_str_len(s);
+    uint16_t *snap = jn_str_snapshot_u16(s, n);
+    if (n > 0 && snap == NULL) return NULL;
     void *obj = jn_str_alloc(meta, n);
-    if (obj == NULL) return NULL;
-    const uint16_t *src = jn_str_data(s);
+    if (obj == NULL) {
+        free(snap);
+        return NULL;
+    }
     uint16_t *dst = jn_str_data(obj);
-    for (int32_t i = 0; i < n; i++) dst[i] = jn_ascii_lower_u16(src[i]);
+    for (int32_t i = 0; i < n; i++) dst[i] = jn_ascii_lower_u16(snap[i]);
+    free(snap);
     return obj;
 }
 
@@ -450,11 +492,16 @@ void *jnative_string_to_upper(void *s) {
     jnative_null_check(s);
     void *meta = *(void **)s;
     int32_t n = jn_str_len(s);
+    uint16_t *snap = jn_str_snapshot_u16(s, n);
+    if (n > 0 && snap == NULL) return NULL;
     void *obj = jn_str_alloc(meta, n);
-    if (obj == NULL) return NULL;
-    const uint16_t *src = jn_str_data(s);
+    if (obj == NULL) {
+        free(snap);
+        return NULL;
+    }
     uint16_t *dst = jn_str_data(obj);
-    for (int32_t i = 0; i < n; i++) dst[i] = jn_ascii_upper_u16(src[i]);
+    for (int32_t i = 0; i < n; i++) dst[i] = jn_ascii_upper_u16(snap[i]);
+    free(snap);
     return obj;
 }
 
@@ -482,31 +529,58 @@ void *jnative_string_replace(void *s, void *target, void *repl) {
         return NULL;
     }
     int32_t outLen = (int32_t)out64;
+    /* Snapshot s/target/repl before alloc — GC may relocate all three. */
+    uint16_t *ssnap = jn_str_snapshot_u16(s, slen);
+    uint16_t *tsnap = jn_str_snapshot_u16(target, tlen);
+    uint16_t *rsnap = jn_str_snapshot_u16(repl, rlen);
+    if ((slen > 0 && ssnap == NULL) || (tlen > 0 && tsnap == NULL) || (rlen > 0 && rsnap == NULL)) {
+        free(ssnap);
+        free(tsnap);
+        free(rsnap);
+        return NULL;
+    }
     void *obj = jn_str_alloc(meta, outLen);
-    if (obj == NULL) return NULL;
-    const uint16_t *src = jn_str_data(s);
-    const uint16_t *rd = jn_str_data(repl);
+    if (obj == NULL) {
+        free(ssnap);
+        free(tsnap);
+        free(rsnap);
+        return NULL;
+    }
     uint16_t *dst = jn_str_data(obj);
     int32_t si = 0, di = 0;
     while (si < slen) {
-        if (si <= slen - tlen && jn_region_eq(s, si, target)) {
-            if (rlen > 0) memcpy(dst + di, rd, (size_t)rlen * 2u);
+        int match = 0;
+        if (si <= slen - tlen && tlen > 0) {
+            match = memcmp(ssnap + si, tsnap, (size_t)tlen * 2u) == 0 ? 1 : 0;
+        }
+        if (match != 0) {
+            if (rlen > 0) memcpy(dst + di, rsnap, (size_t)rlen * 2u);
             si += tlen;
             di += rlen;
         } else {
-            dst[di++] = src[si++];
+            dst[di++] = ssnap[si++];
         }
     }
+    free(ssnap);
+    free(tsnap);
+    free(rsnap);
     return obj;
 }
 
 void *jnative_string_get_bytes_with_meta(void *s, void *arrayMeta) {
     jnative_null_check(s);
-    int32_t n = jnative_string_utf8_length(s);
+    int32_t unitLen = jn_str_len(s);
+    uint16_t *snap = jn_str_snapshot_u16(s, unitLen);
+    if (unitLen > 0 && snap == NULL) return NULL;
+    int32_t n = jn_utf8_encode_len_units(snap, unitLen);
     void *arr = jnative_array_alloc(1, n, arrayMeta);
-    if (arr == NULL) return NULL;
+    if (arr == NULL) {
+        free(snap);
+        return NULL;
+    }
     uint8_t *dst = (uint8_t *)arr + 16;
-    jn_utf8_encode_units(jn_str_data(s), jn_str_len(s), dst);
+    jn_utf8_encode_units(snap, unitLen, dst);
+    free(snap);
     return arr;
 }
 
@@ -514,23 +588,40 @@ void *jnative_string_from_bytes_with_meta(void *arr, void *stringMeta) {
     jnative_null_check(arr);
     int32_t len = *(int32_t *)((uint8_t *)arr + 8);
     const uint8_t *src = (const uint8_t *)arr + 16;
-    return jnative_string_from_utf8(stringMeta, src, len);
+    uint8_t *snap = NULL;
+    if (len > 0) {
+        snap = (uint8_t *)malloc((size_t)len);
+        if (snap == NULL) return NULL;
+        memcpy(snap, src, (size_t)len);
+    }
+    void *out = jnative_string_from_utf8(stringMeta, snap != NULL ? snap : src, len);
+    free(snap);
+    return out;
 }
 
 char *jnative_string_to_cstr(void *s) {
     if (s == NULL) return NULL;
     int32_t n = jn_str_len(s);
-    const uint16_t *u = jn_str_data(s);
+    /* Snapshot before any further work — callers may run under concurrent GC
+     * pressure; C locals holding s are not roots. */
+    uint16_t *snap = jn_str_snapshot_u16(s, n);
+    if (n > 0 && snap == NULL) return NULL;
+    const uint16_t *u = snap != NULL ? snap : jn_str_data(s);
     for (int32_t i = 0; i < n; i++) {
         if (u[i] == 0) {
+            free(snap);
             jnative_throw_illegal_argument();
             return NULL;
         }
     }
     int32_t bytes = jn_utf8_encode_len_units(u, n);
     char *buf = (char *)malloc((size_t)bytes + 1u);
-    if (buf == NULL) return NULL;
+    if (buf == NULL) {
+        free(snap);
+        return NULL;
+    }
     jn_utf8_encode_units(u, n, (uint8_t *)buf);
     buf[bytes] = 0;
+    free(snap);
     return buf;
 }

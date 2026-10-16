@@ -533,7 +533,7 @@
         return (arr || []).map(function (t) {
           return {
             id: t.id,
-            date: t.createdAt || t.date || "",
+            date: formatBizDate(t.createdAt || t.date),
             type: t.txnType || t.type || "",
             sku: t.itemSku || t.itemId || "",
             qty: t.quantity,
@@ -677,7 +677,7 @@
             id: d.id,
             docNo: d.docNo || d.paymentNumber || "",
             customerName: d.customerName || "",
-            date: d.paymentDate || d.date || "",
+            date: formatBizDate(d.paymentDate || d.date),
             amount: centsToMoney(d.amount),
             unallocated: centsToMoney(d.unallocatedAmount != null ? d.unallocatedAmount : d.unallocated || 0),
             status: d.status || "POSTED"
@@ -693,7 +693,7 @@
             id: d.id,
             docNo: d.docNo || d.paymentNumber || "",
             supplierName: d.supplierName || "",
-            date: d.paymentDate || d.date || "",
+            date: formatBizDate(d.paymentDate || d.date),
             amount: centsToMoney(d.amount),
             unallocated: centsToMoney(d.unallocatedAmount != null ? d.unallocatedAmount : d.unallocated || 0),
             status: d.status || "POSTED"
@@ -769,7 +769,7 @@
           return {
             id: j.id,
             docNo: j.journalNumber || "",
-            date: j.postingDate || "",
+            date: formatBizDate(j.postingDate),
             source: j.sourceType || "",
             description: j.description || "",
             debit: centsToMoney(j.totalDebit),
@@ -785,7 +785,7 @@
         return (arr || []).map(function (g, idx) {
           return {
             id: g.id || idx,
-            date: g.postingDate || g.date || "",
+            date: formatBizDate(g.postingDate || g.date),
             account: g.accountCode || g.account || "",
             debit: centsToMoney(g.debitAmount || g.debit),
             credit: centsToMoney(g.creditAmount || g.credit),
@@ -971,8 +971,26 @@
         if (collection === "purchaseRequests" || collection === "purchaseOrders") {
           return mapDoc(d, "supplierName");
         }
-        if (collection === "salesOrders" || collection === "deliveries") {
+        if (collection === "salesOrders") {
           return mapDoc(d, "customerName");
+        }
+        if (collection === "deliveries") {
+          var dl = mapDoc(d, "customerName");
+          dl.salesOrderId = d.salesOrderId;
+          dl.sourceDocNo = d.sourceDocNo || d.soDocNo || "";
+          dl.soDocNo = d.soDocNo || dl.sourceDocNo;
+          dl.qty = d.qty != null ? d.qty : d.totalQty;
+          dl.totalQty = d.totalQty != null ? d.totalQty : dl.qty;
+          return dl;
+        }
+        if (collection === "goodsReceipts") {
+          var gr = mapDoc(d, "supplierName");
+          gr.purchaseOrderId = d.purchaseOrderId;
+          gr.sourceDocNo = d.sourceDocNo || d.poDocNo || "";
+          gr.poDocNo = d.poDocNo || gr.sourceDocNo;
+          gr.qty = d.qty != null ? d.qty : d.totalQty;
+          gr.totalQty = d.totalQty != null ? d.totalQty : gr.qty;
+          return gr;
         }
         return mapDoc(d, "supplierName");
       });

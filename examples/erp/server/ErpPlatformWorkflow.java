@@ -85,6 +85,9 @@ class ErpPlatformWorkflow {
      * 1 = still in approval, 2 = fully approved (caller must run business transition), 0 = rejected/error
      */
     static int act(long companyId, long instanceId, long actorUserId, String action, String comment, long amountNow) {
+        if (action == null || (action.equals("APPROVE") == false && action.equals("REJECT") == false)) {
+            throw new TransactionException("invalid workflow action");
+        }
         ArrayList<Object> p = new ArrayList<Object>();
         p.add(CryptoParse.longToString(instanceId));
         p.add(CryptoParse.longToString(companyId));
@@ -109,7 +112,7 @@ class ErpPlatformWorkflow {
         tp.add(CryptoParse.longToString(companyId));
         tp.add(CryptoParse.longToString(step));
         DbQueryResult tr = ErpDb.query(
-                "SELECT id, status, assignee_role FROM workflow_tasks WHERE instance_id=? AND company_id=? AND step_no=?",
+                "SELECT id, status, assignee_role, assignee_user_id FROM workflow_tasks WHERE instance_id=? AND company_id=? AND step_no=?",
                 tp);
         if (tr.rows.size() == 0) {
             throw new TransactionException("task missing");
@@ -119,12 +122,16 @@ class ErpPlatformWorkflow {
             throw new TransactionException("duplicate approval");
         }
         String role = trow.getString(2);
-        if (role.length() > 0) {
-            /* role-gated: actor must hold ADMIN.WORKFLOW.MANAGE or matching role via permission proxy */
-            if (ErpPlatformAuth.hasPermission(actorUserId, companyId, "ADMIN.WORKFLOW.MANAGE") == 0
-                    && ErpPlatformAuth.hasPermission(actorUserId, companyId, "SALES.ORDER.APPROVE") == 0) {
-                throw new TransactionException("FORBIDDEN:approval");
+        long assignee = trow.getLong(3);
+        if (assignee > 0L && assignee != actorUserId) {
+            throw new TransactionException("FORBIDDEN:assigned user");
+        }
+        if (role != null && role.length() > 0) {
+            if (ErpPlatformAuth.hasRole(actorUserId, companyId, role) == 0) {
+                throw new TransactionException("FORBIDDEN:assigned role");
             }
+        } else if (assignee <= 0L) {
+            throw new TransactionException("FORBIDDEN:unassigned approval");
         }
         long now = AsyncClockNative.wallMillis();
         long taskId = trow.getLong(0);

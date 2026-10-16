@@ -616,6 +616,11 @@ class DbParseUtil {
         if (sql == null) {
             return "";
         }
+        /* Fast path: migrate/DDL rarely uses $n binds. Avoid per-char concat under
+         * small-nursery GC (corrupt prepare bytes while the logged Java SQL stayed intact). */
+        if (sql.indexOf("$") < 0) {
+            return sql;
+        }
         String out = "";
         int i = 0;
         while (i < sql.length()) {
@@ -640,8 +645,12 @@ class DbParseUtil {
                     i = i + 1;
                 }
             } else {
-                out = out + sql.substring(i, i + 1);
-                i = i + 1;
+                int run = i + 1;
+                while (run < sql.length() && sql.charAt(run) != 36) {
+                    run = run + 1;
+                }
+                out = out + sql.substring(i, run);
+                i = run;
             }
         }
         return out;
@@ -650,6 +659,9 @@ class DbParseUtil {
     static String questionToDollar(String sql) {
         if (sql == null) {
             return "";
+        }
+        if (sql.indexOf("?") < 0) {
+            return sql;
         }
         String out = "";
         int i = 0;
@@ -661,8 +673,12 @@ class DbParseUtil {
                 out = out + "$" + intToString(n);
                 i = i + 1;
             } else {
-                out = out + sql.substring(i, i + 1);
-                i = i + 1;
+                int run = i + 1;
+                while (run < sql.length() && sql.charAt(run) != 63) {
+                    run = run + 1;
+                }
+                out = out + sql.substring(i, run);
+                i = run;
             }
         }
         return out;

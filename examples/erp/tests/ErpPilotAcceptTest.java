@@ -23,16 +23,60 @@ class ErpPilotAcceptTest {
                 ErpDb.reconnect();
                 pass = 1;
                 pass = step1Wizard(pass, code + String.valueOf(attempt));
+                if (pass == 0) {
+                    attempt = 99;
+                    break;
+                }
                 pass = step2Csv(pass);
+                if (pass == 0) {
+                    attempt = 99;
+                    break;
+                }
                 pass = step3Opening(pass);
+                if (pass == 0) {
+                    attempt = 99;
+                    break;
+                }
                 pass = step4PurchaseGr(pass);
+                if (pass == 0) {
+                    attempt = 99;
+                    break;
+                }
                 pass = step5SalesDl(pass);
+                if (pass == 0) {
+                    attempt = 99;
+                    break;
+                }
                 pass = step6ReverseDl(pass);
+                if (pass == 0) {
+                    attempt = 99;
+                    break;
+                }
                 pass = step7ReverseAgain(pass);
+                if (pass == 0) {
+                    attempt = 99;
+                    break;
+                }
                 pass = step8ArAp(pass);
+                if (pass == 0) {
+                    attempt = 99;
+                    break;
+                }
                 pass = step9RestartCheck(pass);
+                if (pass == 0) {
+                    attempt = 99;
+                    break;
+                }
                 pass = step10Migrate(pass);
+                if (pass == 0) {
+                    attempt = 99;
+                    break;
+                }
                 pass = step11BackupHint(pass);
+                if (pass == 0) {
+                    attempt = 99;
+                    break;
+                }
                 pass = step12DemoIsolation(pass);
                 attempt = 99;
             } catch (Exception ex) {
@@ -236,16 +280,51 @@ class ErpPilotAcceptTest {
     }
 
     static int step6ReverseDl(int pass) {
+        /* Downstream provisional AR must block reverse; verify reject leaves stock unchanged. */
+        PostResultDto blocked = ErpReverse.reverseDelivery(companyId, adminUserId, dlId, "should block",
+                "dl-rev-blocked");
+        if (blocked == null || blocked.ok != 0) {
+            System.out.println("FAIL step6 expected AR block");
+            return 0;
+        }
+        if (blocked.message == null || blocked.message.indexOf("BLOCKED") < 0) {
+            System.out.println("FAIL step6 block message " + blocked.message);
+            return 0;
+        }
+        if (qty() != 27) {
+            System.out.println("FAIL step6 blocked but qty changed got " + CryptoParse.longToString(qty()));
+            return 0;
+        }
+        System.out.println("OK step6a reverse blocked by AR");
+        ArrayList<Object> ap = new ArrayList<Object>();
+        ap.add(CryptoParse.longToString(companyId));
+        ap.add(CryptoParse.longToString(dlId));
+        long arId = ErpNum.asLong(ErpDb.queryOne(
+                "SELECT id FROM ar_invoices WHERE company_id=? AND source_delivery_id=? AND status<>'CANCELLED'",
+                ap, new LongMapper()));
+        if (arId <= 0L) {
+            System.out.println("FAIL step6 provisional AR missing");
+            return 0;
+        }
+        PostResultDto cancel = ErpFinanceArAp.cancelProvisionalAr(companyId, adminUserId, arId,
+                "allow DL reverse", "ar-cancel-dl-" + CryptoParse.longToString(dlId));
+        if (cancel == null || cancel.ok == 0) {
+            System.out.println("FAIL step6 cancel provisional AR");
+            if (cancel != null && cancel.message != null) {
+                System.out.println(cancel.message);
+            }
+            return 0;
+        }
         PostResultDto r = ErpReverse.reverseDelivery(companyId, adminUserId, dlId, "dl error", "dl-rev-1");
         if (r.ok == 0) {
-            System.out.println("FAIL step6 reverse " + r.message);
+            System.out.println("FAIL step6 reverse after AR cancel " + r.message);
             return 0;
         }
         if (qty() != 30) {
             System.out.println("FAIL step6 qty want 30 got " + CryptoParse.longToString(qty()));
             return 0;
         }
-        System.out.println("OK step6 reverse stock=30");
+        System.out.println("OK step6 reverse stock=30 after AR cancel");
         return pass;
     }
 

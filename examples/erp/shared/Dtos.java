@@ -215,6 +215,8 @@ class FiscalPeriodDto {
 }
 
 class JournalLineDto {
+    long postingDate;
+    String journalNumber;
     long accountId;
     String accountCode;
     long debitAmount;
@@ -329,6 +331,13 @@ class SettlementAllocateRequest {
 
 class SettlementReverseRequest {
     long allocationId;
+    String idempotencyKey;
+    String reason;
+}
+
+/** Void entire posted receipt/payment (alloc + bank + GL) in one txn. */
+class PaymentVoidRequest {
+    long paymentId;
     String idempotencyKey;
     String reason;
 }

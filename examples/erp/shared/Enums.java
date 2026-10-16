@@ -151,6 +151,8 @@ class FinanceEventType {
     static String PROVISIONAL_AP = "PROVISIONAL_AP";
     static String RECEIPT_POST = "RECEIPT_POST";
     static String PAYMENT_POST = "PAYMENT_POST";
+    static String RECEIPT_VOID = "RECEIPT_VOID";
+    static String PAYMENT_VOID = "PAYMENT_VOID";
     static String AR_ADJUST = "AR_ADJUST";
     static String AP_ADJUST = "AP_ADJUST";
     static String REFUND = "REFUND";

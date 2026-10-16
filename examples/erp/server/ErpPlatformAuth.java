@@ -18,12 +18,14 @@ class ErpPlatformAuth {
         seedPermission("FINANCE.PAYMENT.POST", "Post receipts/payments");
         seedPermission("FINANCE.PAYMENT.ALLOCATE", "Allocate receipts/payments");
         seedPermission("FINANCE.PAYMENT.REVERSE", "Reverse allocations / refunds");
+        seedPermission("FINANCE.PAYMENT.VOID", "Void entire receipts/payments");
         seedPermission("PURCHASE.ORDER.READ", "Read POs");
         seedPermission("PURCHASE.ORDER.CREATE", "Create POs");
         seedPermission("PURCHASE.ORDER.APPROVE", "Approve POs");
         seedPermission("PURCHASE.ORDER.POST", "Post goods receipts");
         seedPermission("PURCHASE.GR.REVERSE", "Reverse goods receipts");
-        seedPermission("INVENTORY.BALANCE.READ", "Read inventory");
+        seedPermission("INVENTORY.AVAILABLE.READ", "Read available qty (no valuation)");
+        seedPermission("INVENTORY.BALANCE.READ", "Read inventory balances and valuation");
         seedPermission("INVENTORY.OPENING.POST", "Post opening stock");
         seedPermission("ADMIN.USER.READ", "Read users");
         seedPermission("ADMIN.ROLE.MANAGE", "Manage roles");
@@ -47,7 +49,8 @@ class ErpPlatformAuth {
         grant(salesRole, "SALES.ORDER.APPROVE");
         grant(salesRole, "SALES.ORDER.POST");
         grant(salesRole, "SALES.CUSTOMER.READ");
-        grant(salesRole, "INVENTORY.BALANCE.READ");
+        /* Sales needs available qty for SO lines; valuation stays finance/warehouse. */
+        grant(salesRole, "INVENTORY.AVAILABLE.READ");
         grant(financeRole, "FINANCE.JOURNAL.READ");
         grant(financeRole, "FINANCE.JOURNAL.POST");
         grant(financeRole, "FINANCE.OPENING.POST");
@@ -55,11 +58,13 @@ class ErpPlatformAuth {
         grant(financeRole, "FINANCE.PAYMENT.POST");
         grant(financeRole, "FINANCE.PAYMENT.ALLOCATE");
         grant(financeRole, "FINANCE.PAYMENT.REVERSE");
+        grant(financeRole, "FINANCE.PAYMENT.VOID");
         grant(financeRole, "ADMIN.REPORT.RUN");
         grant(purchaseRole, "PURCHASE.ORDER.READ");
         grant(purchaseRole, "PURCHASE.ORDER.CREATE");
         grant(purchaseRole, "PURCHASE.ORDER.APPROVE");
         grant(purchaseRole, "PURCHASE.ORDER.POST");
+        grant(purchaseRole, "INVENTORY.AVAILABLE.READ");
         grant(purchaseRole, "INVENTORY.BALANCE.READ");
         grantAllBusiness(adminRole);
     }
@@ -79,11 +84,13 @@ class ErpPlatformAuth {
         grant(roleId, "FINANCE.PAYMENT.POST");
         grant(roleId, "FINANCE.PAYMENT.ALLOCATE");
         grant(roleId, "FINANCE.PAYMENT.REVERSE");
+        grant(roleId, "FINANCE.PAYMENT.VOID");
         grant(roleId, "PURCHASE.ORDER.READ");
         grant(roleId, "PURCHASE.ORDER.CREATE");
         grant(roleId, "PURCHASE.ORDER.APPROVE");
         grant(roleId, "PURCHASE.ORDER.POST");
         grant(roleId, "PURCHASE.GR.REVERSE");
+        grant(roleId, "INVENTORY.AVAILABLE.READ");
         grant(roleId, "INVENTORY.BALANCE.READ");
         grant(roleId, "INVENTORY.OPENING.POST");
         grant(roleId, "ADMIN.USER.READ");
@@ -166,6 +173,26 @@ class ErpPlatformAuth {
                         + CryptoParse.longToString(userId) + ","
                         + CryptoParse.longToString(roleId) + ")",
                 new ArrayList<Object>());
+    }
+
+    /** Workflow assignments name roles, not interchangeable business permissions. */
+    static int hasRole(long userId, long companyId, String roleCode) {
+        if (userId <= 0L || companyId <= 0L || roleCode == null || roleCode.length() == 0) {
+            return 0;
+        }
+        ArrayList<Object> p = new ArrayList<Object>();
+        p.add(CryptoParse.longToString(userId));
+        p.add(CryptoParse.longToString(companyId));
+        p.add(roleCode);
+        p.add(CryptoParse.longToString(companyId));
+        p.add(roleCode);
+        Object count = ErpDb.queryOne(
+                "SELECT COUNT(*) FROM users u LEFT JOIN platform_user_roles ur ON ur.user_id=u.id LEFT JOIN platform_roles r ON r.id=ur.role_id WHERE u.id=? AND u.company_id=? AND (u.role=? OR (r.company_id=? AND r.code=?))",
+                p, new LongMapper());
+        if (ErpNum.asLong(count) > 0L) {
+            return 1;
+        }
+        return 0;
     }
 
     static int hasPermission(long userId, long companyId, String permCode) {

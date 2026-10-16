@@ -185,6 +185,259 @@ class ErpFinanceSettlement {
     }
 
     /**
+     * Void entire posted receipt: reverse ACTIVE allocs, reverse bank movement, reverse GL JE,
+     * then mark CANCELLED. Distinct from reverseReceiptAlloc (unallocate only; cash stays).
+     */
+    static PostResultDto voidReceipt(long companyId, long userId, PaymentVoidRequest req) {
+        if (req == null || req.idempotencyKey == null || req.idempotencyKey.length() == 0) {
+            return bad("IDEMPOTENCY_REQUIRED", "Idempotency-Key required");
+        }
+        if (req.paymentId <= 0L) {
+            return bad("INVALID", "paymentId required");
+        }
+        ReceiptVoidWork w = new ReceiptVoidWork();
+        w.companyId = companyId;
+        w.userId = userId;
+        w.req = req;
+        return ErpPosting.runPostingWork(w);
+    }
+
+    /** Void entire posted outgoing payment (mirror of voidReceipt). */
+    static PostResultDto voidPayment(long companyId, long userId, PaymentVoidRequest req) {
+        if (req == null || req.idempotencyKey == null || req.idempotencyKey.length() == 0) {
+            return bad("IDEMPOTENCY_REQUIRED", "Idempotency-Key required");
+        }
+        if (req.paymentId <= 0L) {
+            return bad("INVALID", "paymentId required");
+        }
+        PaymentVoidWork w = new PaymentVoidWork();
+        w.companyId = companyId;
+        w.userId = userId;
+        w.req = req;
+        return ErpPosting.runPostingWork(w);
+    }
+
+    /**
+     * Reverse one ACTIVE AR alloc row inside current txn; skips already-reversed.
+     * Restores invoice open/paid/status/settlement; updates payment alloc split.
+     */
+    static void reverseActiveArAllocConn(DbConnection conn, long companyId, long userId, long allocId,
+            long now, String reason, String idempotencyKey) {
+        ArrayList<Object> p = new ArrayList<Object>();
+        p.add(CryptoParse.longToString(allocId));
+        p.add(CryptoParse.longToString(companyId));
+        DbQueryResult ar = ErpDb.queryConn(conn,
+                "SELECT id, payment_id, invoice_id, allocated_amount, status, reversed_by_id FROM ar_settlement_allocs WHERE id=? AND company_id=?",
+                p);
+        if (ar.rows.size() == 0) {
+            throw new TransactionException("allocation not found");
+        }
+        long paymentId = ar.rows.get(0).getLong(1);
+        long invoiceId = ar.rows.get(0).getLong(2);
+        long amount = ar.rows.get(0).getLong(3);
+        String st = ar.rows.get(0).getString(4);
+        long revBy = ar.rows.get(0).getLong(5);
+        if (st.equals(AllocationRowStatus.REVERSED) || revBy > 0L) {
+            return;
+        }
+        ArrayList<Object> pp = new ArrayList<Object>();
+        pp.add(CryptoParse.longToString(paymentId));
+        pp.add(CryptoParse.longToString(companyId));
+        DbQueryResult pr = ErpDb.queryConn(conn,
+                "SELECT allocated_amount, unallocated_amount, status FROM incoming_payments WHERE id=? AND company_id=?",
+                pp);
+        if (pr.rows.size() == 0) {
+            throw new TransactionException("receipt not found");
+        }
+        long allocated = pr.rows.get(0).getLong(0);
+        long unalloc = pr.rows.get(0).getLong(1);
+        String lockSql = "SELECT open_amount, paid_amount, total_amount, adjusted_amount, status FROM ar_invoices WHERE id="
+                + CryptoParse.longToString(invoiceId) + " AND company_id=" + CryptoParse.longToString(companyId);
+        if (Erp.dialect.equals("postgresql")) {
+            lockSql = lockSql + " FOR UPDATE";
+        }
+        DbQueryResult ir = ErpDb.queryConn(conn, lockSql, new ArrayList<Object>());
+        if (ir.rows.size() == 0) {
+            throw new TransactionException("AR not found");
+        }
+        long open = ir.rows.get(0).getLong(0);
+        long paid = ir.rows.get(0).getLong(1);
+        long total = ir.rows.get(0).getLong(2);
+        long adj = ir.rows.get(0).getLong(3);
+        String invSt = ir.rows.get(0).getString(4);
+        if (amount > paid) {
+            throw new TransactionException("reverse exceeds paid");
+        }
+        long newPaid = paid - amount;
+        long newOpen = open + amount;
+        long effective = total + adj;
+        String settle = settlementOf(newOpen, newPaid, effective);
+        String newInvSt = invSt;
+        if (invSt.equals(InvoiceStatus.PROVISIONAL) == false) {
+            if (newPaid <= 0L) {
+                newInvSt = InvoiceStatus.POSTED;
+            } else {
+                if (newOpen <= 0L) {
+                    newInvSt = InvoiceStatus.PAID;
+                } else {
+                    newInvSt = InvoiceStatus.PARTIALLY_PAID;
+                }
+            }
+        }
+        ErpDb.execConn(conn,
+                "UPDATE ar_invoices SET paid_amount=" + CryptoParse.longToString(newPaid)
+                        + ", open_amount=" + CryptoParse.longToString(newOpen)
+                        + ", settlement_status='" + settle + "'"
+                        + ", status='" + newInvSt + "'"
+                        + " WHERE id=" + CryptoParse.longToString(invoiceId)
+                        + " AND company_id=" + CryptoParse.longToString(companyId)
+                        + " AND paid_amount=" + CryptoParse.longToString(paid)
+                        + " AND open_amount=" + CryptoParse.longToString(open),
+                new ArrayList<Object>());
+        String rsn = reason == null ? "" : reason;
+        ArrayList<Object> revP = new ArrayList<Object>();
+        revP.add(CryptoParse.longToString(companyId));
+        revP.add(CryptoParse.longToString(paymentId));
+        revP.add(CryptoParse.longToString(invoiceId));
+        revP.add(CryptoParse.longToString(amount));
+        revP.add(AllocationRowStatus.REVERSED);
+        revP.add(CryptoParse.longToString(allocId));
+        revP.add(rsn);
+        revP.add(CryptoParse.longToString(userId));
+        revP.add(CryptoParse.longToString(now));
+        revP.add(idempotencyKey + "-a" + CryptoParse.longToString(allocId));
+        long revId = ErpDb.insertReturningIdConn(conn,
+                "INSERT INTO ar_settlement_allocs(company_id, payment_id, invoice_id, allocated_amount, status, reverse_of_id, reason, created_by, created_at, idempotency_key) VALUES (?,?,?,?,?,?,?,?,?,?)",
+                revP);
+        ErpDb.execConn(conn,
+                "UPDATE ar_settlement_allocs SET status='" + AllocationRowStatus.REVERSED
+                        + "', reversed_by_id=" + CryptoParse.longToString(revId)
+                        + " WHERE id=" + CryptoParse.longToString(allocId),
+                new ArrayList<Object>());
+        long newAlloc = allocated - amount;
+        long newUn = unalloc + amount;
+        ErpDb.execConn(conn,
+                "UPDATE incoming_payments SET allocated_amount=" + CryptoParse.longToString(newAlloc)
+                        + ", unallocated_amount=" + CryptoParse.longToString(newUn)
+                        + " WHERE id=" + CryptoParse.longToString(paymentId)
+                        + " AND company_id=" + CryptoParse.longToString(companyId)
+                        + " AND allocated_amount=" + CryptoParse.longToString(allocated),
+                new ArrayList<Object>());
+    }
+
+    static void reverseActiveApAllocConn(DbConnection conn, long companyId, long userId, long allocId,
+            long now, String reason, String idempotencyKey) {
+        ArrayList<Object> p = new ArrayList<Object>();
+        p.add(CryptoParse.longToString(allocId));
+        p.add(CryptoParse.longToString(companyId));
+        DbQueryResult ar = ErpDb.queryConn(conn,
+                "SELECT id, payment_id, invoice_id, allocated_amount, status, reversed_by_id FROM ap_settlement_allocs WHERE id=? AND company_id=?",
+                p);
+        if (ar.rows.size() == 0) {
+            throw new TransactionException("allocation not found");
+        }
+        long paymentId = ar.rows.get(0).getLong(1);
+        long invoiceId = ar.rows.get(0).getLong(2);
+        long amount = ar.rows.get(0).getLong(3);
+        String st = ar.rows.get(0).getString(4);
+        long revBy = ar.rows.get(0).getLong(5);
+        if (st.equals(AllocationRowStatus.REVERSED) || revBy > 0L) {
+            return;
+        }
+        ArrayList<Object> pp = new ArrayList<Object>();
+        pp.add(CryptoParse.longToString(paymentId));
+        pp.add(CryptoParse.longToString(companyId));
+        DbQueryResult pr = ErpDb.queryConn(conn,
+                "SELECT allocated_amount, unallocated_amount FROM outgoing_payments WHERE id=? AND company_id=?",
+                pp);
+        long allocated = pr.rows.get(0).getLong(0);
+        long unalloc = pr.rows.get(0).getLong(1);
+        String lockSql = "SELECT open_amount, paid_amount, total_amount, adjusted_amount, status FROM ap_invoices WHERE id="
+                + CryptoParse.longToString(invoiceId) + " AND company_id=" + CryptoParse.longToString(companyId);
+        if (Erp.dialect.equals("postgresql")) {
+            lockSql = lockSql + " FOR UPDATE";
+        }
+        DbQueryResult ir = ErpDb.queryConn(conn, lockSql, new ArrayList<Object>());
+        long open = ir.rows.get(0).getLong(0);
+        long paid = ir.rows.get(0).getLong(1);
+        long total = ir.rows.get(0).getLong(2);
+        long adj = ir.rows.get(0).getLong(3);
+        String invSt = ir.rows.get(0).getString(4);
+        long newPaid = paid - amount;
+        long newOpen = open + amount;
+        String settle = settlementOf(newOpen, newPaid, total + adj);
+        String newInvSt = invSt;
+        if (invSt.equals(InvoiceStatus.PROVISIONAL) == false) {
+            if (newPaid <= 0L) {
+                newInvSt = InvoiceStatus.POSTED;
+            } else {
+                if (newOpen <= 0L) {
+                    newInvSt = InvoiceStatus.PAID;
+                } else {
+                    newInvSt = InvoiceStatus.PARTIALLY_PAID;
+                }
+            }
+        }
+        ErpDb.execConn(conn,
+                "UPDATE ap_invoices SET paid_amount=" + CryptoParse.longToString(newPaid)
+                        + ", open_amount=" + CryptoParse.longToString(newOpen)
+                        + ", settlement_status='" + settle + "'"
+                        + ", status='" + newInvSt + "'"
+                        + " WHERE id=" + CryptoParse.longToString(invoiceId)
+                        + " AND paid_amount=" + CryptoParse.longToString(paid)
+                        + " AND open_amount=" + CryptoParse.longToString(open),
+                new ArrayList<Object>());
+        String rsn = reason == null ? "" : reason;
+        ArrayList<Object> revP = new ArrayList<Object>();
+        revP.add(CryptoParse.longToString(companyId));
+        revP.add(CryptoParse.longToString(paymentId));
+        revP.add(CryptoParse.longToString(invoiceId));
+        revP.add(CryptoParse.longToString(amount));
+        revP.add(AllocationRowStatus.REVERSED);
+        revP.add(CryptoParse.longToString(allocId));
+        revP.add(rsn);
+        revP.add(CryptoParse.longToString(userId));
+        revP.add(CryptoParse.longToString(now));
+        revP.add(idempotencyKey + "-a" + CryptoParse.longToString(allocId));
+        long revId = ErpDb.insertReturningIdConn(conn,
+                "INSERT INTO ap_settlement_allocs(company_id, payment_id, invoice_id, allocated_amount, status, reverse_of_id, reason, created_by, created_at, idempotency_key) VALUES (?,?,?,?,?,?,?,?,?,?)",
+                revP);
+        ErpDb.execConn(conn,
+                "UPDATE ap_settlement_allocs SET status='" + AllocationRowStatus.REVERSED
+                        + "', reversed_by_id=" + CryptoParse.longToString(revId)
+                        + " WHERE id=" + CryptoParse.longToString(allocId),
+                new ArrayList<Object>());
+        ErpDb.execConn(conn,
+                "UPDATE outgoing_payments SET allocated_amount=" + CryptoParse.longToString(allocated - amount)
+                        + ", unallocated_amount=" + CryptoParse.longToString(unalloc + amount)
+                        + " WHERE id=" + CryptoParse.longToString(paymentId)
+                        + " AND allocated_amount=" + CryptoParse.longToString(allocated),
+                new ArrayList<Object>());
+    }
+
+    static long findPaymentJournalIdConn(DbConnection conn, long companyId, String sourceType, long payId) {
+        ArrayList<Object> p = new ArrayList<Object>();
+        p.add(CryptoParse.longToString(companyId));
+        p.add(sourceType);
+        p.add(CryptoParse.longToString(payId));
+        Object v = ErpDb.queryOneConn(conn,
+                "SELECT id FROM journal_entries WHERE company_id=? AND source_type=? AND source_id=? AND status='POSTED' ORDER BY id ASC LIMIT 1",
+                p, new LongMapper());
+        return ErpNum.asLong(v);
+    }
+
+    static long findOriginalBankMovementIdConn(DbConnection conn, long companyId, String sourceType, long payId) {
+        ArrayList<Object> p = new ArrayList<Object>();
+        p.add(CryptoParse.longToString(companyId));
+        p.add(sourceType);
+        p.add(CryptoParse.longToString(payId));
+        Object v = ErpDb.queryOneConn(conn,
+                "SELECT id FROM bank_cash_movements WHERE company_id=? AND source_type=? AND source_id=? AND COALESCE(reverse_of_id,0)=0 ORDER BY id ASC LIMIT 1",
+                p, new LongMapper());
+        return ErpNum.asLong(v);
+    }
+
+    /**
      * Adjust AR open via linked credit (negative adjust_amount). Does not invent cash refund.
      * Idempotent on (source_type, source_id, AR_ADJUST).
      */
@@ -293,6 +546,13 @@ class ErpFinanceSettlement {
     static void applyBankMovementConn(DbConnection conn, long companyId, long bankAccountId, long signedAmount,
             String movementType, long bizDate, String sourceType, long sourceId, long partyId, long userId,
             long now, String idempotencyKey, String notes) {
+        applyBankMovementConn(conn, companyId, bankAccountId, signedAmount, movementType, bizDate, sourceType,
+                sourceId, partyId, userId, now, idempotencyKey, notes, 0L);
+    }
+
+    static void applyBankMovementConn(DbConnection conn, long companyId, long bankAccountId, long signedAmount,
+            String movementType, long bizDate, String sourceType, long sourceId, long partyId, long userId,
+            long now, String idempotencyKey, String notes, long reverseOfId) {
         ArrayList<Object> bp = new ArrayList<Object>();
         bp.add(CryptoParse.longToString(bankAccountId));
         bp.add(CryptoParse.longToString(companyId));
@@ -334,8 +594,9 @@ class ErpFinanceSettlement {
         mp.add(CryptoParse.longToString(userId));
         mp.add(CryptoParse.longToString(now));
         mp.add(idempotencyKey);
+        mp.add(CryptoParse.longToString(reverseOfId));
         ErpDb.execConn(conn,
-                "INSERT INTO bank_cash_movements(company_id, bank_account_id, movement_type, amount, balance_after, biz_date, source_type, source_id, party_id, notes, created_by, created_at, idempotency_key) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                "INSERT INTO bank_cash_movements(company_id, bank_account_id, movement_type, amount, balance_after, biz_date, source_type, source_id, party_id, notes, created_by, created_at, idempotency_key, reverse_of_id) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
                 mp);
     }
 
@@ -374,9 +635,18 @@ class ErpFinanceSettlement {
         long newOpen = open - amount;
         long effective = total + adj;
         String settle = settlementOf(newOpen, newPaid, effective);
+        String newSt = st;
+        if (newOpen == 0L) {
+            newSt = InvoiceStatus.PAID;
+        } else {
+            if (newPaid > 0L) {
+                newSt = InvoiceStatus.PARTIALLY_PAID;
+            }
+        }
         ErpDb.execConn(conn,
                 "UPDATE ar_invoices SET paid_amount=" + CryptoParse.longToString(newPaid)
                         + ", open_amount=" + CryptoParse.longToString(newOpen)
+                        + ", status='" + newSt + "'"
                         + ", settlement_status='" + settle + "'"
                         + " WHERE id=" + CryptoParse.longToString(invoiceId)
                         + " AND company_id=" + CryptoParse.longToString(companyId)
@@ -395,6 +665,14 @@ class ErpFinanceSettlement {
         ErpDb.execConn(conn,
                 "INSERT INTO ar_settlement_allocs(company_id, payment_id, invoice_id, allocated_amount, status, reason, created_by, created_at, idempotency_key) VALUES (?,?,?,?,?,?,?,?,?)",
                 ap);
+        /* Legacy mirror table used by older reports / finance tests. */
+        ErpDb.execConn(conn,
+                "INSERT INTO incoming_payment_allocations(company_id, payment_id, invoice_id, allocated_amount) VALUES ("
+                        + CryptoParse.longToString(companyId) + ","
+                        + CryptoParse.longToString(paymentId) + ","
+                        + CryptoParse.longToString(invoiceId) + ","
+                        + CryptoParse.longToString(amount) + ")",
+                new ArrayList<Object>());
     }
 
     static void applyApAllocConn(DbConnection conn, long companyId, long paymentId, long supplierId,
@@ -432,9 +710,18 @@ class ErpFinanceSettlement {
         long newOpen = open - amount;
         long effective = total + adj;
         String settle = settlementOf(newOpen, newPaid, effective);
+        String newSt = st;
+        if (newOpen == 0L) {
+            newSt = InvoiceStatus.PAID;
+        } else {
+            if (newPaid > 0L) {
+                newSt = InvoiceStatus.PARTIALLY_PAID;
+            }
+        }
         ErpDb.execConn(conn,
                 "UPDATE ap_invoices SET paid_amount=" + CryptoParse.longToString(newPaid)
                         + ", open_amount=" + CryptoParse.longToString(newOpen)
+                        + ", status='" + newSt + "'"
                         + ", settlement_status='" + settle + "'"
                         + " WHERE id=" + CryptoParse.longToString(invoiceId)
                         + " AND company_id=" + CryptoParse.longToString(companyId)
@@ -453,6 +740,61 @@ class ErpFinanceSettlement {
         ErpDb.execConn(conn,
                 "INSERT INTO ap_settlement_allocs(company_id, payment_id, invoice_id, allocated_amount, status, reason, created_by, created_at, idempotency_key) VALUES (?,?,?,?,?,?,?,?,?)",
                 ap);
+        ErpDb.execConn(conn,
+                "INSERT INTO outgoing_payment_allocations(company_id, payment_id, invoice_id, allocated_amount) VALUES ("
+                        + CryptoParse.longToString(companyId) + ","
+                        + CryptoParse.longToString(paymentId) + ","
+                        + CryptoParse.longToString(invoiceId) + ","
+                        + CryptoParse.longToString(amount) + ")",
+                new ArrayList<Object>());
+    }
+
+    /** Bank Dr / AR Cr — idempotent on je-ip-{payId}; must run in same txn as bank movement. */
+    static void postIncomingPaymentJournalConn(DbConnection conn, long companyId, long userId, long payId,
+            long bankGl, long amount, long customerId, long paymentDate) {
+        long ar = ErpFinanceCore.mappedAccountIdConn(conn, companyId, AccountMapKey.AR);
+        PostingRequest jeReq = new PostingRequest();
+        jeReq.sourceType = JournalSource.INCOMING_PAYMENT;
+        jeReq.sourceId = payId;
+        jeReq.postingDate = paymentDate;
+        jeReq.documentDate = paymentDate;
+        jeReq.description = "Incoming payment";
+        jeReq.idempotencyKey = "je-ip-" + CryptoParse.longToString(payId);
+        jeReq.lines = new ArrayList<Object>();
+        jeReq.lines.add(ErpFinanceCore.line(bankGl, amount, 0L, customerId, "Bank"));
+        jeReq.lines.add(ErpFinanceCore.line(ar, 0L, amount, customerId, "AR credit"));
+        PostResultDto je = ErpFinanceCore.postJournalConn(conn, companyId, userId, jeReq);
+        if (je == null || je.ok == 0) {
+            String msg = "incoming payment GL failed";
+            if (je != null && je.message != null && je.message.length() > 0) {
+                msg = je.message;
+            }
+            throw new TransactionException(msg);
+        }
+    }
+
+    /** AP Dr / Bank Cr — idempotent on je-op-{payId}. */
+    static void postOutgoingPaymentJournalConn(DbConnection conn, long companyId, long userId, long payId,
+            long bankGl, long amount, long supplierId, long paymentDate) {
+        long ap = ErpFinanceCore.mappedAccountIdConn(conn, companyId, AccountMapKey.AP);
+        PostingRequest jeReq = new PostingRequest();
+        jeReq.sourceType = JournalSource.OUTGOING_PAYMENT;
+        jeReq.sourceId = payId;
+        jeReq.postingDate = paymentDate;
+        jeReq.documentDate = paymentDate;
+        jeReq.description = "Outgoing payment";
+        jeReq.idempotencyKey = "je-op-" + CryptoParse.longToString(payId);
+        jeReq.lines = new ArrayList<Object>();
+        jeReq.lines.add(ErpFinanceCore.line(ap, amount, 0L, supplierId, "AP debit"));
+        jeReq.lines.add(ErpFinanceCore.line(bankGl, 0L, amount, supplierId, "Bank"));
+        PostResultDto je = ErpFinanceCore.postJournalConn(conn, companyId, userId, jeReq);
+        if (je == null || je.ok == 0) {
+            String msg = "outgoing payment GL failed";
+            if (je != null && je.message != null && je.message.length() > 0) {
+                msg = je.message;
+            }
+            throw new TransactionException(msg);
+        }
     }
 
     static void sortAllocByInvoiceId(ArrayList<Object> allocations) {
@@ -825,6 +1167,8 @@ class ReceiptCreateWork implements DbTransactionWork {
             ErpFinanceSettlement.applyBankMovementConn(conn, companyId, req.bankAccountId, req.amount,
                     CashMovementType.RECEIPT, req.paymentDate, "INCOMING_PAYMENT", payId, req.customerId, userId, now,
                     "bcm-ip-" + CryptoParse.longToString(payId), notes);
+            ErpFinanceSettlement.postIncomingPaymentJournalConn(conn, companyId, userId, payId, bankGl, req.amount,
+                    req.customerId, req.paymentDate);
             ErpDb.execConn(conn,
                     "UPDATE incoming_payments SET posted_at=" + CryptoParse.longToString(now)
                             + ", posted_by=" + CryptoParse.longToString(userId)
@@ -847,7 +1191,7 @@ class ReceiptCreateWork implements DbTransactionWork {
                 + ",\"amount\":" + ErpJson.num(req.amount)
                 + ",\"unallocated\":" + ErpJson.num(unalloc)
                 + ",\"status\":" + ErpJson.str(status) + "}";
-        PostResultDto ok = ErpFinanceSettlement.okDoc("OK", "receipt saved", docJson);
+        PostResultDto ok = ErpFinanceSettlement.okDoc("OK", "payment posted", docJson);
         ErpPosting.storeIdempotencyConn(conn, companyId, req.idempotencyKey, "IP", docJson, now);
         return JnFuture.completed(Erp.loop, ok);
     }
@@ -890,8 +1234,14 @@ class ReceiptPostWork implements DbTransactionWork {
         if (st.equals(PaymentStatus.DRAFT) == false) {
             throw new TransactionException("receipt not draft");
         }
+        long bankGl = ErpFinanceArAp.bankLedgerAccountConn(conn, companyId, bankId);
+        if (bankGl == 0L) {
+            throw new TransactionException("bank account invalid");
+        }
         ErpFinanceSettlement.applyBankMovementConn(conn, companyId, bankId, amount, CashMovementType.RECEIPT, pdate,
                 "INCOMING_PAYMENT", paymentId, cust, userId, now, "bcm-ip-" + CryptoParse.longToString(paymentId), "");
+        ErpFinanceSettlement.postIncomingPaymentJournalConn(conn, companyId, userId, paymentId, bankGl, amount, cust,
+                pdate);
         ErpDb.execConn(conn,
                 "UPDATE incoming_payments SET status='" + PaymentStatus.POSTED + "', posted_at="
                         + CryptoParse.longToString(now) + ", posted_by=" + CryptoParse.longToString(userId)
@@ -1176,6 +1526,8 @@ class PaymentCreateWork implements DbTransactionWork {
             ErpFinanceSettlement.applyBankMovementConn(conn, companyId, req.bankAccountId, 0L - req.amount,
                     CashMovementType.PAYMENT, req.paymentDate, "OUTGOING_PAYMENT", payId, req.supplierId, userId, now,
                     "bcm-op-" + CryptoParse.longToString(payId), notes);
+            ErpFinanceSettlement.postOutgoingPaymentJournalConn(conn, companyId, userId, payId, bankGl, req.amount,
+                    req.supplierId, req.paymentDate);
             ErpDb.execConn(conn,
                     "UPDATE outgoing_payments SET posted_at=" + CryptoParse.longToString(now)
                             + ", posted_by=" + CryptoParse.longToString(userId)
@@ -1198,7 +1550,7 @@ class PaymentCreateWork implements DbTransactionWork {
                 + ",\"amount\":" + ErpJson.num(req.amount)
                 + ",\"unallocated\":" + ErpJson.num(unalloc)
                 + ",\"status\":" + ErpJson.str(status) + "}";
-        PostResultDto ok = ErpFinanceSettlement.okDoc("OK", "payment saved", docJson);
+        PostResultDto ok = ErpFinanceSettlement.okDoc("OK", "payment posted", docJson);
         ErpPosting.storeIdempotencyConn(conn, companyId, req.idempotencyKey, "OP", docJson, now);
         return JnFuture.completed(Erp.loop, ok);
     }
@@ -1239,9 +1591,15 @@ class PaymentPostWork implements DbTransactionWork {
         if (st.equals(PaymentStatus.DRAFT) == false) {
             throw new TransactionException("payment not draft");
         }
+        long bankGl = ErpFinanceArAp.bankLedgerAccountConn(conn, companyId, bankId);
+        if (bankGl == 0L) {
+            throw new TransactionException("bank account invalid");
+        }
         ErpFinanceSettlement.applyBankMovementConn(conn, companyId, bankId, 0L - amount, CashMovementType.PAYMENT,
                 pdate, "OUTGOING_PAYMENT", paymentId, sup, userId, now, "bcm-op-" + CryptoParse.longToString(paymentId),
                 "");
+        ErpFinanceSettlement.postOutgoingPaymentJournalConn(conn, companyId, userId, paymentId, bankGl, amount, sup,
+                pdate);
         ErpDb.execConn(conn,
                 "UPDATE outgoing_payments SET status='" + PaymentStatus.POSTED + "', posted_at="
                         + CryptoParse.longToString(now) + ", posted_by=" + CryptoParse.longToString(userId)
@@ -1420,6 +1778,231 @@ class PaymentReverseWork implements DbTransactionWork {
                 + ",\"unallocated\":" + ErpJson.num(newUn) + "}";
         PostResultDto ok = ErpFinanceSettlement.okDoc("OK", "allocation reversed", docJson);
         ErpPosting.storeIdempotencyConn(conn, companyId, req.idempotencyKey, "OP_REV", docJson, now);
+        return JnFuture.completed(Erp.loop, ok);
+    }
+}
+
+class ReceiptVoidWork implements DbTransactionWork {
+    long companyId;
+    long userId;
+    PaymentVoidRequest req;
+
+    public JnFuture run(DbConnection conn) {
+        long now = AsyncClockNative.wallMillis();
+        String cached = ErpPosting.cachedIdempotencyConn(conn, companyId, req.idempotencyKey);
+        if (cached != null && cached.length() > 0) {
+            return JnFuture.completed(Erp.loop, ErpPosting.resultFromJson(cached));
+        }
+        long payId = req.paymentId;
+        ArrayList<Object> pp = new ArrayList<Object>();
+        pp.add(CryptoParse.longToString(payId));
+        pp.add(CryptoParse.longToString(companyId));
+        String lockSql = "SELECT status, amount, bank_account_id, customer_id, payment_date, COALESCE(voided_at,0) FROM incoming_payments WHERE id=? AND company_id=?";
+        if (Erp.dialect.equals("postgresql")) {
+            lockSql = lockSql + " FOR UPDATE";
+        }
+        DbQueryResult pr = ErpDb.queryConn(conn, lockSql, pp);
+        if (pr.rows.size() == 0) {
+            throw new TransactionException("receipt not found");
+        }
+        String status = pr.rows.get(0).getString(0);
+        long amount = pr.rows.get(0).getLong(1);
+        long bankId = pr.rows.get(0).getLong(2);
+        long customerId = pr.rows.get(0).getLong(3);
+        long paymentDate = pr.rows.get(0).getLong(4);
+        long voidedAt = pr.rows.get(0).getLong(5);
+        if (status.equals(PaymentStatus.CANCELLED) || voidedAt > 0L) {
+            throw new TransactionException("receipt already voided");
+        }
+        if (status.equals(PaymentStatus.POSTED) == false) {
+            throw new TransactionException("only POSTED receipts can be voided; status=" + status);
+        }
+        if (ErpFinanceCore.assertOpenPeriodConn(conn, companyId, paymentDate) == 0) {
+            throw new TransactionException("PERIOD_CLOSED:fiscal period closed; cannot void");
+        }
+        ArrayList<Object> ap = new ArrayList<Object>();
+        ap.add(CryptoParse.longToString(companyId));
+        ap.add(CryptoParse.longToString(payId));
+        DbQueryResult allocs = ErpDb.queryConn(conn,
+                "SELECT id FROM ar_settlement_allocs WHERE company_id=? AND payment_id=? AND status='ACTIVE' AND reverse_of_id=0 AND COALESCE(reversed_by_id,0)=0 ORDER BY id",
+                ap);
+        int ai = 0;
+        while (ai < allocs.rows.size()) {
+            long allocId = allocs.rows.get(ai).getLong(0);
+            ErpFinanceSettlement.reverseActiveArAllocConn(conn, companyId, userId, allocId, now, req.reason,
+                    req.idempotencyKey);
+            ai = ai + 1;
+        }
+        long movId = ErpFinanceSettlement.findOriginalBankMovementIdConn(conn, companyId, "INCOMING_PAYMENT", payId);
+        if (movId <= 0L) {
+            throw new TransactionException("original bank movement missing");
+        }
+        ArrayList<Object> rvChk = new ArrayList<Object>();
+        rvChk.add(CryptoParse.longToString(companyId));
+        rvChk.add(CryptoParse.longToString(movId));
+        Object alreadyRev = ErpDb.queryOneConn(conn,
+                "SELECT COUNT(*) FROM bank_cash_movements WHERE company_id=? AND reverse_of_id=?", rvChk,
+                new LongMapper());
+        if (ErpNum.asLong(alreadyRev) > 0L) {
+            throw new TransactionException("bank movement already reversed");
+        }
+        String reason = req.reason == null ? "" : req.reason;
+        ErpFinanceSettlement.applyBankMovementConn(conn, companyId, bankId, 0L - amount, CashMovementType.REFUND_OUT,
+                paymentDate, "INCOMING_PAYMENT_VOID", payId, customerId, userId, now,
+                "bcm-void-ip-" + CryptoParse.longToString(payId), reason, movId);
+        long jeId = ErpFinanceSettlement.findPaymentJournalIdConn(conn, companyId, JournalSource.INCOMING_PAYMENT,
+                payId);
+        if (jeId <= 0L) {
+            throw new TransactionException("original payment journal missing");
+        }
+        PostResultDto jeRev = ErpFinanceCore.reverseJournalConn(conn, companyId, userId, jeId, reason,
+                "je-void-ip-" + CryptoParse.longToString(payId));
+        if (jeRev == null || jeRev.ok == 0) {
+            String msg = "payment GL reverse failed";
+            if (jeRev != null && jeRev.message != null && jeRev.message.length() > 0) {
+                msg = jeRev.message;
+            }
+            throw new TransactionException(msg);
+        }
+        ErpDb.execConn(conn,
+                "UPDATE incoming_payments SET status='" + PaymentStatus.CANCELLED + "'"
+                        + ", voided_at=" + CryptoParse.longToString(now)
+                        + ", voided_by=" + CryptoParse.longToString(userId)
+                        + ", void_reason='" + ErpPlatformMeta.escapeLite(reason) + "'"
+                        + ", allocated_amount=0, unallocated_amount=0"
+                        + " WHERE id=" + CryptoParse.longToString(payId)
+                        + " AND company_id=" + CryptoParse.longToString(companyId)
+                        + " AND status='" + PaymentStatus.POSTED + "'",
+                new ArrayList<Object>());
+        ArrayList<Object> stP = new ArrayList<Object>();
+        stP.add(CryptoParse.longToString(payId));
+        stP.add(CryptoParse.longToString(companyId));
+        Object stNow = ErpDb.queryOneConn(conn,
+                "SELECT status FROM incoming_payments WHERE id=? AND company_id=?", stP, new StringMapper());
+        if (stNow == null || ((String) stNow).equals(PaymentStatus.CANCELLED) == false) {
+            throw new TransactionException("concurrent void conflict");
+        }
+        ErpFinanceSettlement.recordSourceEventConn(conn, companyId, "INCOMING_PAYMENT", payId,
+                FinanceEventType.RECEIPT_VOID, payId, now);
+        String docJson = "{\"id\":" + ErpJson.num(payId)
+                + ",\"status\":" + ErpJson.str(PaymentStatus.CANCELLED)
+                + ",\"voidedAt\":" + ErpJson.num(now)
+                + ",\"bankMovementReverseOf\":" + ErpJson.num(movId)
+                + ",\"journalId\":" + ErpJson.num(jeId) + "}";
+        PostResultDto ok = ErpFinanceSettlement.okDoc("OK", "receipt voided", docJson);
+        ErpPosting.storeIdempotencyConn(conn, companyId, req.idempotencyKey, "IP_VOID", docJson, now);
+        return JnFuture.completed(Erp.loop, ok);
+    }
+}
+
+class PaymentVoidWork implements DbTransactionWork {
+    long companyId;
+    long userId;
+    PaymentVoidRequest req;
+
+    public JnFuture run(DbConnection conn) {
+        long now = AsyncClockNative.wallMillis();
+        String cached = ErpPosting.cachedIdempotencyConn(conn, companyId, req.idempotencyKey);
+        if (cached != null && cached.length() > 0) {
+            return JnFuture.completed(Erp.loop, ErpPosting.resultFromJson(cached));
+        }
+        long payId = req.paymentId;
+        ArrayList<Object> pp = new ArrayList<Object>();
+        pp.add(CryptoParse.longToString(payId));
+        pp.add(CryptoParse.longToString(companyId));
+        String lockSql = "SELECT status, amount, bank_account_id, supplier_id, payment_date, COALESCE(voided_at,0) FROM outgoing_payments WHERE id=? AND company_id=?";
+        if (Erp.dialect.equals("postgresql")) {
+            lockSql = lockSql + " FOR UPDATE";
+        }
+        DbQueryResult pr = ErpDb.queryConn(conn, lockSql, pp);
+        if (pr.rows.size() == 0) {
+            throw new TransactionException("payment not found");
+        }
+        String status = pr.rows.get(0).getString(0);
+        long amount = pr.rows.get(0).getLong(1);
+        long bankId = pr.rows.get(0).getLong(2);
+        long supplierId = pr.rows.get(0).getLong(3);
+        long paymentDate = pr.rows.get(0).getLong(4);
+        long voidedAt = pr.rows.get(0).getLong(5);
+        if (status.equals(PaymentStatus.CANCELLED) || voidedAt > 0L) {
+            throw new TransactionException("payment already voided");
+        }
+        if (status.equals(PaymentStatus.POSTED) == false) {
+            throw new TransactionException("only POSTED payments can be voided; status=" + status);
+        }
+        if (ErpFinanceCore.assertOpenPeriodConn(conn, companyId, paymentDate) == 0) {
+            throw new TransactionException("PERIOD_CLOSED:fiscal period closed; cannot void");
+        }
+        ArrayList<Object> ap = new ArrayList<Object>();
+        ap.add(CryptoParse.longToString(companyId));
+        ap.add(CryptoParse.longToString(payId));
+        DbQueryResult allocs = ErpDb.queryConn(conn,
+                "SELECT id FROM ap_settlement_allocs WHERE company_id=? AND payment_id=? AND status='ACTIVE' AND reverse_of_id=0 AND COALESCE(reversed_by_id,0)=0 ORDER BY id",
+                ap);
+        int ai = 0;
+        while (ai < allocs.rows.size()) {
+            ErpFinanceSettlement.reverseActiveApAllocConn(conn, companyId, userId, allocs.rows.get(ai).getLong(0),
+                    now, req.reason, req.idempotencyKey);
+            ai = ai + 1;
+        }
+        long movId = ErpFinanceSettlement.findOriginalBankMovementIdConn(conn, companyId, "OUTGOING_PAYMENT", payId);
+        if (movId <= 0L) {
+            throw new TransactionException("original bank movement missing");
+        }
+        ArrayList<Object> rvChk = new ArrayList<Object>();
+        rvChk.add(CryptoParse.longToString(companyId));
+        rvChk.add(CryptoParse.longToString(movId));
+        if (ErpNum.asLong(ErpDb.queryOneConn(conn,
+                "SELECT COUNT(*) FROM bank_cash_movements WHERE company_id=? AND reverse_of_id=?", rvChk,
+                new LongMapper())) > 0L) {
+            throw new TransactionException("bank movement already reversed");
+        }
+        String reason = req.reason == null ? "" : req.reason;
+        /* Original OP was -amount; void restores +amount. */
+        ErpFinanceSettlement.applyBankMovementConn(conn, companyId, bankId, amount, CashMovementType.REFUND_IN,
+                paymentDate, "OUTGOING_PAYMENT_VOID", payId, supplierId, userId, now,
+                "bcm-void-op-" + CryptoParse.longToString(payId), reason, movId);
+        long jeId = ErpFinanceSettlement.findPaymentJournalIdConn(conn, companyId, JournalSource.OUTGOING_PAYMENT,
+                payId);
+        if (jeId <= 0L) {
+            throw new TransactionException("original payment journal missing");
+        }
+        PostResultDto jeRev = ErpFinanceCore.reverseJournalConn(conn, companyId, userId, jeId, reason,
+                "je-void-op-" + CryptoParse.longToString(payId));
+        if (jeRev == null || jeRev.ok == 0) {
+            String msg = "payment GL reverse failed";
+            if (jeRev != null && jeRev.message != null && jeRev.message.length() > 0) {
+                msg = jeRev.message;
+            }
+            throw new TransactionException(msg);
+        }
+        ErpDb.execConn(conn,
+                "UPDATE outgoing_payments SET status='" + PaymentStatus.CANCELLED + "'"
+                        + ", voided_at=" + CryptoParse.longToString(now)
+                        + ", voided_by=" + CryptoParse.longToString(userId)
+                        + ", void_reason='" + ErpPlatformMeta.escapeLite(reason) + "'"
+                        + ", allocated_amount=0, unallocated_amount=0"
+                        + " WHERE id=" + CryptoParse.longToString(payId)
+                        + " AND company_id=" + CryptoParse.longToString(companyId)
+                        + " AND status='" + PaymentStatus.POSTED + "'",
+                new ArrayList<Object>());
+        ArrayList<Object> stP = new ArrayList<Object>();
+        stP.add(CryptoParse.longToString(payId));
+        stP.add(CryptoParse.longToString(companyId));
+        Object stNow = ErpDb.queryOneConn(conn,
+                "SELECT status FROM outgoing_payments WHERE id=? AND company_id=?", stP, new StringMapper());
+        if (stNow == null || ((String) stNow).equals(PaymentStatus.CANCELLED) == false) {
+            throw new TransactionException("concurrent void conflict");
+        }
+        ErpFinanceSettlement.recordSourceEventConn(conn, companyId, "OUTGOING_PAYMENT", payId,
+                FinanceEventType.PAYMENT_VOID, payId, now);
+        String docJson = "{\"id\":" + ErpJson.num(payId)
+                + ",\"status\":" + ErpJson.str(PaymentStatus.CANCELLED)
+                + ",\"voidedAt\":" + ErpJson.num(now)
+                + ",\"bankMovementReverseOf\":" + ErpJson.num(movId)
+                + ",\"journalId\":" + ErpJson.num(jeId) + "}";
+        PostResultDto ok = ErpFinanceSettlement.okDoc("OK", "payment voided", docJson);
+        ErpPosting.storeIdempotencyConn(conn, companyId, req.idempotencyKey, "OP_VOID", docJson, now);
         return JnFuture.completed(Erp.loop, ok);
     }
 }

@@ -125,6 +125,8 @@ class ErpFinanceReports {
             Row row = r.rows.get(i);
             JournalLineDto ln = new JournalLineDto();
             ln.accountCode = row.getString(0);
+            ln.postingDate = row.getLong(5);
+            ln.journalNumber = row.getString(6);
             ln.debitAmount = row.getLong(1);
             ln.creditAmount = row.getLong(2);
             ln.businessPartnerId = row.getLong(3);

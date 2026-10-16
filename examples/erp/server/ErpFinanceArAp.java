@@ -74,11 +74,9 @@ class ErpFinanceArAp {
             bad.message = "Idempotency-Key required";
             return bad;
         }
-        IncomingPaymentWork work = new IncomingPaymentWork();
-        work.companyId = companyId;
-        work.userId = userId;
-        work.req = req;
-        return runPostWork(work);
+        /* Legacy API always posts: bank movement + settlement alloc + GL in one txn. */
+        req.postNow = 1;
+        return ErpFinanceSettlement.createReceipt(companyId, userId, req);
     }
 
     /**
@@ -124,6 +122,28 @@ class ErpFinanceArAp {
     static void adjustArOpenConn(DbConnection conn, long companyId, long sourceDeliveryId, long creditCents,
             long salesReturnId, long now) {
         ErpFinanceSettlement.adjustArConn(conn, companyId, sourceDeliveryId, creditCents, salesReturnId, 0L, now);
+    }
+
+    /**
+     * Cancel unpaid provisional AR so upstream DL reverse can proceed.
+     * Rejects if paid/settled or non-provisional. Does not delete history.
+     */
+    static PostResultDto cancelProvisionalAr(long companyId, long userId, long arId, String reason,
+            String idempotencyKey) {
+        if (idempotencyKey == null || idempotencyKey.length() == 0) {
+            PostResultDto bad = new PostResultDto();
+            bad.ok = 0;
+            bad.code = "IDEMPOTENCY_REQUIRED";
+            bad.message = "Idempotency-Key required";
+            return bad;
+        }
+        CancelProvisionalArWork w = new CancelProvisionalArWork();
+        w.companyId = companyId;
+        w.userId = userId;
+        w.arId = arId;
+        w.reason = reason;
+        w.idempotencyKey = idempotencyKey;
+        return ErpPosting.runPostingWork(w);
     }
 
     /**
@@ -236,11 +256,8 @@ class ErpFinanceArAp {
             bad.message = "Idempotency-Key required";
             return bad;
         }
-        OutgoingPaymentWork work = new OutgoingPaymentWork();
-        work.companyId = companyId;
-        work.userId = userId;
-        work.req = req;
-        return runPostWork(work);
+        req.postNow = 1;
+        return ErpFinanceSettlement.createPayment(companyId, userId, req);
     }
 
     static PostResultDto runPostWork(DbTransactionWork work) {
@@ -756,6 +773,76 @@ class OutgoingPaymentWork implements DbTransactionWork {
         ok.message = "payment posted";
         ok.documentJson = docJson;
         ErpPosting.storeIdempotencyConn(conn, companyId, req.idempotencyKey, "OP", docJson, now);
+        return JnFuture.completed(Erp.loop, ok);
+    }
+}
+
+class CancelProvisionalArWork implements DbTransactionWork {
+    long companyId;
+    long userId;
+    long arId;
+    String reason;
+    String idempotencyKey;
+
+    public JnFuture run(DbConnection conn) {
+        long now = AsyncClockNative.wallMillis();
+        String cached = ErpPosting.cachedIdempotencyConn(conn, companyId, idempotencyKey);
+        if (cached != null && cached.length() > 0) {
+            return JnFuture.completed(Erp.loop, ErpPosting.resultFromJson(cached));
+        }
+        ArrayList<Object> p = new ArrayList<Object>();
+        p.add(CryptoParse.longToString(arId));
+        p.add(CryptoParse.longToString(companyId));
+        String lockSql = "SELECT status, paid_amount, open_amount, COALESCE(is_provisional,0), source_delivery_id FROM ar_invoices WHERE id=? AND company_id=?";
+        if (Erp.dialect.equals("postgresql")) {
+            lockSql = lockSql + " FOR UPDATE";
+        }
+        DbQueryResult r = ErpDb.queryConn(conn, lockSql, p);
+        if (r.rows.size() == 0) {
+            throw new TransactionException("AR not found");
+        }
+        String st = r.rows.get(0).getString(0);
+        long paid = r.rows.get(0).getLong(1);
+        int isProv = r.rows.get(0).getInt(3);
+        long sourceDl = r.rows.get(0).getLong(4);
+        if (st.equals(InvoiceStatus.CANCELLED)) {
+            throw new TransactionException("AR already cancelled");
+        }
+        if (st.equals(InvoiceStatus.PROVISIONAL) == false || isProv == 0) {
+            throw new TransactionException("only unpaid provisional AR can be cancelled this way");
+        }
+        if (paid != 0L) {
+            throw new TransactionException("BLOCKED:provisional AR has payments; reverse settlement first");
+        }
+        ArrayList<Object> ap = new ArrayList<Object>();
+        ap.add(CryptoParse.longToString(companyId));
+        ap.add(CryptoParse.longToString(arId));
+        Object active = ErpDb.queryOneConn(conn,
+                "SELECT COUNT(*) FROM ar_settlement_allocs WHERE company_id=? AND invoice_id=? AND status='ACTIVE' AND reverse_of_id=0",
+                ap, new LongMapper());
+        if (ErpNum.asLong(active) > 0L) {
+            throw new TransactionException("BLOCKED:active settlement allocations exist");
+        }
+        String rsn = reason == null ? "" : reason;
+        ErpDb.execConn(conn,
+                "UPDATE ar_invoices SET status='" + InvoiceStatus.CANCELLED + "'"
+                        + ", open_amount=0"
+                        + ", settlement_status='" + SettlementStatus.SETTLED + "'"
+                        + ", notes=notes || ' CANCELLED:" + ErpPlatformMeta.escapeLite(rsn) + "'"
+                        + " WHERE id=" + CryptoParse.longToString(arId)
+                        + " AND company_id=" + CryptoParse.longToString(companyId)
+                        + " AND status='" + InvoiceStatus.PROVISIONAL + "'"
+                        + " AND paid_amount=0",
+                new ArrayList<Object>());
+        String docJson = "{\"id\":" + ErpJson.num(arId)
+                + ",\"status\":" + ErpJson.str(InvoiceStatus.CANCELLED)
+                + ",\"sourceDeliveryId\":" + ErpJson.num(sourceDl) + "}";
+        PostResultDto ok = new PostResultDto();
+        ok.ok = 1;
+        ok.code = "OK";
+        ok.message = "provisional AR cancelled";
+        ok.documentJson = docJson;
+        ErpPosting.storeIdempotencyConn(conn, companyId, idempotencyKey, "AR_CANCEL_PROV", docJson, now);
         return JnFuture.completed(Erp.loop, ok);
     }
 }
