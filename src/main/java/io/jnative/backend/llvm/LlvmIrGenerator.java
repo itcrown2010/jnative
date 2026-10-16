@@ -596,6 +596,28 @@ public final class LlvmIrGenerator {
                     entryEmittedStackObjects.add(llvmName(n.dest()));
                 }
                 int rootCount = ptrRoots.size() + stackFieldRootSlots.size();
+                // Leading `store %param, %alloca` for managed args must run before the
+                // entry safepoint. Otherwise the live argument only exists in a
+                // non-rooted register/stack slot while GC relocates it (observed as
+                // FutureBlocker.blockingWait SIGSEGV under small-nursery GC stress).
+                java.util.LinkedHashSet<IrInstruction> paramSeedStores = new java.util.LinkedHashSet<>();
+                for (IrInstruction inst : block.instructions()) {
+                    if (inst instanceof IrInstruction.Alloca
+                            || inst instanceof IrInstruction.StackAlloc) {
+                        continue;
+                    }
+                    if (inst instanceof IrInstruction.NewObject n && n.stackAllocated()
+                            && entryEmittedStackObjects.contains(llvmName(n.dest()))) {
+                        continue;
+                    }
+                    if (inst instanceof IrInstruction.Store st
+                            && st.value() instanceof IrValue.Param
+                            && st.dest().type().isManagedPointer()) {
+                        paramSeedStores.add(st);
+                        continue;
+                    }
+                    break;
+                }
                 // Shadow-stack frame for precise roots — slots start as null
                 if (rootCount > 0) {
                     for (IrValue.Local root : ptrRoots) {
@@ -615,6 +637,9 @@ public final class LlvmIrGenerator {
                         ri++;
                     }
                 }
+                for (IrInstruction seed : paramSeedStores) {
+                    emitInstruction(seed);
+                }
                 if (f.noGcRegion()) {
                     line("  call void @jn_nogc_enter()");
                 }
@@ -628,6 +653,9 @@ public final class LlvmIrGenerator {
                     }
                     if (inst instanceof IrInstruction.NewObject n && n.stackAllocated()
                             && entryEmittedStackObjects.contains(llvmName(n.dest()))) {
+                        continue;
+                    }
+                    if (paramSeedStores.contains(inst)) {
                         continue;
                     }
                     if (inst instanceof IrInstruction.Return) {

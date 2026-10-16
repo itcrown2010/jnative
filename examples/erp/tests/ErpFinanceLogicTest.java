@@ -123,6 +123,21 @@ class ErpFinanceLogicTest {
         bp.add(CryptoParse.longToString(companyId));
         bankAccountId = ErpNum.asLong(ErpDb.queryOne(
                 "SELECT id FROM bank_accounts WHERE company_id=? ORDER BY id LIMIT 1", bp, new LongMapper()));
+        /* Opening cash so AP payouts (2000+3000) after AR collections stay within overdraft rules. */
+        if (bankAccountId > 0L) {
+            FinOpenCashWork open = new FinOpenCashWork();
+            open.companyId = companyId;
+            open.bankAccountId = bankAccountId;
+            open.amount = 10000L;
+            open.bizDate = now;
+            PostResultDto openR = ErpPosting.runPostingWork(open);
+            if (openR == null || openR.ok == 0) {
+                System.out.println("WARN finance opening cash failed");
+                if (openR != null && openR.message != null) {
+                    System.out.println(openR.message);
+                }
+            }
+        }
     }
 
     static int okPost(PostResultDto r) {
@@ -424,8 +439,21 @@ class ErpFinanceLogicTest {
         pa2.invoiceId = ap.id;
         pa2.allocatedAmount = 3000L;
         op2.allocations.add(pa2);
-        if (okPost(ErpFinanceArAp.postOutgoingPayment(companyId, 0L, op2)) == 0) {
+        PostResultDto op2r = ErpFinanceArAp.postOutgoingPayment(companyId, 0L, op2);
+        if (okPost(op2r) == 0) {
             System.out.println("FAIL OP2");
+            if (op2r != null) {
+                if (op2r.code != null) {
+                    System.out.println(op2r.code);
+                }
+                if (op2r.message != null) {
+                    System.out.println(op2r.message);
+                }
+            }
+            ArrayList<Object> balP = new ArrayList<Object>();
+            balP.add(CryptoParse.longToString(bankAccountId));
+            Object bal = ErpDb.queryOne("SELECT balance FROM bank_accounts WHERE id=?", balP, new LongMapper());
+            System.out.println("bank_balance=" + CryptoParse.longToString(ErpNum.asLong(bal)));
             return 0;
         }
 
@@ -442,6 +470,61 @@ class ErpFinanceLogicTest {
         if (ErpNum.asLong(arOpen) != 0L || ErpNum.asLong(apOpen) != 0L) {
             System.out.println("FAIL open AR/AP not zero");
             pass = 0;
+        }
+
+        /* Regression: invoice open changed must co-exist with bank cash movements + GL
+         * (legacy ArAp path historically updated paid/open without bank_cash_movements). */
+        ArrayList<Object> cidP = new ArrayList<Object>();
+        cidP.add(CryptoParse.longToString(companyId));
+        Object bcmIp = ErpDb.queryOne(
+                "SELECT COUNT(*) FROM bank_cash_movements WHERE company_id=? AND source_type='INCOMING_PAYMENT'",
+                cidP, new LongMapper());
+        Object bcmOp = ErpDb.queryOne(
+                "SELECT COUNT(*) FROM bank_cash_movements WHERE company_id=? AND source_type='OUTGOING_PAYMENT'",
+                cidP, new LongMapper());
+        Object jeIp = ErpDb.queryOne(
+                "SELECT COUNT(*) FROM journal_entries WHERE company_id=? AND source_type='INCOMING_PAYMENT' AND status='POSTED'",
+                cidP, new LongMapper());
+        Object jeOp = ErpDb.queryOne(
+                "SELECT COUNT(*) FROM journal_entries WHERE company_id=? AND source_type='OUTGOING_PAYMENT' AND status='POSTED'",
+                cidP, new LongMapper());
+        Object arAlloc = ErpDb.queryOne(
+                "SELECT COUNT(*) FROM ar_settlement_allocs WHERE company_id=? AND status='ACTIVE'",
+                cidP, new LongMapper());
+        Object apAlloc = ErpDb.queryOne(
+                "SELECT COUNT(*) FROM ap_settlement_allocs WHERE company_id=? AND status='ACTIVE'",
+                cidP, new LongMapper());
+        if (ErpNum.asLong(bcmIp) < 2L || ErpNum.asLong(bcmOp) < 2L) {
+            System.out.println("FAIL bank_cash_movements missing for IP/OP bcmIp="
+                    + CryptoParse.longToString(ErpNum.asLong(bcmIp)) + " bcmOp="
+                    + CryptoParse.longToString(ErpNum.asLong(bcmOp)));
+            pass = 0;
+        }
+        if (ErpNum.asLong(jeIp) < 2L || ErpNum.asLong(jeOp) < 2L) {
+            System.out.println("FAIL payment GL missing jeIp="
+                    + CryptoParse.longToString(ErpNum.asLong(jeIp)) + " jeOp="
+                    + CryptoParse.longToString(ErpNum.asLong(jeOp)));
+            pass = 0;
+        }
+        if (ErpNum.asLong(arAlloc) < 2L || ErpNum.asLong(apAlloc) < 2L) {
+            System.out.println("FAIL settlement alloc rows missing ar="
+                    + CryptoParse.longToString(ErpNum.asLong(arAlloc)) + " ap="
+                    + CryptoParse.longToString(ErpNum.asLong(apAlloc)));
+            pass = 0;
+        }
+        ArrayList<Object> bankP = new ArrayList<Object>();
+        bankP.add(CryptoParse.longToString(bankAccountId));
+        Object bankBal = ErpDb.queryOne("SELECT balance FROM bank_accounts WHERE id=?", bankP, new LongMapper());
+        Object bcmSum = ErpDb.queryOne(
+                "SELECT COALESCE(SUM(amount),0) FROM bank_cash_movements WHERE bank_account_id=?",
+                bankP, new LongMapper());
+        if (ErpNum.asLong(bankBal) != ErpNum.asLong(bcmSum)) {
+            System.out.println("FAIL bank balance != cash movement sum bal="
+                    + CryptoParse.longToString(ErpNum.asLong(bankBal)) + " sum="
+                    + CryptoParse.longToString(ErpNum.asLong(bcmSum)));
+            pass = 0;
+        } else {
+            System.out.println("OK payment_bank_gl_settlement_aligned");
         }
 
         if (journalsBalanced() == 0) {
@@ -602,5 +685,63 @@ class ClosedPeriodWork implements DbTransactionWork {
 
     public JnFuture run(DbConnection conn) {
         return JnFuture.completed(Erp.loop, ErpFinanceCore.postJournalConn(conn, companyId, 0L, req));
+    }
+}
+
+/** Seed opening cash: GL Bank/Equity + bank balance + cash movement (aligned). */
+class FinOpenCashWork implements DbTransactionWork {
+    long companyId;
+    long bankAccountId;
+    long amount;
+    long bizDate;
+
+    public JnFuture run(DbConnection conn) {
+        long bankGl = ErpFinanceCore.mappedAccountIdConn(conn, companyId, AccountMapKey.BANK);
+        long equity = ErpFinanceCore.mappedAccountIdConn(conn, companyId, AccountMapKey.EQUITY);
+        if (bankGl == 0L || equity == 0L) {
+            throw new TransactionException("opening cash: bank/equity unmapped");
+        }
+        PostingRequest openJe = new PostingRequest();
+        openJe.sourceType = JournalSource.OPENING;
+        openJe.sourceId = bankAccountId;
+        openJe.postingDate = bizDate;
+        openJe.documentDate = bizDate;
+        openJe.description = "Opening bank cash";
+        openJe.idempotencyKey = "fin-open-cash-" + CryptoParse.longToString(bankAccountId);
+        openJe.lines = new ArrayList<Object>();
+        openJe.lines.add(ErpFinanceCore.line(bankGl, amount, 0L, 0L, "Bank opening"));
+        openJe.lines.add(ErpFinanceCore.line(equity, 0L, amount, 0L, "Equity opening"));
+        PostResultDto je = ErpFinanceCore.postJournalConn(conn, companyId, 0L, openJe);
+        if (je == null || je.ok == 0) {
+            String msg = "opening JE failed";
+            if (je != null && je.message != null) {
+                msg = je.message;
+            }
+            throw new TransactionException(msg);
+        }
+        ErpDb.execConn(conn,
+                "UPDATE bank_accounts SET balance=" + CryptoParse.longToString(amount)
+                        + " WHERE id=" + CryptoParse.longToString(bankAccountId)
+                        + " AND company_id=" + CryptoParse.longToString(companyId),
+                new ArrayList<Object>());
+        ArrayList<Object> mp = new ArrayList<Object>();
+        mp.add(CryptoParse.longToString(companyId));
+        mp.add(CryptoParse.longToString(bankAccountId));
+        mp.add(CashMovementType.RECEIPT);
+        mp.add(CryptoParse.longToString(amount));
+        mp.add(CryptoParse.longToString(amount));
+        mp.add(CryptoParse.longToString(bizDate));
+        mp.add("OPENING");
+        mp.add(CryptoParse.longToString(bankAccountId));
+        mp.add("0");
+        mp.add("opening cash");
+        mp.add("0");
+        mp.add(CryptoParse.longToString(bizDate));
+        mp.add("fin-bcm-open-" + CryptoParse.longToString(bankAccountId));
+        ErpDb.execConn(conn,
+                "INSERT INTO bank_cash_movements(company_id, bank_account_id, movement_type, amount, balance_after, biz_date, source_type, source_id, party_id, notes, created_by, created_at, idempotency_key) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                mp);
+        return JnFuture.completed(Erp.loop, ErpFinanceSettlement.okDoc("OK", "opening cash",
+                "{\"bankAccountId\":" + ErpJson.num(bankAccountId) + ",\"amount\":" + ErpJson.num(amount) + "}"));
     }
 }

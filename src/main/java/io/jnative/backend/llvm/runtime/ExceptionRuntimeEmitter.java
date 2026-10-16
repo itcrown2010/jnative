@@ -141,12 +141,25 @@ public final class ExceptionRuntimeEmitter {
                 define void @jnative_print_uncaught(ptr %ex) {
                 entry:
                   call i32 @puts(ptr @.jn.uncaught.prefix)
-                  br label %body
+                  %isnull = icmp eq ptr %ex, null
+                  br i1 %isnull, label %badEx, label %body
+                badEx:
+                  call i32 @puts(ptr @.jn.uncaught.nullEx)
+                  call void @jn_ex_print_stack()
+                  ret void
                 body:
                   %meta = load ptr, ptr %ex, align 8
+                  %metaOk = icmp ne ptr %meta, null
+                  br i1 %metaOk, label %printName, label %badEx
+                printName:
                   %nameField = getelementptr %jn.ClassMeta, ptr %meta, i32 0, i32 4
                   %name = load ptr, ptr %nameField, align 8
+                  %nameOk = icmp ne ptr %name, null
+                  br i1 %nameOk, label %doName, label %afterName
+                doName:
                   call i32 @puts(ptr %name)
+                  br label %afterName
+                afterName:
                   %msgField = getelementptr i8, ptr %ex, i64 8
                   %msg = load ptr, ptr %msgField, align 8
                   %hasMsg = icmp ne ptr %msg, null
@@ -173,6 +186,7 @@ public final class ExceptionRuntimeEmitter {
 
                 """);
         emitCString(".jn.uncaught.worker", "Uncaught exception in worker thread:");
+        emitCString(".jn.uncaught.nullEx", "<null or corrupt exception>");
     }
 
     private void emitCompletion() {

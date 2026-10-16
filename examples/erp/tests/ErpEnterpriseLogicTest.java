@@ -190,9 +190,13 @@ class ErpEnterpriseLogicTest {
             System.out.println("FAIL isolation: adminA inventory in B");
             return 0;
         }
-        /* sales cannot read inventory (not granted) even in own company */
+        /* sales may read available qty for SO lines, but not valuation/balance */
         if (ErpPlatformAuth.hasPermission(salesUser, companyA, "INVENTORY.BALANCE.READ") != 0) {
-            System.out.println("FAIL isolation: sales inventory");
+            System.out.println("FAIL isolation: sales inventory valuation");
+            return 0;
+        }
+        if (ErpPlatformAuth.hasPermission(salesUser, companyA, "INVENTORY.AVAILABLE.READ") == 0) {
+            System.out.println("FAIL isolation: sales available qty missing");
             return 0;
         }
         System.out.println("OK company isolation");

@@ -267,9 +267,21 @@ class ErpDb {
         tryAlter("ALTER TABLE outgoing_payments ADD COLUMN posted_at INTEGER NOT NULL DEFAULT 0");
         tryAlter("ALTER TABLE outgoing_payments ADD COLUMN posted_by INTEGER NOT NULL DEFAULT 0");
         tryAlter("ALTER TABLE outgoing_payments ADD COLUMN created_by INTEGER NOT NULL DEFAULT 0");
+        tryAlter("ALTER TABLE incoming_payments ADD COLUMN voided_at INTEGER NOT NULL DEFAULT 0");
+        tryAlter("ALTER TABLE incoming_payments ADD COLUMN voided_by INTEGER NOT NULL DEFAULT 0");
+        tryAlter("ALTER TABLE incoming_payments ADD COLUMN void_reason TEXT NOT NULL DEFAULT ''");
+        tryAlter("ALTER TABLE outgoing_payments ADD COLUMN voided_at INTEGER NOT NULL DEFAULT 0");
+        tryAlter("ALTER TABLE outgoing_payments ADD COLUMN voided_by INTEGER NOT NULL DEFAULT 0");
+        tryAlter("ALTER TABLE outgoing_payments ADD COLUMN void_reason TEXT NOT NULL DEFAULT ''");
+        tryAlter("ALTER TABLE bank_cash_movements ADD COLUMN reverse_of_id INTEGER NOT NULL DEFAULT 0");
+        String path12 = "examples/erp/migrations/012_payment_void.sql";
+        if (Erp.dialect.equals("sqlite")) {
+            path12 = "examples/erp/migrations/012_payment_void_sqlite.sql";
+        }
+        runScriptFileLabeled(path12, "012");
         if (Erp.dialect.equals("sqlite")) {
             execRetry(
-                    "CREATE TABLE IF NOT EXISTS bank_cash_movements (id INTEGER PRIMARY KEY AUTOINCREMENT, company_id INTEGER NOT NULL, bank_account_id INTEGER NOT NULL, movement_type TEXT NOT NULL, amount INTEGER NOT NULL, balance_after INTEGER NOT NULL, biz_date INTEGER NOT NULL, source_type TEXT NOT NULL, source_id INTEGER NOT NULL, party_id INTEGER NOT NULL DEFAULT 0, notes TEXT NOT NULL DEFAULT '', created_by INTEGER NOT NULL DEFAULT 0, created_at INTEGER NOT NULL, idempotency_key TEXT NOT NULL, UNIQUE (company_id, idempotency_key))",
+                    "CREATE TABLE IF NOT EXISTS bank_cash_movements (id INTEGER PRIMARY KEY AUTOINCREMENT, company_id INTEGER NOT NULL, bank_account_id INTEGER NOT NULL, movement_type TEXT NOT NULL, amount INTEGER NOT NULL, balance_after INTEGER NOT NULL, biz_date INTEGER NOT NULL, source_type TEXT NOT NULL, source_id INTEGER NOT NULL, party_id INTEGER NOT NULL DEFAULT 0, notes TEXT NOT NULL DEFAULT '', created_by INTEGER NOT NULL DEFAULT 0, created_at INTEGER NOT NULL, idempotency_key TEXT NOT NULL, reverse_of_id INTEGER NOT NULL DEFAULT 0, UNIQUE (company_id, idempotency_key))",
                     empty);
             execRetry(
                     "CREATE TABLE IF NOT EXISTS ar_ap_adjustments (id INTEGER PRIMARY KEY AUTOINCREMENT, company_id INTEGER NOT NULL, side TEXT NOT NULL, invoice_id INTEGER NOT NULL, adjust_amount INTEGER NOT NULL, reason TEXT NOT NULL DEFAULT '', source_type TEXT NOT NULL, source_id INTEGER NOT NULL, created_by INTEGER NOT NULL DEFAULT 0, biz_time INTEGER NOT NULL, created_at INTEGER NOT NULL, idempotency_key TEXT NOT NULL, UNIQUE (company_id, idempotency_key))",
@@ -285,7 +297,7 @@ class ErpDb {
                     empty);
         } else {
             execRetry(
-                    "CREATE TABLE IF NOT EXISTS bank_cash_movements (id BIGSERIAL PRIMARY KEY, company_id BIGINT NOT NULL, bank_account_id BIGINT NOT NULL, movement_type TEXT NOT NULL, amount BIGINT NOT NULL, balance_after BIGINT NOT NULL, biz_date BIGINT NOT NULL, source_type TEXT NOT NULL, source_id BIGINT NOT NULL, party_id BIGINT NOT NULL DEFAULT 0, notes TEXT NOT NULL DEFAULT '', created_by BIGINT NOT NULL DEFAULT 0, created_at BIGINT NOT NULL, idempotency_key TEXT NOT NULL, UNIQUE (company_id, idempotency_key))",
+                    "CREATE TABLE IF NOT EXISTS bank_cash_movements (id BIGSERIAL PRIMARY KEY, company_id BIGINT NOT NULL, bank_account_id BIGINT NOT NULL, movement_type TEXT NOT NULL, amount BIGINT NOT NULL, balance_after BIGINT NOT NULL, biz_date BIGINT NOT NULL, source_type TEXT NOT NULL, source_id BIGINT NOT NULL, party_id BIGINT NOT NULL DEFAULT 0, notes TEXT NOT NULL DEFAULT '', created_by BIGINT NOT NULL DEFAULT 0, created_at BIGINT NOT NULL, idempotency_key TEXT NOT NULL, reverse_of_id BIGINT NOT NULL DEFAULT 0, UNIQUE (company_id, idempotency_key))",
                     empty);
             execRetry(
                     "CREATE TABLE IF NOT EXISTS ar_ap_adjustments (id BIGSERIAL PRIMARY KEY, company_id BIGINT NOT NULL, side TEXT NOT NULL, invoice_id BIGINT NOT NULL, adjust_amount BIGINT NOT NULL, reason TEXT NOT NULL DEFAULT '', source_type TEXT NOT NULL, source_id BIGINT NOT NULL, created_by BIGINT NOT NULL DEFAULT 0, biz_time BIGINT NOT NULL, created_at BIGINT NOT NULL, idempotency_key TEXT NOT NULL, UNIQUE (company_id, idempotency_key))",
