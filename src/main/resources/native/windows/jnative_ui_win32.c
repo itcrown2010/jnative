@@ -57,6 +57,8 @@ static int g_live_windows = 0;
 static int g_live_controls = 0;
 static int g_task_queue = 0;
 static int g_quit = 0;
+static int g_appearance_mode = 0; /* 0 system, 1 light, 2 dark */
+static int g_hot[JN_UI_MAX];
 static const wchar_t *JN_WCLASS = L"JNativeWindow";
 static const wchar_t *JN_PCLASS = L"JNativePanel";
 /* Child controls are created before UiLib reparents them; Win32 forbids
@@ -147,8 +149,10 @@ static COLORREF rgba_to_colorref(int32_t rgba) {
     return RGB(r, g, b);
 }
 
+static int g_font_weight_req = FW_NORMAL;
+
 static HFONT create_font_face(int px, const wchar_t *face) {
-    return CreateFontW(px, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
+    return CreateFontW(px, 0, 0, 0, g_font_weight_req, FALSE, FALSE, FALSE,
             DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
             CLEARTYPE_QUALITY, DEFAULT_PITCH | FF_SWISS, face);
 }
@@ -212,6 +216,80 @@ static COLORREF darken_color(COLORREF c, int amount) {
     return RGB(r, g, b);
 }
 
+typedef HRESULT (WINAPI *jn_dwm_set_attr_fn)(HWND, DWORD, LPCVOID, DWORD);
+
+/* 1 = apps use dark theme, 0 = light, -1 = unknown. */
+static int jn_system_dark(void) {
+    DWORD v = 1;
+    DWORD sz = sizeof(v);
+    LONG rc = RegGetValueW(HKEY_CURRENT_USER,
+            L"Software\\Microsoft\\Windows\\CurrentVersion\\Themes\\Personalize",
+            L"AppsUseLightTheme", RRF_RT_REG_DWORD, NULL, &v, &sz);
+    if (rc != ERROR_SUCCESS) {
+        return -1;
+    }
+    return v == 0 ? 1 : 0;
+}
+
+static int jn_effective_dark(void) {
+    if (g_appearance_mode == 2) {
+        return 1;
+    }
+    if (g_appearance_mode == 1) {
+        return 0;
+    }
+    return jn_system_dark() == 1 ? 1 : 0;
+}
+
+/* Dark / light caption bar (DWMWA_USE_IMMERSIVE_DARK_MODE = 20). dwmapi is loaded lazily. */
+static void jn_apply_titlebar_theme(HWND hwnd) {
+    static HMODULE dwm = NULL;
+    static jn_dwm_set_attr_fn fn = NULL;
+    static int tried = 0;
+    if (hwnd == NULL) {
+        return;
+    }
+    if (!tried) {
+        tried = 1;
+        dwm = LoadLibraryW(L"dwmapi.dll");
+        if (dwm != NULL) {
+            fn = (jn_dwm_set_attr_fn)GetProcAddress(dwm, "DwmSetWindowAttribute");
+        }
+    }
+    if (fn == NULL) {
+        return;
+    }
+    BOOL dark = jn_effective_dark() ? TRUE : FALSE;
+    fn(hwnd, 20, &dark, sizeof(dark));
+    RedrawWindow(hwnd, NULL, NULL, RDW_FRAME | RDW_INVALIDATE);
+}
+
+static LRESULT CALLBACK jn_button_subclass(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam,
+                                           UINT_PTR uid, DWORD_PTR ref) {
+    (void)uid;
+    int id = (int)ref;
+    if (msg == WM_MOUSEMOVE) {
+        if (id > 0 && id < JN_UI_MAX && !g_hot[id]) {
+            TRACKMOUSEEVENT tme;
+            memset(&tme, 0, sizeof(tme));
+            tme.cbSize = sizeof(tme);
+            tme.dwFlags = TME_LEAVE;
+            tme.hwndTrack = hwnd;
+            TrackMouseEvent(&tme);
+            g_hot[id] = 1;
+            InvalidateRect(hwnd, NULL, FALSE);
+        }
+    } else if (msg == WM_MOUSELEAVE) {
+        if (id > 0 && id < JN_UI_MAX && g_hot[id]) {
+            g_hot[id] = 0;
+            InvalidateRect(hwnd, NULL, FALSE);
+        }
+    } else if (msg == WM_ERASEBKGND) {
+        return 1; /* owner-draw paints the whole cell */
+    }
+    return DefSubclassProc(hwnd, msg, wParam, lParam);
+}
+
 static void enable_owner_draw_button(int id) {
     if (id <= 0 || id >= JN_UI_MAX || g_hwnds[id] == NULL) {
         return;
@@ -224,8 +302,28 @@ static void enable_owner_draw_button(int id) {
     st = (st & ~(LONG_PTR)BS_TYPEMASK) | (LONG_PTR)BS_OWNERDRAW;
     SetWindowLongPtr(hwnd, GWL_STYLE, st);
     SetWindowTheme(hwnd, L"", L"");
+    if (!g_owner_draw[id]) {
+        SetWindowSubclass(hwnd, jn_button_subclass, 1, (DWORD_PTR)id);
+    }
     g_owner_draw[id] = 1;
     InvalidateRect(hwnd, NULL, TRUE);
+}
+
+static COLORREF lighten_color(COLORREF c, int amount) {
+    int r = GetRValue(c) + amount;
+    int g = GetGValue(c) + amount;
+    int b = GetBValue(c) + amount;
+    if (r > 255) r = 255;
+    if (g > 255) g = 255;
+    if (b > 255) b = 255;
+    return RGB(r, g, b);
+}
+
+static COLORREF blend_color(COLORREF a, COLORREF b, int pct_b) {
+    int r = (GetRValue(a) * (100 - pct_b) + GetRValue(b) * pct_b) / 100;
+    int g = (GetGValue(a) * (100 - pct_b) + GetGValue(b) * pct_b) / 100;
+    int bl = (GetBValue(a) * (100 - pct_b) + GetBValue(b) * pct_b) / 100;
+    return RGB(r, g, bl);
 }
 
 static void paint_owner_button(const DRAWITEMSTRUCT *dis) {
@@ -233,6 +331,8 @@ static void paint_owner_button(const DRAWITEMSTRUCT *dis) {
     COLORREF bg = RGB(0, 122, 255);
     COLORREF fg = RGB(255, 255, 255);
     int radius = 6;
+    int align = 1;
+    int hot = 0;
     if (id > 0 && id < JN_UI_MAX) {
         if (g_bg_rgba[id] != 0 && g_bg_rgba[id] != JN_VISUAL_KEEP) {
             bg = rgba_to_colorref(g_bg_rgba[id]);
@@ -243,27 +343,33 @@ static void paint_owner_button(const DRAWITEMSTRUCT *dis) {
         if (g_corner_radius[id] > 0) {
             radius = g_corner_radius[id];
         }
+        if (g_text_align[id] > 0) {
+            align = g_text_align[id] - 1;
+        }
+        hot = g_hot[id];
     }
-    /* Light fills get a hairline #E8EBEF border; saturated fills keep a same-color edge. */
+    /* Light fills get a hairline border; dark fills a subtle lighter edge. */
     int lum = (299 * (int)GetRValue(bg) + 587 * (int)GetGValue(bg)
             + 114 * (int)GetBValue(bg)) / 1000;
     int light_bg = lum >= 200;
+    int dark_bg = lum < 110;
+    COLORREF fill = bg;
+    COLORREF border = light_bg ? RGB(0xE8, 0xEB, 0xEF) : bg;
     if (dis->itemState & ODS_DISABLED) {
         if (light_bg) {
-            bg = RGB(240, 241, 243);
-            fg = RGB(160, 164, 170);
-        } else {
-            bg = RGB(200, 200, 205);
-            fg = RGB(120, 120, 125);
+            fill = blend_color(bg, RGB(240, 241, 243), 60);
         }
+        fg = blend_color(fg, bg, 62);
+        border = fill;
     } else if (dis->itemState & ODS_SELECTED) {
-        bg = darken_color(bg, 18);
-    } else if (dis->itemState & ODS_HOTLIGHT) {
-        bg = darken_color(bg, 8);
+        fill = dark_bg ? darken_color(bg, 14) : darken_color(bg, 18);
+        border = fill;
+    } else if (hot || (dis->itemState & ODS_HOTLIGHT)) {
+        fill = dark_bg ? lighten_color(bg, 12) : darken_color(bg, 8);
+        border = light_bg ? RGB(0xDD, 0xE0, 0xE5) : fill;
     }
-    COLORREF border = light_bg ? RGB(0xE8, 0xEB, 0xEF) : bg;
     RECT rc = dis->rcItem;
-    HBRUSH br = CreateSolidBrush(bg);
+    HBRUSH br = CreateSolidBrush(fill);
     HPEN pen = CreatePen(PS_SOLID, 1, border);
     HGDIOBJ oldBr = SelectObject(dis->hDC, br);
     HGDIOBJ oldPen = SelectObject(dis->hDC, pen);
@@ -282,11 +388,22 @@ static void paint_owner_button(const DRAWITEMSTRUCT *dis) {
     if (font != NULL) {
         oldFont = SelectObject(dis->hDC, font);
     }
-    DrawTextW(dis->hDC, text, -1, &rc, DT_CENTER | DT_VCENTER | DT_SINGLELINE | DT_END_ELLIPSIS);
+    RECT tr = rc;
+    UINT fmt = DT_VCENTER | DT_SINGLELINE | DT_END_ELLIPSIS | DT_NOPREFIX;
+    if (align == 0) {
+        tr.left += 12;
+        fmt |= DT_LEFT;
+    } else if (align == 2) {
+        tr.right -= 12;
+        fmt |= DT_RIGHT;
+    } else {
+        fmt |= DT_CENTER;
+    }
+    DrawTextW(dis->hDC, text, -1, &tr, fmt);
     if (oldFont != NULL) {
         SelectObject(dis->hDC, oldFont);
     }
-    if (dis->itemState & ODS_FOCUS) {
+    if ((dis->itemState & ODS_FOCUS) && !(dis->itemState & ODS_NOFOCUSRECT)) {
         RECT fr = rc;
         InflateRect(&fr, -3, -3);
         DrawFocusRect(dis->hDC, &fr);
@@ -308,9 +425,10 @@ static void clear_visual(int id) {
     g_bg_rgba[id] = 0;
     g_fg_rgba[id] = 0;
     g_font_pt[id] = 0;
-    g_text_align[id] = -1;
+    g_text_align[id] = 0;
     g_corner_radius[id] = 0;
     g_owner_draw[id] = 0;
+    g_hot[id] = 0;
 }
 
 static void apply_visual_to_hwnd(int id) {
@@ -323,9 +441,22 @@ static void apply_visual_to_hwnd(int id) {
         DeleteObject(g_fonts[id]);
         g_fonts[id] = NULL;
     }
+    /* Large display labels and big key caps use SemiBold like the in-box apps. */
+    if ((g_kinds[id] == JN_UI_KIND_LABEL && pt >= 26)
+            || (g_kinds[id] == JN_UI_KIND_BUTTON && pt >= 15)) {
+        g_font_weight_req = FW_SEMIBOLD;
+    }
     g_fonts[id] = make_ui_font(pt);
+    g_font_weight_req = FW_NORMAL;
     if (g_fonts[id] != NULL) {
         SendMessageW(hwnd, WM_SETFONT, (WPARAM)g_fonts[id], TRUE);
+    }
+    if (g_kinds[id] == JN_UI_KIND_LABEL && g_text_align[id] > 0) {
+        LONG_PTR lst = GetWindowLongPtr(hwnd, GWL_STYLE);
+        int a = g_text_align[id] - 1;
+        lst &= ~(LONG_PTR)SS_TYPEMASK;
+        lst |= (LONG_PTR)(a == 2 ? SS_RIGHT : (a == 1 ? SS_CENTER : SS_LEFT));
+        SetWindowLongPtr(hwnd, GWL_STYLE, lst);
     }
     if (g_bg_brushes[id] != NULL) {
         DeleteObject(g_bg_brushes[id]);
@@ -696,6 +827,11 @@ static LRESULT CALLBACK JnWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPa
         int32_t cid = (int32_t)(intptr_t)GetWindowLongPtr(ctrl, GWLP_USERDATA);
         if (cid > 0 && HIWORD(wParam) == BN_CLICKED) {
             jnative_ui_emit_event(cid, JN_UI_EVENT_CLICK);
+            /* Filled (owner-draw) buttons are key caps: give focus back to the window
+             * so Space/Enter keep going to the app's key handler. */
+            if (cid < JN_UI_MAX && g_owner_draw[cid] && ctrl != NULL) {
+                SetFocus(GetAncestor(ctrl, GA_ROOT));
+            }
         }
         if (cid > 0 && (HIWORD(wParam) == EN_CHANGE || HIWORD(wParam) == CBN_SELCHANGE)) {
             jnative_ui_emit_event(cid, JN_UI_EVENT_CHANGE);
@@ -764,6 +900,13 @@ static LRESULT CALLBACK JnWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPa
         if (handleId > 0) {
             jnative_ui_emit_event_ex(handleId, JN_UI_EVENT_RESIZE,
                     (int32_t)LOWORD(lParam), (int32_t)HIWORD(lParam), 0, 0);
+        }
+        return 0;
+    }
+    if (msg == WM_SETTINGCHANGE && lParam != 0
+            && wcscmp((const wchar_t *)lParam, L"ImmersiveColorSet") == 0) {
+        if (handleId > 0 && handleId < JN_UI_MAX && g_kinds[handleId] == JN_UI_KIND_WINDOW) {
+            jn_apply_titlebar_theme(hwnd);
         }
         return 0;
     }
@@ -910,6 +1053,132 @@ void jnative_ui_quit(void) {
     PostQuitMessage(0);
 }
 
+/* Root window handle id for an arbitrary HWND (0 when none). */
+static int32_t jn_root_window_id(HWND h) {
+    HWND root = GetAncestor(h, GA_ROOT);
+    if (root == NULL) {
+        root = h;
+    }
+    int32_t id = (int32_t)(intptr_t)GetWindowLongPtr(root, GWLP_USERDATA);
+    if (id > 0 && id < JN_UI_MAX && g_kinds[id] == JN_UI_KIND_WINDOW) {
+        return id;
+    }
+    return 0;
+}
+
+/* Forward WM_KEYDOWN to managed code as JN_UI_EVENT_KEY on the root window:
+ * a0 = down(1), a1 = key code (VK-like; printable keys = unshifted ASCII, numpad keys
+ * mapped to their ASCII equivalents), a2 = modifiers (1 shift, 2 ctrl, 4 alt),
+ * a3 = typed character (0 when none). Never consumes the message. */
+static void jn_forward_key(const MSG *msg) {
+    if (msg->message == WM_MOUSEWHEEL) {
+        /* Wheel -> Up/Down arrow with modifier bit 16 ("from wheel"). */
+        int32_t wid = jn_root_window_id(msg->hwnd);
+        short delta = (short)HIWORD(msg->wParam);
+        if (wid > 0 && delta != 0) {
+            jnative_ui_emit_event_ex(wid, JN_UI_EVENT_KEY, 1, delta > 0 ? 38 : 40, 16, 0);
+        }
+        return;
+    }
+    if (msg->message != WM_KEYDOWN && msg->message != WM_SYSKEYDOWN) {
+        return;
+    }
+    int32_t id = jn_root_window_id(msg->hwnd);
+    if (id <= 0) {
+        return;
+    }
+    UINT vk = (UINT)msg->wParam;
+    int32_t mods = 0;
+    int shift = (GetKeyState(VK_SHIFT) & 0x8000) != 0;
+    int ctrl = (GetKeyState(VK_CONTROL) & 0x8000) != 0;
+    int alt = (GetKeyState(VK_MENU) & 0x8000) != 0;
+    if (shift) mods += 1;
+    if (ctrl) mods += 2;
+    if (alt) mods += 4;
+
+    /* Text inputs keep their own typing; only shortcuts/Escape/F-keys reach managed code. */
+    wchar_t cls[16];
+    cls[0] = L'\0';
+    GetClassNameW(msg->hwnd, cls, 16);
+    int in_text = _wcsicmp(cls, L"Edit") == 0 || _wcsicmp(cls, L"ComboBox") == 0
+            || _wcsnicmp(cls, L"RichEdit", 8) == 0;
+    if (in_text && !ctrl && !alt && vk != VK_ESCAPE && !(vk >= VK_F1 && vk <= VK_F12)) {
+        return;
+    }
+
+    int32_t code = 0;
+    int32_t typed = 0;
+    if (vk >= VK_NUMPAD0 && vk <= VK_NUMPAD9) {
+        code = (int32_t)('0' + (vk - VK_NUMPAD0));
+        typed = code;
+    } else if (vk == VK_MULTIPLY) {
+        code = '*'; typed = '*';
+    } else if (vk == VK_ADD) {
+        code = '+'; typed = '+';
+    } else if (vk == VK_SUBTRACT) {
+        code = '-'; typed = '-';
+    } else if (vk == VK_DECIMAL) {
+        code = '.'; typed = '.';
+    } else if (vk == VK_DIVIDE) {
+        code = '/'; typed = '/';
+    } else {
+        switch (vk) {
+        case VK_RETURN: code = 13; break;
+        case VK_ESCAPE: code = 27; break;
+        case VK_BACK: code = 8; break;
+        case VK_TAB: code = 9; break;
+        case VK_DELETE: code = 46; break;
+        case VK_LEFT: code = 37; break;
+        case VK_UP: code = 38; break;
+        case VK_RIGHT: code = 39; break;
+        case VK_DOWN: code = 40; break;
+        case VK_HOME: code = 36; break;
+        case VK_END: code = 35; break;
+        case VK_PRIOR: code = 33; break;
+        case VK_NEXT: code = 34; break;
+        case VK_SPACE: code = 32; typed = ' '; break;
+        default: break;
+        }
+        if (code == 0 && vk >= VK_F1 && vk <= VK_F12) {
+            code = (int32_t)vk;
+        }
+        if (code == 0) {
+            UINT ch = MapVirtualKeyW(vk, MAPVK_VK_TO_CHAR) & 0x7FFFFFFF;
+            if (ch >= 32 && ch < 127) {
+                code = (int32_t)ch;
+            } else if (vk >= 0x30 && vk <= 0x5A) {
+                code = (int32_t)vk;
+            }
+        }
+        if (code != 0 && typed == 0 && (!ctrl || alt)) {
+            /* Layout-aware character (Shift+8 -> '*'); Ctrl alone yields control chars. */
+            BYTE state[256];
+            wchar_t buf[8];
+            if (GetKeyboardState(state)) {
+                if (ctrl && alt) {
+                    /* AltGr: keep as typed text, drop modifiers below. */
+                } else if (alt) {
+                    state[VK_MENU] = 0;
+                    state[VK_LMENU] = 0;
+                    state[VK_RMENU] = 0;
+                }
+                int n = ToUnicodeEx(vk, (UINT)((msg->lParam >> 16) & 0xFF), state, buf, 8, 4,
+                        GetKeyboardLayout(0));
+                if (n == 1 && buf[0] >= 32 && buf[0] < 127) {
+                    typed = (int32_t)buf[0];
+                }
+            }
+        }
+        if (ctrl && alt && typed != 0) {
+            mods = shift ? 1 : 0;
+        }
+    }
+    if (code == 0) {
+        return;
+    }
+    jnative_ui_emit_event_ex(id, JN_UI_EVENT_KEY, 1, code, mods, typed);
+}
+
 void jnative_ui_run_loop(void) {
     if (!g_win32_active) {
         while (!g_quit && g_task_queue > 0) {
@@ -920,6 +1189,7 @@ void jnative_ui_run_loop(void) {
     }
     MSG msg;
     while (!g_quit && GetMessageW(&msg, NULL, 0, 0) > 0) {
+        jn_forward_key(&msg);
         TranslateMessage(&msg);
         DispatchMessageW(&msg);
     }
@@ -964,6 +1234,7 @@ int32_t jnative_ui_create_window(const char *title, int32_t width, int32_t heigh
     if (g_ui_font != NULL) {
         SendMessageW(hwnd, WM_SETFONT, (WPARAM)g_ui_font, TRUE);
     }
+    jn_apply_titlebar_theme(hwnd);
     g_live_windows++;
     return id;
 }
@@ -1019,7 +1290,7 @@ int32_t jnative_ui_create_button(int32_t parentId, const char *text) {
     return create_ctrl(JN_UI_KIND_BUTTON, parentId, text, L"BUTTON", BS_PUSHBUTTON);
 }
 int32_t jnative_ui_create_label(int32_t parentId, const char *text) {
-    return create_ctrl(JN_UI_KIND_LABEL, parentId, text, L"STATIC", SS_LEFT);
+    return create_ctrl(JN_UI_KIND_LABEL, parentId, text, L"STATIC", SS_LEFT | SS_NOPREFIX);
 }
 int32_t jnative_ui_create_textfield(int32_t parentId, const char *text) {
     return create_ctrl(JN_UI_KIND_TEXTFIELD, parentId, text, L"EDIT", ES_LEFT | ES_AUTOHSCROLL);
@@ -2163,7 +2434,7 @@ int32_t jnative_ui_platform_get_scale_percent(int32_t windowId) {
 }
 
 int32_t jnative_ui_platform_system_dark(void) {
-    return -1;
+    return jn_system_dark();
 }
 
 int32_t jnative_ui_platform_context_menu_show(int32_t menuId, int32_t screenX, int32_t screenY) {
@@ -2266,7 +2537,7 @@ void jnative_ui_platform_set_visual(int32_t id, int32_t bg_rgba, int32_t fg_rgba
         g_font_pt[id] = font_size;
     }
     if (text_align >= 0) {
-        g_text_align[id] = text_align;
+        g_text_align[id] = text_align + 1; /* 0 = unset */
     }
     apply_visual_to_hwnd(id);
 }
@@ -2336,7 +2607,15 @@ void jnative_ui_set_accessible_title_ui(int32_t fieldId, int32_t labelId) {
     (void)fieldId; (void)labelId;
 }
 void jnative_ui_set_next_key_view(int32_t id, int32_t nextId) { (void)id; (void)nextId; }
-void jnative_ui_set_appearance_mode(int32_t mode) { (void)mode; }
+void jnative_ui_set_appearance_mode(int32_t mode) {
+    int i;
+    g_appearance_mode = (mode == 1 || mode == 2) ? mode : 0;
+    for (i = 1; i < JN_UI_MAX; i++) {
+        if (g_kinds[i] == JN_UI_KIND_WINDOW && g_hwnds[i] != NULL) {
+            jn_apply_titlebar_theme(g_hwnds[i]);
+        }
+    }
+}
 void jnative_ui_set_button_symbol(int32_t id, const char *symbol) { (void)id; (void)symbol; }
 void jnative_ui_window_set_default_button(int32_t windowId, int32_t buttonId) {
     (void)windowId; (void)buttonId;
@@ -2539,5 +2818,5 @@ void jnative_clipboard_free(char *text) {
 }
 
 void jnative_ui_platform_set_appearance_mode(int32_t mode) {
-    (void)mode;
+    jnative_ui_set_appearance_mode(mode);
 }

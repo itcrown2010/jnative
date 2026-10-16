@@ -810,6 +810,22 @@ void jn_gc2_collect(void) {
     jn_gc_collect_unlock();
 }
 
+/* >0 while a C native allocates a result while still holding raw pointers to managed
+ * inputs: a moving collection there would leave those pointers stale, so allocation must
+ * not collect (the heap grows / spills to the old generation; the next managed allocation
+ * outside the native collects). */
+static __thread int t_native_alloc_depth = 0;
+
+void jn_gc2_native_enter(void) {
+    t_native_alloc_depth++;
+}
+
+void jn_gc2_native_leave(void) {
+    if (t_native_alloc_depth > 0) {
+        t_native_alloc_depth--;
+    }
+}
+
 static void *alloc_young(uint64_t payload) {
     size_t total = align8((size_t)JN_GC_HEADER_SIZE + (size_t)payload);
     for (int attempt = 0; attempt < 3; attempt++) {
@@ -829,6 +845,9 @@ static void *alloc_young(uint64_t payload) {
             return obj_of(h);
         }
         if (!refill_tlab(payload)) {
+            if (t_native_alloc_depth > 0) {
+                break; /* no GC inside natives: fall through to the old generation */
+            }
             jn_gc2_minor();
             continue;
         }
@@ -905,6 +924,13 @@ void *jn_gc2_alloc(uint64_t payload) {
     if (jn_nogc_depth() > 0) {
         fprintf(stderr, "JNative runtime violation: managed allocation inside @NoGC region\n");
         abort();
+    }
+    if (t_native_alloc_depth > 0) {
+        /* Native holding raw managed pointers: never collect here. */
+        if (payload >= g_large_threshold) {
+            return alloc_old_or_large(payload, GEN_LARGE);
+        }
+        return alloc_young(payload);
     }
     jn_safepoint_poll();
 

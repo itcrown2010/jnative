@@ -106,11 +106,26 @@ static void jn_apply_menu_shortcut(NSMenuItem *item, int32_t itemId) {
     if ([fr isKindOfClass:[NSTextView class]] || [fr isKindOfClass:[NSTextField class]]) {
         inText = 1;
     }
+    int32_t typed = 0;
+    if ((mods & (2 | 8)) == 0) {
+        NSString *tc = event.characters;
+        if (tc != nil && tc.length > 0) {
+            unichar c0 = [tc characterAtIndex:0];
+            if (c0 >= 32 && c0 < 127) {
+                typed = (int32_t)c0;
+            }
+        }
+    }
     if (inText == 0 || code == 27) {
         if (self.jnHandleId > 0) {
             jnative_ui_emit_event_ex(self.jnHandleId, JN_UI_EVENT_KEY, JN_UI_KEY_DOWN,
-                                     code, mods, 0);
+                                     code, mods, typed);
         }
+    }
+    /* Printable keys outside text inputs have no native meaning here: swallow them so
+     * app-level shortcuts (calculator keypad) do not beep. */
+    if (inText == 0 && typed != 0 && (mods & (2 | 8)) == 0) {
+        return;
     }
     [super keyDown:event];
 }
