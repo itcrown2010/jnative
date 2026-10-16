@@ -302,19 +302,28 @@ public final class IrGenerator {
         IrFunction clinit = new IrFunction("jnative_clinit", IrType.VOID, List.of(), false);
         module.addFunction(clinit);
         builder.beginFunction(clinit);
-        for (ClassSymbol cls : typed.classes().values()) {
-            currentClass = cls;
-            currentMethod = null;
-            if (cls.isEnum()) {
-                lowerEnumConstantInit(cls);
-            }
-            for (FieldSymbol field : cls.declaredFields()) {
-                if (!field.isStatic() || field.initializer() == null) {
-                    continue;
+        // Pass 0: literal initializers of every class first (cross-class static init order is hash
+        // order; literals have no dependencies, so e.g. `static final int SIG = 40` is set before
+        // another class's initializer reads it). Pass 1: enum constants and all other initializers.
+        for (int pass = 0; pass < 2; pass++) {
+            for (ClassSymbol cls : typed.classes().values()) {
+                currentClass = cls;
+                currentMethod = null;
+                if (pass == 1 && cls.isEnum()) {
+                    lowerEnumConstantInit(cls);
                 }
-                IrValue value = lowerExpression(field.initializer());
-                IrValue casted = castIfNeeded(value, IrType.from(field.type()));
-                builder.storeStatic(field.staticGlobal(), casted, field.isVolatile());
+                for (FieldSymbol field : cls.declaredFields()) {
+                    if (!field.isStatic() || field.initializer() == null) {
+                        continue;
+                    }
+                    boolean literal = field.initializer() instanceof LiteralExpression;
+                    if (literal != (pass == 0)) {
+                        continue;
+                    }
+                    IrValue value = lowerExpression(field.initializer());
+                    IrValue casted = castIfNeeded(value, IrType.from(field.type()));
+                    builder.storeStatic(field.staticGlobal(), casted, field.isVolatile());
+                }
             }
         }
         builder.retVoid();

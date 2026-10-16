@@ -773,10 +773,15 @@ class KeyEvent extends UiEvent {
     int altDown;
     int metaDown;
     int down;
+    /** Raw modifier bits: 1 shift, 2 ctrl, 4 alt, 8 meta, 16 = synthesized from the mouse wheel (Up/Down). */
+    int rawMods;
+    /** Layout-aware typed character (0 when the key is non-printing). */
+    int typedChar;
 
     KeyEvent(Component src, int code, int mods, int isDown) {
         super(src);
         keyCode = code;
+        rawMods = mods;
         character = code;
         shiftDown = (mods % 2);
         ctrlDown = ((mods / 2) % 2);
@@ -1093,7 +1098,7 @@ class Application {
             } else if (eventCode == 8) {
                 c.fireAction();
             } else if (eventCode == 9) {
-                c.fireKey(UiNative.eventArg0(), UiNative.eventArg1(), UiNative.eventArg2());
+                c.fireKey(UiNative.eventArg0(), UiNative.eventArg1(), UiNative.eventArg2(), UiNative.eventArg3());
             } else if (eventCode == 10) {
                 c.fireMouse(UiNative.eventArg0(), UiNative.eventArg1(), UiNative.eventArg2(), UiNative.eventArg3());
             } else if (eventCode == 11) {
@@ -1766,7 +1771,7 @@ class Component {
     void fireToggle(int selected) {
     }
 
-    void fireKey(int downType, int keyCode, int mods) {
+    void fireKey(int downType, int keyCode, int mods, int typedChar) {
         if (disposed != 0) {
             return;
         }
@@ -1775,6 +1780,11 @@ class Component {
             return;
         }
         KeyEvent ev = new KeyEvent(this, keyCode, mods, 1);
+        if (typedChar > 0) {
+            /* Layout-aware typed character (e.g. '*' for Shift+8); 0 for non-printing keys. */
+            ev.character = typedChar;
+            ev.typedChar = typedChar;
+        }
         int n = keyHandlers.size();
         int i = 0;
         while (i < n) {
@@ -4569,6 +4579,7 @@ class Window extends Component {
     Button defaultButton;
     Button cancelButton;
     Component focusRestore;
+    Runnable resizeListener;
 
     /** Primary document/main window (default). */
     static int ROLE_PRIMARY = 0;
@@ -4714,6 +4725,14 @@ class Window extends Component {
             content.setBounds(0, 0, width, height);
             content.layout();
         }
+        if (resizeListener != null) {
+            resizeListener.run();
+        }
+    }
+
+    /** Called after the window client size changed (user resize or setSize); read width/height. */
+    void setResizeListener(Runnable listener) {
+        resizeListener = listener;
     }
 
     void setContent(Component component) {

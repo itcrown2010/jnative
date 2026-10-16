@@ -4,6 +4,7 @@
 
 /* Author: 张晓达 */
 #include "jnative_string.h"
+#include "jnative_gc2.h"
 
 #include <stdlib.h>
 #include <string.h>
@@ -175,7 +176,11 @@ static void *jn_str_alloc(void *meta, int32_t unitLen) {
         return NULL;
     }
     uint64_t payload = 16u + bytes;
+    /* Callers hold raw pointers to their input strings: the allocation must not run a
+     * moving collection. */
+    jn_gc2_native_enter();
     void *obj = jnative_gc_alloc(payload);
+    jn_gc2_native_leave();
     if (obj == NULL) return NULL;
     *(void **)obj = meta;
     jn_str_set_len(obj, unitLen);
@@ -503,7 +508,9 @@ void *jnative_string_replace(void *s, void *target, void *repl) {
 void *jnative_string_get_bytes_with_meta(void *s, void *arrayMeta) {
     jnative_null_check(s);
     int32_t n = jnative_string_utf8_length(s);
+    jn_gc2_native_enter();
     void *arr = jnative_array_alloc(1, n, arrayMeta);
+    jn_gc2_native_leave();
     if (arr == NULL) return NULL;
     uint8_t *dst = (uint8_t *)arr + 16;
     jn_utf8_encode_units(jn_str_data(s), jn_str_len(s), dst);

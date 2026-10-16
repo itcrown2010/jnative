@@ -28,6 +28,13 @@ int jn_gc2_enabled(void);
 /** Zeroed managed allocation (payload size, not including header). */
 void *jn_gc2_alloc(uint64_t payload);
 
+/**
+ * Bracket a native's managed allocation: while entered, jn_gc2_alloc never collects, so raw
+ * pointers the native holds to managed inputs stay valid until it returns to managed code.
+ */
+void jn_gc2_native_enter(void);
+void jn_gc2_native_leave(void);
+
 /** System.gc() / full collection. */
 void jn_gc2_collect(void);
 
