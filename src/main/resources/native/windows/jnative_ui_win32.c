@@ -107,9 +107,16 @@ static int g_in_set_selection = 0;
 /* TrendChart sample CSV: "ymin,ymax,cap|v0,v1,..." (display units). */
 static char *g_trend_csv[JN_UI_MAX];
 
+/* Opt-in Per-Monitor-V2 mode: UiLib layout stays in DIP, the backend scales to px. */
+static int g_dpi_aware = 0;
+static UINT g_cur_dpi = 96;
+
 static UINT hwnd_dpi(HWND hwnd) {
     /* GDI-scaled unaware: layout px == GetClientRect px == 96-DPI virtual. */
-    (void)hwnd;
+    if (g_dpi_aware) {
+        UINT d = hwnd != NULL ? GetDpiForWindow(hwnd) : 0;
+        return d != 0 ? d : (g_cur_dpi != 0 ? g_cur_dpi : 96);
+    }
     return 96;
 }
 
@@ -117,11 +124,16 @@ static void apply_outer_client_size(HWND hwnd, int clientW, int clientH) {
     RECT wr;
     wr.left = 0;
     wr.top = 0;
-    wr.right = clientW;
-    wr.bottom = clientH;
+    UINT dpi = hwnd_dpi(hwnd);
+    wr.right = MulDiv(clientW, (int)dpi, 96);
+    wr.bottom = MulDiv(clientH, (int)dpi, 96);
     DWORD style = (DWORD)GetWindowLongPtr(hwnd, GWL_STYLE);
     DWORD ex = (DWORD)GetWindowLongPtr(hwnd, GWL_EXSTYLE);
-    AdjustWindowRectEx(&wr, style, FALSE, ex);
+    if (g_dpi_aware) {
+        AdjustWindowRectExForDpi(&wr, style, FALSE, ex, dpi);
+    } else {
+        AdjustWindowRectEx(&wr, style, FALSE, ex);
+    }
     SetWindowPos(hwnd, NULL, 0, 0, wr.right - wr.left, wr.bottom - wr.top,
             SWP_NOMOVE | SWP_NOZORDER | SWP_NOACTIVATE);
 }
@@ -165,6 +177,9 @@ static HFONT make_ui_font(int pt) {
     int dpi = 96;
     if (hdc != NULL) {
         dpi = GetDeviceCaps(hdc, LOGPIXELSY);
+    }
+    if (g_dpi_aware && g_cur_dpi != 0) {
+        dpi = (int)g_cur_dpi;
     }
     int px = -MulDiv(pt, dpi, 72);
     /* Prefer Segoe UI Variable (Win11); CreateFont silently substitutes when the
@@ -740,8 +755,754 @@ static LRESULT listview_customdraw(int32_t id, LPNMLVCUSTOMDRAW cd) {
     return CDRF_DODEFAULT;
 }
 
+/* ======================================================================
+ * Canvas: a custom-drawn surface (double-buffered GDI + GDI+ for AA shapes).
+ * Java paints inside the PAINT event through jnative_ui_cv_* calls; all
+ * coordinates are DIP (96-dpi units) and scaled here by the window DPI.
+ * ====================================================================== */
+typedef struct { float X, Y; } JnPointF;
+typedef struct { UINT32 ver; void *cb; BOOL noThread; BOOL noCodecs; } JnGdipInput;
+typedef int (WINAPI *PGdipStartup)(ULONG_PTR *, const JnGdipInput *, void *);
+typedef int (WINAPI *PGdipCreateFromHDC)(HDC, void **);
+typedef int (WINAPI *PGdipDelete)(void *);
+typedef int (WINAPI *PGdipSetInt)(void *, int);
+typedef int (WINAPI *PGdipCreateSolidFill)(UINT32, void **);
+typedef int (WINAPI *PGdipFillRect)(void *, void *, float, float, float, float);
+typedef int (WINAPI *PGdipFillPoly)(void *, void *, const JnPointF *, int, int);
+typedef int (WINAPI *PGdipCreatePen1)(UINT32, float, int, void **);
+typedef int (WINAPI *PGdipDrawLine)(void *, void *, float, float, float, float);
+typedef int (WINAPI *PGdipDrawLines)(void *, void *, const JnPointF *, int);
+typedef int (WINAPI *PGdipCreatePath)(int, void **);
+typedef int (WINAPI *PGdipAddArc)(void *, float, float, float, float, float, float);
+typedef int (WINAPI *PGdipClosePath)(void *);
+typedef int (WINAPI *PGdipFillPath)(void *, void *, void *);
+typedef int (WINAPI *PGdipDrawPath)(void *, void *, void *);
+typedef int (WINAPI *PGdipPenSetInt)(void *, int);
+
+static struct {
+    HMODULE mod; int ok; ULONG_PTR token;
+    PGdipCreateFromHDC createFromHdc; PGdipDelete delGraphics; PGdipSetInt setSmooth;
+    PGdipCreateSolidFill createFill; PGdipDelete delBrush; PGdipFillRect fillRect;
+    PGdipFillPoly fillPoly; PGdipCreatePen1 createPen; PGdipDelete delPen;
+    PGdipDrawLine drawLine; PGdipDrawLines drawLines; PGdipCreatePath createPath;
+    PGdipAddArc addArc; PGdipClosePath closePath; PGdipFillPath fillPath;
+    PGdipDrawPath drawPath; PGdipDelete delPath; PGdipPenSetInt penJoin;
+    PGdipPenSetInt penStartCap; PGdipPenSetInt penEndCap; PGdipSetInt setPixelOffset;
+} g_gp;
+
+static void jn_gp_init(void) {
+    static int tried = 0;
+    if (tried) {
+        return;
+    }
+    tried = 1;
+    g_gp.mod = LoadLibraryW(L"gdiplus.dll");
+    if (g_gp.mod == NULL) {
+        return;
+    }
+#define JN_GP(field, type, name) g_gp.field = (type)GetProcAddress(g_gp.mod, name)
+    PGdipStartup st = (PGdipStartup)GetProcAddress(g_gp.mod, "GdiplusStartup");
+    JN_GP(createFromHdc, PGdipCreateFromHDC, "GdipCreateFromHDC");
+    JN_GP(delGraphics, PGdipDelete, "GdipDeleteGraphics");
+    JN_GP(setSmooth, PGdipSetInt, "GdipSetSmoothingMode");
+    JN_GP(setPixelOffset, PGdipSetInt, "GdipSetPixelOffsetMode");
+    JN_GP(createFill, PGdipCreateSolidFill, "GdipCreateSolidFill");
+    JN_GP(delBrush, PGdipDelete, "GdipDeleteBrush");
+    JN_GP(fillRect, PGdipFillRect, "GdipFillRectangle");
+    JN_GP(fillPoly, PGdipFillPoly, "GdipFillPolygon");
+    JN_GP(createPen, PGdipCreatePen1, "GdipCreatePen1");
+    JN_GP(delPen, PGdipDelete, "GdipDeletePen");
+    JN_GP(drawLine, PGdipDrawLine, "GdipDrawLine");
+    JN_GP(drawLines, PGdipDrawLines, "GdipDrawLines");
+    JN_GP(createPath, PGdipCreatePath, "GdipCreatePath");
+    JN_GP(addArc, PGdipAddArc, "GdipAddPathArc");
+    JN_GP(closePath, PGdipClosePath, "GdipClosePathFigure");
+    JN_GP(fillPath, PGdipFillPath, "GdipFillPath");
+    JN_GP(drawPath, PGdipDrawPath, "GdipDrawPath");
+    JN_GP(delPath, PGdipDelete, "GdipDeletePath");
+    JN_GP(penJoin, PGdipPenSetInt, "GdipSetPenLineJoin");
+    JN_GP(penStartCap, PGdipPenSetInt, "GdipSetPenStartCap");
+    JN_GP(penEndCap, PGdipPenSetInt, "GdipSetPenEndCap");
+#undef JN_GP
+    if (st != NULL && g_gp.createFromHdc && g_gp.createFill && g_gp.createPen && g_gp.createPath) {
+        JnGdipInput in;
+        memset(&in, 0, sizeof(in));
+        in.ver = 1;
+        if (st(&g_gp.token, &in, NULL) == 0) {
+            g_gp.ok = 1;
+        }
+    }
+}
+
+typedef struct { HDC dc; HBITMAP bmp; HGDIOBJ old; int w, h; } JnBack;
+static JnBack g_cv_back[JN_UI_MAX];
+static HDC g_cv_dc = NULL;      /* current paint context (valid only inside PAINT) */
+static UINT g_cv_dpi = 96;
+static int g_cv_cursor = 0;
+static int g_cv_tracking[JN_UI_MAX];
+
+static int cv_px(int dip) { return MulDiv(dip, (int)g_cv_dpi, 96); }
+static COLORREF cv_cr(int32_t argb) { return RGB((argb >> 16) & 0xFF, (argb >> 8) & 0xFF, argb & 0xFF); }
+static int cv_alpha(int32_t argb) { return (int)(((uint32_t)argb >> 24) & 0xFF); }
+
+typedef struct { wchar_t face[48]; int size10; int weight; int italic; HFONT h; UINT dpi; } JnCvFont;
+#define JN_CV_FONTS 48
+static JnCvFont g_cvf[JN_CV_FONTS];
+static int g_cvf_n = 0;
+
+int32_t jnative_ui_cv_font(const char *face, int32_t size10, int32_t weight, int32_t italic) {
+    wchar_t *w = utf8_to_wide(face);
+    int i;
+    for (i = 0; i < g_cvf_n; i++) {
+        if (g_cvf[i].size10 == size10 && g_cvf[i].weight == weight && g_cvf[i].italic == italic
+                && _wcsicmp(g_cvf[i].face, w) == 0) {
+            free(w);
+            return i;
+        }
+    }
+    if (g_cvf_n >= JN_CV_FONTS) {
+        free(w);
+        return 0;
+    }
+    wcsncpy(g_cvf[g_cvf_n].face, w, 47);
+    g_cvf[g_cvf_n].face[47] = L'\0';
+    g_cvf[g_cvf_n].size10 = size10;
+    g_cvf[g_cvf_n].weight = weight;
+    g_cvf[g_cvf_n].italic = italic;
+    g_cvf[g_cvf_n].h = NULL;
+    g_cvf[g_cvf_n].dpi = 0;
+    free(w);
+    return g_cvf_n++;
+}
+
+static HFONT cv_get_font(int32_t id, UINT dpi) {
+    if (id < 0 || id >= g_cvf_n) {
+        id = 0;
+    }
+    if (g_cvf_n == 0) {
+        return (HFONT)GetStockObject(DEFAULT_GUI_FONT);
+    }
+    JnCvFont *f = &g_cvf[id];
+    if (f->h == NULL || f->dpi != dpi) {
+        if (f->h != NULL) {
+            DeleteObject(f->h);
+        }
+        int px = -MulDiv(f->size10, (int)dpi, 960);
+        f->h = CreateFontW(px, 0, 0, 0, f->weight, f->italic ? TRUE : FALSE, FALSE, FALSE,
+                DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
+                CLEARTYPE_QUALITY, DEFAULT_PITCH | FF_SWISS, f->face);
+        f->dpi = dpi;
+    }
+    return f->h;
+}
+
+int32_t jnative_ui_cv_text_width(int32_t fontId, const char *text) {
+    wchar_t *w = utf8_to_wide(text);
+    HDC dc = g_cv_dc != NULL ? g_cv_dc : GetDC(NULL);
+    UINT dpi = g_cv_dc != NULL ? g_cv_dpi : (g_cur_dpi ? g_cur_dpi : 96);
+    HGDIOBJ old = SelectObject(dc, cv_get_font(fontId, dpi));
+    SIZE sz;
+    sz.cx = 0;
+    sz.cy = 0;
+    GetTextExtentPoint32W(dc, w, (int)wcslen(w), &sz);
+    SelectObject(dc, old);
+    if (g_cv_dc == NULL) {
+        ReleaseDC(NULL, dc);
+    }
+    free(w);
+    return (int32_t)((sz.cx * 96 + (int)dpi - 1) / (int)dpi);
+}
+
+void jnative_ui_cv_fill_rect(int32_t x, int32_t y, int32_t w, int32_t h, int32_t argb) {
+    if (g_cv_dc == NULL || w <= 0 || h <= 0) {
+        return;
+    }
+    int a = cv_alpha(argb);
+    if (a == 0) {
+        return;
+    }
+    int x0 = cv_px(x), y0 = cv_px(y), x1 = cv_px(x + w), y1 = cv_px(y + h);
+    if (a == 255) {
+        RECT r;
+        r.left = x0; r.top = y0; r.right = x1; r.bottom = y1;
+        SetDCBrushColor(g_cv_dc, cv_cr(argb));
+        FillRect(g_cv_dc, &r, (HBRUSH)GetStockObject(DC_BRUSH));
+        return;
+    }
+    jn_gp_init();
+    if (!g_gp.ok) {
+        return;
+    }
+    void *g = NULL, *br = NULL;
+    if (g_gp.createFromHdc(g_cv_dc, &g) == 0 && g_gp.createFill((UINT32)argb, &br) == 0) {
+        g_gp.fillRect(g, br, (float)x0, (float)y0, (float)(x1 - x0), (float)(y1 - y0));
+    }
+    if (br) g_gp.delBrush(br);
+    if (g) g_gp.delGraphics(g);
+}
+
+static void *cv_round_path(float x, float y, float w, float h, float r) {
+    void *path = NULL;
+    if (r * 2 > w) r = w / 2;
+    if (r * 2 > h) r = h / 2;
+    if (g_gp.createPath(0, &path) != 0) {
+        return NULL;
+    }
+    if (r < 0.5f) {
+        JnPointF p[4];
+        p[0].X = x; p[0].Y = y; p[1].X = x + w; p[1].Y = y;
+        p[2].X = x + w; p[2].Y = y + h; p[3].X = x; p[3].Y = y + h;
+        /* degenerate: emulate rect with 4 tiny arcs */
+        g_gp.addArc(path, x, y, 1, 1, 180, 90);
+        g_gp.addArc(path, x + w - 1, y, 1, 1, 270, 90);
+        g_gp.addArc(path, x + w - 1, y + h - 1, 1, 1, 0, 90);
+        g_gp.addArc(path, x, y + h - 1, 1, 1, 90, 90);
+    } else {
+        float d = r * 2;
+        g_gp.addArc(path, x, y, d, d, 180, 90);
+        g_gp.addArc(path, x + w - d, y, d, d, 270, 90);
+        g_gp.addArc(path, x + w - d, y + h - d, d, d, 0, 90);
+        g_gp.addArc(path, x, y + h - d, d, d, 90, 90);
+    }
+    g_gp.closePath(path);
+    return path;
+}
+
+/* fill (argb != 0) and/or stroke (strokeArgb != 0, width in 1/10 DIP) a rounded rect. */
+void jnative_ui_cv_round_rect(int32_t x, int32_t y, int32_t w, int32_t h, int32_t r,
+                              int32_t fillArgb, int32_t strokeArgb, int32_t strokeX10) {
+    if (g_cv_dc == NULL || w <= 0 || h <= 0) {
+        return;
+    }
+    jn_gp_init();
+    if (!g_gp.ok) {
+        jnative_ui_cv_fill_rect(x, y, w, h, fillArgb);
+        return;
+    }
+    float sw = (float)strokeX10 * (float)g_cv_dpi / 960.0f;
+    if (strokeArgb != 0 && sw < 1.0f) sw = 1.0f;
+    float half = (strokeArgb != 0) ? sw / 2.0f : 0.0f;
+    float fx = (float)cv_px(x) + half, fy = (float)cv_px(y) + half;
+    float fw = (float)(cv_px(x + w) - cv_px(x)) - sw * (strokeArgb != 0 ? 1.0f : 0.0f);
+    float fh = (float)(cv_px(y + h) - cv_px(y)) - sw * (strokeArgb != 0 ? 1.0f : 0.0f);
+    float fr = (float)cv_px(r) - half;
+    void *g = NULL;
+    if (g_gp.createFromHdc(g_cv_dc, &g) != 0) {
+        return;
+    }
+    g_gp.setSmooth(g, 4);
+    void *path = cv_round_path(fx, fy, fw, fh, fr);
+    if (path != NULL) {
+        if (cv_alpha(fillArgb) != 0) {
+            void *br = NULL;
+            if (g_gp.createFill((UINT32)fillArgb, &br) == 0) {
+                g_gp.fillPath(g, br, path);
+                g_gp.delBrush(br);
+            }
+        }
+        if (strokeArgb != 0 && cv_alpha(strokeArgb) != 0) {
+            void *pen = NULL;
+            if (g_gp.createPen((UINT32)strokeArgb, sw, 2, &pen) == 0) {
+                g_gp.drawPath(g, pen, path);
+                g_gp.delPen(pen);
+            }
+        }
+        g_gp.delPath(path);
+    }
+    g_gp.delGraphics(g);
+}
+
+void jnative_ui_cv_line(int32_t x1, int32_t y1, int32_t x2, int32_t y2, int32_t argb, int32_t wX10) {
+    if (g_cv_dc == NULL || cv_alpha(argb) == 0) {
+        return;
+    }
+    int t = MulDiv(wX10, (int)g_cv_dpi, 960);
+    if (t < 1) t = 1;
+    if (x1 == x2 || y1 == y2) {
+        int a = cv_px(x1 < x2 ? x1 : x2), b = cv_px(y1 < y2 ? y1 : y2);
+        int c = cv_px(x1 < x2 ? x2 : x1), d = cv_px(y1 < y2 ? y2 : y1);
+        RECT r;
+        if (x1 == x2) {
+            r.left = a; r.right = a + t; r.top = b; r.bottom = d;
+        } else {
+            r.left = a; r.right = c; r.top = b; r.bottom = b + t;
+        }
+        if (cv_alpha(argb) == 255) {
+            SetDCBrushColor(g_cv_dc, cv_cr(argb));
+            FillRect(g_cv_dc, &r, (HBRUSH)GetStockObject(DC_BRUSH));
+            return;
+        }
+        jnative_ui_cv_fill_rect(x1 == x2 ? x1 : (x1 < x2 ? x1 : x2), y1 == y2 ? y1 : (y1 < y2 ? y1 : y2),
+                x1 == x2 ? 1 : (x1 < x2 ? x2 - x1 : x1 - x2), y1 == y2 ? 1 : (y1 < y2 ? y2 - y1 : y1 - y2), argb);
+        return;
+    }
+    jn_gp_init();
+    if (!g_gp.ok) {
+        return;
+    }
+    void *g = NULL, *pen = NULL;
+    if (g_gp.createFromHdc(g_cv_dc, &g) == 0) {
+        g_gp.setSmooth(g, 4);
+        if (g_gp.createPen((UINT32)argb, (float)t, 2, &pen) == 0) {
+            g_gp.drawLine(g, pen, (float)cv_px(x1), (float)cv_px(y1), (float)cv_px(x2), (float)cv_px(y2));
+            g_gp.delPen(pen);
+        }
+        g_gp.delGraphics(g);
+    }
+}
+
+/* Polyline / polygon from DIP*1000 integer points (x,y packed as two calls). */
+#define JN_CV_POLY_MAX 4096
+static JnPointF g_poly[JN_CV_POLY_MAX];
+static int g_poly_n = 0;
+void jnative_ui_cv_poly_begin(void) { g_poly_n = 0; }
+void jnative_ui_cv_poly_pt(int32_t xMilli, int32_t yMilli) {
+    if (g_poly_n < JN_CV_POLY_MAX) {
+        g_poly[g_poly_n].X = (float)xMilli * (float)g_cv_dpi / 96000.0f;
+        g_poly[g_poly_n].Y = (float)yMilli * (float)g_cv_dpi / 96000.0f;
+        g_poly_n++;
+    }
+}
+void jnative_ui_cv_poly_end(int32_t fillArgb, int32_t strokeArgb, int32_t strokeX10) {
+    if (g_cv_dc == NULL || g_poly_n < 2) {
+        return;
+    }
+    jn_gp_init();
+    if (!g_gp.ok) {
+        return;
+    }
+    void *g = NULL;
+    if (g_gp.createFromHdc(g_cv_dc, &g) != 0) {
+        return;
+    }
+    g_gp.setSmooth(g, 4);
+    if (cv_alpha(fillArgb) != 0 && g_poly_n >= 3) {
+        void *br = NULL;
+        if (g_gp.createFill((UINT32)fillArgb, &br) == 0) {
+            g_gp.fillPoly(g, br, g_poly, g_poly_n, 0);
+            g_gp.delBrush(br);
+        }
+    }
+    if (strokeArgb != 0 && cv_alpha(strokeArgb) != 0) {
+        void *pen = NULL;
+        float sw = (float)strokeX10 * (float)g_cv_dpi / 960.0f;
+        if (sw < 1.0f) sw = 1.0f;
+        if (g_gp.createPen((UINT32)strokeArgb, sw, 2, &pen) == 0) {
+            if (g_gp.penJoin) g_gp.penJoin(pen, 2);
+            g_gp.drawLines(g, pen, g_poly, g_poly_n);
+            g_gp.delPen(pen);
+        }
+    }
+    g_gp.delGraphics(g);
+}
+
+/* flags: bits0-1 halign (0 left,1 center,2 right); bit2 vcenter; bit3 end-ellipsis;
+ * bit4 word wrap (multi-line); bit5 bottom-align. */
+void jnative_ui_cv_text(int32_t x, int32_t y, int32_t w, int32_t h, const char *text,
+                        int32_t argb, int32_t fontId, int32_t flags) {
+    if (g_cv_dc == NULL || text == NULL || w <= 0 || h <= 0) {
+        return;
+    }
+    wchar_t *wt = utf8_to_wide(text);
+    RECT r;
+    r.left = cv_px(x); r.top = cv_px(y); r.right = cv_px(x + w); r.bottom = cv_px(y + h);
+    UINT f = DT_NOPREFIX;
+    int ha = flags & 3;
+    f |= (ha == 1 ? DT_CENTER : (ha == 2 ? DT_RIGHT : DT_LEFT));
+    if (flags & 16) {
+        f |= DT_WORDBREAK;
+    } else {
+        f |= DT_SINGLELINE;
+        if (flags & 4) f |= DT_VCENTER;
+        if (flags & 32) f |= DT_BOTTOM;
+    }
+    if (flags & 8) f |= DT_END_ELLIPSIS;
+    HGDIOBJ old = SelectObject(g_cv_dc, cv_get_font(fontId, g_cv_dpi));
+    SetTextColor(g_cv_dc, cv_cr(argb));
+    SetBkMode(g_cv_dc, TRANSPARENT);
+    DrawTextW(g_cv_dc, wt, -1, &r, f);
+    SelectObject(g_cv_dc, old);
+    free(wt);
+}
+
+/* Draw a single Unicode code point (icon fonts / PUA glyphs). Same flags as _text. */
+void jnative_ui_cv_glyph(int32_t x, int32_t y, int32_t w, int32_t h, int32_t cp,
+                         int32_t argb, int32_t fontId, int32_t flags) {
+    wchar_t buf[3];
+    if (g_cv_dc == NULL || w <= 0 || h <= 0) {
+        return;
+    }
+    if (cp >= 0x10000) {
+        cp -= 0x10000;
+        buf[0] = (wchar_t)(0xD800 + (cp >> 10));
+        buf[1] = (wchar_t)(0xDC00 + (cp & 0x3FF));
+        buf[2] = 0;
+    } else {
+        buf[0] = (wchar_t)cp;
+        buf[1] = 0;
+    }
+    RECT r;
+    r.left = cv_px(x); r.top = cv_px(y); r.right = cv_px(x + w); r.bottom = cv_px(y + h);
+    UINT f = DT_NOPREFIX | DT_SINGLELINE | DT_NOCLIP;
+    int ha = flags & 3;
+    f |= (ha == 1 ? DT_CENTER : (ha == 2 ? DT_RIGHT : DT_LEFT));
+    if (flags & 4) f |= DT_VCENTER;
+    HGDIOBJ old = SelectObject(g_cv_dc, cv_get_font(fontId, g_cv_dpi));
+    SetTextColor(g_cv_dc, cv_cr(argb));
+    SetBkMode(g_cv_dc, TRANSPARENT);
+    DrawTextW(g_cv_dc, buf, -1, &r, f);
+    SelectObject(g_cv_dc, old);
+}
+
+/* Height in DIP of wrapped text for a given width. */
+int32_t jnative_ui_cv_text_height(int32_t fontId, const char *text, int32_t w) {
+    wchar_t *wt = utf8_to_wide(text);
+    HDC dc = g_cv_dc != NULL ? g_cv_dc : GetDC(NULL);
+    UINT dpi = g_cv_dc != NULL ? g_cv_dpi : (g_cur_dpi ? g_cur_dpi : 96);
+    HGDIOBJ old = SelectObject(dc, cv_get_font(fontId, dpi));
+    RECT r;
+    r.left = 0; r.top = 0; r.right = MulDiv(w, (int)dpi, 96); r.bottom = 0;
+    DrawTextW(dc, wt, -1, &r, DT_CALCRECT | DT_WORDBREAK | DT_NOPREFIX);
+    SelectObject(dc, old);
+    if (g_cv_dc == NULL) {
+        ReleaseDC(NULL, dc);
+    }
+    free(wt);
+    return (int32_t)(((r.bottom - r.top) * 96 + (int)dpi - 1) / (int)dpi);
+}
+
+typedef struct { wchar_t *path; int px; HICON icon; } JnCvIcon;
+#define JN_CV_ICON_MAX 768
+static JnCvIcon g_cv_icons[JN_CV_ICON_MAX];
+static int g_cv_icon_n = 0;
+
+static HICON cv_load_icon(const wchar_t *path, int px) {
+    int i;
+    for (i = 0; i < g_cv_icon_n; i++) {
+        if (g_cv_icons[i].px == px && wcscmp(g_cv_icons[i].path, path) == 0) {
+            return g_cv_icons[i].icon;
+        }
+    }
+    HICON ic = NULL;
+    if (path[0] != L'\0') {
+        UINT n = PrivateExtractIconsW(path, 0, px, px, &ic, NULL, 1, LR_DEFAULTCOLOR);
+        if (n == 0 || n == (UINT)-1) {
+            ic = NULL;
+        }
+        if (ic == NULL) {
+            SHFILEINFOW sfi;
+            memset(&sfi, 0, sizeof(sfi));
+            SHGetFileInfoW(path, 0, &sfi, sizeof(sfi), SHGFI_ICON | (px <= 20 ? SHGFI_SMALLICON : SHGFI_LARGEICON));
+            ic = sfi.hIcon;
+        }
+    }
+    if (g_cv_icon_n < JN_CV_ICON_MAX) {
+        g_cv_icons[g_cv_icon_n].path = _wcsdup(path);
+        g_cv_icons[g_cv_icon_n].px = px;
+        g_cv_icons[g_cv_icon_n].icon = ic;
+        g_cv_icon_n++;
+    }
+    return ic;
+}
+
+/* Draw the file's icon (exe / lnk path) at size DIP; returns 1 when drawn. */
+int32_t jnative_ui_cv_icon(const char *path, int32_t x, int32_t y, int32_t size) {
+    if (g_cv_dc == NULL || path == NULL) {
+        return 0;
+    }
+    wchar_t *wp = utf8_to_wide(path);
+    int px = cv_px(size);
+    HICON ic = cv_load_icon(wp, px);
+    free(wp);
+    if (ic == NULL) {
+        return 0;
+    }
+    DrawIconEx(g_cv_dc, cv_px(x), cv_px(y), ic, px, px, 0, NULL, DI_NORMAL);
+    return 1;
+}
+
+void jnative_ui_cv_clip_push(int32_t x, int32_t y, int32_t w, int32_t h) {
+    if (g_cv_dc == NULL) {
+        return;
+    }
+    SaveDC(g_cv_dc);
+    IntersectClipRect(g_cv_dc, cv_px(x), cv_px(y), cv_px(x + w), cv_px(y + h));
+}
+void jnative_ui_cv_clip_pop(void) {
+    if (g_cv_dc != NULL) {
+        RestoreDC(g_cv_dc, -1);
+    }
+}
+void jnative_ui_cv_set_cursor(int32_t kind) { g_cv_cursor = kind; }
+int32_t jnative_ui_key_state(int32_t vk) { return (GetKeyState(vk) & 0x8000) != 0 ? 1 : 0; }
+int32_t jnative_ui_cursor_screen_x(void) { POINT p; GetCursorPos(&p); return p.x; }
+int32_t jnative_ui_cursor_screen_y(void) { POINT p; GetCursorPos(&p); return p.y; }
+
+void jnative_ui_canvas_invalidate(int32_t id) {
+    if (id > 0 && id < JN_UI_MAX && g_hwnds[id] != NULL) {
+        InvalidateRect(g_hwnds[id], NULL, FALSE);
+    }
+}
+
+static void cv_set_cursor_now(void) {
+    LPCWSTR c = IDC_ARROW;
+    switch (g_cv_cursor) {
+        case 1: c = IDC_HAND; break;
+        case 2: c = IDC_SIZEWE; break;
+        case 3: c = IDC_IBEAM; break;
+        case 4: c = IDC_SIZENS; break;
+        default: break;
+    }
+    SetCursor(LoadCursorW(NULL, c));
+}
+
+static void cv_paint(HWND hwnd, int32_t id) {
+    PAINTSTRUCT ps;
+    HDC hdc = BeginPaint(hwnd, &ps);
+    RECT rc;
+    GetClientRect(hwnd, &rc);
+    int w = rc.right - rc.left, h = rc.bottom - rc.top;
+    if (w > 0 && h > 0) {
+        JnBack *b = &g_cv_back[id];
+        if (b->dc == NULL || b->w != w || b->h != h) {
+            if (b->dc != NULL) {
+                SelectObject(b->dc, b->old);
+                DeleteObject(b->bmp);
+                DeleteDC(b->dc);
+            }
+            b->dc = CreateCompatibleDC(hdc);
+            b->bmp = CreateCompatibleBitmap(hdc, w, h);
+            b->old = SelectObject(b->dc, b->bmp);
+            b->w = w;
+            b->h = h;
+        }
+        g_cv_dc = b->dc;
+        g_cv_dpi = g_dpi_aware ? GetDpiForWindow(hwnd) : 96;
+        if (g_cv_dpi == 0) g_cv_dpi = 96;
+        g_cur_dpi = g_cv_dpi;
+        SetBkMode(b->dc, TRANSPARENT);
+        SaveDC(b->dc);
+        jnative_ui_emit_event(id, JN_UI_EVENT_PAINT);
+        RestoreDC(b->dc, -1);
+        g_cv_dc = NULL;
+        BitBlt(hdc, ps.rcPaint.left, ps.rcPaint.top,
+                ps.rcPaint.right - ps.rcPaint.left, ps.rcPaint.bottom - ps.rcPaint.top,
+                b->dc, ps.rcPaint.left, ps.rcPaint.top, SRCCOPY);
+    }
+    EndPaint(hwnd, &ps);
+}
+
+static int cv_mods_btn(WPARAM wp) {
+    int b = 0;
+    if (wp & MK_LBUTTON) b = 1;
+    else if (wp & MK_RBUTTON) b = 2;
+    else if (wp & MK_MBUTTON) b = 3;
+    return b;
+}
+
+/* Returns 1 when the message was fully handled for a canvas HWND. */
+static int cv_wndproc(HWND hwnd, int32_t id, UINT msg, WPARAM wp, LPARAM lp, LRESULT *out) {
+    UINT dpi = g_dpi_aware ? GetDpiForWindow(hwnd) : 96;
+    if (dpi == 0) dpi = 96;
+    int mx = (int)(short)LOWORD(lp), my = (int)(short)HIWORD(lp);
+    int dx = MulDiv(mx, 96, (int)dpi), dy = MulDiv(my, 96, (int)dpi);
+    *out = 0;
+    switch (msg) {
+    case WM_PAINT:
+        cv_paint(hwnd, id);
+        return 1;
+    case WM_ERASEBKGND:
+        *out = 1;
+        return 1;
+    case WM_SIZE:
+        InvalidateRect(hwnd, NULL, FALSE);
+        return 1;
+    case WM_GETDLGCODE:
+        *out = DLGC_WANTARROWS | DLGC_WANTCHARS;
+        return 1;
+    case WM_MOUSEMOVE:
+        if (!g_cv_tracking[id]) {
+            TRACKMOUSEEVENT t;
+            memset(&t, 0, sizeof(t));
+            t.cbSize = sizeof(t);
+            t.dwFlags = TME_LEAVE;
+            t.hwndTrack = hwnd;
+            TrackMouseEvent(&t);
+            g_cv_tracking[id] = 1;
+        }
+        g_cv_cursor = 0;
+        jnative_ui_emit_event_ex(id, JN_UI_EVENT_MOUSE, 5, dx, dy, cv_mods_btn(wp));
+        cv_set_cursor_now();
+        return 1;
+    case WM_MOUSELEAVE:
+        g_cv_tracking[id] = 0;
+        jnative_ui_emit_event_ex(id, JN_UI_EVENT_MOUSE, 7, 0, 0, 0);
+        return 1;
+    case WM_SETCURSOR:
+        if (LOWORD(lp) == HTCLIENT) {
+            cv_set_cursor_now();
+            *out = TRUE;
+            return 1;
+        }
+        return 0;
+    case WM_LBUTTONDOWN:
+    case WM_RBUTTONDOWN:
+    case WM_MBUTTONDOWN:
+        SetFocus(hwnd);
+        SetCapture(hwnd);
+        jnative_ui_emit_event_ex(id, JN_UI_EVENT_MOUSE, 1, dx, dy,
+                msg == WM_LBUTTONDOWN ? 1 : (msg == WM_RBUTTONDOWN ? 2 : 3));
+        cv_set_cursor_now();
+        return 1;
+    case WM_LBUTTONDBLCLK:
+    case WM_RBUTTONDBLCLK:
+        SetCapture(hwnd);
+        jnative_ui_emit_event_ex(id, JN_UI_EVENT_MOUSE, 4, dx, dy, msg == WM_LBUTTONDBLCLK ? 1 : 2);
+        return 1;
+    case WM_LBUTTONUP:
+    case WM_RBUTTONUP:
+    case WM_MBUTTONUP:
+        if (GetCapture() == hwnd) {
+            ReleaseCapture();
+        }
+        jnative_ui_emit_event_ex(id, JN_UI_EVENT_MOUSE, 2, dx, dy,
+                msg == WM_LBUTTONUP ? 1 : (msg == WM_RBUTTONUP ? 2 : 3));
+        cv_set_cursor_now();
+        return 1;
+    case WM_CAPTURECHANGED:
+        return 1;
+    case WM_MOUSEWHEEL:
+    case WM_MOUSEHWHEEL: {
+        POINT p;
+        p.x = (int)(short)LOWORD(lp);
+        p.y = (int)(short)HIWORD(lp);
+        ScreenToClient(hwnd, &p);
+        jnative_ui_emit_event_ex(id, JN_UI_EVENT_MOUSE, msg == WM_MOUSEWHEEL ? 8 : 9,
+                MulDiv(p.x, 96, (int)dpi), MulDiv(p.y, 96, (int)dpi), (int)(short)HIWORD(wp));
+        return 1;
+    }
+    default:
+        break;
+    }
+    return 0;
+}
+
+void jnative_ui_set_dpi_aware(int32_t v) { g_dpi_aware = v != 0 ? 1 : 0; }
+int32_t jnative_ui_get_dpi(int32_t id) {
+    if (!g_dpi_aware) {
+        return 96;
+    }
+    if (id > 0 && id < JN_UI_MAX && g_hwnds[id] != NULL) {
+        UINT d = GetDpiForWindow(g_hwnds[id]);
+        if (d != 0) {
+            return (int32_t)d;
+        }
+    }
+    return (int32_t)(g_cur_dpi ? g_cur_dpi : 96);
+}
+
+/* Remove the sunken client edge of an EDIT (we draw our own rounded frame). */
+void jnative_ui_set_flat(int32_t id) {
+    if (id > 0 && id < JN_UI_MAX && g_hwnds[id] != NULL) {
+        HWND h = g_hwnds[id];
+        LONG_PTR ex = GetWindowLongPtr(h, GWL_EXSTYLE);
+        ex &= ~(LONG_PTR)(WS_EX_CLIENTEDGE | WS_EX_STATICEDGE | WS_EX_WINDOWEDGE);
+        SetWindowLongPtr(h, GWL_EXSTYLE, ex);
+        LONG_PTR st = GetWindowLongPtr(h, GWL_STYLE);
+        st &= ~(LONG_PTR)WS_BORDER;
+        SetWindowLongPtr(h, GWL_STYLE, st);
+        SetWindowPos(h, NULL, 0, 0, 0, 0,
+                SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_FRAMECHANGED | SWP_NOACTIVATE);
+    }
+}
+
+/* Cue-banner (placeholder) text for an EDIT. */
+void jnative_ui_set_placeholder(int32_t id, const char *text) {
+    if (id > 0 && id < JN_UI_MAX && g_hwnds[id] != NULL) {
+        wchar_t *w = utf8_to_wide(text);
+        SendMessageW(g_hwnds[id], EM_SETCUEBANNER, TRUE, (LPARAM)w);
+        free(w);
+    }
+}
+
+/* DWM caption / border / text colors (Windows 11). rgb is 0xRRGGBB. */
+void jnative_ui_window_set_caption(int32_t windowId, int32_t captionRgb, int32_t textRgb, int32_t dark) {
+    if (windowId <= 0 || windowId >= JN_UI_MAX || g_hwnds[windowId] == NULL) {
+        return;
+    }
+    static HMODULE dwm = NULL;
+    static jn_dwm_set_attr_fn fn = NULL;
+    if (fn == NULL) {
+        dwm = LoadLibraryW(L"dwmapi.dll");
+        if (dwm != NULL) {
+            fn = (jn_dwm_set_attr_fn)GetProcAddress(dwm, "DwmSetWindowAttribute");
+        }
+    }
+    if (fn == NULL) {
+        return;
+    }
+    HWND h = g_hwnds[windowId];
+    BOOL d = dark ? TRUE : FALSE;
+    fn(h, 20, &d, sizeof(d));
+    COLORREF cap = RGB((captionRgb >> 16) & 0xFF, (captionRgb >> 8) & 0xFF, captionRgb & 0xFF);
+    COLORREF txt = RGB((textRgb >> 16) & 0xFF, (textRgb >> 8) & 0xFF, textRgb & 0xFF);
+    fn(h, 35, &cap, sizeof(cap));
+    fn(h, 34, &cap, sizeof(cap));
+    fn(h, 36, &txt, sizeof(txt));
+    RedrawWindow(h, NULL, NULL, RDW_FRAME | RDW_INVALIDATE);
+}
+
 static LRESULT CALLBACK JnWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
     int32_t handleId = (int32_t)(intptr_t)GetWindowLongPtr(hwnd, GWLP_USERDATA);
+    if (handleId > 0 && handleId < JN_UI_MAX && g_kinds[handleId] == JN_UI_KIND_CANVAS) {
+        LRESULT cr = 0;
+        if (cv_wndproc(hwnd, handleId, msg, wParam, lParam, &cr)) {
+            return cr;
+        }
+    }
+    if (msg == WM_DPICHANGED && g_dpi_aware) {
+        RECT *sug = (RECT *)lParam;
+        g_cur_dpi = HIWORD(wParam);
+        if (g_ui_font != NULL) {
+            DeleteObject(g_ui_font);
+        }
+        g_ui_font = make_ui_font(13);
+        if (sug != NULL) {
+            SetWindowPos(hwnd, NULL, sug->left, sug->top, sug->right - sug->left,
+                    sug->bottom - sug->top, SWP_NOZORDER | SWP_NOACTIVATE);
+        }
+        {
+            int i;
+            for (i = 1; i < JN_UI_MAX; i++) {
+                if (g_hwnds[i] != NULL && g_kinds[i] != JN_UI_KIND_WINDOW) {
+                    if (g_font_pt[i] > 0) {
+                        apply_visual_to_hwnd(i);
+                    } else if (g_ui_font != NULL) {
+                        SendMessageW(g_hwnds[i], WM_SETFONT, (WPARAM)g_ui_font, TRUE);
+                    }
+                    if (g_kinds[i] == JN_UI_KIND_CANVAS) {
+                        InvalidateRect(g_hwnds[i], NULL, FALSE);
+                    }
+                }
+            }
+        }
+        return 0;
+    }
+    if (msg == WM_CTLCOLOREDIT) {
+        HDC hdc = (HDC)wParam;
+        HWND child = (HWND)lParam;
+        int32_t cid = (int32_t)(intptr_t)GetWindowLongPtr(child, GWLP_USERDATA);
+        if (cid > 0 && cid < JN_UI_MAX && g_bg_rgba[cid] != 0 && g_bg_rgba[cid] != JN_VISUAL_KEEP) {
+            if (g_bg_brushes[cid] == NULL) {
+                g_bg_brushes[cid] = CreateSolidBrush(rgba_to_colorref(g_bg_rgba[cid]));
+            }
+            if (g_fg_rgba[cid] != 0 && g_fg_rgba[cid] != JN_VISUAL_KEEP) {
+                SetTextColor(hdc, rgba_to_colorref(g_fg_rgba[cid]));
+            }
+            SetBkColor(hdc, rgba_to_colorref(g_bg_rgba[cid]));
+            return (LRESULT)g_bg_brushes[cid];
+        }
+    }
     if (msg == WM_GETMINMAXINFO) {
         if (handleId > 0 && handleId < JN_UI_MAX && g_kinds[handleId] == JN_UI_KIND_WINDOW
                 && (g_min_w[handleId] > 0 || g_min_h[handleId] > 0)) {
@@ -751,9 +1512,16 @@ static LRESULT CALLBACK JnWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPa
             DWORD ex = (DWORD)GetWindowLongPtr(hwnd, GWL_EXSTYLE);
             wr.left = 0;
             wr.top = 0;
-            wr.right = g_min_w[handleId] > 0 ? g_min_w[handleId] : 0;
-            wr.bottom = g_min_h[handleId] > 0 ? g_min_h[handleId] : 0;
-            AdjustWindowRectEx(&wr, style, FALSE, ex);
+            {
+                UINT mdpi = hwnd_dpi(hwnd);
+                wr.right = g_min_w[handleId] > 0 ? MulDiv(g_min_w[handleId], (int)mdpi, 96) : 0;
+                wr.bottom = g_min_h[handleId] > 0 ? MulDiv(g_min_h[handleId], (int)mdpi, 96) : 0;
+                if (g_dpi_aware) {
+                    AdjustWindowRectExForDpi(&wr, style, FALSE, ex, mdpi);
+                } else {
+                    AdjustWindowRectEx(&wr, style, FALSE, ex);
+                }
+            }
             if (mmi != NULL) {
                 if (g_min_w[handleId] > 0) {
                     mmi->ptMinTrackSize.x = wr.right - wr.left;
@@ -898,8 +1666,10 @@ static LRESULT CALLBACK JnWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPa
     }
     if (msg == WM_SIZE) {
         if (handleId > 0) {
+            UINT sdpi = hwnd_dpi(hwnd);
             jnative_ui_emit_event_ex(handleId, JN_UI_EVENT_RESIZE,
-                    (int32_t)LOWORD(lParam), (int32_t)HIWORD(lParam), 0, 0);
+                    MulDiv((int)LOWORD(lParam), 96, (int)sdpi),
+                    MulDiv((int)HIWORD(lParam), 96, (int)sdpi), 0, 0);
         }
         return 0;
     }
@@ -977,11 +1747,19 @@ void jnative_ui_init(int32_t headless) {
     /* UiLib layouts in 96-DPI coordinates. Per-monitor V2 made HWND sizes
      * diverge from layout (200% DPI ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ?half-size chrome / clipped columns).
      * GDI-scaled unaware keeps 1:1 layout while Windows scales the bitmap. */
+    if (g_dpi_aware) {
+        SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
+        g_cur_dpi = GetDpiForSystem();
+        if (g_cur_dpi == 0) {
+            g_cur_dpi = 96;
+        }
+    } else {
 #if defined(DPI_AWARENESS_CONTEXT_UNAWARE_GDISCALED)
     SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_UNAWARE_GDISCALED);
 #elif defined(DPI_AWARENESS_CONTEXT_UNAWARE)
     SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_UNAWARE);
 #endif
+    }
     g_inst = GetModuleHandleW(NULL);
     INITCOMMONCONTROLSEX icc;
     memset(&icc, 0, sizeof(icc));
@@ -1189,6 +1967,18 @@ void jnative_ui_run_loop(void) {
     }
     MSG msg;
     while (!g_quit && GetMessageW(&msg, NULL, 0, 0) > 0) {
+        if (msg.message == WM_MOUSEWHEEL || msg.message == WM_MOUSEHWHEEL) {
+            /* Route the wheel to the canvas under the cursor regardless of focus. */
+            POINT wp;
+            wp.x = (int)(short)LOWORD(msg.lParam);
+            wp.y = (int)(short)HIWORD(msg.lParam);
+            HWND under = WindowFromPoint(wp);
+            int32_t uid = under != NULL ? (int32_t)(intptr_t)GetWindowLongPtr(under, GWLP_USERDATA) : 0;
+            if (uid > 0 && uid < JN_UI_MAX && g_kinds[uid] == JN_UI_KIND_CANVAS) {
+                SendMessageW(under, msg.message, msg.wParam, msg.lParam);
+                continue;
+            }
+        }
         jn_forward_key(&msg);
         TranslateMessage(&msg);
         DispatchMessageW(&msg);
@@ -1217,9 +2007,17 @@ int32_t jnative_ui_create_window(const char *title, int32_t width, int32_t heigh
     RECT wr;
     wr.left = 0;
     wr.top = 0;
-    wr.right = width;
-    wr.bottom = height;
-    AdjustWindowRectEx(&wr, style, FALSE, 0);
+    if (g_dpi_aware) {
+        UINT sdpi = GetDpiForSystem();
+        g_cur_dpi = sdpi != 0 ? sdpi : 96;
+        wr.right = MulDiv(width, (int)g_cur_dpi, 96);
+        wr.bottom = MulDiv(height, (int)g_cur_dpi, 96);
+        AdjustWindowRectExForDpi(&wr, style, FALSE, 0, g_cur_dpi);
+    } else {
+        wr.right = width;
+        wr.bottom = height;
+        AdjustWindowRectEx(&wr, style, FALSE, 0);
+    }
     wchar_t *wtitle = utf8_to_wide(title);
     HWND hwnd = CreateWindowExW(
             0, JN_WCLASS, wtitle, style,
@@ -1337,6 +2135,8 @@ int32_t jnative_ui_create_control(int32_t kind, int32_t parentId, const char *te
             return create_ctrl(kind, parentId, text, L"STATIC", SS_LEFT);
         case JN_UI_KIND_TRENDCHART:
             return create_ctrl(kind, parentId, text, JN_PCLASS, WS_CLIPCHILDREN);
+        case JN_UI_KIND_CANVAS:
+            return create_ctrl(kind, parentId, text, JN_PCLASS, 0);
         case JN_UI_KIND_MENUITEM:
         case JN_UI_KIND_SEPARATOR:
             return create_ctrl(kind, parentId, text, L"STATIC", SS_LEFT);
@@ -1664,6 +2464,12 @@ void jnative_ui_destroy(int32_t id) {
         g_live_controls--;
     }
     clear_visual(id);
+    if (g_cv_back[id].dc != NULL) {
+        SelectObject(g_cv_back[id].dc, g_cv_back[id].old);
+        DeleteObject(g_cv_back[id].bmp);
+        DeleteDC(g_cv_back[id].dc);
+        memset(&g_cv_back[id], 0, sizeof(JnBack));
+    }
     if (id > 0 && id < JN_UI_MAX) {
         free(g_trend_csv[id]);
         g_trend_csv[id] = NULL;
@@ -1678,9 +2484,11 @@ void jnative_ui_show(int32_t id) {
         /* Sync UiLib layout to the real client size. */
         if (g_kinds[id] == JN_UI_KIND_WINDOW) {
             RECT rc;
+            UINT sdpi = hwnd_dpi(g_hwnds[id]);
             GetClientRect(g_hwnds[id], &rc);
             jnative_ui_emit_event_ex(id, JN_UI_EVENT_RESIZE,
-                    rc.right - rc.left, rc.bottom - rc.top, 0, 0);
+                    MulDiv(rc.right - rc.left, 96, (int)sdpi),
+                    MulDiv(rc.bottom - rc.top, 96, (int)sdpi), 0, 0);
         }
     }
 }
@@ -1877,6 +2685,13 @@ void jnative_ui_set_bounds(int32_t id, int32_t x, int32_t y, int32_t w, int32_t 
                 SetWindowPos(hwnd, NULL, x, y, 0, 0,
                         SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE);
             }
+            return;
+        }
+        if (g_dpi_aware) {
+            UINT bdpi = hwnd_dpi(hwnd);
+            int px0 = MulDiv(x, (int)bdpi, 96), py0 = MulDiv(y, (int)bdpi, 96);
+            int px1 = MulDiv(x + w, (int)bdpi, 96), py1 = MulDiv(y + h, (int)bdpi, 96);
+            MoveWindow(hwnd, px0, py0, px1 - px0, py1 - py0, TRUE);
             return;
         }
         MoveWindow(hwnd, x, y, w, h, TRUE);
@@ -2444,23 +3259,8 @@ int32_t jnative_ui_platform_context_menu_show(int32_t menuId, int32_t screenX, i
     return 0;
 }
 
-int32_t jnative_ui_context_menu_show(int32_t menuId, int32_t screenX, int32_t screenY) {
+static void jn_build_popup(HMENU h, int32_t menuId, int depth) {
     int i;
-    HMENU h;
-    int cmd;
-    POINT pt;
-    HWND owner = NULL;
-    int32_t wid;
-    if (!g_win32_active) {
-        return 0;
-    }
-    if (menuId <= 0 || menuId >= JN_UI_MAX) {
-        return 0;
-    }
-    h = CreatePopupMenu();
-    if (h == NULL) {
-        return 0;
-    }
     for (i = 0; i < g_menu_child_n[menuId]; i++) {
         int32_t cid = g_menu_children[menuId][i];
         if (cid <= 0 || cid >= JN_UI_MAX) {
@@ -2477,14 +3277,42 @@ int32_t jnative_ui_context_menu_show(int32_t menuId, int32_t screenX, int32_t sc
                 t = "";
             }
             wchar_t *w = utf8_to_wide(t);
-            UINT flags = MF_STRING;
-            if (g_enabled_flag[cid] == 0) {
-                flags |= MF_GRAYED;
+            if (g_kinds[cid] == JN_UI_KIND_LABEL && depth < 3) {
+                HMENU sub = CreatePopupMenu();
+                jn_build_popup(sub, cid, depth + 1);
+                AppendMenuW(h, MF_POPUP | MF_STRING, (UINT_PTR)sub, w);
+            } else {
+                UINT flags = MF_STRING;
+                if (g_enabled_flag[cid] == 0) {
+                    flags |= MF_GRAYED;
+                }
+                if (g_selected[cid] != 0) {
+                    flags |= MF_CHECKED;
+                }
+                AppendMenuW(h, flags, (UINT_PTR)cid, w);
             }
-            AppendMenuW(h, flags, (UINT_PTR)cid, w);
             free(w);
         }
     }
+}
+
+int32_t jnative_ui_context_menu_show(int32_t menuId, int32_t screenX, int32_t screenY) {
+    HMENU h;
+    int cmd;
+    POINT pt;
+    HWND owner = NULL;
+    int32_t wid;
+    if (!g_win32_active) {
+        return 0;
+    }
+    if (menuId <= 0 || menuId >= JN_UI_MAX) {
+        return 0;
+    }
+    h = CreatePopupMenu();
+    if (h == NULL) {
+        return 0;
+    }
+    jn_build_popup(h, menuId, 0);
     pt.x = screenX;
     pt.y = screenY;
     if (screenX == 0 && screenY == 0) {
@@ -2632,7 +3460,6 @@ int32_t jnative_ui_prefers_increased_contrast(void) { return 0; }
 char *jnative_ui_dialog_dir_open(int32_t windowId) {
     (void)windowId; return NULL;
 }
-void jnative_ui_canvas_invalidate(int32_t id) { (void)id; }
 void jnative_ui_canvas_present(int32_t id, int32_t surfaceId) {
     (void)id; (void)surfaceId;
 }

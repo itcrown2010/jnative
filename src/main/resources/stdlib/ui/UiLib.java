@@ -448,6 +448,75 @@ class UiNative {
     @Native(symbol = "jnative_ui_canvas_present")
     static native void canvasPresent(int id, int surfaceId);
 
+    @Native(symbol = "jnative_ui_set_dpi_aware")
+    static native void setDpiAware(int on);
+
+    @Native(symbol = "jnative_ui_get_dpi")
+    static native int getDpi(int id);
+
+    @Native(symbol = "jnative_ui_set_flat")
+    static native void setFlat(int id);
+
+    @Native(symbol = "jnative_ui_set_placeholder")
+    static native void setPlaceholder(int id, String text);
+
+    @Native(symbol = "jnative_ui_window_set_caption")
+    static native void windowSetCaption(int windowId, int captionRgb, int textRgb, int dark);
+
+    @Native(symbol = "jnative_ui_key_state")
+    static native int keyState(int vk);
+
+    @Native(symbol = "jnative_ui_cursor_screen_x")
+    static native int cursorScreenX();
+
+    @Native(symbol = "jnative_ui_cursor_screen_y")
+    static native int cursorScreenY();
+
+    @Native(symbol = "jnative_ui_cv_font")
+    static native int cvFont(String face, int size10, int weight, int italic);
+
+    @Native(symbol = "jnative_ui_cv_text_width")
+    static native int cvTextWidth(int fontId, String text);
+
+    @Native(symbol = "jnative_ui_cv_text_height")
+    static native int cvTextHeight(int fontId, String text, int w);
+
+    @Native(symbol = "jnative_ui_cv_fill_rect")
+    static native void cvFillRect(int x, int y, int w, int h, int argb);
+
+    @Native(symbol = "jnative_ui_cv_round_rect")
+    static native void cvRoundRect(int x, int y, int w, int h, int r, int fillArgb, int strokeArgb, int strokeX10);
+
+    @Native(symbol = "jnative_ui_cv_line")
+    static native void cvLine(int x1, int y1, int x2, int y2, int argb, int wX10);
+
+    @Native(symbol = "jnative_ui_cv_poly_begin")
+    static native void cvPolyBegin();
+
+    @Native(symbol = "jnative_ui_cv_poly_pt")
+    static native void cvPolyPt(int xMilli, int yMilli);
+
+    @Native(symbol = "jnative_ui_cv_poly_end")
+    static native void cvPolyEnd(int fillArgb, int strokeArgb, int strokeX10);
+
+    @Native(symbol = "jnative_ui_cv_text")
+    static native void cvText(int x, int y, int w, int h, String text, int argb, int fontId, int flags);
+
+    @Native(symbol = "jnative_ui_cv_glyph")
+    static native void cvGlyph(int x, int y, int w, int h, int cp, int argb, int fontId, int flags);
+
+    @Native(symbol = "jnative_ui_cv_icon")
+    static native int cvIcon(String path, int x, int y, int size);
+
+    @Native(symbol = "jnative_ui_cv_clip_push")
+    static native void cvClipPush(int x, int y, int w, int h);
+
+    @Native(symbol = "jnative_ui_cv_clip_pop")
+    static native void cvClipPop();
+
+    @Native(symbol = "jnative_ui_cv_set_cursor")
+    static native void cvSetCursor(int kind);
+
     @Native(symbol = "jnative_ui_timer_start")
     static native int timerStart(int intervalMs, int handleId);
 
@@ -924,6 +993,9 @@ class Application {
         if (openWindows == null) {
             openWindows = new ArrayList<Window>();
         }
+        if (dpiAware != 0) {
+            UiNative.setDpiAware(1);
+        }
         UiNative.init(headlessMode);
         if (appName != null) {
             UiNative.setAppName(appName);
@@ -945,6 +1017,17 @@ class Application {
 
     static void setHeadless(int headless) {
         headlessMode = headless;
+    }
+
+    /** Windows: opt in to Per-Monitor-V2 DPI (sharp text); layout stays in DIP. Call before new Application(). */
+    static int dpiAware = 0;
+
+    static void setDpiAware(boolean on) {
+        if (on) {
+            dpiAware = 1;
+        } else {
+            dpiAware = 0;
+        }
     }
 
     static void setUncaughtExceptionHandler(Runnable handler) {
@@ -2861,6 +2944,16 @@ class TextField extends Control {
         UiNative.setText(nativeId, text);
     }
 
+    /** Borderless edit (caller draws the frame) — Windows. */
+    void setFlat() {
+        UiNative.setFlat(nativeId);
+    }
+
+    /** Cue banner text shown while empty — Windows. */
+    void setCueBanner(String s) {
+        UiNative.setPlaceholder(nativeId, s);
+    }
+
     /** Pull peer text after native edit without rewriting the control (caret-safe). */
     void syncTextFromNative() {
         if (nativeId <= 0) {
@@ -4697,6 +4790,16 @@ class Window extends Component {
         }
     }
 
+    /** Windows 11: caption / border / text colors (0xRRGGBB) and dark flag. */
+    void setCaptionColors(int captionRgb, int textRgb, boolean dark) {
+        ensureAlive("Window.setCaptionColors");
+        int d = 0;
+        if (dark) {
+            d = 1;
+        }
+        UiNative.windowSetCaption(nativeId, captionRgb, textRgb, d);
+    }
+
     void setMinSize(int w, int h) {
         ensureAlive("Window.setMinSize");
         if (w < 0 || h < 0) {
@@ -5348,6 +5451,119 @@ class TrendChart extends Control {
         String meta = String.valueOf(y0) + "," + String.valueOf(y1) + ","
                 + String.valueOf(capacity);
         UiNative.setText(nativeId, meta + "|" + body);
+    }
+}
+
+/**
+ * Custom-drawn surface (Windows). Paint inside the paint callback with {@link Gfx};
+ * all coordinates are DIP. Mouse events arrive through onMouse (type 1 down, 2 up, 4 dbl,
+ * 5 move, 7 leave, 8 wheel with delta in {@code button}, 9 horizontal wheel).
+ */
+class PaintView extends Control {
+    PaintView() {
+        prefWidth = 400;
+        width = 400;
+        prefHeight = 300;
+        height = 300;
+        nativeId = UiNative.createControl(19, 0, "");
+        UiHandleRegistry.put(nativeId, this);
+    }
+
+    void setOnPaint(UiHook h) {
+        paintHook = h;
+    }
+
+    void startTimer(int ms, UiHook h) {
+        timerHook = h;
+        UiNative.timerStart(ms, nativeId);
+    }
+
+    void stopTimer() {
+        UiNative.timerStop(nativeId);
+    }
+
+    void invalidate() {
+        if (nativeId > 0) {
+            UiNative.canvasInvalidate(nativeId);
+        }
+    }
+
+    int dpi() {
+        return UiNative.getDpi(nativeId);
+    }
+}
+
+/** Immediate-mode drawing calls; valid only inside a PaintView paint callback (except text metrics). */
+class Gfx {
+    static int font(String face, int size10, int weight) {
+        return UiNative.cvFont(face, size10, weight, 0);
+    }
+
+    static int textWidth(int font, String s) {
+        return UiNative.cvTextWidth(font, s);
+    }
+
+    static int textHeight(int font, String s, int w) {
+        return UiNative.cvTextHeight(font, s, w);
+    }
+
+    static void fill(int x, int y, int w, int h, int argb) {
+        UiNative.cvFillRect(x, y, w, h, argb);
+    }
+
+    static void round(int x, int y, int w, int h, int r, int fillArgb) {
+        UiNative.cvRoundRect(x, y, w, h, r, fillArgb, 0, 0);
+    }
+
+    static void roundStroke(int x, int y, int w, int h, int r, int fillArgb, int strokeArgb, int strokeX10) {
+        UiNative.cvRoundRect(x, y, w, h, r, fillArgb, strokeArgb, strokeX10);
+    }
+
+    static void line(int x1, int y1, int x2, int y2, int argb, int wX10) {
+        UiNative.cvLine(x1, y1, x2, y2, argb, wX10);
+    }
+
+    static void polyBegin() {
+        UiNative.cvPolyBegin();
+    }
+
+    /** Point in DIP * 1000. */
+    static void polyPt(int xMilli, int yMilli) {
+        UiNative.cvPolyPt(xMilli, yMilli);
+    }
+
+    static void polyEnd(int fillArgb, int strokeArgb, int strokeX10) {
+        UiNative.cvPolyEnd(fillArgb, strokeArgb, strokeX10);
+    }
+
+    /** flags: bits0-1 align (0 left,1 center,2 right); 4 vcenter; 8 ellipsis; 16 wrap; 32 bottom. */
+    static void text(String s, int x, int y, int w, int h, int argb, int font, int flags) {
+        UiNative.cvText(x, y, w, h, s, argb, font, flags);
+    }
+
+    /** Single code point (decimal), e.g. icon-font glyphs. */
+    static void glyph(int cp, int x, int y, int w, int h, int argb, int font, int flags) {
+        UiNative.cvGlyph(x, y, w, h, cp, argb, font, flags);
+    }
+
+    static int icon(String path, int x, int y, int size) {
+        return UiNative.cvIcon(path, x, y, size);
+    }
+
+    static void clip(int x, int y, int w, int h) {
+        UiNative.cvClipPush(x, y, w, h);
+    }
+
+    static void unclip() {
+        UiNative.cvClipPop();
+    }
+
+    static void cursor(int kind) {
+        UiNative.cvSetCursor(kind);
+    }
+
+    static boolean keyDown(int vk) {
+        return UiNative.keyState(vk) != 0;
     }
 }
 

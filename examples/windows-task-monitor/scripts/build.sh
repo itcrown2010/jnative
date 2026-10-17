@@ -39,7 +39,7 @@ while i < len(lines):
     body.append(lines[i])
     i += 1
 parts = []
-for name in ("TmTokens.java", "TmViewModel.java", "TaskMonitor.java", "TmActions.java", "TmCommands.java"):
+for name in ("TmTheme.java", "TmData.java", "TmGrid.java", "TmBuild.java", "TmPerf.java", "TmDialogs.java", "TaskMonitor.java"):
     parts.append((root / "src" / name).read_text())
 out.write_text("// AUTO-GENERATED — windows-task-monitor\n" + "".join(body) + "\n" + "\n".join(parts))
 print(out)
@@ -53,13 +53,16 @@ if [[ "$OS" == MINGW* || "$OS" == MSYS* || "$OS" == CYGWIN* || "$OS" == Windows_
   "$CC" -c -O2 -I"$NATIVE" "$NATIVE/jn_am_windows.c" -o "$OUT_DIR/jn_am_windows.o"
   rm -f "$OUT_DIR/libjn_am.a"
   ar rcs "$OUT_DIR/libjn_am.a" "$OUT_DIR/jn_am_windows.o"
+  "$CC" -c -O2 -I"$ROOT/native" "$ROOT/native/jn_tm_windows.c" -o "$OUT_DIR/jn_tm_windows.o"
+  rm -f "$OUT_DIR/libjn_tm.a"
+  ar rcs "$OUT_DIR/libjn_tm.a" "$OUT_DIR/jn_tm_windows.o"
 
   MERGED="$OUT_DIR/merged-task-monitor.java"
   merge_sources "$MERGED"
   OUT="$OUT_DIR/jnative-task-monitor.exe"
   echo "==> desktop → $OUT"
   java -jar "$JAR" "$MERGED" -o "$OUT" --app-type gui -O1 \
-    -L "$OUT_DIR" -l jn_am
+    -L "$OUT_DIR" -l jn_am -l jn_tm -l version -l advapi32 -l iphlpapi -l shell32 -l ole32
   echo "OK $OUT"
   exit 0
 fi

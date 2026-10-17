@@ -1,29 +1,32 @@
 # Author: 张晓达
-# Build JNative Task Monitor on Windows x64 (MinGW clang or LLVM clang).
-# Requires: Java 17+, target\jnative.jar, clang capable of host Windows linking.
+# Build the JNative Windows Task Monitor (Windows, MinGW/LLVM clang + JDK 17+ to run the compiler jar).
+# Output: build\windows-task-monitor\jnative-task-monitor.exe
 $ErrorActionPreference = "Stop"
 $Root = Split-Path -Parent (Split-Path -Parent $MyInvocation.MyCommand.Path)
-$Repo = Resolve-Path (Join-Path $Root "..\..")
+$Repo = (Resolve-Path (Join-Path $Root "..\..")).Path
 $Jar = if ($env:JNATIVE_JAR) { $env:JNATIVE_JAR } else { Join-Path $Repo "target\jnative.jar" }
 $OutDir = if ($env:OUT_DIR) { $env:OUT_DIR } else { Join-Path $Repo "build\windows-task-monitor" }
-$NativeDir = Join-Path $Root "..\activity-monitor\native"
-$NativeDir = Resolve-Path $NativeDir
+$AmNative = (Resolve-Path (Join-Path $Root "..\activity-monitor\native")).Path
+$TmNative = Join-Path $Root "native"
 
 New-Item -ItemType Directory -Force -Path $OutDir | Out-Null
-
 if (-not (Test-Path $Jar)) {
-  Write-Error "Missing $Jar — build the compiler first (mvn -DskipTests package)."
+  Write-Error "Missing $Jar - build the compiler first (mvn -DskipTests package)."
 }
 
-Write-Host "==> compile jn_am (Windows)"
-$Src = Join-Path $NativeDir "jn_am_windows.c"
-$Obj = Join-Path $OutDir "jn_am_windows.o"
-$Lib = Join-Path $OutDir "libjn_am.a"
-& clang -c -O2 -I"$NativeDir" "$Src" -o "$Obj"
-if (Test-Path $Lib) { Remove-Item $Lib }
-& ar rcs "$Lib" "$Obj"
-$LibA = Join-Path $OutDir "jn_am.lib"
-Copy-Item $Lib $LibA -Force
+function Build-Static($srcFile, $name) {
+  $obj = Join-Path $OutDir "$name.o"
+  $lib = Join-Path $OutDir "lib$name.a"
+  & clang -c -O2 -I"$AmNative" -I"$TmNative" "$srcFile" -o "$obj"
+  if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+  if (Test-Path $lib) { Remove-Item $lib }
+  & ar rcs "$lib" "$obj"
+  Copy-Item $lib (Join-Path $OutDir "$name.lib") -Force
+}
+
+Write-Host "==> compile native libs (jn_am, jn_tm)"
+Build-Static (Join-Path $AmNative "jn_am_windows.c") "jn_am"
+Build-Static (Join-Path $TmNative "jn_tm_windows.c") "jn_tm"
 
 Write-Host "==> merge sources"
 $Merged = Join-Path $OutDir "merged-task-monitor.java"
@@ -54,29 +57,27 @@ while ($i -lt $lines.Length) {
 }
 
 $SrcOrder = @(
-  "TmTokens.java",
-  "TmViewModel.java",
-  "TaskMonitor.java",
-  "TmActions.java",
-  "TmCommands.java"
+  "TmTheme.java",
+  "TmData.java",
+  "TmGrid.java",
+  "TmBuild.java",
+  "TmPerf.java",
+  "TmDialogs.java",
+  "TaskMonitor.java"
 )
-$DeskParts = New-Object System.Collections.Generic.List[string]
+$Parts = New-Object System.Collections.Generic.List[string]
 foreach ($name in $SrcOrder) {
   $p = Join-Path $Root "src\$name"
   if (-not (Test-Path $p)) { Write-Error "Missing $p" }
   $t = [System.IO.File]::ReadAllText((Resolve-Path $p), $Utf8)
   if ($t.Length -gt 0 -and $t[0] -eq [char]0xFEFF) { $t = $t.Substring(1) }
-  $DeskParts.Add($t)
+  $Parts.Add($t.Replace("`r`n", "`n"))
 }
-$MergedText = "// AUTO-GENERATED - windows-task-monitor`n" + ($body -join "`n") + "`n" + ($DeskParts -join "`n`n")
+$MergedText = "// AUTO-GENERATED - windows-task-monitor`n" + ($body -join "`n").Replace("`r", "") + "`n" + ($Parts -join "`n`n")
 [System.IO.File]::WriteAllText($Merged, $MergedText, $Utf8)
 
 $Out = Join-Path $OutDir "jnative-task-monitor.exe"
-Write-Host "==> jnative → $Out"
-# version: GetFileVersionInfo* used by jn_am_windows for FileDescription icons/names
-& java -jar $Jar $Merged -o $Out --app-type gui -O1 -L $OutDir -l jn_am -l version
+Write-Host "==> jnative -> $Out"
+& java -jar $Jar $Merged -o $Out --app-type gui -O1 -L $OutDir -l jn_am -l jn_tm -l version -l advapi32 -l iphlpapi -l shell32 -l ole32
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 Write-Host "OK $Out"
-Write-Host "Run: $Out"
-Write-Host "Dump: $Out --dump"
-Write-Host "Status: WINDOWS_E2E_UNVERIFIED until Parallel visual QA"

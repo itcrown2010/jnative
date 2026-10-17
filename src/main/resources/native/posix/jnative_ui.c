@@ -1186,3 +1186,48 @@ int32_t jnative_now_ms(void) {
     long long ms = (long long)tv.tv_sec * 1000 + (long long)tv.tv_usec / 1000;
     return (int32_t)ms;
 }
+
+/* ---- Windows-only canvas / DPI extensions: inert stubs so UiLib links everywhere. ---- */
+void jnative_ui_set_dpi_aware(int32_t v) { (void)v; }
+int32_t jnative_ui_get_dpi(int32_t id) { (void)id; return 96; }
+void jnative_ui_set_flat(int32_t id) { (void)id; }
+void jnative_ui_set_placeholder(int32_t id, const char *text) { (void)id; (void)text; }
+void jnative_ui_window_set_caption(int32_t w, int32_t cap, int32_t txt, int32_t dark) {
+    (void)w; (void)cap; (void)txt; (void)dark;
+}
+int32_t jnative_ui_key_state(int32_t vk) { (void)vk; return 0; }
+int32_t jnative_ui_cursor_screen_x(void) { return 0; }
+int32_t jnative_ui_cursor_screen_y(void) { return 0; }
+int32_t jnative_ui_cv_font(const char *face, int32_t size10, int32_t weight, int32_t italic) {
+    (void)face; (void)size10; (void)weight; (void)italic; return 0;
+}
+int32_t jnative_ui_cv_text_width(int32_t f, const char *t) { (void)f; (void)t; return 0; }
+int32_t jnative_ui_cv_text_height(int32_t f, const char *t, int32_t w) { (void)f; (void)t; (void)w; return 0; }
+void jnative_ui_cv_fill_rect(int32_t x, int32_t y, int32_t w, int32_t h, int32_t a) {
+    (void)x; (void)y; (void)w; (void)h; (void)a;
+}
+void jnative_ui_cv_round_rect(int32_t x, int32_t y, int32_t w, int32_t h, int32_t r,
+                              int32_t f, int32_t s, int32_t sw) {
+    (void)x; (void)y; (void)w; (void)h; (void)r; (void)f; (void)s; (void)sw;
+}
+void jnative_ui_cv_line(int32_t x1, int32_t y1, int32_t x2, int32_t y2, int32_t a, int32_t w) {
+    (void)x1; (void)y1; (void)x2; (void)y2; (void)a; (void)w;
+}
+void jnative_ui_cv_poly_begin(void) {}
+void jnative_ui_cv_poly_pt(int32_t x, int32_t y) { (void)x; (void)y; }
+void jnative_ui_cv_poly_end(int32_t f, int32_t s, int32_t w) { (void)f; (void)s; (void)w; }
+void jnative_ui_cv_text(int32_t x, int32_t y, int32_t w, int32_t h, const char *t,
+                        int32_t a, int32_t f, int32_t fl) {
+    (void)x; (void)y; (void)w; (void)h; (void)t; (void)a; (void)f; (void)fl;
+}
+int32_t jnative_ui_cv_icon(const char *p, int32_t x, int32_t y, int32_t s) {
+    (void)p; (void)x; (void)y; (void)s; return 0;
+}
+void jnative_ui_cv_clip_push(int32_t x, int32_t y, int32_t w, int32_t h) {
+    (void)x; (void)y; (void)w; (void)h;
+}
+void jnative_ui_cv_clip_pop(void) {}
+void jnative_ui_cv_set_cursor(int32_t k) { (void)k; }
+void jnative_ui_cv_glyph(int32_t x, int32_t y, int32_t w, int32_t h, int32_t cp, int32_t a, int32_t f, int32_t fl) {
+    (void)x; (void)y; (void)w; (void)h; (void)cp; (void)a; (void)f; (void)fl;
+}
