@@ -51,6 +51,9 @@ class FsNative {
     @Native(symbol = "jnative_fs_open")
     static native int open(String path);
 
+    @Native(symbol = "jnative_fs_reveal")
+    static native int reveal(String path);
+
     @Native(symbol = "jnative_fs_trash")
     static native int trash(String path);
 
@@ -953,13 +956,7 @@ class Desktop {
     }
 
     static void revealFile(String path) {
-        ProcessBuilder pb = new ProcessBuilder("/usr/bin/open");
-        pb.argument("-R");
-        pb.argument(path);
-        Process p = pb.start();
-        if (p != null) {
-            p.waitFor();
-        }
+        FsNative.reveal(path);
     }
 
     static void openUrl(String url) {

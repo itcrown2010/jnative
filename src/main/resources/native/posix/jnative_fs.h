@@ -45,6 +45,9 @@ char *jnative_fs_known_folder(const char *id);
 /** Open path with OS default application (ShellExecute / open / xdg-open). */
 int32_t jnative_fs_open(const char *path);
 
+/** Reveal path in the file manager (Explorer /select, Finder -R, xdg-open of parent). */
+int32_t jnative_fs_reveal(const char *path);
+
 /** Move path to Recycle Bin / Trash. */
 int32_t jnative_fs_trash(const char *path);
 

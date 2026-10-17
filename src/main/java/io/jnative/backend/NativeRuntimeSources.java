@@ -94,9 +94,11 @@ public final class NativeRuntimeSources {
         if (platform == Platform.WINDOWS_X86_64) {
             /* Host Windows (MinGW/clang): enable GC + MT so managed apps can link.
              * Crypto is included for double formatting and BCrypt CSPRNG.
-             * Crash handler, proc, and TLS stay out of the Windows set. */
+             * Crash handler and TLS stay out of the Windows set; proc uses CreateProcess. */
             sources.add(copyResource("native/windows/jnative_socket.c", dir.resolve("jnative_socket.c")));
             sources.add(copyResource("native/windows/jnative_fs.c", dir.resolve("jnative_fs.c")));
+            copyResource("native/posix/jnative_proc.h", dir.resolve("jnative_proc.h"));
+            sources.add(copyResource("native/windows/jnative_proc.c", dir.resolve("jnative_proc.c")));
             copyResource("native/posix/jnative_string.h", dir.resolve("jnative_string.h"));
             sources.add(copyResource("native/posix/jnative_string.c", dir.resolve("jnative_string.c")));
             copyResource("native/posix/jnative_mt.h", dir.resolve("jnative_mt.h"));

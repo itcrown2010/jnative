@@ -339,6 +339,28 @@ int32_t jnative_fs_open(const char *path) {
 #endif
 }
 
+int32_t jnative_fs_reveal(const char *path) {
+    if (path == NULL) {
+        return 0;
+    }
+    pid_t pid = 0;
+#if defined(__APPLE__)
+    char *argv[] = { "/usr/bin/open", "-R", (char *)path, NULL };
+    int rc = posix_spawn(&pid, "/usr/bin/open", NULL, NULL, argv, environ);
+    return rc == 0 ? 1 : 0;
+#else
+    char dir[PATH_MAX];
+    snprintf(dir, sizeof(dir), "%s", path);
+    char *slash = strrchr(dir, '/');
+    if (slash != NULL && slash != dir) {
+        *slash = '\0';
+    }
+    char *argv[] = { "xdg-open", dir, NULL };
+    int rc = posix_spawnp(&pid, "xdg-open", NULL, NULL, argv, environ);
+    return rc == 0 ? 1 : 0;
+#endif
+}
+
 int32_t jnative_fs_trash(const char *path) {
     if (path == NULL) {
         return 0;

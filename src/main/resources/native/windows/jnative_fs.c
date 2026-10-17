@@ -393,6 +393,29 @@ int32_t jnative_fs_open(const char *path) {
     return ((INT_PTR)hi > 32) ? 1 : 0;
 }
 
+int32_t jnative_fs_reveal(const char *path) {
+    wchar_t *w = utf8_to_wide(path);
+    if (w == NULL) {
+        return 0;
+    }
+    size_t len = wcslen(w);
+    wchar_t *args = (wchar_t *)malloc((len + 16) * sizeof(wchar_t));
+    if (args == NULL) {
+        free(w);
+        return 0;
+    }
+    for (size_t i = 0; i < len; i++) {
+        if (w[i] == L'/') {
+            w[i] = L'\\';
+        }
+    }
+    swprintf(args, len + 16, L"/select,\"%ls\"", w);
+    HINSTANCE hi = ShellExecuteW(NULL, L"open", L"explorer.exe", args, NULL, SW_SHOWNORMAL);
+    free(args);
+    free(w);
+    return ((INT_PTR)hi > 32) ? 1 : 0;
+}
+
 int32_t jnative_fs_trash(const char *path) {
     wchar_t *w = utf8_to_wide(path);
     if (w == NULL) {
