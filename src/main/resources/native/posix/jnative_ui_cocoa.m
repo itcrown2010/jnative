@@ -50,17 +50,20 @@ static JnUiMenuTarget *g_menu_target = nil;
 static void jn_apply_menu_shortcut(NSMenuItem *item, int32_t itemId) {
     int32_t key = jnative_ui_menu_get_shortcut_key(itemId);
     int32_t mods = jnative_ui_menu_get_shortcut_mods(itemId);
-    if (key <= 0) {
+    if (key <= 0 || (mods & 16) != 0) { /* bit 16 = display-only label */
         [item setKeyEquivalent:@""];
         return;
     }
     unichar ch = (unichar)key;
-    if (ch >= 'A' && ch <= 'Z') {
+    BOOL fkey = (key >= 112 && key <= 123);
+    if (fkey) {
+        ch = (unichar)(NSF1FunctionKey + (key - 112));
+    } else if (ch >= 'A' && ch <= 'Z') {
         ch = (unichar)(ch - 'A' + 'a');
     }
     NSString *ke = [NSString stringWithCharacters:&ch length:1];
     [item setKeyEquivalent:ke];
-    NSUInteger mask = NSEventModifierFlagCommand;
+    NSUInteger mask = fkey ? 0 : NSEventModifierFlagCommand;
     if ((mods & 4) != 0) {
         mask = NSEventModifierFlagControl;
     }
@@ -74,6 +77,36 @@ static void jn_apply_menu_shortcut(NSMenuItem *item, int32_t itemId) {
         mask |= NSEventModifierFlagOption;
     }
     [item setKeyEquivalentModifierMask:mask];
+}
+
+/* Live menu state (Enabled / checkmark) after the menu bar was built. */
+static NSMenuItem *jn_find_menu_item(NSMenu *menu, int32_t itemId) {
+    for (NSMenuItem *mi in menu.itemArray) {
+        if (mi.tag == (NSInteger)itemId && !mi.hasSubmenu) {
+            return mi;
+        }
+        if (mi.hasSubmenu) {
+            NSMenuItem *r = jn_find_menu_item(mi.submenu, itemId);
+            if (r != nil) {
+                return r;
+            }
+        }
+    }
+    return nil;
+}
+
+static void jn_menu_item_refresh(int32_t itemId) {
+    NSMenu *mm = [NSApp mainMenu];
+    if (mm == nil) {
+        return;
+    }
+    NSMenuItem *mi = jn_find_menu_item(mm, itemId);
+    if (mi == nil) {
+        return;
+    }
+    [mi setEnabled:jnative_ui_get_enabled(itemId) != 0];
+    [mi setState:jnative_ui_get_selected(itemId) != 0 ? NSControlStateValueOn
+                                                       : NSControlStateValueOff];
 }
 
 @interface JnUiWindow : NSWindow <NSWindowDelegate>
@@ -342,6 +375,22 @@ static int32_t jn_lighten_rgba(int32_t rgba, int delta) {
     jnative_ui_emit_event(self.jnHandleId, JN_UI_EVENT_CHANGE);
 }
 @end
+
+/* Plain-text multi-line editor (Notepad-class TextArea). */
+@interface JnTextArea : NSTextView
+@property(nonatomic, assign) int32_t jnHandleId;
+@end
+@implementation JnTextArea
+- (void)didChangeText {
+    [super didChangeText];
+    if (self.jnHandleId > 0) {
+        const char *u = self.string.UTF8String;
+        jnative_ui_store_text(self.jnHandleId, u ? u : "");
+        jnative_ui_emit_event(self.jnHandleId, JN_UI_EVENT_CHANGE);
+    }
+}
+@end
+
 
 @interface JnUiCombo : NSComboBox
 @property(nonatomic, assign) int32_t jnHandleId;
@@ -1397,9 +1446,28 @@ int32_t jnative_ui_platform_create_control(int32_t peerId, int32_t kind, int32_t
     }
     if (kind == JN_UI_KIND_TEXTAREA) {
         NSScrollView *scroll = [[NSScrollView alloc] initWithFrame:NSMakeRect(20, 20, 300, 120)];
-        NSTextView *tv = [[NSTextView alloc] initWithFrame:scroll.bounds];
+        JnTextArea *tv = [[JnTextArea alloc] initWithFrame:scroll.bounds];
+        tv.jnHandleId = peerId;
+        [tv setRichText:NO];
+        [tv setAllowsUndo:YES];
+        [tv setAutomaticQuoteSubstitutionEnabled:NO];
+        [tv setAutomaticDashSubstitutionEnabled:NO];
+        [tv setAutomaticTextReplacementEnabled:NO];
+        [tv setAutomaticSpellingCorrectionEnabled:NO];
+        [tv setAutomaticLinkDetectionEnabled:NO];
+        [tv setContinuousSpellCheckingEnabled:NO];
+        [tv setUsesFindBar:NO];
+        [tv setMinSize:NSMakeSize(0, 0)];
+        [tv setMaxSize:NSMakeSize(1e7, 1e7)];
+        [tv setVerticallyResizable:YES];
+        [tv setHorizontallyResizable:NO];
+        [tv setAutoresizingMask:NSViewWidthSizable];
+        [[tv textContainer] setWidthTracksTextView:YES];
+        [[tv textContainer] setContainerSize:NSMakeSize(scroll.bounds.size.width, 1e7)];
+        [tv setFont:[NSFont userFixedPitchFontOfSize:14.0]];
         [scroll setDocumentView:tv];
         [scroll setHasVerticalScroller:YES];
+        [scroll setBorderType:NSNoBorder];
         if (parentView != nil) {
             [parentView addSubview:scroll];
         }
@@ -1555,6 +1623,13 @@ int32_t jnative_ui_platform_dialog_message(int32_t windowId, int32_t type,
         [alert addButtonWithTitle:@"强制结束"];
         [alert addButtonWithTitle:@"取消"];
         [alert setAlertStyle:NSAlertStyleWarning];
+    } else if (type == 5) {
+        [alert addButtonWithTitle:@"Yes"];
+        [alert addButtonWithTitle:@"No"];
+        [alert setAlertStyle:NSAlertStyleWarning];
+    } else if (type == 7) {
+        [alert addButtonWithTitle:@"OK"];
+        [alert setAlertStyle:NSAlertStyleWarning];
     } else {
         [alert addButtonWithTitle:@"OK"];
     }
@@ -1697,6 +1772,11 @@ void jnative_ui_platform_set_text(int32_t handleId, const char *text) {
         [(NSButton *)obj setTitle:jn_nsstring(text)];
     } else if ([obj isKindOfClass:[NSTextField class]]) {
         [(NSTextField *)obj setStringValue:jn_nsstring(text)];
+    } else if ([obj isKindOfClass:[NSScrollView class]]
+               && [[(NSScrollView *)obj documentView] isKindOfClass:[JnTextArea class]]) {
+        JnTextArea *tv = (JnTextArea *)[(NSScrollView *)obj documentView];
+        [tv setString:jn_nsstring(text)];
+        [[tv undoManager] removeAllActions];
     }
 }
 
@@ -1773,6 +1853,8 @@ void jnative_ui_platform_set_enabled(int32_t handleId, int32_t enabled) {
     id obj = (handleId > 0 && handleId < JN_UI_MAX) ? g_peers[handleId] : nil;
     if ([obj respondsToSelector:@selector(setEnabled:)]) {
         [obj setEnabled:enabled != 0];
+    } else if (obj == nil) {
+        jn_menu_item_refresh(handleId);
     }
 }
 
@@ -2485,6 +2567,8 @@ void jnative_ui_platform_set_selected(int32_t peerId, int32_t selected) {
     if ([obj isKindOfClass:[NSButton class]]) {
         NSButton *btn = (NSButton *)obj;
         [btn setState:(selected != 0) ? NSControlStateValueOn : NSControlStateValueOff];
+    } else if (obj == nil) {
+        jn_menu_item_refresh(peerId);
     }
 }
 
@@ -2672,3 +2756,311 @@ void jnative_ui_platform_table_set_scroll_y(int32_t peerId, int32_t y) {
     [[sv documentView] scrollPoint:pt];
 }
 
+
+/* ===== Notepad-class editor natives (Cocoa proxy for the Win32 backend) ===== */
+
+static JnTextArea *jn_ta(int32_t peerId) {
+    if (!g_cocoa_active || peerId <= 0 || peerId >= JN_UI_MAX) {
+        return nil;
+    }
+    id obj = g_peers[peerId];
+    if (![obj isKindOfClass:[NSScrollView class]]) {
+        return nil;
+    }
+    id doc = [(NSScrollView *)obj documentView];
+    return [doc isKindOfClass:[JnTextArea class]] ? (JnTextArea *)doc : nil;
+}
+
+int32_t jnative_ui_ta_get_sel_start(int32_t id) {
+    JnTextArea *tv = jn_ta(id);
+    return tv == nil ? 0 : (int32_t)tv.selectedRange.location;
+}
+
+int32_t jnative_ui_ta_get_sel_end(int32_t id) {
+    JnTextArea *tv = jn_ta(id);
+    return tv == nil ? 0 : (int32_t)NSMaxRange(tv.selectedRange);
+}
+
+void jnative_ui_ta_set_sel(int32_t id, int32_t start, int32_t end) {
+    JnTextArea *tv = jn_ta(id);
+    if (tv == nil) {
+        return;
+    }
+    NSInteger len = (NSInteger)tv.string.length;
+    if (end < 0 || end > len) end = (int32_t)len;
+    if (start < 0) start = 0;
+    if (start > end) {
+        int32_t t = start; start = end; end = t;
+    }
+    [tv setSelectedRange:NSMakeRange((NSUInteger)start, (NSUInteger)(end - start))];
+}
+
+void jnative_ui_ta_replace_sel(int32_t id, const char *text) {
+    JnTextArea *tv = jn_ta(id);
+    if (tv == nil) {
+        return;
+    }
+    NSString *s = jn_nsstring(text);
+    NSRange r = tv.selectedRange;
+    if ([tv shouldChangeTextInRange:r replacementString:s]) {
+        [tv replaceCharactersInRange:r withString:s];
+        [tv setSelectedRange:NSMakeRange(r.location + s.length, 0)];
+        [tv didChangeText];
+    }
+}
+
+void jnative_ui_ta_command(int32_t peerId, int32_t cmd) {
+    JnTextArea *tv = jn_ta(peerId);
+    if (tv == nil) {
+        id fld = (peerId > 0 && peerId < JN_UI_MAX) ? g_peers[peerId] : nil;
+        if (cmd == 7 && [fld isKindOfClass:[NSTextField class]]) {
+            [(NSTextField *)fld selectText:nil];
+        }
+        return;
+    }
+    switch (cmd) {
+    case 1: [[tv undoManager] undo]; break;
+    case 3: [tv cut:nil]; break;
+    case 4: [tv copy:nil]; break;
+    case 5: [tv pasteAsPlainText:nil]; break;
+    case 6: [tv delete:nil]; break;
+    case 7: [tv selectAll:nil]; break;
+    case 8: [[tv undoManager] removeAllActions]; break;
+    case 9: [tv scrollRangeToVisible:tv.selectedRange]; break;
+    default: break;
+    }
+}
+
+int32_t jnative_ui_ta_can_undo(int32_t id) {
+    JnTextArea *tv = jn_ta(id);
+    return (tv != nil && [[tv undoManager] canUndo]) ? 1 : 0;
+}
+
+/* Logical (hard-break) lines; CRLF counts as one break. */
+static NSUInteger jn_line_start_after(NSString *s, NSUInteger i) {
+    NSUInteger n = s.length;
+    while (i < n) {
+        unichar c = [s characterAtIndex:i];
+        if (c == '\n') return i + 1;
+        if (c == '\r') {
+            if (i + 1 < n && [s characterAtIndex:i + 1] == '\n') return i + 2;
+            return i + 1;
+        }
+        i++;
+    }
+    return n + 1; /* no further line */
+}
+
+int32_t jnative_ui_ta_line_count(int32_t id) {
+    JnTextArea *tv = jn_ta(id);
+    if (tv == nil) {
+        return 1;
+    }
+    NSString *s = tv.string;
+    int32_t lines = 1;
+    NSUInteger p = 0;
+    for (;;) {
+        NSUInteger nx = jn_line_start_after(s, p);
+        if (nx > s.length) break;
+        lines++;
+        p = nx;
+    }
+    return lines;
+}
+
+int32_t jnative_ui_ta_line_from_char(int32_t id, int32_t ch) {
+    JnTextArea *tv = jn_ta(id);
+    if (tv == nil) {
+        return 0;
+    }
+    NSString *s = tv.string;
+    int32_t line = 0;
+    NSUInteger p = 0;
+    for (;;) {
+        NSUInteger nx = jn_line_start_after(s, p);
+        if (nx > s.length || (NSInteger)nx > (NSInteger)ch) break;
+        line++;
+        p = nx;
+    }
+    return line;
+}
+
+int32_t jnative_ui_ta_line_index(int32_t id, int32_t line) {
+    JnTextArea *tv = jn_ta(id);
+    if (tv == nil || line < 0) {
+        return -1;
+    }
+    NSString *s = tv.string;
+    NSUInteger p = 0;
+    for (int32_t i = 0; i < line; i++) {
+        NSUInteger nx = jn_line_start_after(s, p);
+        if (nx > s.length) return -1;
+        p = nx;
+    }
+    return (int32_t)p;
+}
+
+int32_t jnative_ui_ta_length(int32_t id) {
+    JnTextArea *tv = jn_ta(id);
+    return tv == nil ? 0 : (int32_t)tv.string.length;
+}
+
+void jnative_ui_ta_set_font(int32_t id, const char *family, int32_t size10, int32_t weight,
+                            int32_t italic) {
+    JnTextArea *tv = jn_ta(id);
+    if (tv == nil) {
+        return;
+    }
+    CGFloat pt = (CGFloat)size10 / 10.0 * (96.0 / 72.0) * 0.75 + (CGFloat)size10 / 10.0 * 0.25;
+    NSFont *f = [NSFont fontWithName:jn_nsstring(family) size:pt];
+    if (f == nil) {
+        f = [NSFont userFixedPitchFontOfSize:pt];
+    }
+    NSFontManager *fm = [NSFontManager sharedFontManager];
+    if (weight >= 600) {
+        f = [fm convertFont:f toHaveTrait:NSBoldFontMask];
+    }
+    if (italic != 0) {
+        f = [fm convertFont:f toHaveTrait:NSItalicFontMask];
+    }
+    [tv setFont:f];
+}
+
+void jnative_ui_ta_set_wrap(int32_t id, int32_t wrap) {
+    JnTextArea *tv = jn_ta(id);
+    if (tv == nil) {
+        return;
+    }
+    NSScrollView *sv = [tv enclosingScrollView];
+    NSTextContainer *tc = [tv textContainer];
+    if (wrap) {
+        [sv setHasHorizontalScroller:NO];
+        [tv setHorizontallyResizable:NO];
+        [tv setAutoresizingMask:NSViewWidthSizable];
+        [tc setWidthTracksTextView:YES];
+        [tc setContainerSize:NSMakeSize(sv.contentSize.width, 1e7)];
+        [tv setFrameSize:NSMakeSize(sv.contentSize.width, tv.frame.size.height)];
+    } else {
+        [sv setHasHorizontalScroller:YES];
+        [tv setHorizontallyResizable:YES];
+        [tv setAutoresizingMask:NSViewNotSizable];
+        [tc setWidthTracksTextView:NO];
+        [tc setContainerSize:NSMakeSize(1e7, 1e7)];
+    }
+    [tv setNeedsDisplay:YES];
+}
+
+int32_t jnative_ui_clipboard_has_text(void) {
+    if (!g_cocoa_active) {
+        return 0;
+    }
+    return [[NSPasteboard generalPasteboard] canReadObjectForClasses:@[ [NSString class] ]
+                                                             options:nil] ? 1 : 0;
+}
+
+int32_t jnative_ui_system_ansi_codepage(void) { return 1252; }
+
+char *jnative_ui_codepage_decode(const char *byteStr, int32_t codepage) {
+    NSString *src = jn_nsstring(byteStr);
+    NSMutableData *raw = [NSMutableData dataWithCapacity:src.length];
+    for (NSUInteger i = 0; i < src.length; i++) {
+        unichar c = [src characterAtIndex:i];
+        uint8_t b = (uint8_t)(c & 0xFF);
+        [raw appendBytes:&b length:1];
+    }
+    CFStringEncoding enc = CFStringConvertWindowsCodepageToEncoding((UInt32)codepage);
+    if (enc == kCFStringEncodingInvalidId) {
+        enc = kCFStringEncodingWindowsLatin1;
+    }
+    NSString *out = [[NSString alloc] initWithData:raw
+                                          encoding:CFStringConvertEncodingToNSStringEncoding(enc)];
+    const char *u = (out != nil ? out : @"").UTF8String;
+    return strdup(u ? u : "");
+}
+
+char *jnative_ui_codepage_encode(const char *utf8, int32_t codepage) {
+    NSString *src = jn_nsstring(utf8);
+    CFStringEncoding enc = CFStringConvertWindowsCodepageToEncoding((UInt32)codepage);
+    if (enc == kCFStringEncodingInvalidId) {
+        enc = kCFStringEncodingWindowsLatin1;
+    }
+    NSData *d = [src dataUsingEncoding:CFStringConvertEncodingToNSStringEncoding(enc)
+                  allowLossyConversion:YES];
+    NSMutableString *out = [NSMutableString stringWithCapacity:d.length];
+    const uint8_t *b = (const uint8_t *)d.bytes;
+    for (NSUInteger i = 0; i < d.length; i++) {
+        if (b[i] == 0) continue; /* NUL not representable in C strings */
+        unichar c = b[i];
+        [out appendString:[NSString stringWithCharacters:&c length:1]];
+    }
+    const char *u = out.UTF8String;
+    return strdup(u ? u : "");
+}
+
+static int32_t g_dlg_enc = 0;
+
+int32_t jnative_ui_dialog_last_enc(void) { return g_dlg_enc; }
+
+/* filterSpec: "Desc|*.txt;*.log|Desc2|*.*" */
+char *jnative_ui_dialog_file_ex(int32_t windowId, int32_t save, const char *filterSpec,
+                                const char *defaultName, const char *encLabels, int32_t encIn) {
+    (void)windowId; (void)encLabels;
+    g_dlg_enc = encIn;
+    if (!g_cocoa_active) {
+        return NULL;
+    }
+    NSMutableArray<NSString *> *exts = [NSMutableArray array];
+    NSArray<NSString *> *parts = [jn_nsstring(filterSpec) componentsSeparatedByString:@"|"];
+    for (NSUInteger i = 1; i < parts.count && exts.count == 0; i += 2) {
+        for (NSString *pat in [parts[i] componentsSeparatedByString:@";"]) {
+            NSString *t = [pat stringByTrimmingCharactersInSet:
+                [NSCharacterSet whitespaceCharacterSet]];
+            if ([t hasPrefix:@"*."] && ![t isEqualToString:@"*.*"]) {
+                [exts addObject:[[t substringFromIndex:2] lowercaseString]];
+            }
+        }
+    }
+    NSSavePanel *panel = save ? [NSSavePanel savePanel] : [NSOpenPanel openPanel];
+    [panel setCanCreateDirectories:YES];
+    if (save) {
+        if (exts.count > 0) {
+            [panel setAllowedFileTypes:exts];
+            [panel setAllowsOtherFileTypes:YES];
+        }
+        if (defaultName != NULL && defaultName[0] != '\0') {
+            [panel setNameFieldStringValue:jn_nsstring(defaultName)];
+        }
+    } else {
+        [(NSOpenPanel *)panel setCanChooseFiles:YES];
+        [(NSOpenPanel *)panel setCanChooseDirectories:NO];
+    }
+    if ([panel runModal] != NSModalResponseOK) {
+        return NULL;
+    }
+    const char *u = panel.URL.path.UTF8String;
+    return u ? strdup(u) : NULL;
+}
+
+char *jnative_ui_dialog_font(int32_t windowId, const char *family, int32_t size10,
+                             int32_t weight, int32_t italic) {
+    (void)windowId; (void)family; (void)size10; (void)weight; (void)italic;
+    return NULL; /* font chooser is Windows-only in this proxy */
+}
+
+void jnative_ui_window_set_dialog(int32_t childId, int32_t ownerId) {
+    (void)ownerId;
+    id obj = (childId > 0 && childId < JN_UI_MAX) ? g_peers[childId] : nil;
+    if ([obj isKindOfClass:[NSWindow class]]) {
+        NSWindow *w = (NSWindow *)obj;
+        [w setStyleMask:NSWindowStyleMaskTitled | NSWindowStyleMaskClosable];
+        [w setLevel:NSFloatingWindowLevel];
+    }
+}
+
+void jnative_ui_window_activate(int32_t winId) {
+    id obj = (winId > 0 && winId < JN_UI_MAX) ? g_peers[winId] : nil;
+    if ([obj isKindOfClass:[NSWindow class]]) {
+        [(NSWindow *)obj makeKeyAndOrderFront:nil];
+        [NSApp activateIgnoringOtherApps:YES];
+    }
+}

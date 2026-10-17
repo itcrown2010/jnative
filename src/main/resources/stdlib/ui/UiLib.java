@@ -325,6 +325,81 @@ class UiNative {
     @Native(symbol = "jnative_ui_dialog_free_path")
     static native void dialogFreePath(NativePtr path);
 
+    @Native(symbol = "jnative_ui_dialog_file_ex")
+    static native NativePtr dialogFileEx(int windowId, int save, String filterSpec,
+            String defaultName, String encLabels, int encIn);
+
+    @Native(symbol = "jnative_ui_dialog_last_enc")
+    static native int dialogLastEnc();
+
+    @Native(symbol = "jnative_ui_dialog_font")
+    static native NativePtr dialogFont(int windowId, String family, int size10, int weight,
+            int italic);
+
+    @Native(symbol = "jnative_ui_window_set_dialog")
+    static native void windowSetDialog(int childId, int ownerId);
+
+    @Native(symbol = "jnative_ui_window_activate")
+    static native void windowActivate(int id);
+
+    @Native(symbol = "jnative_ui_ta_get_sel_start")
+    static native int taGetSelStart(int id);
+
+    @Native(symbol = "jnative_ui_ta_get_sel_end")
+    static native int taGetSelEnd(int id);
+
+    @Native(symbol = "jnative_ui_ta_set_sel")
+    static native void taSetSel(int id, int start, int end);
+
+    @Native(symbol = "jnative_ui_ta_replace_sel")
+    static native void taReplaceSel(int id, String text);
+
+    @Native(symbol = "jnative_ui_ta_command")
+    static native void taCommand(int id, int cmd);
+
+    @Native(symbol = "jnative_ui_ta_can_undo")
+    static native int taCanUndo(int id);
+
+    @Native(symbol = "jnative_ui_ta_line_count")
+    static native int taLineCount(int id);
+
+    @Native(symbol = "jnative_ui_ta_line_from_char")
+    static native int taLineFromChar(int id, int ch);
+
+    @Native(symbol = "jnative_ui_ta_line_index")
+    static native int taLineIndex(int id, int line);
+
+    @Native(symbol = "jnative_ui_ta_length")
+    static native int taLength(int id);
+
+    @Native(symbol = "jnative_ui_ta_set_font")
+    static native void taSetFont(int id, String family, int size10, int weight, int italic);
+
+    @Native(symbol = "jnative_ui_ta_set_wrap")
+    static native void taSetWrap(int id, int wrap);
+
+    @Native(symbol = "jnative_ui_clipboard_has_text")
+    static native int clipboardHasText();
+
+    @Native(symbol = "jnative_ui_system_ansi_codepage")
+    static native int systemAnsiCodepage();
+
+    @Native(symbol = "jnative_ui_codepage_decode")
+    static native NativePtr codepageDecode(String byteStr, int codepage);
+
+    @Native(symbol = "jnative_ui_codepage_encode")
+    static native NativePtr codepageEncode(String utf8, int codepage);
+
+    @Native(symbol = "jnative_ui_datetime_string")
+    static native NativePtr datetimeString();
+
+    @Native(symbol = "jnative_ui_page_setup")
+    static native int pageSetup(int windowId);
+
+    @Native(symbol = "jnative_ui_print_text")
+    static native int printText(int windowId, String docName, String text, String family,
+            int size10, int weight, int italic);
+
     @Native(symbol = "jnative_ui_live_windows")
     static native int liveWindows();
 
@@ -2949,6 +3024,11 @@ class TextField extends Control {
         UiNative.setFlat(nativeId);
     }
 
+    /** Select the whole text (e.g. when a dialog opens). */
+    void selectAll() {
+        UiNative.taCommand(nativeId, 7);
+    }
+
     /** Cue banner text shown while empty — Windows. */
     void setCueBanner(String s) {
         UiNative.setPlaceholder(nativeId, s);
@@ -3053,6 +3133,152 @@ class TextArea extends Control {
             editable = 0;
             setEnabled(false);
         }
+    }
+
+    /** Borderless edit (Notepad look) — Windows. */
+    void setFlat() {
+        UiNative.setFlat(nativeId);
+    }
+
+    /** Pull the live peer text (after user edits) without rewriting the control. */
+    void syncTextFromNative() {
+        if (nativeId <= 0) {
+            return;
+        }
+        NativePtr p = UiNative.copyText(nativeId);
+        if (p == NativePtr.NULL) {
+            return;
+        }
+        String t = NativeMemory.fromCString(p);
+        UiNative.dialogFreePath(p);
+        if (t == null) {
+            t = "";
+        }
+        text = t;
+    }
+
+    /** Live text of the control (UTF-16 offsets match the selection natives). */
+    String getText() {
+        ensureAlive("TextArea.getText");
+        syncTextFromNative();
+        return text;
+    }
+
+    /** Replace all text and reset the undo history. */
+    void setTextReset(String t) {
+        ensureAlive("TextArea.setTextReset");
+        if (t == null) {
+            t = "";
+        }
+        text = t;
+        UiNative.setText(nativeId, text);
+        UiNative.taCommand(nativeId, 8);
+    }
+
+    void fireChange() {
+        if (disposed != 0) {
+            return;
+        }
+        syncTextFromNative();
+        UiEvent ev = new UiEvent(this);
+        ArrayList<EventHandler<UiEvent>> snap = new ArrayList<EventHandler<UiEvent>>();
+        int n = changeHandlers.size();
+        int i = 0;
+        while (i < n) {
+            snap.add(changeHandlers.get(i));
+            i = i + 1;
+        }
+        i = 0;
+        while (i < snap.size()) {
+            snap.get(i).handle(ev);
+            i = i + 1;
+        }
+    }
+
+    int getSelectionStart() {
+        return UiNative.taGetSelStart(nativeId);
+    }
+
+    int getSelectionEnd() {
+        return UiNative.taGetSelEnd(nativeId);
+    }
+
+    /** end &lt; 0 selects through the end of the text. */
+    void setSelection(int start, int end) {
+        UiNative.taSetSel(nativeId, start, end);
+    }
+
+    void replaceSelection(String s) {
+        if (s == null) {
+            s = "";
+        }
+        UiNative.taReplaceSel(nativeId, s);
+    }
+
+    void undo() {
+        UiNative.taCommand(nativeId, 1);
+    }
+
+    void cut() {
+        UiNative.taCommand(nativeId, 3);
+    }
+
+    void copy() {
+        UiNative.taCommand(nativeId, 4);
+    }
+
+    void paste() {
+        UiNative.taCommand(nativeId, 5);
+    }
+
+    void deleteSelection() {
+        UiNative.taCommand(nativeId, 6);
+    }
+
+    void selectAll() {
+        UiNative.taCommand(nativeId, 7);
+    }
+
+    void clearUndo() {
+        UiNative.taCommand(nativeId, 8);
+    }
+
+    void scrollCaret() {
+        UiNative.taCommand(nativeId, 9);
+    }
+
+    boolean canUndo() {
+        return UiNative.taCanUndo(nativeId) != 0;
+    }
+
+    int lineCount() {
+        return UiNative.taLineCount(nativeId);
+    }
+
+    int lineFromChar(int ch) {
+        return UiNative.taLineFromChar(nativeId, ch);
+    }
+
+    /** Offset of the first char of {@code line} (0-based) or -1. */
+    int lineIndex(int line) {
+        return UiNative.taLineIndex(nativeId, line);
+    }
+
+    int textLength() {
+        return UiNative.taLength(nativeId);
+    }
+
+    /** size10 = point size x 10 (e.g. 110 = 11 pt); weight 400/700. */
+    void setEditorFont(String family, int size10, int weight, int italic) {
+        UiNative.taSetFont(nativeId, family, size10, weight, italic);
+    }
+
+    void setWordWrap(boolean wrap) {
+        int w = 0;
+        if (wrap) {
+            w = 1;
+        }
+        UiNative.taSetWrap(nativeId, w);
     }
 }
 
@@ -4285,6 +4511,8 @@ class MenuItem extends Control {
     int isSeparator;
     int checked;
     Command boundCommand;
+    /** 1 = show the accelerator text only; the control handles the key itself. */
+    int shortcutLabelOnly;
 
     MenuItem(String t) {
         text = t;
@@ -4330,6 +4558,9 @@ class MenuItem extends Control {
         if (kc.meta != 0 || kc.shortcut != 0) {
             /* withPrimary / withShortcut → Command on macOS */
             mods = mods + 8;
+        }
+        if (shortcutLabelOnly != 0) {
+            mods = mods + 16;
         }
         int key = kc.keyCode;
         if (key >= 97 && key <= 122) {
@@ -4486,6 +4717,22 @@ class Dialogs {
     }
 
     /**
+     * Raw native message box. Types: 0 info, 1 yes/no, 2 error, 3 save/don't/cancel,
+     * 5 yes/no (warning, returns 1 for Yes), 6 OK (information), 7 OK (warning).
+     */
+    static int show(Window owner, int type, String title, String message) {
+        Application.checkUiThread("Dialogs.show");
+        beginModal(owner);
+        int wid = 0;
+        if (owner != null) {
+            wid = owner.nativeId;
+        }
+        int r = UiNative.dialogMessage(wid, type, title, message);
+        endModal(owner);
+        return r;
+    }
+
+    /**
      * Save / Don't Save / Cancel.
      * @return 1 Save, 2 Don't Save, 0 Cancel
      */
@@ -4601,6 +4848,104 @@ class FileDialog {
             System.out.println("Safe write failed: " + ex.getMessage());
             return 0;
         }
+    }
+}
+
+/** Extended file dialogs (filter pairs, default name, encoding combo — Windows). */
+class FileDialogEx {
+    static int lastEncoding;
+
+    /**
+     * @param filterSpec "Text Documents (*.txt)|*.txt|All Files (*.*)|*.*"
+     * @param encLabels  tab-separated encoding names for the Save/Open combo ("" = none)
+     * @param enc        initially selected encoding index
+     */
+    static String show(Window owner, int save, String filterSpec, String defaultName,
+            String encLabels, int enc) {
+        Application.checkUiThread("FileDialogEx.show");
+        int wid = 0;
+        if (owner != null) {
+            wid = owner.nativeId;
+        }
+        if (filterSpec == null) {
+            filterSpec = "";
+        }
+        if (defaultName == null) {
+            defaultName = "";
+        }
+        if (encLabels == null) {
+            encLabels = "";
+        }
+        NativePtr p = UiNative.dialogFileEx(wid, save, filterSpec, defaultName, encLabels, enc);
+        lastEncoding = UiNative.dialogLastEnc();
+        if (p == NativePtr.NULL) {
+            return null;
+        }
+        String path = NativeMemory.fromCString(p);
+        UiNative.dialogFreePath(p);
+        return path;
+    }
+}
+
+/** Font chooser (Windows ChooseFont). Returns "Family|size10|weight|italic" or null. */
+class FontDialog {
+    static String choose(Window owner, String family, int size10, int weight, int italic) {
+        Application.checkUiThread("FontDialog.choose");
+        int wid = 0;
+        if (owner != null) {
+            wid = owner.nativeId;
+        }
+        NativePtr p = UiNative.dialogFont(wid, family, size10, weight, italic);
+        if (p == NativePtr.NULL) {
+            return null;
+        }
+        String r = NativeMemory.fromCString(p);
+        UiNative.dialogFreePath(p);
+        return r;
+    }
+}
+
+/** Misc platform helpers used by editors. */
+class UiSys {
+    static boolean clipboardHasText() {
+        return UiNative.clipboardHasText() != 0;
+    }
+
+    static int ansiCodepage() {
+        return UiNative.systemAnsiCodepage();
+    }
+
+    /** Windows Page Setup dialog (margins/orientation). True when confirmed. */
+    static boolean pageSetup(Window owner) {
+        int wid = 0;
+        if (owner != null) {
+            wid = owner.nativeId;
+        }
+        return UiNative.pageSetup(wid) != 0;
+    }
+
+    /** Print plain text through the Windows print dialog. True when printed. */
+    static boolean printText(Window owner, String docName, String text, String family,
+            int size10, int weight, int italic) {
+        int wid = 0;
+        if (owner != null) {
+            wid = owner.nativeId;
+        }
+        return UiNative.printText(wid, docName, text, family, size10, weight, italic) != 0;
+    }
+
+    /** Locale short time + short date, e.g. "9:41 PM 10/17/2026". */
+    static String dateTimeString() {
+        NativePtr p = UiNative.datetimeString();
+        if (p == NativePtr.NULL) {
+            return "";
+        }
+        String r = NativeMemory.fromCString(p);
+        UiNative.dialogFreePath(p);
+        if (r == null) {
+            return "";
+        }
+        return r;
     }
 }
 
@@ -4743,6 +5088,16 @@ class Window extends Component {
 
     void setRole(int r) {
         role = r;
+    }
+
+    /** Dialog look: owned by {@code owner}, no minimize/maximize/resize, not in the taskbar. */
+    void setDialogStyle(Window owner) {
+        ensureAlive("Window.setDialogStyle");
+        int oid = 0;
+        if (owner != null) {
+            oid = owner.nativeId;
+        }
+        UiNative.windowSetDialog(nativeId, oid);
     }
 
     void setOwnerWindow(Window primary) {

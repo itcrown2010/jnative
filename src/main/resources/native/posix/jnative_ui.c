@@ -9,6 +9,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 #include <pthread.h>
 #include <unistd.h>
 #include <sys/time.h>
@@ -854,6 +855,77 @@ char *jnative_ui_dialog_dir_open(int32_t windowId) {
 }
 void jnative_ui_dialog_free_path(char *path) {
     free(path);
+}
+
+/* ---- Notepad-class editor natives: weak defaults (Cocoa/Win32 override) ---- */
+__attribute__((weak)) char *jnative_ui_dialog_file_ex(int32_t windowId, int32_t save,
+        const char *filterSpec, const char *defaultName, const char *encLabels, int32_t encIn) {
+    (void)defaultName; (void)encLabels; (void)encIn;
+    return save ? jnative_ui_dialog_file_save(windowId, filterSpec)
+                : jnative_ui_dialog_file_open(windowId, filterSpec);
+}
+__attribute__((weak)) int32_t jnative_ui_dialog_last_enc(void) { return 0; }
+__attribute__((weak)) char *jnative_ui_dialog_font(int32_t windowId, const char *family,
+        int32_t size10, int32_t weight, int32_t italic) {
+    (void)windowId; (void)family; (void)size10; (void)weight; (void)italic;
+    return NULL;
+}
+__attribute__((weak)) void jnative_ui_window_set_dialog(int32_t childId, int32_t ownerId) {
+    (void)childId; (void)ownerId;
+}
+__attribute__((weak)) void jnative_ui_window_activate(int32_t id) { (void)id; }
+__attribute__((weak)) int32_t jnative_ui_ta_get_sel_start(int32_t id) { (void)id; return 0; }
+__attribute__((weak)) int32_t jnative_ui_ta_get_sel_end(int32_t id) { (void)id; return 0; }
+__attribute__((weak)) void jnative_ui_ta_set_sel(int32_t id, int32_t s, int32_t e) {
+    (void)id; (void)s; (void)e;
+}
+__attribute__((weak)) void jnative_ui_ta_replace_sel(int32_t id, const char *text) {
+    (void)id; (void)text;
+}
+__attribute__((weak)) void jnative_ui_ta_command(int32_t id, int32_t cmd) { (void)id; (void)cmd; }
+__attribute__((weak)) int32_t jnative_ui_ta_can_undo(int32_t id) { (void)id; return 0; }
+__attribute__((weak)) int32_t jnative_ui_ta_line_count(int32_t id) { (void)id; return 1; }
+__attribute__((weak)) int32_t jnative_ui_ta_line_from_char(int32_t id, int32_t ch) {
+    (void)id; (void)ch; return 0;
+}
+__attribute__((weak)) int32_t jnative_ui_ta_line_index(int32_t id, int32_t line) {
+    (void)id; (void)line; return 0;
+}
+__attribute__((weak)) int32_t jnative_ui_ta_length(int32_t id) { (void)id; return 0; }
+__attribute__((weak)) void jnative_ui_ta_set_font(int32_t id, const char *family, int32_t size10,
+        int32_t weight, int32_t italic) {
+    (void)id; (void)family; (void)size10; (void)weight; (void)italic;
+}
+__attribute__((weak)) void jnative_ui_ta_set_wrap(int32_t id, int32_t wrap) { (void)id; (void)wrap; }
+__attribute__((weak)) int32_t jnative_ui_clipboard_has_text(void) { return 0; }
+__attribute__((weak)) int32_t jnative_ui_system_ansi_codepage(void) { return 1252; }
+__attribute__((weak)) char *jnative_ui_datetime_string(void) {
+    char buf[96];
+    time_t now = time(NULL);
+    struct tm lt;
+    localtime_r(&now, &lt);
+    strftime(buf, sizeof buf, "%I:%M %p %m/%d/%Y", &lt);
+    return jn_ui_strdup(buf);
+}
+__attribute__((weak)) int32_t jnative_ui_page_setup(int32_t windowId) {
+    (void)windowId;
+    return 0;
+}
+__attribute__((weak)) int32_t jnative_ui_print_text(int32_t windowId, const char *docName,
+        const char *utf8Text, const char *family, int32_t size10, int32_t weight,
+        int32_t italic) {
+    (void)windowId; (void)docName; (void)utf8Text; (void)family; (void)size10;
+    (void)weight; (void)italic;
+    return 0;
+}
+/* Fallback: byte strings are already Latin-1 text, so decode/encode are identity. */
+__attribute__((weak)) char *jnative_ui_codepage_decode(const char *byteStr, int32_t codepage) {
+    (void)codepage;
+    return jn_ui_strdup(byteStr != NULL ? byteStr : "");
+}
+__attribute__((weak)) char *jnative_ui_codepage_encode(const char *utf8, int32_t codepage) {
+    (void)codepage;
+    return jn_ui_strdup(utf8 != NULL ? utf8 : "");
 }
 
 void jnative_ui_post_task(void) {

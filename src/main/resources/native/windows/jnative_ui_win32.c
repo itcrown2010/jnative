@@ -17,7 +17,13 @@
 #ifndef _UNICODE
 #define _UNICODE
 #endif
+#ifndef COBJMACROS
+#define COBJMACROS
+#endif
 #include <windows.h>
+#include <commdlg.h>
+#include <shobjidl.h>
+#include <stdio.h>
 #include <commctrl.h>
 #include <shellapi.h>
 #include <uxtheme.h>
@@ -59,6 +65,14 @@ static int g_task_queue = 0;
 static int g_quit = 0;
 static int g_appearance_mode = 0; /* 0 system, 1 light, 2 dark */
 static int g_hot[JN_UI_MAX];
+/* Menu bar / accelerators / TextArea state (Notepad support). */
+static HACCEL g_accel[JN_UI_MAX];
+static int32_t g_menubar_id[JN_UI_MAX];
+static int g_menu_key[JN_UI_MAX];
+static int g_menu_mods[JN_UI_MAX];
+static int g_ta_nowrap[JN_UI_MAX];
+static void jn_menu_sync(HMENU h);
+static void jn_build_popup(HMENU h, int32_t menuId, int depth);
 static const wchar_t *JN_WCLASS = L"JNativeWindow";
 static const wchar_t *JN_PCLASS = L"JNativePanel";
 /* Child controls are created before UiLib reparents them; Win32 forbids
@@ -130,9 +144,9 @@ static void apply_outer_client_size(HWND hwnd, int clientW, int clientH) {
     DWORD style = (DWORD)GetWindowLongPtr(hwnd, GWL_STYLE);
     DWORD ex = (DWORD)GetWindowLongPtr(hwnd, GWL_EXSTYLE);
     if (g_dpi_aware) {
-        AdjustWindowRectExForDpi(&wr, style, FALSE, ex, dpi);
+        AdjustWindowRectExForDpi(&wr, style, GetMenu(hwnd) != NULL, ex, dpi);
     } else {
-        AdjustWindowRectEx(&wr, style, FALSE, ex);
+        AdjustWindowRectEx(&wr, style, GetMenu(hwnd) != NULL, ex);
     }
     SetWindowPos(hwnd, NULL, 0, 0, wr.right - wr.left, wr.bottom - wr.top,
             SWP_NOMOVE | SWP_NOZORDER | SWP_NOACTIVATE);
@@ -1590,6 +1604,20 @@ static LRESULT CALLBACK JnWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPa
         SetBkMode(hdc, TRANSPARENT);
         return (LRESULT)br;
     }
+    if (msg == WM_INITMENUPOPUP) {
+        if (HIWORD(lParam) == 0) {
+            jn_menu_sync((HMENU)wParam);
+        }
+        return 0;
+    }
+    if (msg == WM_COMMAND && lParam == 0) {
+        /* Menu item or accelerator: LOWORD = managed menu-item handle. */
+        int32_t mid = (int32_t)LOWORD(wParam);
+        if (mid > 0 && mid < JN_UI_MAX) {
+            jnative_ui_emit_event(mid, JN_UI_EVENT_MENU);
+        }
+        return 0;
+    }
     if (msg == WM_COMMAND) {
         HWND ctrl = (HWND)lParam;
         int32_t cid = (int32_t)(intptr_t)GetWindowLongPtr(ctrl, GWLP_USERDATA);
@@ -1688,10 +1716,13 @@ static LRESULT CALLBACK JnWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPa
         return 0;
     }
     if (msg == WM_CLOSE) {
+        /* Managed side decides (veto / unsaved-changes prompt) and calls
+         * jnative_ui_close_window to actually destroy the window. */
         if (handleId > 0) {
             jnative_ui_emit_event(handleId, JN_UI_EVENT_CLOSE);
+        } else {
+            DestroyWindow(hwnd);
         }
-        DestroyWindow(hwnd);
         return 0;
     }
     if (msg == WM_DESTROY) {
@@ -1880,7 +1911,9 @@ static void jn_forward_key(const MSG *msg) {
     GetClassNameW(msg->hwnd, cls, 16);
     int in_text = _wcsicmp(cls, L"Edit") == 0 || _wcsicmp(cls, L"ComboBox") == 0
             || _wcsnicmp(cls, L"RichEdit", 8) == 0;
-    if (in_text && !ctrl && !alt && vk != VK_ESCAPE && !(vk >= VK_F1 && vk <= VK_F12)) {
+    int single_line = in_text && !(GetWindowLongPtr(msg->hwnd, GWL_STYLE) & ES_MULTILINE);
+    if (in_text && !ctrl && !alt && vk != VK_ESCAPE && !(vk >= VK_F1 && vk <= VK_F12)
+            && !(single_line && (vk == VK_RETURN || vk == VK_TAB))) {
         return;
     }
 
@@ -1976,6 +2009,43 @@ void jnative_ui_run_loop(void) {
             int32_t uid = under != NULL ? (int32_t)(intptr_t)GetWindowLongPtr(under, GWLP_USERDATA) : 0;
             if (uid > 0 && uid < JN_UI_MAX && g_kinds[uid] == JN_UI_KIND_CANVAS) {
                 SendMessageW(under, msg.message, msg.wParam, msg.lParam);
+                continue;
+            }
+        }
+        {
+            int32_t rw = jn_root_window_id(msg.hwnd);
+            if (rw > 0 && g_accel[rw] != NULL && g_hwnds[rw] != NULL
+                    && TranslateAcceleratorW(g_hwnds[rw], g_accel[rw], &msg)) {
+                continue;
+            }
+        }
+        if (msg.message == WM_MOUSEWHEEL && (GET_KEYSTATE_WPARAM(msg.wParam) & MK_CONTROL)) {
+            /* Ctrl+wheel over a text area = zoom (managed code owns the zoom level). */
+            POINT zp;
+            HWND zu;
+            wchar_t zc[16];
+            zp.x = (int)(short)LOWORD(msg.lParam);
+            zp.y = (int)(short)HIWORD(msg.lParam);
+            zu = WindowFromPoint(zp);
+            zc[0] = 0;
+            if (zu != NULL) {
+                GetClassNameW(zu, zc, 16);
+            }
+            if (_wcsicmp(zc, L"Edit") == 0 && (GetWindowLongPtr(zu, GWL_STYLE) & ES_MULTILINE)) {
+                int32_t zw = jn_root_window_id(zu);
+                short zd = (short)HIWORD(msg.wParam);
+                if (zw > 0 && zd != 0) {
+                    jnative_ui_emit_event_ex(zw, JN_UI_EVENT_KEY, 1, zd > 0 ? 61 : 45, 2 | 16, 0);
+                }
+                continue;
+            }
+        }
+        if (msg.message == WM_CHAR && (msg.wParam == 13 || msg.wParam == 27 || msg.wParam == 9)) {
+            /* Single-line edits beep on Enter/Esc/Tab outside a dialog manager. */
+            wchar_t cc[16];
+            cc[0] = 0;
+            GetClassNameW(msg.hwnd, cc, 16);
+            if (_wcsicmp(cc, L"Edit") == 0 && !(GetWindowLongPtr(msg.hwnd, GWL_STYLE) & ES_MULTILINE)) {
                 continue;
             }
         }
@@ -2111,7 +2181,14 @@ int32_t jnative_ui_create_control(int32_t kind, int32_t parentId, const char *te
         case JN_UI_KIND_COMBOBOX:
             return create_ctrl(kind, parentId, text, L"COMBOBOX", CBS_DROPDOWNLIST | WS_VSCROLL);
         case JN_UI_KIND_TEXTAREA:
-            return create_ctrl(kind, parentId, text, L"EDIT", ES_LEFT | ES_MULTILINE | ES_AUTOVSCROLL | WS_VSCROLL);
+            {
+                int32_t tid = create_ctrl(kind, parentId, text, L"EDIT",
+                        ES_LEFT | ES_MULTILINE | ES_AUTOVSCROLL | ES_NOHIDESEL | WS_VSCROLL);
+                if (tid > 0 && tid < JN_UI_MAX && g_hwnds[tid] != NULL) {
+                    SendMessageW(g_hwnds[tid], EM_LIMITTEXT, 0, 0);
+                }
+                return tid;
+            }
         case JN_UI_KIND_PROGRESS:
             return create_ctrl(kind, parentId, text, PROGRESS_CLASSW, PBS_SMOOTH);
         case JN_UI_KIND_LISTVIEW:
@@ -3147,32 +3224,6 @@ void jnative_ui_menu_add(int32_t parentMenuId, int32_t childId) {
     g_menu_children[parentMenuId][g_menu_child_n[parentMenuId]] = childId;
     g_menu_child_n[parentMenuId]++;
 }
-void jnative_ui_window_set_menubar(int32_t windowId, int32_t menuBarId) {
-    (void)windowId; (void)menuBarId;
-}
-int32_t jnative_ui_dialog_message(int32_t windowId, int32_t type, const char *title, const char *message) {
-    if (g_win32_active) {
-        wchar_t *wtitle = utf8_to_wide(title);
-        wchar_t *wmsg = utf8_to_wide(message);
-        UINT flags = MB_OK;
-        if (type == 1) flags = MB_YESNO;
-        if (type == 2) flags = MB_OK | MB_ICONERROR;
-        HWND owner = (windowId > 0 && windowId < JN_UI_MAX) ? g_hwnds[windowId] : NULL;
-        int r = MessageBoxW(owner, wmsg, wtitle, flags);
-        free(wtitle); free(wmsg);
-        return (r == IDOK || r == IDYES) ? 1 : 0;
-    }
-    (void)windowId; (void)type; (void)title; (void)message;
-    return g_dialog_result;
-}
-char *jnative_ui_dialog_file_open(int32_t windowId, const char *filter) {
-    (void)windowId; (void)filter;
-    return g_file_result ? _strdup(g_file_result) : NULL;
-}
-char *jnative_ui_dialog_file_save(int32_t windowId, const char *filter) {
-    (void)windowId; (void)filter;
-    return g_file_result ? _strdup(g_file_result) : NULL;
-}
 void jnative_ui_dialog_free_path(char *path) { free(path); }
 
 void jnative_ui_headless_click(int32_t id) {
@@ -3259,6 +3310,7 @@ int32_t jnative_ui_platform_context_menu_show(int32_t menuId, int32_t screenX, i
     return 0;
 }
 
+static wchar_t *jn_menu_label(int32_t cid, const char *t);
 static void jn_build_popup(HMENU h, int32_t menuId, int depth) {
     int i;
     for (i = 0; i < g_menu_child_n[menuId]; i++) {
@@ -3276,7 +3328,7 @@ static void jn_build_popup(HMENU h, int32_t menuId, int depth) {
             if (t == NULL) {
                 t = "";
             }
-            wchar_t *w = utf8_to_wide(t);
+            wchar_t *w = jn_menu_label(cid, t);
             if (g_kinds[cid] == JN_UI_KIND_LABEL && depth < 3) {
                 HMENU sub = CreatePopupMenu();
                 jn_build_popup(sub, cid, depth + 1);
@@ -3419,9 +3471,6 @@ void jnative_ui_request_quit(void) {
     jnative_ui_quit();
 }
 void jnative_ui_set_app_name(const char *name) { (void)name; }
-void jnative_ui_menu_set_shortcut(int32_t itemId, int32_t keyCode, int32_t mods) {
-    (void)itemId; (void)keyCode; (void)mods;
-}
 void jnative_ui_focus(int32_t id) {
     if (id > 0 && id < JN_UI_MAX && g_hwnds[id] != NULL) {
         SetFocus(g_hwnds[id]);
@@ -3503,13 +3552,19 @@ void jnative_ui_table_set_scroll_y(int32_t id, int32_t y) {
     }
     table_end_bulk_update(id);
 }
+static HWND g_timer_hwnd[JN_UI_MAX];
+
 int32_t jnative_ui_timer_start(int32_t intervalMs, int32_t handleId) {
     if (handleId <= 0 || handleId >= JN_UI_MAX || intervalMs <= 0) {
         return 0;
     }
     HWND hwnd = NULL;
+    /* Prefer the control's own top-level window so a timer survives other windows closing. */
+    if (g_hwnds[handleId] != NULL) {
+        hwnd = GetAncestor(g_hwnds[handleId], GA_ROOT);
+    }
     int i = 1;
-    while (i < JN_UI_MAX) {
+    while (hwnd == NULL && i < JN_UI_MAX) {
         if (g_kinds[i] == JN_UI_KIND_WINDOW && g_hwnds[i] != NULL) {
             hwnd = g_hwnds[i];
             break;
@@ -3519,25 +3574,22 @@ int32_t jnative_ui_timer_start(int32_t intervalMs, int32_t handleId) {
     if (hwnd == NULL) {
         return 0;
     }
-    if (g_timers[handleId] != 0) {
-        KillTimer(hwnd, (UINT_PTR)handleId);
+    if (g_timers[handleId] != 0 && g_timer_hwnd[handleId] != NULL) {
+        KillTimer(g_timer_hwnd[handleId], (UINT_PTR)handleId);
     }
     g_timers[handleId] = SetTimer(hwnd, (UINT_PTR)handleId, (UINT)intervalMs, NULL);
+    g_timer_hwnd[handleId] = hwnd;
     return g_timers[handleId] != 0 ? 1 : 0;
 }
 void jnative_ui_timer_stop(int32_t handleId) {
     if (handleId <= 0 || handleId >= JN_UI_MAX) {
         return;
     }
-    int i = 1;
-    while (i < JN_UI_MAX) {
-        if (g_kinds[i] == JN_UI_KIND_WINDOW && g_hwnds[i] != NULL && g_timers[handleId] != 0) {
-            KillTimer(g_hwnds[i], (UINT_PTR)handleId);
-            break;
-        }
-        i++;
+    if (g_timers[handleId] != 0 && g_timer_hwnd[handleId] != NULL) {
+        KillTimer(g_timer_hwnd[handleId], (UINT_PTR)handleId);
     }
     g_timers[handleId] = 0;
+    g_timer_hwnd[handleId] = NULL;
 }
 
 void jnative_ui_window_set_min_size(int32_t windowId, int32_t w, int32_t h) {
@@ -3646,4 +3698,1144 @@ void jnative_clipboard_free(char *text) {
 
 void jnative_ui_platform_set_appearance_mode(int32_t mode) {
     jnative_ui_set_appearance_mode(mode);
+}
+
+/* ======================================================================== */
+/* Notepad-class support: native menu bar + accelerators, file/font dialogs, */
+/* task dialog, TextArea (EDIT) editing natives, dialog windows.             */
+/* ======================================================================== */
+
+static const wchar_t *jn_key_name(int key, wchar_t *buf, size_t cap) {
+    if (key >= 112 && key <= 123) {
+        _snwprintf(buf, cap, L"F%d", key - 111);
+    } else if (key == 43 || key == 61) {
+        wcsncpy(buf, L"Plus", cap);
+    } else if (key == 45) {
+        wcsncpy(buf, L"Minus", cap);
+    } else if (key == 46) {
+        wcsncpy(buf, L"Del", cap);
+    } else if (key == 13) {
+        wcsncpy(buf, L"Enter", cap);
+    } else if (key >= 32 && key < 127) {
+        buf[0] = (wchar_t)key;
+        buf[1] = 0;
+    } else {
+        buf[0] = 0;
+    }
+    buf[cap - 1] = 0;
+    return buf;
+}
+
+/* "Label\tCtrl+Shift+N" (accelerator text derived from menu_set_shortcut). */
+static wchar_t *jn_menu_label(int32_t cid, const char *t) {
+    wchar_t *w = utf8_to_wide(t);
+    if (g_menu_key[cid] != 0) {
+        wchar_t suffix[64];
+        wchar_t kn[16];
+        int m = g_menu_mods[cid];
+        suffix[0] = L'\t';
+        suffix[1] = 0;
+        if ((m & 4) || (m & 8)) wcscat(suffix, L"Ctrl+");
+        if (m & 2) wcscat(suffix, L"Alt+");
+        if (m & 1) wcscat(suffix, L"Shift+");
+        wcscat(suffix, jn_key_name(g_menu_key[cid], kn, 16));
+        size_t n = wcslen(w) + wcslen(suffix) + 1;
+        wchar_t *out = (wchar_t *)malloc(n * sizeof(wchar_t));
+        if (out != NULL) {
+            wcscpy(out, w);
+            wcscat(out, suffix);
+            free(w);
+            return out;
+        }
+    }
+    return w;
+}
+
+static int jn_key_to_vk(int key) {
+    if ((key >= 65 && key <= 90) || (key >= 48 && key <= 57)) return key;
+    if (key >= 'a' && key <= 'z') return key - 32;
+    if (key >= 112 && key <= 123) return key;
+    switch (key) {
+    case 43: case 61: return VK_OEM_PLUS;
+    case 45: return VK_OEM_MINUS;
+    case 46: return VK_DELETE;
+    case 13: return VK_RETURN;
+    case 27: return VK_ESCAPE;
+    case 9: return VK_TAB;
+    case 32: return VK_SPACE;
+    default: return 0;
+    }
+}
+
+static void jn_collect_accel(int32_t menuId, ACCEL *ac, int *n, int cap, int depth) {
+    int i;
+    for (i = 0; i < g_menu_child_n[menuId]; i++) {
+        int32_t cid = g_menu_children[menuId][i];
+        if (cid <= 0 || cid >= JN_UI_MAX) {
+            continue;
+        }
+        if (g_kinds[cid] == JN_UI_KIND_LABEL && depth < 3) {
+            jn_collect_accel(cid, ac, n, cap, depth + 1);
+            continue;
+        }
+        if (g_menu_key[cid] != 0 && (g_menu_mods[cid] & 16) == 0) {
+            int vk = jn_key_to_vk(g_menu_key[cid]);
+            int m = g_menu_mods[cid];
+            BYTE virt = FVIRTKEY;
+            if (vk == 0 || *n >= cap) {
+                continue;
+            }
+            if (m & 1) virt |= FSHIFT;
+            if (m & 2) virt |= FALT;
+            if ((m & 4) || (m & 8)) virt |= FCONTROL;
+            ac[*n].fVirt = virt;
+            ac[*n].key = (WORD)vk;
+            ac[*n].cmd = (WORD)cid;
+            (*n)++;
+            /* Numpad twins for zoom keys. */
+            if (vk == VK_OEM_PLUS && *n < cap) {
+                ac[*n].fVirt = (BYTE)(virt & ~FSHIFT);
+                ac[*n].key = VK_ADD;
+                ac[*n].cmd = (WORD)cid;
+                (*n)++;
+            } else if (vk == VK_OEM_MINUS && *n < cap) {
+                ac[*n].fVirt = virt;
+                ac[*n].key = VK_SUBTRACT;
+                ac[*n].cmd = (WORD)cid;
+                (*n)++;
+            } else if (vk == '0' && (virt & FCONTROL) && *n < cap) {
+                ac[*n].fVirt = virt;
+                ac[*n].key = VK_NUMPAD0;
+                ac[*n].cmd = (WORD)cid;
+                (*n)++;
+            }
+        }
+    }
+}
+
+static void jn_rebuild_accel(int32_t wid) {
+    ACCEL ac[160];
+    int n = 0;
+    int32_t bar = g_menubar_id[wid];
+    int i;
+    if (g_accel[wid] != NULL) {
+        DestroyAcceleratorTable(g_accel[wid]);
+        g_accel[wid] = NULL;
+    }
+    if (bar <= 0) {
+        return;
+    }
+    for (i = 0; i < g_menu_child_n[bar]; i++) {
+        int32_t m = g_menu_children[bar][i];
+        if (m > 0 && m < JN_UI_MAX) {
+            jn_collect_accel(m, ac, &n, 160, 1);
+        }
+    }
+    if (n > 0) {
+        g_accel[wid] = CreateAcceleratorTableW(ac, n);
+    }
+}
+
+static void jn_menu_sync(HMENU h) {
+    int n = GetMenuItemCount(h);
+    int i;
+    for (i = 0; i < n; i++) {
+        UINT id = GetMenuItemID(h, i);
+        if (id == (UINT)-1 || id == 0 || id >= (UINT)JN_UI_MAX) {
+            continue;
+        }
+        EnableMenuItem(h, (UINT)i, MF_BYPOSITION | (g_enabled_flag[id] ? MF_ENABLED : MF_GRAYED));
+        CheckMenuItem(h, (UINT)i, MF_BYPOSITION | (g_selected[id] ? MF_CHECKED : MF_UNCHECKED));
+    }
+}
+
+/* Re-apply a logical client size after a frame change (menu bar / dialog style). */
+static void jn_keep_client(HWND hw, const RECT *oldClient) {
+    UINT dpi = hwnd_dpi(hw);
+    apply_outer_client_size(hw,
+            MulDiv(oldClient->right - oldClient->left, 96, (int)dpi),
+            MulDiv(oldClient->bottom - oldClient->top, 96, (int)dpi));
+}
+
+void jnative_ui_window_set_menubar(int32_t windowId, int32_t menuBarId) {
+    HWND hw;
+    HMENU bar;
+    HMENU oldBar;
+    RECT rc;
+    int i;
+    if (!g_win32_active || windowId <= 0 || windowId >= JN_UI_MAX
+            || menuBarId <= 0 || menuBarId >= JN_UI_MAX) {
+        return;
+    }
+    hw = g_hwnds[windowId];
+    if (hw == NULL) {
+        return;
+    }
+    GetClientRect(hw, &rc);
+    bar = CreateMenu();
+    if (bar == NULL) {
+        return;
+    }
+    for (i = 0; i < g_menu_child_n[menuBarId]; i++) {
+        int32_t m = g_menu_children[menuBarId][i];
+        HMENU sub;
+        wchar_t *w;
+        if (m <= 0 || m >= JN_UI_MAX) {
+            continue;
+        }
+        sub = CreatePopupMenu();
+        jn_build_popup(sub, m, 1);
+        w = utf8_to_wide(g_item_text[m] != NULL ? g_item_text[m] : "");
+        AppendMenuW(bar, MF_POPUP | MF_STRING, (UINT_PTR)sub, w);
+        free(w);
+    }
+    oldBar = GetMenu(hw);
+    SetMenu(hw, bar);
+    if (oldBar != NULL) {
+        DestroyMenu(oldBar);
+    }
+    g_menubar_id[windowId] = menuBarId;
+    jn_rebuild_accel(windowId);
+    jn_keep_client(hw, &rc);
+    DrawMenuBar(hw);
+}
+
+void jnative_ui_menu_set_shortcut(int32_t itemId, int32_t keyCode, int32_t mods) {
+    if (itemId > 0 && itemId < JN_UI_MAX) {
+        g_menu_key[itemId] = keyCode;
+        g_menu_mods[itemId] = mods;
+    }
+}
+
+/* Dialog-style top-level window: owned, fixed size, no min/max boxes. */
+void jnative_ui_window_set_dialog(int32_t childId, int32_t ownerId) {
+    HWND hw;
+    RECT rc;
+    LONG_PTR st;
+    if (!g_win32_active || childId <= 0 || childId >= JN_UI_MAX || g_hwnds[childId] == NULL) {
+        return;
+    }
+    hw = g_hwnds[childId];
+    GetClientRect(hw, &rc);
+    if (ownerId > 0 && ownerId < JN_UI_MAX && g_hwnds[ownerId] != NULL) {
+        SetWindowLongPtrW(hw, GWLP_HWNDPARENT, (LONG_PTR)g_hwnds[ownerId]);
+    }
+    st = GetWindowLongPtr(hw, GWL_STYLE);
+    st &= ~(LONG_PTR)(WS_THICKFRAME | WS_MAXIMIZEBOX | WS_MINIMIZEBOX);
+    SetWindowLongPtr(hw, GWL_STYLE, st);
+    SetWindowLongPtr(hw, GWL_EXSTYLE,
+            (GetWindowLongPtr(hw, GWL_EXSTYLE) | WS_EX_DLGMODALFRAME) & ~(LONG_PTR)WS_EX_APPWINDOW);
+    SetWindowPos(hw, NULL, 0, 0, 0, 0,
+            SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_FRAMECHANGED | SWP_NOACTIVATE);
+    jn_keep_client(hw, &rc);
+}
+
+void jnative_ui_window_activate(int32_t id) {
+    if (id > 0 && id < JN_UI_MAX && g_hwnds[id] != NULL) {
+        ShowWindow(g_hwnds[id], SW_SHOW);
+        SetForegroundWindow(g_hwnds[id]);
+    }
+}
+
+/* ---- file dialogs -------------------------------------------------------- */
+
+typedef struct { wchar_t *name; wchar_t *pat; } JnFilterPair;
+
+/* spec "Desc|*.ext;*.x|Desc2|*.*" or legacy "json,txt". Returns pair count. */
+static int jn_parse_filter(const char *spec, wchar_t **store, JnFilterPair *out, int cap,
+                           wchar_t *defExt, size_t defCap) {
+    wchar_t *w;
+    int n = 0;
+    wchar_t *p;
+    defExt[0] = 0;
+    if (spec == NULL || spec[0] == 0) {
+        spec = "All Files (*.*)|*.*";
+    }
+    if (strchr(spec, '|') == NULL) {
+        /* legacy: comma/semicolon separated extensions */
+        wchar_t *we = utf8_to_wide(spec);
+        size_t cap2 = wcslen(we) * 4 + 128;
+        wchar_t *buf = (wchar_t *)calloc(cap2, sizeof(wchar_t));
+        wchar_t *pats = (wchar_t *)calloc(cap2, sizeof(wchar_t));
+        wchar_t *tok = we;
+        int first = 1;
+        wcscpy(buf, L"Files (");
+        while (*tok != 0) {
+            wchar_t *e = tok;
+            wchar_t save;
+            while (*e != 0 && *e != L',' && *e != L';') e++;
+            save = *e;
+            *e = 0;
+            if (tok[0] != 0) {
+                if (!first) {
+                    wcscat(buf, L";");
+                    wcscat(pats, L";");
+                }
+                wcscat(buf, L"*.");
+                wcscat(buf, tok);
+                wcscat(pats, L"*.");
+                wcscat(pats, tok);
+                if (first) {
+                    wcsncpy(defExt, tok, defCap - 1);
+                    defExt[defCap - 1] = 0;
+                }
+                first = 0;
+            }
+            if (save == 0) break;
+            tok = e + 1;
+        }
+        wcscat(buf, L")");
+        *store = (wchar_t *)calloc(cap2 * 2 + 64, sizeof(wchar_t));
+        {
+            wchar_t *s = *store;
+            size_t o = 0;
+            if (first) {
+                wcscpy(s, L"All Files (*.*)");
+                o = wcslen(s) + 1;
+                wcscpy(s + o, L"*.*");
+                out[n].name = s;
+                out[n].pat = s + o;
+                n++;
+            } else {
+                wcscpy(s, buf);
+                o = wcslen(s) + 1;
+                wcscpy(s + o, pats);
+                out[n].name = s;
+                out[n].pat = s + o;
+                n++;
+                o += wcslen(pats) + 1;
+                wcscpy(s + o, L"All Files (*.*)");
+                out[n].name = s + o;
+                o += wcslen(L"All Files (*.*)") + 1;
+                wcscpy(s + o, L"*.*");
+                out[n].pat = s + o;
+                n++;
+            }
+        }
+        free(buf);
+        free(pats);
+        free(we);
+        return n;
+    }
+    w = utf8_to_wide(spec);
+    *store = w;
+    p = w;
+    while (p != NULL && n < cap) {
+        wchar_t *bar1 = wcschr(p, L'|');
+        wchar_t *bar2;
+        if (bar1 == NULL) break;
+        *bar1 = 0;
+        out[n].name = p;
+        out[n].pat = bar1 + 1;
+        bar2 = wcschr(bar1 + 1, L'|');
+        if (bar2 != NULL) {
+            *bar2 = 0;
+            p = bar2 + 1;
+        } else {
+            p = NULL;
+        }
+        n++;
+    }
+    if (n > 0 && defExt[0] == 0) {
+        const wchar_t *pt = out[0].pat;
+        if (pt[0] == L'*' && pt[1] == L'.' && pt[2] != L'*') {
+            size_t k = 0;
+            pt += 2;
+            while (pt[k] != 0 && pt[k] != L';' && k + 1 < defCap) {
+                defExt[k] = pt[k];
+                k++;
+            }
+            defExt[k] = 0;
+        }
+    }
+    return n;
+}
+
+static char *jn_wide_dup_utf8(const wchar_t *w) {
+    int bytes = WideCharToMultiByte(CP_UTF8, 0, w, -1, NULL, 0, NULL, NULL);
+    char *out = (char *)malloc((size_t)(bytes > 0 ? bytes : 1));
+    if (out == NULL) {
+        return NULL;
+    }
+    if (bytes > 0) {
+        WideCharToMultiByte(CP_UTF8, 0, w, -1, out, bytes, NULL, NULL);
+    } else {
+        out[0] = 0;
+    }
+    return out;
+}
+
+static HWND jn_owner_hwnd(int32_t windowId) {
+    return (windowId > 0 && windowId < JN_UI_MAX) ? g_hwnds[windowId] : NULL;
+}
+
+/* Classic common dialog (fallback). */
+static char *jn_file_dialog_classic(HWND owner, int save, JnFilterPair *pairs, int np,
+                                    const wchar_t *defExt, const wchar_t *defName) {
+    wchar_t *multi;
+    size_t total = 4;
+    int i;
+    wchar_t *o;
+    wchar_t *file = (wchar_t *)calloc(32768, sizeof(wchar_t));
+    OPENFILENAMEW ofn;
+    BOOL ok;
+    char *res = NULL;
+    for (i = 0; i < np; i++) {
+        total += wcslen(pairs[i].name) + wcslen(pairs[i].pat) + 2;
+    }
+    multi = (wchar_t *)calloc(total, sizeof(wchar_t));
+    o = multi;
+    for (i = 0; i < np; i++) {
+        wcscpy(o, pairs[i].name);
+        o += wcslen(o) + 1;
+        wcscpy(o, pairs[i].pat);
+        o += wcslen(o) + 1;
+    }
+    if (defName != NULL) {
+        wcsncpy(file, defName, 32767);
+    }
+    memset(&ofn, 0, sizeof(ofn));
+    ofn.lStructSize = sizeof(ofn);
+    ofn.hwndOwner = owner;
+    ofn.lpstrFilter = multi;
+    ofn.nFilterIndex = 1;
+    ofn.lpstrFile = file;
+    ofn.nMaxFile = 32767;
+    ofn.lpstrDefExt = (defExt != NULL && defExt[0] != 0) ? defExt : NULL;
+    ofn.Flags = OFN_EXPLORER | OFN_PATHMUSTEXIST | OFN_HIDEREADONLY | OFN_NOCHANGEDIR
+            | (save ? OFN_OVERWRITEPROMPT : OFN_FILEMUSTEXIST);
+    ok = save ? GetSaveFileNameW(&ofn) : GetOpenFileNameW(&ofn);
+    if (ok) {
+        res = jn_wide_dup_utf8(file);
+    }
+    free(file);
+    free(multi);
+    return res;
+}
+
+static int g_dlg_enc = 0;
+
+/* Vista+ item dialog with an optional encoding combo box (labels '|'-separated). */
+static char *jn_file_dialog_item(HWND owner, int save, JnFilterPair *pairs, int np,
+                                 const wchar_t *defExt, const wchar_t *defName,
+                                 const char *encLabels, int encIn, int *used) {
+    IFileDialog *pfd = NULL;
+    IFileDialogCustomize *cust = NULL;
+    COMDLG_FILTERSPEC specs[16];
+    HRESULT hr;
+    char *res = NULL;
+    int i;
+    wchar_t *labels = NULL;
+    *used = 0;
+    hr = CoInitializeEx(NULL, COINIT_APARTMENTTHREADED);
+    (void)hr;
+    if (save) {
+        hr = CoCreateInstance(&CLSID_FileSaveDialog, NULL, CLSCTX_INPROC_SERVER,
+                &IID_IFileSaveDialog, (void **)&pfd);
+    } else {
+        hr = CoCreateInstance(&CLSID_FileOpenDialog, NULL, CLSCTX_INPROC_SERVER,
+                &IID_IFileOpenDialog, (void **)&pfd);
+    }
+    if (FAILED(hr) || pfd == NULL) {
+        return NULL;
+    }
+    if (np > 16) np = 16;
+    for (i = 0; i < np; i++) {
+        specs[i].pszName = pairs[i].name;
+        specs[i].pszSpec = pairs[i].pat;
+    }
+    IFileDialog_SetFileTypes(pfd, (UINT)np, specs);
+    IFileDialog_SetFileTypeIndex(pfd, 1);
+    if (defExt != NULL && defExt[0] != 0) {
+        IFileDialog_SetDefaultExtension(pfd, defExt);
+    }
+    if (defName != NULL && defName[0] != 0) {
+        IFileDialog_SetFileName(pfd, defName);
+    }
+    {
+        DWORD opts = 0;
+        IFileDialog_GetOptions(pfd, &opts);
+        opts |= FOS_FORCEFILESYSTEM | FOS_PATHMUSTEXIST | FOS_NOCHANGEDIR;
+        opts |= save ? FOS_OVERWRITEPROMPT : FOS_FILEMUSTEXIST;
+        IFileDialog_SetOptions(pfd, opts);
+    }
+    if (encLabels != NULL && encLabels[0] != 0) {
+        if (SUCCEEDED(IFileDialog_QueryInterface(pfd, &IID_IFileDialogCustomize, (void **)&cust))
+                && cust != NULL) {
+            wchar_t *p;
+            int idx = 0;
+            labels = utf8_to_wide(encLabels);
+            IFileDialogCustomize_StartVisualGroup(cust, 2000, L"Encoding:");
+            IFileDialogCustomize_AddComboBox(cust, 2001);
+            p = labels;
+            while (p != NULL && *p != 0) {
+                wchar_t *bar = wcschr(p, L'|');
+                if (bar != NULL) *bar = 0;
+                IFileDialogCustomize_AddControlItem(cust, 2001, (DWORD)idx, p);
+                idx++;
+                p = bar != NULL ? bar + 1 : NULL;
+            }
+            IFileDialogCustomize_EndVisualGroup(cust);
+            IFileDialogCustomize_SetSelectedControlItem(cust, 2001, (DWORD)encIn);
+        }
+    }
+    hr = IFileDialog_Show(pfd, owner);
+    if (SUCCEEDED(hr)) {
+        IShellItem *psi = NULL;
+        *used = 1;
+        if (SUCCEEDED(IFileDialog_GetResult(pfd, &psi)) && psi != NULL) {
+            PWSTR path = NULL;
+            if (SUCCEEDED(IShellItem_GetDisplayName(psi, SIGDN_FILESYSPATH, &path)) && path != NULL) {
+                res = jn_wide_dup_utf8(path);
+                CoTaskMemFree(path);
+            }
+            IShellItem_Release(psi);
+        }
+        if (cust != NULL) {
+            DWORD sel = 0;
+            if (SUCCEEDED(IFileDialogCustomize_GetSelectedControlItem(cust, 2001, &sel))) {
+                g_dlg_enc = (int)sel;
+            }
+        }
+    } else if (hr == HRESULT_FROM_WIN32(ERROR_CANCELLED)) {
+        *used = 1;
+    }
+    if (cust != NULL) {
+        IFileDialogCustomize_Release(cust);
+    }
+    IFileDialog_Release(pfd);
+    free(labels);
+    return res;
+}
+
+char *jnative_ui_dialog_file_ex(int32_t windowId, int32_t save, const char *filterSpec,
+                                const char *defaultName, const char *encLabels, int32_t encIn) {
+    wchar_t *store = NULL;
+    JnFilterPair pairs[16];
+    wchar_t defExt[16];
+    wchar_t *wname = NULL;
+    int np;
+    int used = 0;
+    char *res;
+    HWND owner = jn_owner_hwnd(windowId);
+    g_dlg_enc = encIn;
+    if (!g_win32_active) {
+        return g_file_result ? _strdup(g_file_result) : NULL;
+    }
+    np = jn_parse_filter(filterSpec, &store, pairs, 16, defExt, 16);
+    wname = (defaultName != NULL && defaultName[0] != 0) ? utf8_to_wide(defaultName) : NULL;
+    res = jn_file_dialog_item(owner, save, pairs, np, defExt, wname, encLabels, encIn, &used);
+    if (!used && res == NULL) {
+        res = jn_file_dialog_classic(owner, save, pairs, np, defExt, wname);
+    }
+    free(wname);
+    free(store);
+    return res;
+}
+
+int32_t jnative_ui_dialog_last_enc(void) { return g_dlg_enc; }
+
+char *jnative_ui_dialog_file_open(int32_t windowId, const char *filter) {
+    return jnative_ui_dialog_file_ex(windowId, 0, filter, NULL, NULL, 0);
+}
+char *jnative_ui_dialog_file_save(int32_t windowId, const char *filter) {
+    return jnative_ui_dialog_file_ex(windowId, 1, filter, NULL, NULL, 0);
+}
+
+/* ---- font dialog --------------------------------------------------------- */
+
+/* Returns "Family|size10|weight|italic" (malloc; free with dialog_free_path) or NULL. */
+char *jnative_ui_dialog_font(int32_t windowId, const char *family, int32_t size10,
+                             int32_t weight, int32_t italic) {
+    LOGFONTW lf;
+    CHOOSEFONTW cf;
+    wchar_t *wf;
+    HDC hdc;
+    int dpi = 96;
+    char buf[320];
+    char *fam;
+    if (!g_win32_active) {
+        return NULL;
+    }
+    hdc = GetDC(NULL);
+    if (hdc != NULL) {
+        dpi = GetDeviceCaps(hdc, LOGPIXELSY);
+        ReleaseDC(NULL, hdc);
+    }
+    memset(&lf, 0, sizeof(lf));
+    memset(&cf, 0, sizeof(cf));
+    wf = utf8_to_wide(family != NULL ? family : "Consolas");
+    wcsncpy(lf.lfFaceName, wf, LF_FACESIZE - 1);
+    free(wf);
+    lf.lfHeight = -MulDiv(size10, dpi, 720);
+    lf.lfWeight = weight > 0 ? weight : FW_NORMAL;
+    lf.lfItalic = italic != 0;
+    lf.lfCharSet = DEFAULT_CHARSET;
+    cf.lStructSize = sizeof(cf);
+    cf.hwndOwner = jn_owner_hwnd(windowId);
+    cf.lpLogFont = &lf;
+    cf.iPointSize = size10;
+    cf.Flags = CF_SCREENFONTS | CF_INITTOLOGFONTSTRUCT | CF_NOVERTFONTS | CF_LIMITSIZE;
+    cf.nSizeMin = 1;
+    cf.nSizeMax = 512;
+    if (!ChooseFontW(&cf)) {
+        return NULL;
+    }
+    fam = jn_wide_dup_utf8(lf.lfFaceName);
+    if (fam == NULL) {
+        return NULL;
+    }
+    snprintf(buf, sizeof(buf), "%s|%d|%d|%d", fam, (int)cf.iPointSize, (int)lf.lfWeight,
+            lf.lfItalic ? 1 : 0);
+    free(fam);
+    return _strdup(buf);
+}
+
+/* ---- message / task dialogs ---------------------------------------------- */
+
+typedef HRESULT (WINAPI *jn_taskdlg_fn)(const TASKDIALOGCONFIG *, int *, int *, BOOL *);
+
+/* type 3 = Save / Don't Save / Cancel (1 / 2 / 0). Others map to MessageBox. */
+int32_t jnative_ui_dialog_message(int32_t windowId, int32_t type, const char *title, const char *message) {
+    if (g_win32_active) {
+        wchar_t *wtitle = utf8_to_wide(title);
+        wchar_t *wmsg = utf8_to_wide(message);
+        HWND owner = jn_owner_hwnd(windowId);
+        int32_t result = 0;
+        if (type == 3) {
+            HMODULE cc = LoadLibraryW(L"comctl32.dll");
+            jn_taskdlg_fn td = cc != NULL ? (jn_taskdlg_fn)GetProcAddress(cc, "TaskDialogIndirect") : NULL;
+            int done = 0;
+            if (td != NULL) {
+                TASKDIALOG_BUTTON btns[2];
+                TASKDIALOGCONFIG cfg;
+                int pressed = 0;
+                memset(&cfg, 0, sizeof(cfg));
+                btns[0].nButtonID = 1001;
+                btns[0].pszButtonText = L"&Save";
+                btns[1].nButtonID = 1002;
+                btns[1].pszButtonText = L"Do&n't Save";
+                cfg.cbSize = sizeof(cfg);
+                cfg.hwndParent = owner;
+                cfg.dwFlags = TDF_ALLOW_DIALOG_CANCELLATION;
+                cfg.dwCommonButtons = TDCBF_CANCEL_BUTTON;
+                cfg.pszWindowTitle = wtitle;
+                cfg.pszContent = wmsg;
+                cfg.pButtons = btns;
+                cfg.cButtons = 2;
+                cfg.nDefaultButton = 1001;
+                if (SUCCEEDED(td(&cfg, &pressed, NULL, NULL))) {
+                    result = pressed == 1001 ? 1 : (pressed == 1002 ? 2 : 0);
+                    done = 1;
+                }
+            }
+            if (!done) {
+                int r = MessageBoxW(owner, wmsg, wtitle, MB_YESNOCANCEL | MB_ICONWARNING);
+                result = r == IDYES ? 1 : (r == IDNO ? 2 : 0);
+            }
+        } else {
+            UINT flags = MB_OK;
+            int r;
+            if (type == 1) flags = MB_YESNO;
+            if (type == 2) flags = MB_OK | MB_ICONERROR;
+            if (type == 5) flags = MB_YESNO | MB_ICONWARNING;
+            if (type == 6) flags = MB_OK | MB_ICONINFORMATION;
+            if (type == 7) flags = MB_OK | MB_ICONWARNING;
+            r = MessageBoxW(owner, wmsg, wtitle, flags);
+            result = (r == IDOK || r == IDYES) ? 1 : 0;
+        }
+        free(wtitle);
+        free(wmsg);
+        return result;
+    }
+    (void)windowId; (void)type; (void)title; (void)message;
+    return g_dialog_result;
+}
+
+/* ---- TextArea (EDIT) natives -------------------------------------------- */
+
+static HWND jn_ta_hwnd(int32_t id) {
+    if (id > 0 && id < JN_UI_MAX
+            && (g_kinds[id] == JN_UI_KIND_TEXTAREA || g_kinds[id] == JN_UI_KIND_TEXTFIELD)
+            && g_hwnds[id] != NULL) {
+        return g_hwnds[id];
+    }
+    return NULL;
+}
+
+int32_t jnative_ui_ta_get_sel_start(int32_t id) {
+    HWND h = jn_ta_hwnd(id);
+    DWORD s = 0, e = 0;
+    if (h == NULL) return 0;
+    SendMessageW(h, EM_GETSEL, (WPARAM)&s, (LPARAM)&e);
+    return (int32_t)s;
+}
+int32_t jnative_ui_ta_get_sel_end(int32_t id) {
+    HWND h = jn_ta_hwnd(id);
+    DWORD s = 0, e = 0;
+    if (h == NULL) return 0;
+    SendMessageW(h, EM_GETSEL, (WPARAM)&s, (LPARAM)&e);
+    return (int32_t)e;
+}
+void jnative_ui_ta_set_sel(int32_t id, int32_t start, int32_t end) {
+    HWND h = jn_ta_hwnd(id);
+    if (h == NULL) return;
+    SendMessageW(h, EM_SETSEL, (WPARAM)start, (LPARAM)end);
+    SendMessageW(h, EM_SCROLLCARET, 0, 0);
+}
+void jnative_ui_ta_replace_sel(int32_t id, const char *text) {
+    HWND h = jn_ta_hwnd(id);
+    wchar_t *w;
+    if (h == NULL) return;
+    w = utf8_to_wide(text);
+    SendMessageW(h, EM_REPLACESEL, TRUE, (LPARAM)w);
+    free(w);
+}
+/* 1 undo, 3 cut, 4 copy, 5 paste, 6 delete selection, 7 select all, 8 clear undo, 9 scroll caret */
+void jnative_ui_ta_command(int32_t id, int32_t cmd) {
+    HWND h = jn_ta_hwnd(id);
+    if (h == NULL) return;
+    switch (cmd) {
+    case 1: SendMessageW(h, EM_UNDO, 0, 0); break;
+    case 3: SendMessageW(h, WM_CUT, 0, 0); break;
+    case 4: SendMessageW(h, WM_COPY, 0, 0); break;
+    case 5: SendMessageW(h, WM_PASTE, 0, 0); break;
+    case 6: SendMessageW(h, WM_CLEAR, 0, 0); break;
+    case 7: SendMessageW(h, EM_SETSEL, 0, (LPARAM)-1); break;
+    case 8: SendMessageW(h, EM_EMPTYUNDOBUFFER, 0, 0); break;
+    case 9: SendMessageW(h, EM_SCROLLCARET, 0, 0); break;
+    default: break;
+    }
+}
+int32_t jnative_ui_ta_can_undo(int32_t id) {
+    HWND h = jn_ta_hwnd(id);
+    return h != NULL && SendMessageW(h, EM_CANUNDO, 0, 0) != 0 ? 1 : 0;
+}
+int32_t jnative_ui_ta_line_count(int32_t id) {
+    HWND h = jn_ta_hwnd(id);
+    return h != NULL ? (int32_t)SendMessageW(h, EM_GETLINECOUNT, 0, 0) : 0;
+}
+int32_t jnative_ui_ta_line_from_char(int32_t id, int32_t ch) {
+    HWND h = jn_ta_hwnd(id);
+    return h != NULL ? (int32_t)SendMessageW(h, EM_LINEFROMCHAR, (WPARAM)ch, 0) : 0;
+}
+int32_t jnative_ui_ta_line_index(int32_t id, int32_t line) {
+    HWND h = jn_ta_hwnd(id);
+    return h != NULL ? (int32_t)SendMessageW(h, EM_LINEINDEX, (WPARAM)line, 0) : 0;
+}
+int32_t jnative_ui_ta_length(int32_t id) {
+    HWND h = jn_ta_hwnd(id);
+    return h != NULL ? (int32_t)GetWindowTextLengthW(h) : 0;
+}
+
+void jnative_ui_ta_set_font(int32_t id, const char *family, int32_t size10, int32_t weight,
+                            int32_t italic) {
+    HWND h = jn_ta_hwnd(id);
+    HFONT f;
+    wchar_t *wf;
+    int px;
+    UINT dpi;
+    if (h == NULL) return;
+    dpi = hwnd_dpi(h);
+    wf = utf8_to_wide(family != NULL ? family : "Consolas");
+    px = -MulDiv(size10, (int)dpi, 720);
+    if (px == 0) px = -1;
+    f = CreateFontW(px, 0, 0, 0, weight > 0 ? weight : FW_NORMAL, italic != 0, FALSE, FALSE,
+            DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, CLEARTYPE_QUALITY,
+            DEFAULT_PITCH | FF_DONTCARE, wf);
+    free(wf);
+    if (f == NULL) return;
+    if (g_fonts[id] != NULL) {
+        DeleteObject(g_fonts[id]);
+    }
+    g_fonts[id] = f;
+    SendMessageW(h, WM_SETFONT, (WPARAM)f, TRUE);
+}
+
+/* Recreate the EDIT with/without horizontal scrolling (word wrap on = no hscroll). */
+void jnative_ui_ta_set_wrap(int32_t id, int32_t wrap) {
+    HWND old = jn_ta_hwnd(id);
+    HWND parent, nh;
+    RECT wr;
+    POINT tl;
+    LONG_PTR st, ex;
+    int noWrap = wrap ? 0 : 1;
+    int len;
+    wchar_t *txt;
+    DWORD s = 0, e = 0;
+    HFONT font;
+    int hadFocus;
+    if (old == NULL || g_kinds[id] != JN_UI_KIND_TEXTAREA || g_ta_nowrap[id] == noWrap) {
+        return;
+    }
+    parent = GetParent(old);
+    if (parent == NULL) {
+        return;
+    }
+    hadFocus = GetFocus() == old;
+    GetWindowRect(old, &wr);
+    tl.x = wr.left;
+    tl.y = wr.top;
+    ScreenToClient(parent, &tl);
+    len = GetWindowTextLengthW(old);
+    txt = (wchar_t *)calloc((size_t)len + 2, sizeof(wchar_t));
+    if (txt == NULL) {
+        return;
+    }
+    GetWindowTextW(old, txt, len + 1);
+    SendMessageW(old, EM_GETSEL, (WPARAM)&s, (LPARAM)&e);
+    font = (HFONT)SendMessageW(old, WM_GETFONT, 0, 0);
+    st = GetWindowLongPtr(old, GWL_STYLE);
+    ex = GetWindowLongPtr(old, GWL_EXSTYLE);
+    if (noWrap) {
+        st |= WS_HSCROLL | ES_AUTOHSCROLL;
+    } else {
+        st &= ~(LONG_PTR)(WS_HSCROLL | ES_AUTOHSCROLL);
+    }
+    nh = CreateWindowExW((DWORD)ex, L"EDIT", L"", (DWORD)st,
+            tl.x, tl.y, wr.right - wr.left, wr.bottom - wr.top, parent, NULL, g_inst, NULL);
+    if (nh == NULL) {
+        free(txt);
+        return;
+    }
+    SetWindowLongPtr(nh, GWLP_USERDATA, (LONG_PTR)id);
+    SendMessageW(nh, EM_LIMITTEXT, 0, 0);
+    if (font != NULL) {
+        SendMessageW(nh, WM_SETFONT, (WPARAM)font, TRUE);
+    }
+    SetWindowTextW(nh, txt);
+    SendMessageW(nh, EM_SETSEL, (WPARAM)s, (LPARAM)e);
+    SetWindowPos(nh, old, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
+    g_hwnds[id] = nh;
+    DestroyWindow(old);
+    free(txt);
+    g_ta_nowrap[id] = noWrap;
+    if (hadFocus) {
+        SetFocus(nh);
+    }
+    SendMessageW(nh, EM_SCROLLCARET, 0, 0);
+}
+
+/* Editor-state helpers shared with managed code. */
+int32_t jnative_ui_clipboard_has_text(void) {
+    if (!g_win32_active) {
+        return 0;
+    }
+    return IsClipboardFormatAvailable(CF_UNICODETEXT) ? 1 : 0;
+}
+
+int32_t jnative_ui_system_ansi_codepage(void) { return (int32_t)GetACP(); }
+
+/* Code page transcoding. "Byte strings" carry one raw byte per code point (U+0001..U+00FF),
+ * encoded as UTF-8 by the managed String->C bridge; NUL bytes are not representable. */
+char *jnative_ui_codepage_decode(const char *byteStr, int32_t codepage) {
+    size_t cap, n = 0;
+    uint8_t *raw;
+    const uint8_t *p = (const uint8_t *)(byteStr != NULL ? byteStr : "");
+    int wn;
+    wchar_t *w;
+    char *out;
+    cap = strlen((const char *)p) + 1;
+    raw = (uint8_t *)malloc(cap);
+    if (raw == NULL) {
+        return _strdup("");
+    }
+    while (*p != 0) {
+        if (*p < 0x80) {
+            raw[n++] = *p++;
+        } else if ((*p & 0xE0) == 0xC0 && (p[1] & 0xC0) == 0x80) {
+            raw[n++] = (uint8_t)(((p[0] & 0x1F) << 6) | (p[1] & 0x3F));
+            p += 2;
+        } else {
+            p++;
+        }
+    }
+    if (n == 0) {
+        free(raw);
+        return _strdup("");
+    }
+    wn = MultiByteToWideChar((UINT)codepage, 0, (const char *)raw, (int)n, NULL, 0);
+    if (wn <= 0) {
+        free(raw);
+        return _strdup("");
+    }
+    w = (wchar_t *)malloc((size_t)(wn + 1) * sizeof(wchar_t));
+    if (w == NULL) {
+        free(raw);
+        return _strdup("");
+    }
+    MultiByteToWideChar((UINT)codepage, 0, (const char *)raw, (int)n, w, wn);
+    w[wn] = 0;
+    free(raw);
+    out = jn_wide_dup_utf8(w);
+    free(w);
+    return out != NULL ? out : _strdup("");
+}
+
+char *jnative_ui_codepage_encode(const char *utf8, int32_t codepage) {
+    wchar_t *w = utf8_to_wide(utf8);
+    int wl = (int)wcslen(w);
+    int bn;
+    uint8_t *raw;
+    char *out;
+    size_t o = 0;
+    int i;
+    if (wl == 0) {
+        free(w);
+        return _strdup("");
+    }
+    bn = WideCharToMultiByte((UINT)codepage, 0, w, wl, NULL, 0, "?", NULL);
+    if (bn <= 0) {
+        free(w);
+        return _strdup("");
+    }
+    raw = (uint8_t *)malloc((size_t)bn);
+    out = (char *)malloc((size_t)bn * 2 + 1);
+    if (raw == NULL || out == NULL) {
+        free(raw);
+        free(out);
+        free(w);
+        return _strdup("");
+    }
+    WideCharToMultiByte((UINT)codepage, 0, w, wl, (char *)raw, bn, "?", NULL);
+    for (i = 0; i < bn; i++) {
+        if (raw[i] == 0) {
+            out[o++] = '?';
+        } else if (raw[i] < 0x80) {
+            out[o++] = (char)raw[i];
+        } else {
+            out[o++] = (char)(0xC0 | (raw[i] >> 6));
+            out[o++] = (char)(0x80 | (raw[i] & 0x3F));
+        }
+    }
+    out[o] = 0;
+    free(raw);
+    free(w);
+    return out;
+}
+
+
+/* Notepad F5: "<short time> <short date>" in the user locale (no seconds). */
+char *jnative_ui_datetime_string(void) {
+    SYSTEMTIME st;
+    wchar_t t[64], d[64], out[160];
+    char *res;
+    int bytes;
+    t[0] = 0;
+    d[0] = 0;
+    GetLocalTime(&st);
+    GetTimeFormatEx(LOCALE_NAME_USER_DEFAULT, TIME_NOSECONDS, &st, NULL, t, 64);
+    GetDateFormatEx(LOCALE_NAME_USER_DEFAULT, DATE_SHORTDATE, &st, NULL, d, 64, NULL);
+    _snwprintf(out, 160, L"%ls %ls", t, d);
+    out[159] = 0;
+    bytes = WideCharToMultiByte(CP_UTF8, 0, out, -1, NULL, 0, NULL, NULL);
+    res = (char *)malloc((size_t)(bytes > 0 ? bytes : 1));
+    if (res == NULL) return NULL;
+    if (bytes > 0) {
+        WideCharToMultiByte(CP_UTF8, 0, out, -1, res, bytes, NULL, NULL);
+    } else {
+        res[0] = 0;
+    }
+    return res;
+}
+
+/* ---- Page Setup / Print (Notepad: margins + header/footer, text pagination) ---- */
+
+static PAGESETUPDLGW g_psd;
+static int g_psd_init = 0;
+
+static void jn_psd_init(void) {
+    if (g_psd_init) {
+        return;
+    }
+    memset(&g_psd, 0, sizeof g_psd);
+    g_psd.lStructSize = sizeof g_psd;
+    g_psd.Flags = PSD_MARGINS | PSD_INTHOUSANDTHSOFINCHES;
+    g_psd.rtMargin.left = 750;
+    g_psd.rtMargin.right = 750;
+    g_psd.rtMargin.top = 1000;
+    g_psd.rtMargin.bottom = 1000;
+    g_psd_init = 1;
+}
+
+/* Returns 1 when the user confirmed the dialog. */
+int32_t jnative_ui_page_setup(int32_t windowId) {
+    BOOL ok;
+    if (!g_win32_active) {
+        return 0;
+    }
+    jn_psd_init();
+    g_psd.hwndOwner = jn_owner_hwnd(windowId);
+    g_psd.Flags = PSD_MARGINS | PSD_INTHOUSANDTHSOFINCHES;
+    ok = PageSetupDlgW(&g_psd);
+    return ok ? 1 : 0;
+}
+
+static void jn_print_line(HDC dc, const wchar_t *s, int len, int x, int y, int w, UINT fmt) {
+    RECT rc;
+    rc.left = x;
+    rc.top = y;
+    rc.right = x + w;
+    rc.bottom = y + 10000;
+    DrawTextW(dc, s, len, &rc, fmt | DT_NOPREFIX | DT_SINGLELINE);
+}
+
+/* Print plain text: header = file name, footer = "Page n". Returns 1 on success, 0 on cancel/fail. */
+int32_t jnative_ui_print_text(int32_t windowId, const char *docName, const char *utf8Text,
+                              const char *family, int32_t size10, int32_t weight, int32_t italic) {
+    PRINTDLGW pd;
+    DOCINFOW di;
+    HFONT font, oldFont;
+    wchar_t *wname, *wtext, *wfam;
+    TEXTMETRICW tm;
+    int dpiX, dpiY, pw, ph, ox, oy, hres, vres;
+    int left, top, right, bottom, width, lineH, y, page;
+    int firstPage = 1, lastPage = 0x7FFFFFFF;
+    int started = 0, printing = 0, ok = 0;
+    const wchar_t *p;
+    wchar_t footer[32];
+    if (!g_win32_active) {
+        return 0;
+    }
+    jn_psd_init();
+    memset(&pd, 0, sizeof pd);
+    pd.lStructSize = sizeof pd;
+    pd.hwndOwner = jn_owner_hwnd(windowId);
+    pd.hDevMode = g_psd.hDevMode;
+    pd.hDevNames = g_psd.hDevNames;
+    pd.Flags = PD_RETURNDC | PD_NOSELECTION | PD_USEDEVMODECOPIESANDCOLLATE;
+    pd.nCopies = 1;
+    pd.nMinPage = 1;
+    pd.nMaxPage = 0xFFFF;
+    pd.nFromPage = 1;
+    pd.nToPage = 1;
+    if (!PrintDlgW(&pd) || pd.hDC == NULL) {
+        return 0;
+    }
+    g_psd.hDevMode = pd.hDevMode;
+    g_psd.hDevNames = pd.hDevNames;
+    if (pd.Flags & PD_PAGENUMS) {
+        firstPage = (int)pd.nFromPage;
+        lastPage = (int)pd.nToPage;
+    }
+    wname = utf8_to_wide(docName != NULL ? docName : "Untitled");
+    wtext = utf8_to_wide(utf8Text);
+    wfam = utf8_to_wide(family != NULL ? family : "Consolas");
+    dpiX = GetDeviceCaps(pd.hDC, LOGPIXELSX);
+    dpiY = GetDeviceCaps(pd.hDC, LOGPIXELSY);
+    pw = GetDeviceCaps(pd.hDC, PHYSICALWIDTH);
+    ph = GetDeviceCaps(pd.hDC, PHYSICALHEIGHT);
+    ox = GetDeviceCaps(pd.hDC, PHYSICALOFFSETX);
+    oy = GetDeviceCaps(pd.hDC, PHYSICALOFFSETY);
+    hres = GetDeviceCaps(pd.hDC, HORZRES);
+    vres = GetDeviceCaps(pd.hDC, VERTRES);
+    /* margins (1/1000 inch) -> printable-area device coordinates */
+    left = MulDiv(g_psd.rtMargin.left, dpiX, 1000) - ox;
+    top = MulDiv(g_psd.rtMargin.top, dpiY, 1000) - oy;
+    right = hres - (MulDiv(g_psd.rtMargin.right, dpiX, 1000) - (pw - hres - ox));
+    bottom = vres - (MulDiv(g_psd.rtMargin.bottom, dpiY, 1000) - (ph - vres - oy));
+    if (left < 0) left = 0;
+    if (top < 0) top = 0;
+    if (right > hres) right = hres;
+    if (bottom > vres) bottom = vres;
+    width = right - left;
+    font = CreateFontW(-MulDiv(size10 > 0 ? size10 : 110, dpiY, 720), 0, 0, 0,
+            weight > 0 ? weight : FW_NORMAL, italic != 0, FALSE, FALSE, DEFAULT_CHARSET,
+            OUT_TT_PRECIS, CLIP_DEFAULT_PRECIS, DEFAULT_QUALITY, DEFAULT_PITCH | FF_DONTCARE, wfam);
+    oldFont = (HFONT)SelectObject(pd.hDC, font);
+    GetTextMetricsW(pd.hDC, &tm);
+    lineH = tm.tmHeight + tm.tmExternalLeading;
+    SetBkMode(pd.hDC, TRANSPARENT);
+    memset(&di, 0, sizeof di);
+    di.cbSize = sizeof di;
+    di.lpszDocName = wname;
+    if (width > 0 && bottom - top > lineH && StartDocW(pd.hDC, &di) > 0) {
+        started = 1;
+        page = 1;
+        y = top;
+        p = wtext;
+        printing = (page >= firstPage && page <= lastPage);
+        if (printing) {
+            StartPage(pd.hDC);
+            SelectObject(pd.hDC, font);
+            SetBkMode(pd.hDC, TRANSPARENT);
+        }
+        for (;;) {
+            const wchar_t *e = p;
+            RECT rc;
+            int h, len;
+            while (*e != 0 && *e != L'\r' && *e != L'\n') {
+                e++;
+            }
+            len = (int)(e - p);
+            rc.left = left;
+            rc.top = y;
+            rc.right = right;
+            rc.bottom = y + lineH;
+            if (len > 0) {
+                DrawTextW(pd.hDC, p, len, &rc,
+                        DT_CALCRECT | DT_WORDBREAK | DT_NOPREFIX | DT_EXPANDTABS);
+                h = rc.bottom - rc.top;
+            } else {
+                h = lineH;
+            }
+            if (h < lineH) h = lineH;
+            if (y + h > bottom && y > top) {
+                if (printing) {
+                    swprintf(footer, 32, L"Page %d", page);
+                    jn_print_line(pd.hDC, footer, (int)wcslen(footer), left, bottom + lineH, width,
+                            DT_CENTER);
+                    EndPage(pd.hDC);
+                }
+                page++;
+                y = top;
+                if (page > lastPage) {
+                    break;
+                }
+                printing = (page >= firstPage && page <= lastPage);
+                if (printing) {
+                    StartPage(pd.hDC);
+                    SelectObject(pd.hDC, font);
+                    SetBkMode(pd.hDC, TRANSPARENT);
+                }
+            }
+            if (printing) {
+                if (y == top && top >= lineH * 2) {
+                    jn_print_line(pd.hDC, wname, (int)wcslen(wname), left, top - lineH * 2, width,
+                            DT_CENTER);
+                }
+                if (len > 0) {
+                    rc.left = left;
+                    rc.top = y;
+                    rc.right = right;
+                    rc.bottom = y + h;
+                    DrawTextW(pd.hDC, p, len, &rc, DT_WORDBREAK | DT_NOPREFIX | DT_EXPANDTABS);
+                }
+            }
+            y += h;
+            if (*e == 0) {
+                break;
+            }
+            if (*e == L'\r' && e[1] == L'\n') {
+                e++;
+            }
+            p = e + 1;
+        }
+        if (page <= lastPage && printing) {
+            swprintf(footer, 32, L"Page %d", page);
+            jn_print_line(pd.hDC, footer, (int)wcslen(footer), left, bottom + lineH, width,
+                    DT_CENTER);
+            EndPage(pd.hDC);
+        }
+        EndDoc(pd.hDC);
+        ok = 1;
+    }
+    (void)started;
+    SelectObject(pd.hDC, oldFont);
+    DeleteObject(font);
+    DeleteDC(pd.hDC);
+    free(wname);
+    free(wtext);
+    free(wfam);
+    return ok;
 }
