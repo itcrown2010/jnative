@@ -1190,15 +1190,28 @@ typedef struct { wchar_t *path; int px; HICON icon; } JnCvIcon;
 static JnCvIcon g_cv_icons[JN_CV_ICON_MAX];
 static int g_cv_icon_n = 0;
 
-static HICON cv_load_icon(const wchar_t *path, int px) {
+static HICON cv_load_icon(const wchar_t *path, int px, int *cached) {
     int i;
+    *cached = 1;
     for (i = 0; i < g_cv_icon_n; i++) {
         if (g_cv_icons[i].px == px && wcscmp(g_cv_icons[i].path, path) == 0) {
             return g_cv_icons[i].icon;
         }
     }
     HICON ic = NULL;
-    if (path[0] != L'\0') {
+    if (path[0] == L'*') {
+        /* "*.ext" = generic icon of that file type, "*dir" = generic folder (no disk access). */
+        SHFILEINFOW sfi;
+        memset(&sfi, 0, sizeof(sfi));
+        if (wcscmp(path, L"*dir") == 0) {
+            SHGetFileInfoW(L"folder", FILE_ATTRIBUTE_DIRECTORY, &sfi, sizeof(sfi),
+                    SHGFI_ICON | SHGFI_USEFILEATTRIBUTES | (px <= 20 ? SHGFI_SMALLICON : SHGFI_LARGEICON));
+        } else {
+            SHGetFileInfoW(path + 1, FILE_ATTRIBUTE_NORMAL, &sfi, sizeof(sfi),
+                    SHGFI_ICON | SHGFI_USEFILEATTRIBUTES | (px <= 20 ? SHGFI_SMALLICON : SHGFI_LARGEICON));
+        }
+        ic = sfi.hIcon;
+    } else if (path[0] != L'\0') {
         UINT n = PrivateExtractIconsW(path, 0, px, px, &ic, NULL, 1, LR_DEFAULTCOLOR);
         if (n == 0 || n == (UINT)-1) {
             ic = NULL;
@@ -1215,6 +1228,8 @@ static HICON cv_load_icon(const wchar_t *path, int px) {
         g_cv_icons[g_cv_icon_n].px = px;
         g_cv_icons[g_cv_icon_n].icon = ic;
         g_cv_icon_n++;
+    } else {
+        *cached = 0;
     }
     return ic;
 }
@@ -1226,12 +1241,16 @@ int32_t jnative_ui_cv_icon(const char *path, int32_t x, int32_t y, int32_t size)
     }
     wchar_t *wp = utf8_to_wide(path);
     int px = cv_px(size);
-    HICON ic = cv_load_icon(wp, px);
+    int cached = 1;
+    HICON ic = cv_load_icon(wp, px, &cached);
     free(wp);
     if (ic == NULL) {
         return 0;
     }
     DrawIconEx(g_cv_dc, cv_px(x), cv_px(y), ic, px, px, 0, NULL, DI_NORMAL);
+    if (!cached) {
+        DestroyIcon(ic);
+    }
     return 1;
 }
 
