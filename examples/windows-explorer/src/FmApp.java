@@ -23,7 +23,10 @@ class FmApp {
     static int sbY = -1;
     static int sbW = -1;
     static int tick = 0;
+    /** 0 = follow the system, 1 = light, 2 = dark */
     static int themeMode = 0;
+    /** view mode restored from the settings file (0 = details, 1 = icons) */
+    static int startView = 0;
     static int showExt = 1;
     static int showHiddenOpt = 0;
     static int clipState = 0;
@@ -96,9 +99,17 @@ class FmApp {
         ren.setVisible(false);
         root.add(ren);
         win.setContent(root);
+        if (testMode == 0) {
+            FmSettings.load();
+        }
         folder = new FmFolder();
         list = new FmList(folder);
+        if (startView == 1) {
+            list.mode = 1;
+            list.configure();
+        }
         nav = new FmNavTree();
+        nav.showHidden = showHiddenOpt;
         hist = new FmHistory();
         nav.build();
         applyTheme();
@@ -1445,6 +1456,33 @@ class FmApp {
         list.configure();
         list.scroll = 0;
         cv.invalidate();
+        saveSettings();
+    }
+
+    static void saveSettings() {
+        if (testMode == 0) {
+            FmSettings.save();
+        }
+    }
+
+    /** mode: 0 follow system, 1 light, 2 dark */
+    static void setThemeMode(int mode) {
+        themeMode = mode;
+        applyTheme();
+        saveSettings();
+        cv.invalidate();
+    }
+
+    static void setAccent(int idx) {
+        Ft.accentIdx = idx;
+        applyTheme();
+        saveSettings();
+        cv.invalidate();
+    }
+
+    /** Ctrl+Shift+T: follow system -> light -> dark -> follow system */
+    static void cycleTheme() {
+        setThemeMode((themeMode + 1) % 3);
     }
 
     static void sortColumn(int colId) {
@@ -1585,6 +1623,8 @@ class FmApp {
                 setViewMode(0);
             } else if (vk == 50 && shift != 0) {
                 setViewMode(1);
+            } else if (vk == 84 && shift != 0) {
+                cycleTheme();
             } else {
                 list.onKey(vk, mods);
             }
@@ -1713,10 +1753,16 @@ class FmApp {
             nav.showHidden = showHiddenOpt;
             nav.reload();
             refresh();
+            saveSettings();
         } else if (a == 37) {
             showExt = 1 - showExt;
+            saveSettings();
         } else if (a == 38) {
             newWindow();
+        } else if (a >= 40 && a <= 42) {
+            setThemeMode(a - 40);
+        } else if (a >= 50 && a < 50 + Ft.ACCENTS) {
+            setAccent(a - 50);
         }
         cv.invalidate();
     }
@@ -1872,7 +1918,29 @@ class FmApp {
         h.setChecked(showHiddenOpt != 0);
         MenuItem x = mi(m, "文件扩展名", 37, 1);
         x.setChecked(showExt != 0);
+        m.addSeparator();
+        addThemeMenu(m);
         m.showAt(0, 0);
+    }
+
+    /** "主题" (follow system / light / dark) and "强调色" sub menus. */
+    static void addThemeMenu(Menu parent) {
+        Menu tm = new Menu("主题 (Ctrl+Shift+T)");
+        MenuItem t0 = mi(tm, "跟随系统", 40, 1);
+        t0.setChecked(themeMode == 0);
+        MenuItem t1 = mi(tm, "浅色", 41, 1);
+        t1.setChecked(themeMode == 1);
+        MenuItem t2 = mi(tm, "深色", 42, 1);
+        t2.setChecked(themeMode == 2);
+        parent.addMenu(tm);
+        Menu am = new Menu("强调色");
+        int i = 0;
+        while (i < Ft.ACCENTS) {
+            MenuItem ai = mi(am, Ft.accentName(i), 50 + i, 1);
+            ai.setChecked(Ft.accentIdx == i);
+            i = i + 1;
+        }
+        parent.addMenu(am);
     }
 
     static void showCrumbMenu(String p) {

@@ -127,6 +127,99 @@ class Ft {
             barWarn = rgb(218, 38, 38);
             folderGlyph = rgb(250, 190, 40);
         }
+        applyAccent(isDark);
+    }
+
+    /** Number of accent presets; index 0 keeps the built-in Windows 11 blue. */
+    static int ACCENTS = 6;
+    static int accentIdx = 0;
+
+    static String accentName(int i) {
+        if (i == 1) {
+            return "紫色";
+        }
+        if (i == 2) {
+            return "绿色";
+        }
+        if (i == 3) {
+            return "橙色";
+        }
+        if (i == 4) {
+            return "红色";
+        }
+        if (i == 5) {
+            return "粉色";
+        }
+        return "蓝色 (默认)";
+    }
+
+    static int pack(int r, int g, int b) {
+        return r * 65536 + g * 256 + b;
+    }
+
+    /** Accent colour of a preset packed as r*65536+g*256+b, for the light (d=0) or dark (d=1) palette. */
+    static int accentPacked(int i, int d) {
+        if (i == 1) {
+            if (d == 0) {
+                return pack(117, 60, 180);
+            }
+            return pack(190, 150, 255);
+        }
+        if (i == 2) {
+            if (d == 0) {
+                return pack(16, 124, 16);
+            }
+            return pack(108, 203, 95);
+        }
+        if (i == 3) {
+            if (d == 0) {
+                return pack(202, 80, 16);
+            }
+            return pack(255, 170, 90);
+        }
+        if (i == 4) {
+            if (d == 0) {
+                return pack(196, 43, 28);
+            }
+            return pack(255, 153, 164);
+        }
+        if (i == 5) {
+            if (d == 0) {
+                return pack(191, 59, 141);
+            }
+            return pack(255, 140, 200);
+        }
+        if (d == 0) {
+            return pack(0, 95, 184);
+        }
+        return pack(96, 205, 255);
+    }
+
+    /** (a * pct + b * (100 - pct)) / 100 */
+    static int mix(int a, int b, int pct) {
+        return (a * pct + b * (100 - pct)) / 100;
+    }
+
+    /** Re-derives every accent based token; preset 0 leaves the stock colours untouched. */
+    static void applyAccent(int d) {
+        if (accentIdx <= 0 || accentIdx >= ACCENTS) {
+            return;
+        }
+        int p = accentPacked(accentIdx, d);
+        int r = p / 65536;
+        int g = (p / 256) % 256;
+        int b = p % 256;
+        accent = rgb(r, g, b);
+        bandLine = accent;
+        band = argb(r, g, b, 40);
+        barFill = accent;
+        if (d == 0) {
+            rowSel = rgb(mix(r, 255, 20), mix(g, 255, 20), mix(b, 255, 20));
+            rowSelHover = rgb(mix(r, 255, 26), mix(g, 255, 26), mix(b, 255, 26));
+        } else {
+            rowSel = rgb(mix(r, 39, 25), mix(g, 39, 25), mix(b, 39, 25));
+            rowSelHover = rgb(mix(r, 39, 31), mix(g, 39, 31), mix(b, 39, 31));
+        }
     }
 }
 
