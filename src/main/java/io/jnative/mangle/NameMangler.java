@@ -41,7 +41,7 @@ public final class NameMangler {
         sb.append("_JN_").append(sanitize(className)).append('_').append(sanitize(methodName));
         if (!parameterTypes.isEmpty()) {
             for (JType t : parameterTypes) {
-                sb.append('_').append(typeCode(t));
+                sb.append('_').append(paramCode(t));
             }
         }
         return sb.toString();
@@ -51,9 +51,25 @@ public final class NameMangler {
         StringBuilder sb = new StringBuilder();
         sb.append("_JN_").append(sanitize(className)).append("_init");
         for (JType t : parameterTypes) {
-            sb.append('_').append(typeCode(t));
+            sb.append('_').append(paramCode(t));
         }
         return sb.toString();
+    }
+
+    /**
+     * Parameter code for method/constructor symbols. Same as {@link #typeCode} except that
+     * {@code char} (and arrays of it) is distinguished from {@code short}: both lower to
+     * {@code i16}, which made {@code f(char)} / {@code f(short)} (and {@code char[]}/{@code short[]})
+     * overloads collide on one symbol.
+     */
+    private static String paramCode(JType type) {
+        if (type instanceof PrimitiveType p && p == PrimitiveType.CHAR) {
+            return "c16";
+        }
+        if (type instanceof ArrayType a) {
+            return "A" + paramCode(a.elementType());
+        }
+        return typeCode(type);
     }
 
     public static String mangleMethod(MethodSymbol method) {

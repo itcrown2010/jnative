@@ -61,8 +61,8 @@ public final class ThreadRuntimeEmitter {
                   %meta = load ptr, ptr %thread_obj, align 8
                   %vtField = getelementptr %jn.ClassMeta, ptr %meta, i32 0, i32 0
                   %vtable = load ptr, ptr %vtField, align 8
-                  ; Object.equals=0, Object.hashCode=1, Thread.run=2
-                  %slotAddr = getelementptr ptr, ptr %vtable, i64 2
+                  ; Object.equals=0, Object.hashCode=1, Object.toString=2, Thread.run=3
+                  %slotAddr = getelementptr ptr, ptr %vtable, i64 3
                   %fn = load ptr, ptr %slotAddr, align 8
                   call void %fn(ptr %thread_obj)
                   %pending = call i1 @jnative_exception_pending()

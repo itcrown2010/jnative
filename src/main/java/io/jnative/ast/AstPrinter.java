@@ -223,6 +223,16 @@ public final class AstPrinter {
                 yield sb.toString();
             }
             case NewArrayExpression n -> "new " + n.elementType() + "[" + printExpr(n.length()) + "]";
+            case ArrayInitExpression n -> {
+                StringBuilder sb = new StringBuilder("new " + n.elementType() + "[] {");
+                for (int i = 0; i < n.elements().size(); i++) {
+                    if (i > 0) {
+                        sb.append(", ");
+                    }
+                    sb.append(printExpr(n.elements().get(i)));
+                }
+                yield sb.append('}').toString();
+            }
             case ArrayAccessExpression a -> printExpr(a.array()) + "[" + printExpr(a.index()) + "]";
             case InstanceOfExpression i -> "(" + printExpr(i.expression()) + " instanceof " + i.type() + ")";
             case CastExpression c -> "((" + c.type() + ") " + printExpr(c.expression()) + ")";

@@ -46,6 +46,11 @@ public final class StringRuntimeEmitter {
                 declare ptr @jnative_string_from_bytes_with_meta(ptr, ptr)
                 declare ptr @jnative_string_to_cstr(ptr)
                 declare i32 @jnative_string_encode_utf8(ptr, ptr, i32)
+                declare ptr @jnative_string_repeat(ptr, i32)
+                declare i32 @jnative_string_is_blank(ptr)
+                declare void @jnative_string_copy_chars(ptr, ptr)
+                declare ptr @jnative_string_from_char_array(ptr, ptr)
+                declare i32 @jnative_string_compare_to_ignore_case(ptr, ptr)
 
                 define ptr @jnative_string_from_literal(ptr %bytes, i32 %len, ptr %meta) {
                 entry:
@@ -56,6 +61,12 @@ public final class StringRuntimeEmitter {
                 define ptr @jnative_string_get_bytes(ptr %s) {
                 entry:
                   %r = call ptr @jnative_string_get_bytes_with_meta(ptr %s, ptr @meta.array.i8)
+                  ret ptr %r
+                }
+
+                define ptr @jnative_string_from_chars(ptr %arr) {
+                entry:
+                  %r = call ptr @jnative_string_from_char_array(ptr %arr, ptr @meta.String)
                   ret ptr %r
                 }
 
@@ -397,9 +408,56 @@ public final class StringRuntimeEmitter {
                   ret ptr %accR
                 }
 
+                ; Text conversion helpers for string concatenation / println (Java semantics).
+                define ptr @jnative_string_or_null(ptr %s) {
+                entry:
+                  %isnull = icmp eq ptr %s, null
+                  br i1 %isnull, label %nul, label %ok
+                nul:
+                  %ns = call ptr @jnative_string_from_literal(ptr @.jn.nullstr, i32 4, ptr @meta.String)
+                  ret ptr %ns
+                ok:
+                  ret ptr %s
+                }
+
+                define ptr @jnative_string_value_of_bool(i1 %b) {
+                entry:
+                  br i1 %b, label %t, label %f
+                t:
+                  %ts = call ptr @jnative_string_from_literal(ptr @.fmt.bool.true, i32 4, ptr @meta.String)
+                  ret ptr %ts
+                f:
+                  %fs = call ptr @jnative_string_from_literal(ptr @.fmt.bool.false, i32 5, ptr @meta.String)
+                  ret ptr %fs
+                }
+
+                ; Default Object.toString(): "ClassName@hexIdentityHash". ClassMeta.name is the ptr field at
+                ; byte offset 32 ({ ptr vtable, ptr super, i64 size, i32 flags, ptr name, ... }).
+                define ptr @jnative_object_to_string(ptr %obj) {
+                entry:
+                  %isnull = icmp eq ptr %obj, null
+                  br i1 %isnull, label %nul, label %go
+                nul:
+                  %ns = call ptr @jnative_string_from_literal(ptr @.jn.nullstr, i32 4, ptr @meta.String)
+                  ret ptr %ns
+                go:
+                  %meta = load ptr, ptr %obj, align 8
+                  %namePtr = getelementptr i8, ptr %meta, i64 32
+                  %name = load ptr, ptr %namePtr, align 8
+                  %h = call i32 @jnative_identity_hashcode(ptr %obj)
+                  %buf = alloca [256 x i8], align 1
+                  %p = getelementptr [256 x i8], ptr %buf, i64 0, i64 0
+                  %n = call i32 (ptr, i64, ptr, ...) @snprintf(ptr %p, i64 256, ptr @.fmt.objstr, ptr %name, i32 %h)
+                  %big = icmp sge i32 %n, 256
+                  %len = select i1 %big, i32 255, i32 %n
+                  %r = call ptr @jnative_string_from_literal(ptr %p, i32 %len, ptr @meta.String)
+                  ret ptr %r
+                }
+
                 """);
         emitCString(".jn.emptystr", "");
         emitCString(".jn.nullstr", "null");
+        emitCString(".fmt.objstr", "%s@%x");
     }
 
     private void emitCString(String name, String content) {

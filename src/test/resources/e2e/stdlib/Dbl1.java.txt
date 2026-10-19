@@ -1,0 +1,91 @@
+public class Main {
+    static void d(double x) { System.out.println(x); String s = "" + x; System.out.println(s); }
+    static void f(float x) { System.out.println(x); String s = "" + x; System.out.println(s); }
+    public static void main(String[] args) {
+        d(0.0);
+        d(-0.0);
+        d(1.0);
+        d(-1.0);
+        d(0.1);
+        d(0.2);
+        d(0.3);
+        d(0.1 + 0.2);
+        d(1.0 / 3.0);
+        d(2.0 / 3.0);
+        d(3.14159);
+        d(3.141592653589793);
+        d(100.0);
+        d(1000000.0);
+        d(9999999.0);
+        d(10000000.0);
+        d(12345678.9);
+        d(0.001);
+        d(0.0009999);
+        d(0.0001);
+        d(1.0E-5);
+        d(123456789012345.0);
+        d(1.0E21);
+        d(1.0E22);
+        d(1.0E23);
+        d(1.7976931348623157E308);
+        d(4.9E-324);
+        d(2.2250738585072014E-308);
+        d(1.5);
+        d(2.5);
+        d(1234.5678);
+        d(0.5);
+        d(5.0E-5);
+        d(100.5);
+        d(65536.0);
+        d(4.35);
+        d(4.349999999999999);
+        d(1.0E7);
+        d(1.0E-3);
+        d(8.41E21);
+        d(2.0E-3);
+        d(9.999999999999999E22);
+        d(0.30000000000000004);
+        d(123.456);
+        d(1.0E100);
+        d(5.0E-324);
+        d(1.0 / 0.0);
+        d(-1.0 / 0.0);
+        d(0.0 / 0.0);
+        d(1.0E-10);
+        d(123456.789E3);
+        d(0.000123);
+        d(4.0E-3);
+        f(0.1f);
+        f(1.0f);
+        f(3.14159f);
+        f(1.0E10f);
+        f(16777216.0f);
+        f(0.001f);
+        f(1.17549435E-38f);
+        f(3.4028235E38f);
+        f(1.4E-45f);
+        f(0.3f);
+        f(100.0f);
+        f(33.333332f);
+        f(1.0E-5f);
+        f(0.5f);
+        long seed = 12345L; int k = 0;
+        while (k < 400) {
+            seed = seed * 6364136223846793005L + 1442695040888963407L;
+            double m = (double) (seed >>> 11) / 9007199254740992.0;
+            int e = (int) ((seed >>> 3) & 63L) - 30;
+            double x = m; int j = 0;
+            if (e > 0) { while (j < e) { x = x * 10.0; j = j + 1; } }
+            else { while (j < -e) { x = x / 10.0; j = j + 1; } }
+            System.out.println(x);
+            float fx = (float) x;
+            System.out.println(fx);
+            k = k + 1;
+        }
+        System.out.println('A');
+        System.out.println('\u4e2d');
+        System.out.println('\u00e9');
+        char c = '\u6587';
+        System.out.println(c);
+    }
+}

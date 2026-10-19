@@ -1,0 +1,52 @@
+public class Main {
+    public static void main(String[] args) {
+        String s = "Hello, World";
+        System.out.println(s.substring(7));
+        System.out.println(s.substring(0, 5));
+        System.out.println(s.indexOf('o'));
+        System.out.println(s.indexOf('o', 5));
+        System.out.println(s.indexOf('z'));
+        System.out.println(s.indexOf("o", 5));
+        System.out.println(s.indexOf("World"));
+        System.out.println(s.lastIndexOf('o'));
+        System.out.println(s.lastIndexOf('o', 7));
+        System.out.println(s.lastIndexOf("l"));
+        System.out.println(s.lastIndexOf("l", 5));
+        System.out.println(s.replace('l', 'L'));
+        System.out.println(s.replace("World", "There"));
+        System.out.println("ab".repeat(3) + "|" + "x".repeat(0) + "|");
+        char[] cs = s.toCharArray();
+        System.out.println(cs.length);
+        System.out.println(cs[4]);
+        cs[0] = 'J';
+        System.out.println(String.valueOf(cs));
+        System.out.println(s);
+        System.out.println("   ".isBlank());
+        System.out.println(" a ".isBlank());
+        System.out.println("[" + "  pad ".strip() + "]");
+        System.out.println("foo".concat("bar"));
+        System.out.println("apple".compareToIgnoreCase("BANANA") < 0);
+        System.out.println("Same".compareToIgnoreCase("sAME"));
+        System.out.println(String.valueOf(123456789012L));
+        System.out.println(String.valueOf(2.5));
+        System.out.println(String.valueOf(1.5f));
+        System.out.println(String.valueOf(true));
+        System.out.println(String.valueOf('c'));
+        System.out.println(String.valueOf(42));
+        Object o = "obj";
+        System.out.println(String.valueOf(o));
+        Integer boxed = 99;
+        System.out.println(String.valueOf(boxed));
+        System.out.println(s.charAt(1) + "" + s.length());
+        System.out.println("a,b,c".split(",").length);
+        System.out.println(s.toUpperCase() + s.toLowerCase());
+        System.out.println(s.contains("lo, W") + " " + s.startsWith("Hell") + " " + s.endsWith("d"));
+        String[] parts = {"x", "y", "z"};
+        System.out.println(String.join("-", parts));
+        try {
+            "a".repeat(-1);
+        } catch (IllegalArgumentException e) {
+            System.out.println("iae");
+        }
+    }
+}

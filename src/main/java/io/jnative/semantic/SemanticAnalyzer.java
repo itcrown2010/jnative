@@ -67,6 +67,8 @@ public final class SemanticAnalyzer {
     private List<String> resolveImports = List.of();
     private MethodSymbol currentMethod;
     private ConstructorSymbol currentConstructor;
+    /** True while analysing instance field initializers (an implicit-constructor context with {@code this}). */
+    private boolean inInstanceInitializer;
     private ClassSymbol stringClass;
     private ClassSymbol futureClass;
     private ClassSymbol objectClass;
@@ -299,6 +301,7 @@ public final class SemanticAnalyzer {
                 beginResolve(cls);
                 currentClass = symbol;
                 analyzeStaticFieldInitializers(symbol);
+                analyzeInstanceFieldInitializers(symbol);
                 Map<String, Integer> overloadOrdinal = new HashMap<>();
                 for (MethodDeclaration method : cls.methods()) {
                     if (method.isConstructor()) {
@@ -549,6 +552,17 @@ public final class SemanticAnalyzer {
         classes.put("String", stringClass);
         stringClass.setSuperClass(objectClass);
 
+        // Object.toString() returns String, so it can only be declared once String exists. The Object
+        // vtable is rebuilt (slots 0/1 = equals/hashCode are unchanged, toString appends as slot 2)
+        // before String and every later class inherits from it.
+        MethodSymbol objectToString = new MethodSymbol(
+                objectClass, "toString", stringClass.asType(), List.of(),
+                false, false,
+                NameMangler.mangleMethod("Object", "toString", List.of(), false),
+                SourceLocation.UNKNOWN);
+        objectClass.addMethod(objectToString);
+        objectClass.setVtable(VTableBuilder.build(objectClass));
+
         MethodSymbol length = new MethodSymbol(
                 stringClass, "length", PrimitiveType.INT, List.of(),
                 false, false, true, "_JN_String_length", SourceLocation.UNKNOWN);
@@ -584,6 +598,14 @@ public final class SemanticAnalyzer {
                 SourceLocation.UNKNOWN);
         objectClass.findMethod("hashCode").ifPresent(hashCode::setOverrides);
         stringClass.addMethod(hashCode);
+
+        MethodSymbol stringToString = new MethodSymbol(
+                stringClass, "toString", stringClass.asType(), List.of(),
+                false, false,
+                NameMangler.mangleMethod("String", "toString", List.of(), false),
+                SourceLocation.UNKNOWN);
+        objectClass.findMethod("toString").ifPresent(stringToString::setOverrides);
+        stringClass.addMethod(stringToString);
 
         // General-purpose String helpers (0.8.3) — not HTTP-specific.
         JType stringType = stringClass.asType();
@@ -657,6 +679,41 @@ public final class SemanticAnalyzer {
                 true, false, true, "_JN_String_valueOf_char", SourceLocation.UNKNOWN);
         valueOfChar.setFfiIntrinsic(true);
         stringClass.addMethod(valueOfChar);
+
+        // java.lang.String parity (overloads lowered in IrGenerator by name + parameter types).
+        JType charT = PrimitiveType.CHAR;
+        JType intT = PrimitiveType.INT;
+        JType charArray = new ArrayType(PrimitiveType.CHAR);
+        SourceLocation noLoc = SourceLocation.UNKNOWN;
+        addStringIntrinsic("substring", stringType, List.of(new ParameterSymbol("begin", intT, noLoc)));
+        addStringIntrinsic("indexOf", intT, List.of(new ParameterSymbol("ch", charT, noLoc)));
+        addStringIntrinsic("indexOf", intT, List.of(
+                new ParameterSymbol("ch", charT, noLoc), new ParameterSymbol("from", intT, noLoc)));
+        addStringIntrinsic("indexOf", intT, List.of(
+                new ParameterSymbol("needle", stringType, noLoc), new ParameterSymbol("from", intT, noLoc)));
+        addStringIntrinsic("lastIndexOf", intT, List.of(new ParameterSymbol("ch", charT, noLoc)));
+        addStringIntrinsic("lastIndexOf", intT, List.of(
+                new ParameterSymbol("ch", charT, noLoc), new ParameterSymbol("from", intT, noLoc)));
+        addStringIntrinsic("lastIndexOf", intT, List.of(
+                new ParameterSymbol("needle", stringType, noLoc), new ParameterSymbol("from", intT, noLoc)));
+        addStringIntrinsic("replace", stringType, List.of(
+                new ParameterSymbol("oldChar", charT, noLoc), new ParameterSymbol("newChar", charT, noLoc)));
+        addStringIntrinsic("repeat", stringType, List.of(new ParameterSymbol("count", intT, noLoc)));
+        addStringIntrinsic("toCharArray", charArray, List.of());
+        addStringIntrinsic("isBlank", PrimitiveType.BOOLEAN, List.of());
+        addStringIntrinsic("strip", stringType, List.of());
+        addStringIntrinsic("concat", stringType, List.of(new ParameterSymbol("other", stringType, noLoc)));
+        addStringIntrinsic("compareToIgnoreCase", intT, List.of(new ParameterSymbol("other", stringType, noLoc)));
+        for (JType vt : List.of(PrimitiveType.LONG, PrimitiveType.FLOAT, PrimitiveType.DOUBLE,
+                PrimitiveType.BOOLEAN, objectClass.asType(), charArray)) {
+            MethodSymbol vo = new MethodSymbol(
+                    stringClass, "valueOf", stringType,
+                    List.of(new ParameterSymbol("value", vt, noLoc)),
+                    true, false, true,
+                    NameMangler.mangleMethod("String", "valueOf", List.of(vt), false), noLoc);
+            vo.setFfiIntrinsic(true);
+            stringClass.addMethod(vo);
+        }
 
         stringClass.setLayout(ObjectLayoutBuilder.build(stringClass));
         stringClass.setVtable(VTableBuilder.build(stringClass));
@@ -1519,6 +1576,60 @@ public final class SemanticAnalyzer {
         currentMethod = prevMethod;
     }
 
+    /**
+     * Instance field initializers ({@code int b = a + 1;}, {@code List<T> xs = new ArrayList<>();},
+     * {@code int[] t = {1, 2};}) run inside every constructor, so they are analysed once here in a
+     * constructor-like context ({@code this} in scope). Without this the IR generator saw
+     * expressions that had never been typed and crashed on anything beyond a plain literal.
+     */
+    private void analyzeInstanceFieldInitializers(ClassSymbol symbol) {
+        boolean any = false;
+        for (FieldSymbol field : symbol.declaredFields()) {
+            if (!field.isStatic() && field.initializer() != null) {
+                any = true;
+                break;
+            }
+        }
+        if (!any) {
+            return;
+        }
+        MethodSymbol prevMethod = currentMethod;
+        ConstructorSymbol prevCtor = currentConstructor;
+        Scope prevScope = current;
+        pushTypeParamScope(symbol.typeParameters());
+        try {
+            currentMethod = null;
+            currentConstructor = null;
+            inInstanceInitializer = true;
+            current = new Scope(null);
+            beginDaFrame();
+            current.declare(new Symbol.VariableBinding(
+                    new VariableSymbol("this", symbol.asType(),
+                            VariableSymbol.Kind.PARAMETER, symbol.location())));
+            for (FieldSymbol field : symbol.declaredFields()) {
+                if (field.isStatic() || field.initializer() == null) {
+                    continue;
+                }
+                JType expected = samExpectedType(field.type());
+                if (expected == null) {
+                    expected = field.type();
+                }
+                JType initType = analyzeExpression(field.initializer(), expected);
+                if (!assignableWithBoxing(field.type(), initType) && !(initType instanceof ErrorType)) {
+                    reporter.error(field.location(),
+                            "incompatible types: " + initType + " cannot be converted to " + field.type());
+                }
+            }
+        } finally {
+            popTypeParamScope();
+            endDaFrame();
+            inInstanceInitializer = false;
+            current = prevScope;
+            currentMethod = prevMethod;
+            currentConstructor = prevCtor;
+        }
+    }
+
     private void registerMethods(ClassSymbol symbol, ClassDeclaration cls) {
         pushTypeParamScope(symbol.typeParameters());
         try {
@@ -1814,6 +1925,12 @@ public final class SemanticAnalyzer {
                 && isInvokePtrLike(params.get(1))
                 && isInvokeI32Like(ret)) {
             return "jnative_invoke_i32_ptr_ptr";
+        }
+        if (params.size() == 2
+                && isInvokePtrLike(params.get(0))
+                && isInvokePtrLike(params.get(1))
+                && ret.isReference()) {
+            return "jnative_invoke_ptr_ptr_ptr";
         }
         return null;
     }
@@ -3217,6 +3334,7 @@ public final class SemanticAnalyzer {
                 case NewObjectExpression n -> typeOfNew(n, expected);
                 case FieldAccessExpression f -> typeOfFieldAccess(f);
                 case NewArrayExpression n -> typeOfNewArray(n);
+                case ArrayInitExpression n -> typeOfArrayInit(n);
                 case ArrayAccessExpression a -> typeOfArrayAccess(a);
                 case InstanceOfExpression i -> typeOfInstanceOf(i);
                 case CastExpression c -> typeOfCast(c);
@@ -3250,7 +3368,7 @@ public final class SemanticAnalyzer {
     }
 
     private JType typeOfThis(ThisExpression t) {
-        if (currentConstructor != null) {
+        if (currentConstructor != null || inInstanceInitializer) {
             captureEnclosingThis(t.location());
             return currentClass.asType();
         }
@@ -3280,7 +3398,7 @@ public final class SemanticAnalyzer {
             Optional<FieldSymbol> field = currentClass.findField(v.name());
             if (field.isPresent()) {
                 FieldSymbol fs = field.get();
-                boolean inInstance = currentConstructor != null
+                boolean inInstance = currentConstructor != null || inInstanceInitializer
                         || (currentMethod != null && !currentMethod.isStatic());
                 if (fs.isStatic() || inInstance) {
                     resolvedSymbols.put(v, fs);
@@ -3399,13 +3517,14 @@ public final class SemanticAnalyzer {
         }
         return switch (b.operator()) {
             case ADD -> {
-                if (isString(left) && isString(right)) {
-                    yield stringClass.asType();
-                }
-                if (isString(left) && (right.isNumeric() || Boxing.isWrapper(right))) {
-                    yield stringClass.asType();
-                }
-                if ((left.isNumeric() || Boxing.isWrapper(left)) && isString(right)) {
+                if (isString(left) || isString(right)) {
+                    // String + anything printable (boolean, char, numbers, wrappers, objects, null).
+                    JType other = isString(left) ? right : left;
+                    if (!isPrintable(other)) {
+                        reporter.error(b.location(),
+                                "operator + cannot be applied to " + left + ", " + right);
+                        yield ErrorType.INSTANCE;
+                    }
                     yield stringClass.asType();
                 }
                 if (!left.isNumeric() || !right.isNumeric()) {
@@ -3595,6 +3714,81 @@ public final class SemanticAnalyzer {
         return typeOfCall(m, null);
     }
 
+    /**
+     * Type-argument mapping for a method declared on a super-interface of the receiver
+     * (e.g. {@code Set<X>.iterator()} is declared on {@code Iterable<T>}): extends the receiver
+     * substitution with the super-interface's own type parameters.
+     */
+    private TypeSubstitution inheritedInterfaceSubstitution(
+            InterfaceSymbol recv, TypeSubstitution recvSub, MethodSymbol method) {
+        if (recvSub == null) {
+            return null;
+        }
+        InterfaceSymbol owner = null;
+        for (InterfaceSymbol i : recv.transitiveClosure()) {
+            Optional<MethodSymbol> declared = i.findDeclaredMethod(method.name());
+            if (declared.isPresent() && declared.get() == method) {
+                owner = i;
+                break;
+            }
+        }
+        if (owner == null || owner == recv) {
+            return recvSub;
+        }
+        java.util.Map<io.jnative.semantic.TypeParameterSymbol, JType> out = new java.util.HashMap<>(recvSub.asMap());
+        if (walkSuperInterfaces(recv, recvSub, owner, out, 0)) {
+            return new TypeSubstitution(out);
+        }
+        return recvSub;
+    }
+
+    private boolean walkSuperInterfaces(InterfaceSymbol cur, TypeSubstitution curSub, InterfaceSymbol target,
+            java.util.Map<io.jnative.semantic.TypeParameterSymbol, JType> out, int depth) {
+        if (cur == target) {
+            out.putAll(curSub.asMap());
+            return true;
+        }
+        if (depth > 16) {
+            return false;
+        }
+        for (ParameterizedType p : cur.parameterizedSuperInterfaces()) {
+            if (p.raw() instanceof InterfaceSymbol s) {
+                List<JType> args = new ArrayList<>();
+                for (JType a : p.typeArguments()) {
+                    args.add(curSub.apply(a));
+                }
+                if (args.size() == s.typeParameters().size()
+                        && walkSuperInterfaces(s, TypeSubstitution.zip(s.typeParameters(), args), target, out, depth + 1)) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Java collection API aliases for stdlib lists: {@code add(int, T)} -> {@code addAt},
+     * {@code remove(int)} -> {@code removeAt}, {@code remove(Object)} -> {@code removeValue}.
+     * Only applies when the receiver type has the target method and not the Java-named one.
+     */
+    private String collectionAliasName(MethodCallExpression m, java.util.function.Predicate<String> has) {
+        String name = m.name();
+        int argc = m.arguments().size();
+        if ("add".equals(name) && argc == 2 && has.test("addAt")) {
+            return "addAt";
+        }
+        if ("remove".equals(name) && argc == 1 && !has.test("remove")
+                && has.test("removeAt") && has.test("removeValue")) {
+            JType at = analyzeExpression(m.arguments().get(0));
+            if (at instanceof PrimitiveType p
+                    && (p == PrimitiveType.INT || p == PrimitiveType.SHORT || p == PrimitiveType.BYTE
+                    || p == PrimitiveType.CHAR)) {
+                return "removeAt";
+            }
+            return "removeValue";
+        }
+        return name;
+    }
     private JType typeOfCall(MethodCallExpression m, JType expectedReturn) {
         if (m.receiver() instanceof VariableExpression nv && "Native".equals(nv.name())) {
             return typeOfNativeBuiltin(m);
@@ -3652,8 +3846,14 @@ public final class SemanticAnalyzer {
                 recvIface = is;
                 ifaceSub = TypeSubstitution.zip(is.typeParameters(), pt.typeArguments());
             }
-            if (recvIface != null) {
-                Optional<MethodSymbol> method = recvIface.findMethod(m.name());
+            // Object methods (equals/hashCode/toString) exist on every interface-typed value.
+            boolean ifaceObjectFallback = recvIface != null
+                    && recvIface.findMethod(m.name()).isEmpty()
+                    && !objectClass.findMethods(m.name()).isEmpty();
+            if (recvIface != null && !ifaceObjectFallback) {
+                final InterfaceSymbol aliasIface = recvIface;
+                Optional<MethodSymbol> method = recvIface.findMethod(
+                        collectionAliasName(m, n -> aliasIface.findMethod(n).isPresent()));
                 if (method.isEmpty()) {
                     reporter.error(m.location(),
                             "undefined method '" + m.name() + "' in interface '"
@@ -3661,6 +3861,7 @@ public final class SemanticAnalyzer {
                     return ErrorType.INSTANCE;
                 }
                 MethodSymbol ms = method.get();
+                ifaceSub = inheritedInterfaceSubstitution(recvIface, ifaceSub, ms);
                 MethodSymbol callTarget = ifaceSub != null ? substituteMethod(ms, ifaceSub) : ms;
                 checkArguments(m, callTarget);
                 Integer slot = ms.interfaceSlot();
@@ -3675,7 +3876,9 @@ public final class SemanticAnalyzer {
             }
             ClassSymbol recvClass = null;
             TypeSubstitution recvSub = null;
-            if (recvType instanceof ClassType ct) {
+            if (ifaceObjectFallback) {
+                recvClass = objectClass;
+            } else if (recvType instanceof ClassType ct) {
                 recvClass = ct.classSymbol();
             } else if (recvType instanceof ParameterizedType pt && pt.raw() instanceof ClassSymbol cs) {
                 recvClass = cs;
@@ -3740,7 +3943,10 @@ public final class SemanticAnalyzer {
                 }
                 return ErrorType.INSTANCE;
             }
-            MethodSymbol ms = resolveOverload(recvClass.findMethods(m.name()), m, false, recvSub);
+            final ClassSymbol aliasClass = recvClass;
+            MethodSymbol ms = resolveOverload(
+                    recvClass.findMethods(collectionAliasName(m, n -> !aliasClass.findMethods(n).isEmpty())),
+                    m, false, recvSub);
             if (ms == null) {
                 if (!lastOverloadAmbiguous) {
                     reporter.error(m.location(),
@@ -3766,7 +3972,7 @@ public final class SemanticAnalyzer {
         if (currentClass != null) {
             MethodSymbol ms = resolveOverload(currentClass.findMethods(m.name()), m, true);
             if (ms != null) {
-                boolean inInstance = currentConstructor != null
+                boolean inInstance = currentConstructor != null || inInstanceInitializer
                         || (currentMethod != null && !currentMethod.isStatic());
                 if (!ms.isStatic() && !inInstance) {
                     reporter.error(m.location(),
@@ -3891,6 +4097,10 @@ public final class SemanticAnalyzer {
         return null;
     }
 
+    /** Generic calls whose type arguments fell back to Object (no argument/target constraint yet). */
+    private final java.util.Set<Expression> weaklyTypedCalls =
+            java.util.Collections.newSetFromMap(new java.util.IdentityHashMap<>());
+
     /** Resolve call, applying method type-parameter inference when needed. */
     private JType resolveGenericCall(MethodCallExpression m, MethodSymbol ms, JType targetReturn) {
         MethodSymbol callTarget = ms;
@@ -3907,15 +4117,35 @@ public final class SemanticAnalyzer {
                 sub = TypeSubstitution.zip(ms.typeParameters(), explicit);
             } else {
                 List<JType> actualArgs = new ArrayList<>();
+                List<JType> formals = ms.parameterTypes();
+                int argIndex = 0;
                 for (Expression arg : m.arguments()) {
-                    actualArgs.add(analyzeExpression(arg));
+                    JType actual = analyzeExpression(arg);
+                    if (arg instanceof MethodCallExpression && weaklyTypedCalls.contains(arg)) {
+                        actual = null; // inferred only from defaults; the target type decides
+                    }
+                    // Java infers the wrapper type for a primitive passed to a bare T parameter.
+                    if (actual instanceof PrimitiveType p && argIndex < formals.size()
+                            && formals.get(argIndex) instanceof TypeVariable) {
+                        String wrapper = Boxing.wrapperNameOf(p);
+                        if (wrapper == null && (p == PrimitiveType.BYTE || p == PrimitiveType.SHORT)) {
+                            wrapper = "Integer";
+                        }
+                        ClassSymbol wrapperSym = wrapper == null ? null : classes.get(wrapper);
+                        if (wrapperSym != null) {
+                            actual = new ClassType(wrapperSym);
+                        }
+                    }
+                    actualArgs.add(actual);
+                    argIndex++;
                 }
                 TypeInferenceEngine.InferenceResult inferred = TypeInferenceEngine.inferMethod(
                         ms.typeParameters(),
                         ms.parameterTypes(),
                         actualArgs,
                         ms.returnType(),
-                        targetReturn);
+                        targetReturn,
+                        objectClass.asType());
                 if (!inferred.success()) {
                     reporter.error(m.location(),
                             inferred.message() != null
@@ -3924,6 +4154,11 @@ public final class SemanticAnalyzer {
                     return ErrorType.INSTANCE;
                 }
                 sub = inferred.substitution();
+                if (inferred.defaulted()) {
+                    weaklyTypedCalls.add(m);
+                } else {
+                    weaklyTypedCalls.remove(m);
+                }
             }
             callTarget = substituteMethod(ms, sub);
             checkArguments(m, callTarget);
@@ -4482,12 +4717,78 @@ public final class SemanticAnalyzer {
 
     private JType typeOfPrintln(PrintlnExpression p) {
         JType arg = analyzeExpression(p.argument());
-        if (!(arg instanceof PrimitiveType)
-                && !(arg instanceof ClassType ct && ct.name().equals("String"))
-                && !(arg instanceof ErrorType)) {
+        if (!isPrintable(arg)) {
             reporter.error(p.location(), "println does not support type " + arg);
         }
         return VoidType.INSTANCE;
+    }
+
+    /**
+     * Types println / string concatenation can convert to text: primitives, String, and any object
+     * (via {@code toString()}, {@code null} prints as "null"). Arrays, native pointers and void
+     * are rejected rather than printed as garbage.
+     */
+    private static boolean isPrintable(JType t) {
+        if (t instanceof PrimitiveType || t instanceof ErrorType || t instanceof NullType) {
+            return true;
+        }
+        if (t instanceof ArrayType || t instanceof NativePtrType || t instanceof VoidType
+                || t instanceof NativeStructType) {
+            return false;
+        }
+        return t instanceof ClassType || t instanceof ParameterizedType || t instanceof TypeVariable
+                || t instanceof InterfaceType;
+    }
+
+    /**
+     * Diamond inference when the target is a generic supertype of the class being created:
+     * {@code List<String> xs = new ArrayList<>()} binds ArrayList's {@code T} through
+     * {@code ArrayList<T> implements List<T>}. Walks implemented interfaces and superclasses;
+     * returns null unless every type parameter of {@code symbol} is determined.
+     */
+    private List<JType> inferDiamondFromSupertype(ClassSymbol symbol, JType expected) {
+        if (!(expected instanceof ParameterizedType target) || !symbol.isGeneric()) {
+            return null;
+        }
+        List<TypeParameterSymbol> params = symbol.typeParameters();
+        JType[] bound = new JType[params.size()];
+        if (!bindThroughSupertypes(symbol, target, bound, new java.util.HashSet<>())) {
+            return null;
+        }
+        for (JType b : bound) {
+            if (b == null) {
+                return null;
+            }
+        }
+        return List.of(bound);
+    }
+
+    private boolean bindThroughSupertypes(
+            ClassSymbol cls, ParameterizedType target, JType[] bound, java.util.Set<ClassSymbol> seen) {
+        if (!seen.add(cls)) {
+            return false;
+        }
+        for (ParameterizedType iface : cls.implementedParameterizedInterfaces()) {
+            if (iface.raw().name().equals(target.raw().name())
+                    && iface.typeArguments().size() == target.typeArguments().size()) {
+                boolean any = false;
+                List<TypeParameterSymbol> params = cls.typeParameters();
+                for (int j = 0; j < iface.typeArguments().size(); j++) {
+                    if (iface.typeArguments().get(j) instanceof TypeVariable tv) {
+                        for (int k = 0; k < params.size(); k++) {
+                            if (params.get(k) == tv.symbol() && bound.length > k) {
+                                bound[k] = target.typeArguments().get(j);
+                                any = true;
+                            }
+                        }
+                    }
+                }
+                if (any) {
+                    return true;
+                }
+            }
+        }
+        return false;
     }
 
     private JType typeOfNew(NewObjectExpression n, JType expected) {
@@ -4532,6 +4833,9 @@ public final class SemanticAnalyzer {
             } else if (expected instanceof ClassType ct && ct.name().equals(n.className())
                     && !symbol.isGeneric()) {
                 typeArgs = List.of();
+            } else if (inferDiamondFromSupertype(symbol, expected) != null) {
+                // List<String> xs = new ArrayList<>();
+                typeArgs = inferDiamondFromSupertype(symbol, expected);
             } else {
                 reporter.error(n.location(),
                         "cannot infer type arguments for '" + n.className() + "'; specify explicit type args");
@@ -4634,6 +4938,31 @@ public final class SemanticAnalyzer {
         JType lenType = analyzeExpression(n.length());
         if (!lenType.isInteger() && !(lenType instanceof ErrorType)) {
             reporter.error(n.length().location(), "array length must be int-compatible");
+        }
+        ClassMetadata meta = arrayMetadataFor(element);
+        resolvedSymbols.put(n, meta);
+        return new ArrayType(element);
+    }
+
+    private JType typeOfArrayInit(ArrayInitExpression n) {
+        JType element = resolveTypeName(n.elementType(), false, n.location());
+        if (element instanceof VoidType || element instanceof ErrorType) {
+            reporter.error(n.location(), "invalid array element type");
+            for (Expression e : n.elements()) {
+                analyzeExpression(e);
+            }
+            return ErrorType.INSTANCE;
+        }
+        JType expected = samExpectedType(element);
+        if (expected == null) {
+            expected = element;
+        }
+        for (Expression e : n.elements()) {
+            JType t = analyzeExpression(e, expected);
+            if (!assignableWithBoxing(element, t) && !(t instanceof ErrorType)) {
+                reporter.error(e.location(),
+                        "incompatible types: " + t + " cannot be converted to " + element);
+            }
         }
         ClassMetadata meta = arrayMetadataFor(element);
         resolvedSymbols.put(n, meta);
@@ -4790,6 +5119,15 @@ public final class SemanticAnalyzer {
 
     private JType typeOfCast(CastExpression c) {
         JType source = analyzeExpression(c.expression());
+        if (io.jnative.parser.Parser.COMPOUND_CAST_MARKER.equals(c.type().name())
+                && c.expression() instanceof BinaryExpression combined) {
+            // Desugared `a op= b`: implicit narrowing cast to the type of `a` (numeric only).
+            JType lhs = analyzeExpression(combined.left());
+            if (lhs.isPrimitive() && source.isPrimitive() && lhs.isNumeric() && source.isNumeric()) {
+                return lhs;
+            }
+            return source;
+        }
         JType target = resolveTypeName(c.type(), false, c.location());
         if (target instanceof ErrorType || source instanceof ErrorType) {
             return ErrorType.INSTANCE;
@@ -4816,6 +5154,22 @@ public final class SemanticAnalyzer {
             }
             reporter.error(c.location(), "cannot cast " + source + " to " + target);
             return ErrorType.INSTANCE;
+        }
+        if (target instanceof ParameterizedType ptgt) {
+            // (Comparable<?>) o / (List<String>) o: generics are erased at runtime, so the check is
+            // against the raw class/interface and the expression keeps the parameterized static type.
+            if (!(source instanceof NullType || source instanceof ErrorType || source.isReference())) {
+                reporter.error(c.location(), "cannot cast " + source + " to " + target);
+                return ErrorType.INSTANCE;
+            }
+            if (ptgt.raw() instanceof InterfaceSymbol rawIface) {
+                resolvedSymbols.put(c, rawIface.metadata());
+                return target;
+            }
+            if (ptgt.raw() instanceof ClassSymbol rawClass) {
+                resolvedSymbols.put(c, rawClass.metadata());
+                return target;
+            }
         }
         if (!(target instanceof ClassType targetCt)) {
             reporter.error(c.location(), "cast target must be a class, interface, or supported primitive type");

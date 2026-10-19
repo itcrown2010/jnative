@@ -218,7 +218,8 @@ public final class EffectAnalyzer {
 
     private static boolean isAllocatingStringMethod(String name) {
         return switch (name) {
-            case "substring", "substringFrom", "trim", "toLowerCase", "getBytes" -> true;
+            case "substring", "substringFrom", "trim", "toLowerCase", "getBytes",
+                    "toUpperCase", "replace", "split", "repeat", "toCharArray", "strip", "concat" -> true;
             default -> false;
         };
     }
@@ -356,6 +357,13 @@ public final class EffectAnalyzer {
                 contribs.add("new array");
                 e.union(inferExpression(n.length(), ms, contribs));
             }
+            case ArrayInitExpression n -> {
+                e.with(FunctionEffects.ALLOCATES | FunctionEffects.SAFEPOINT);
+                contribs.add("new array");
+                for (Expression element : n.elements()) {
+                    e.union(inferExpression(element, ms, contribs));
+                }
+            }
             case PrintlnExpression p -> {
                 e.with(FunctionEffects.BLOCKS | FunctionEffects.NATIVE_CALL);
                 contribs.add("println");
@@ -485,6 +493,10 @@ public final class EffectAnalyzer {
         if (resolved instanceof NativeCallbackSite) {
             contribs.add("Native.callback");
             return new FunctionEffects(FunctionEffects.NATIVE_CALL | FunctionEffects.UNKNOWN);
+        }
+        if (resolved instanceof InterfaceCallTarget) {
+            // Interface dispatch target is unknown statically: be conservative.
+            return FunctionEffects.unknown();
         }
         if (!(resolved instanceof MethodSymbol callee)) {
             return FunctionEffects.none();
@@ -728,6 +740,13 @@ public final class EffectAnalyzer {
             }
             case FieldAccessExpression f -> containsAwaitExpr(f.receiver());
             case NewArrayExpression n -> containsAwaitExpr(n.length());
+            case ArrayInitExpression n -> {
+                boolean r = false;
+                for (Expression element : n.elements()) {
+                    r = r || containsAwaitExpr(element);
+                }
+                yield r;
+            }
             case ArrayAccessExpression a ->
                     containsAwaitExpr(a.array()) || containsAwaitExpr(a.index());
             case InstanceOfExpression i -> containsAwaitExpr(i.expression());

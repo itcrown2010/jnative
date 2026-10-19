@@ -1,0 +1,49 @@
+public class Main {
+    static void work(int[] a) {
+        System.arraycopy(a, 0, a, 1, 4);
+    }
+    public static void main(String[] args) {
+        long t0 = System.currentTimeMillis();
+        long n0 = System.nanoTime();
+        System.out.print("a");
+        System.out.print(1);
+        System.out.print('c');
+        System.out.print(2.5);
+        System.out.print(true);
+        System.out.print(" ");
+        Integer boxed = 7;
+        System.out.print(boxed);
+        System.out.println();
+        System.out.println("x" + System.lineSeparator().length());
+        System.err.println("to stderr");
+        System.err.print("also stderr");
+        int[] a = {1, 2, 3, 4, 5};
+        work(a);
+        for (int i = 0; i < a.length; i++) {
+            System.out.print(a[i] + " ");
+        }
+        System.out.println();
+        int[] b = new int[5];
+        System.arraycopy(a, 1, b, 0, 3);
+        System.out.println(b[0] + "," + b[1] + "," + b[2] + "," + b[3]);
+        char[] cs = {'h', 'i'};
+        char[] cd = new char[3];
+        System.arraycopy(cs, 0, cd, 1, 2);
+        System.out.println(cd[1]);
+        String[] ss = {"p", "q"};
+        String[] sd = new String[3];
+        System.arraycopy(ss, 0, sd, 0, 2);
+        System.out.println(sd[1] + sd[2]);
+        long t1 = System.currentTimeMillis();
+        System.out.println(t1 >= t0);
+        System.out.println(System.nanoTime() >= n0);
+        try {
+            System.arraycopy(a, 0, b, 3, 5);
+        } catch (IndexOutOfBoundsException e) {
+            System.out.println("ioobe");
+        }
+        System.out.println("before exit");
+        System.exit(0);
+        System.out.println("after exit");
+    }
+}

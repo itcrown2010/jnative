@@ -674,7 +674,11 @@ public final class Parser {
         }
         Expression initializer = null;
         if (match(TokenType.ASSIGN)) {
-            initializer = parseExpression();
+            if (isArray && check(TokenType.LBRACE)) {
+                initializer = parseArrayInitializer(type);
+            } else {
+                initializer = parseExpression();
+            }
         }
         consume(TokenType.SEMICOLON, "expected ';' after field declaration");
         fields.add(new FieldDeclaration(
@@ -979,7 +983,11 @@ public final class Parser {
                 }
                 consume(TokenType.GT, "expected '>' after type arguments");
             }
-            return TypeName.ofClass(qn.toString(), args, id.location());
+            String qualified = qn.toString();
+            if (qualified.equals("Map.Entry")) {
+                qualified = "Entry";
+            }
+            return TypeName.ofClass(qualified, args, id.location());
         }
         if (match(TokenType.QUESTION)) {
             return parseWildcardType(previous());
@@ -1402,7 +1410,11 @@ public final class Parser {
         }
         Expression init = null;
         if (match(TokenType.ASSIGN)) {
-            init = parseExpression();
+            if (isArray && check(TokenType.LBRACE)) {
+                init = parseArrayInitializer(type);
+            } else {
+                init = parseExpression();
+            }
         }
         consume(TokenType.SEMICOLON, "expected ';' after variable declaration");
         return new VariableDeclaration(
@@ -1630,9 +1642,57 @@ public final class Parser {
             }
             throw error(eq, "invalid assignment target");
         }
+        if (check(TokenType.COMPOUND_ASSIGN)) {
+            Token opTok = advance();
+            Expression value = parseAssignment();
+            if (!isAssignable(expr)) {
+                throw error(opTok, "invalid assignment target");
+            }
+            if (!isSideEffectFree(expr)) {
+                throw error(opTok, "compound assignment target must not contain calls, assignments or "
+                        + "increments (the target would be evaluated twice)");
+            }
+            BinaryOp bop = switch (opTok.lexeme()) {
+                case "+=" -> BinaryOp.ADD;
+                case "-=" -> BinaryOp.SUB;
+                case "*=" -> BinaryOp.MUL;
+                case "/=" -> BinaryOp.DIV;
+                case "%=" -> BinaryOp.MOD;
+                case "&=" -> BinaryOp.BIT_AND;
+                case "|=" -> BinaryOp.BIT_OR;
+                case "^=" -> BinaryOp.BIT_XOR;
+                case "<<=" -> BinaryOp.SHL;
+                case ">>=" -> BinaryOp.SHR;
+                case ">>>=" -> BinaryOp.USHR;
+                default -> throw error(opTok, "unsupported compound assignment " + opTok.lexeme());
+            };
+            // a op= b  ==>  a = (T)(a op (b)); T is the type of a (resolved in the semantic pass).
+            Expression combined = new BinaryExpression(
+                    expr, bop, new GroupingExpression(value, value.location()), opTok.location());
+            Expression narrowed = new CastExpression(
+                    TypeName.ofClass(COMPOUND_CAST_MARKER, opTok.location()), combined, opTok.location());
+            return new AssignmentExpression(expr, narrowed, opTok.location());
+        }
         return expr;
     }
 
+    /** Marker type name for the implicit narrowing cast of a desugared compound assignment. */
+    public static final String COMPOUND_CAST_MARKER = "$compound";
+
+    /** True when evaluating {@code expr} twice is indistinguishable from evaluating it once. */
+    private static boolean isSideEffectFree(Expression expr) {
+        return switch (expr) {
+            case VariableExpression ignored -> true;
+            case LiteralExpression ignored -> true;
+            case ThisExpression ignored -> true;
+            case GroupingExpression g -> isSideEffectFree(g.expression());
+            case FieldAccessExpression f -> f.receiver() == null || isSideEffectFree(f.receiver());
+            case ArrayAccessExpression a -> isSideEffectFree(a.array()) && isSideEffectFree(a.index());
+            case UnaryExpression u -> isSideEffectFree(u.operand());
+            case BinaryExpression b -> isSideEffectFree(b.left()) && isSideEffectFree(b.right());
+            default -> false;
+        };
+    }
     private boolean isAssignable(Expression expr) {
         return expr instanceof VariableExpression
                 || expr instanceof FieldAccessExpression
@@ -1984,6 +2044,10 @@ public final class Parser {
             if (id.lexeme().equals("System") && match(TokenType.DOT)) {
                 return parseSystemCall(id);
             }
+            Expression factory = tryParseCollectionFactory(id);
+            if (factory != null) {
+                return factory;
+            }
             if (match(TokenType.LPAREN)) {
                 List<Expression> args = parseArgumentList();
                 consume(TokenType.RPAREN, "expected ')' after arguments");
@@ -1992,6 +2056,28 @@ public final class Parser {
             return new VariableExpression(id.lexeme(), id.location());
         }
         throw error(peek(), "expected expression");
+    }
+
+    /**
+     * One-dimensional array initializer {@code { e1, e2, ... }} (trailing comma allowed).
+     * Multi-dimensional arrays do not exist in the language yet, so nested braces are rejected.
+     */
+    private Expression parseArrayInitializer(TypeName elementType) {
+        Token open = consume(TokenType.LBRACE, "expected '{' to start array initializer");
+        List<Expression> elements = new ArrayList<>();
+        if (!check(TokenType.RBRACE)) {
+            do {
+                if (check(TokenType.RBRACE)) {
+                    break; // trailing comma
+                }
+                if (check(TokenType.LBRACE)) {
+                    throw error(peek(), "nested array initializers are not supported (multi-dimensional arrays)");
+                }
+                elements.add(parseExpression());
+            } while (match(TokenType.COMMA));
+        }
+        consume(TokenType.RBRACE, "expected '}' after array initializer");
+        return new ArrayInitExpression(elementType, List.copyOf(elements), open.location());
     }
 
     private Expression parseNew(Token newTok) {
@@ -2025,11 +2111,18 @@ public final class Parser {
             type = parseType();
         }
         if (match(TokenType.LBRACKET)) {
-            Expression length = parseExpression();
-            consume(TokenType.RBRACKET, "expected ']' after array length");
             if (type.kind() == TypeName.Kind.VOID) {
                 throw error(newTok, "cannot create an array of 'void'");
             }
+            if (match(TokenType.RBRACKET)) {
+                // new T[] { a, b, c }
+                if (!check(TokenType.LBRACE)) {
+                    throw error(peek(), "array dimension missing: expected an array length or '{' initializer");
+                }
+                return parseArrayInitializer(type);
+            }
+            Expression length = parseExpression();
+            consume(TokenType.RBRACKET, "expected ']' after array length");
             return new NewArrayExpression(type, length, newTok.location());
         }
         if (type.kind() != TypeName.Kind.CLASS) {
@@ -2077,6 +2170,27 @@ public final class Parser {
                 return false;
             }
             idx++; // >
+        } else if (classType && peekAt(idx) != null && peekAt(idx).type() == TokenType.LT) {
+            // Parameterized cast target: (Comparable<?>) x, (List<String>) o, (Map<K, V>) m
+            int depth = 0;
+            while (true) {
+                Token t = peekAt(idx);
+                if (t == null) {
+                    return false;
+                }
+                switch (t.type()) {
+                    case LT -> depth++;
+                    case GT -> depth--;
+                    case IDENTIFIER, COMMA, QUESTION, EXTENDS, SUPER, DOT -> { }
+                    default -> {
+                        return false;
+                    }
+                }
+                idx++;
+                if (depth == 0) {
+                    break;
+                }
+            }
         }
         Token rparen = peekAt(idx);
         if (rparen == null || rparen.type() != TokenType.RPAREN) {
@@ -2237,32 +2351,125 @@ public final class Parser {
         return args;
     }
 
+    /**
+     * {@code System.*}. {@code System.out.println} keeps its dedicated AST node (fast path);
+     * everything else is desugared into calls on the stdlib class {@code JnSystem}
+     * ({@code SystemLib.java}), so the compiler core needs no new intrinsics:
+     * <ul>
+     *   <li>{@code System.out.print(x)} → {@code JnSystem.print("" + x)}</li>
+     *   <li>{@code System.err.print/println(x)} → {@code JnSystem.errPrint/errPrintln("" + x)}</li>
+     *   <li>{@code System.exit / currentTimeMillis / nanoTime / arraycopy / lineSeparator}
+     *       → the same-named {@code JnSystem} static method</li>
+     * </ul>
+     */
     private Expression parseSystemCall(Token systemTok) {
         Token next = consume(TokenType.IDENTIFIER, "expected member after System.");
-        if (next.lexeme().equals("gc")) {
+        String member = next.lexeme();
+        if (member.equals("gc")) {
             consume(TokenType.LPAREN, "expected '(' after System.gc");
             consume(TokenType.RPAREN, "expected ')' after System.gc");
             return new GcCollectExpression(systemTok.location());
         }
-        if (!next.lexeme().equals("out")) {
-            throw error(next, "expected 'out' or 'gc' after System.");
+        if (member.equals("exit") || member.equals("currentTimeMillis") || member.equals("nanoTime")
+                || member.equals("arraycopy") || member.equals("lineSeparator")) {
+            consume(TokenType.LPAREN, "expected '(' after System." + member);
+            List<Expression> args = parseArgumentList();
+            consume(TokenType.RPAREN, "expected ')' after arguments");
+            return systemHelperCall(member, args, systemTok);
         }
-        consume(TokenType.DOT, "expected '.' after System.out");
-        Token println = consume(TokenType.IDENTIFIER, "expected 'println'");
-        if (!println.lexeme().equals("println")) {
-            throw error(println, "only System.out.println / System.gc are supported");
+        if (!member.equals("out") && !member.equals("err")) {
+            throw error(next, "unsupported System member '" + member
+                    + "' (supported: out, err, exit, gc, currentTimeMillis, nanoTime, arraycopy, lineSeparator)");
         }
-        consume(TokenType.LPAREN, "expected '(' after println");
-        Expression arg;
-        if (check(TokenType.RPAREN)) {
-            arg = LiteralExpression.ofString("", println.location());
+        boolean err = member.equals("err");
+        consume(TokenType.DOT, "expected '.' after System." + member);
+        Token method = consume(TokenType.IDENTIFIER, "expected 'println' or 'print'");
+        boolean newline;
+        if (method.lexeme().equals("println")) {
+            newline = true;
+        } else if (method.lexeme().equals("print")) {
+            newline = false;
         } else {
+            throw error(method, "only System." + member + ".println / print are supported"
+                    + " (printf/format need varargs and are not supported yet)");
+        }
+        consume(TokenType.LPAREN, "expected '(' after " + method.lexeme());
+        Expression arg = null;
+        if (!check(TokenType.RPAREN)) {
             arg = parseExpression();
         }
-        consume(TokenType.RPAREN, "expected ')' after println argument");
-        return new PrintlnExpression(arg, systemTok.location());
+        consume(TokenType.RPAREN, "expected ')' after " + method.lexeme() + " argument");
+        if (arg == null) {
+            if (!newline) {
+                throw error(method, "System." + member + ".print requires an argument");
+            }
+            arg = LiteralExpression.ofString("", method.location());
+        }
+        if (!err && newline) {
+            return new PrintlnExpression(arg, systemTok.location());
+        }
+        Expression asText = new BinaryExpression(
+                LiteralExpression.ofString("", systemTok.location()),
+                BinaryOp.ADD,
+                new GroupingExpression(arg, systemTok.location()),
+                systemTok.location());
+        String helper = err ? (newline ? "errPrintln" : "errPrint") : "print";
+        return systemHelperCall(helper, List.of(asText), systemTok);
     }
 
+    /**
+     * Collection factories ({@code List.of}, {@code Set.of}, {@code Map.of}, {@code Map.entry},
+     * {@code List.copyOf}, multi-argument {@code Arrays.asList}) are desugared to fixed-arity static
+     * helpers in the stdlib ({@code JnLists/JnSets/JnMaps}); the language has no varargs or static
+     * interface methods yet. Returns null (nothing consumed) when the tokens are not such a call.
+     */
+    private Expression tryParseCollectionFactory(Token owner) {
+        Token dot = peek();
+        Token member = peekAt(1);
+        Token paren = peekAt(2);
+        if (dot == null || dot.type() != TokenType.DOT || member == null
+                || member.type() != TokenType.IDENTIFIER || paren == null
+                || paren.type() != TokenType.LPAREN) {
+            return null;
+        }
+        String o = owner.lexeme();
+        String m = member.lexeme();
+        String helper = null;
+        if (o.equals("List") && (m.equals("of") || m.equals("copyOf"))) {
+            helper = "JnLists";
+        } else if (o.equals("Set") && (m.equals("of") || m.equals("copyOf"))) {
+            helper = "JnSets";
+        } else if (o.equals("Map") && (m.equals("of") || m.equals("entry") || m.equals("copyOf"))) {
+            helper = "JnMaps";
+        } else if (o.equals("Arrays") && m.equals("asList")) {
+            helper = "Arrays";
+        }
+        if (helper == null) {
+            return null;
+        }
+        advance();
+        advance();
+        advance();
+        List<Expression> args = parseArgumentList();
+        consume(TokenType.RPAREN, "expected ')' after arguments");
+        String name = m;
+        if (helper.equals("Arrays")) {
+            if (args.size() == 1) {
+                name = "asList";
+            } else {
+                helper = "JnLists";
+                name = "of";
+            }
+        }
+        return new MethodCallExpression(
+                new VariableExpression(helper, owner.location()), name, args, owner.location());
+    }
+
+    private static Expression systemHelperCall(String name, List<Expression> args, Token systemTok) {
+        return new MethodCallExpression(
+                new VariableExpression("JnSystem", systemTok.location()),
+                name, args, systemTok.location());
+    }
     private boolean match(TokenType... types) {
         for (TokenType type : types) {
             if (check(type)) {

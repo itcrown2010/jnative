@@ -541,3 +541,213 @@ char *jnative_string_to_cstr(void *s) {
     buf[bytes] = 0;
     return buf;
 }
+
+
+/* ---- Java-compatible Double.toString / Float.toString -------------------------------------
+ * Shortest decimal (at least 2 significant digits) that round-trips, laid out like the JDK:
+ * plain notation for 1e-3 <= |v| < 1e7, otherwise d.dddE<exp>. Writes into out (>= 48 bytes),
+ * returns the length (no NUL needed by the caller, but one is written).
+ */
+#include <stdio.h>
+#include <math.h>
+
+int32_t jnative_fp_to_chars(double v, int32_t isFloat, char *out) {
+    if (v != v) {
+        memcpy(out, "NaN", 4);
+        return 3;
+    }
+    if (isinf(v)) {
+        if (v > 0) {
+            memcpy(out, "Infinity", 9);
+            return 8;
+        }
+        memcpy(out, "-Infinity", 10);
+        return 9;
+    }
+    if (v == 0.0) {
+        if (signbit(v)) {
+            memcpy(out, "-0.0", 5);
+            return 4;
+        }
+        memcpy(out, "0.0", 4);
+        return 3;
+    }
+    char buf[48];
+    int p;
+    for (p = 1; p <= 17; p++) {
+        snprintf(buf, sizeof buf, "%.*e", p, v);
+        if (isFloat ? (strtof(buf, NULL) == (float)v) : (strtod(buf, NULL) == v)) {
+            break;
+        }
+    }
+    const char *s = buf;
+    int neg = 0;
+    if (*s == '-') {
+        neg = 1;
+        s++;
+    }
+    char digits[24];
+    int nd = 0;
+    while (*s != '\0' && *s != 'e' && nd < 20) {
+        if (*s != '.') {
+            digits[nd++] = *s;
+        }
+        s++;
+    }
+    while (*s != '\0' && *s != 'e') {
+        s++;
+    }
+    int exp10 = (*s == 'e') ? atoi(s + 1) : 0;
+    while (nd > 1 && digits[nd - 1] == '0') {
+        nd--;
+    }
+    char *o = out;
+    int i;
+    if (neg) {
+        *o++ = '-';
+    }
+    if (exp10 >= -3 && exp10 < 7) {
+        if (exp10 >= 0) {
+            int ip = exp10 + 1;
+            for (i = 0; i < ip; i++) {
+                *o++ = (i < nd) ? digits[i] : '0';
+            }
+            *o++ = '.';
+            if (nd > ip) {
+                for (i = ip; i < nd; i++) {
+                    *o++ = digits[i];
+                }
+            } else {
+                *o++ = '0';
+            }
+        } else {
+            *o++ = '0';
+            *o++ = '.';
+            for (i = 0; i < -exp10 - 1; i++) {
+                *o++ = '0';
+            }
+            for (i = 0; i < nd; i++) {
+                *o++ = digits[i];
+            }
+        }
+    } else {
+        *o++ = digits[0];
+        *o++ = '.';
+        if (nd > 1) {
+            for (i = 1; i < nd; i++) {
+                *o++ = digits[i];
+            }
+        } else {
+            *o++ = '0';
+        }
+        *o++ = 'E';
+        o += sprintf(o, "%d", exp10);
+    }
+    *o = '\0';
+    return (int32_t)(o - out);
+}
+/* ---- System shim helpers (System.exit / out.print / err.print) --------------------------- */
+
+void jnative_exit(int32_t status) {
+    fflush(stdout);
+    fflush(stderr);
+    exit((int)status);
+}
+
+void jnative_stdout_write(const char *s, int32_t newline) {
+    if (s != NULL) {
+        fputs(s, stdout);
+    }
+    if (newline) {
+        fputc('\n', stdout);
+    }
+}
+
+void jnative_stderr_write(const char *s, int32_t newline) {
+    fflush(stdout); /* keep stdout/stderr interleaving in program order, like Java */
+    if (s != NULL) {
+        fputs(s, stderr);
+    }
+    if (newline) {
+        fputc('\n', stderr);
+    }
+    fflush(stderr);
+}
+int32_t jnative_is_windows(void) {
+#ifdef _WIN32
+    return 1;
+#else
+    return 0;
+#endif
+}
+
+/* ---- Extra java.lang.String helpers ------------------------------------------------------ */
+
+void *jnative_string_repeat(void *s, int32_t count) {
+    jnative_null_check(s);
+    if (count < 0) {
+        jnative_throw_illegal_argument();
+        return NULL;
+    }
+    void *meta = *(void **)s;
+    int32_t n = jn_str_len(s);
+    int64_t total = (int64_t)n * (int64_t)count;
+    if (total > 0x7FFFFFFF) {
+        jnative_throw_illegal_argument();
+        return NULL;
+    }
+    void *obj = jn_str_alloc(meta, (int32_t)total);
+    if (obj == NULL) return NULL;
+    const uint16_t *src = jn_str_data(s);
+    uint16_t *dst = jn_str_data(obj);
+    for (int32_t k = 0; k < count; k++) {
+        if (n > 0) memcpy(dst + (size_t)k * (size_t)n, src, (size_t)n * 2u);
+    }
+    return obj;
+}
+
+int32_t jnative_string_is_blank(void *s) {
+    jnative_null_check(s);
+    int32_t n = jn_str_len(s);
+    const uint16_t *u = jn_str_data(s);
+    for (int32_t i = 0; i < n; i++) {
+        if (u[i] > 0x20) return 0;
+    }
+    return 1;
+}
+
+/* arr is a char[] already allocated with length == string length. */
+void jnative_string_copy_chars(void *s, void *arr) {
+    jnative_null_check(s);
+    jnative_null_check(arr);
+    int32_t n = jn_str_len(s);
+    if (n > 0) memcpy((uint8_t *)arr + 16, jn_str_data(s), (size_t)n * 2u);
+}
+
+void *jnative_string_from_char_array(void *arr, void *stringMeta) {
+    jnative_null_check(arr);
+    int32_t len = *(int32_t *)((uint8_t *)arr + 8);
+    return jnative_string_from_utf16(stringMeta, (const uint16_t *)((uint8_t *)arr + 16), len);
+}
+
+int32_t jnative_string_compare_to_ignore_case(void *a, void *b) {
+    jnative_null_check(a);
+    jnative_null_check(b);
+    int32_t la = jn_str_len(a), lb = jn_str_len(b);
+    int32_t n = la < lb ? la : lb;
+    const uint16_t *ua = jn_str_data(a);
+    const uint16_t *ub = jn_str_data(b);
+    for (int32_t i = 0; i < n; i++) {
+        uint16_t x = ua[i], y = ub[i];
+        if (x != y) {
+            x = jn_ascii_upper_u16(x);
+            y = jn_ascii_upper_u16(y);
+            if (x != y) {
+                x = jn_ascii_lower_u16(x);
+                y = jn_ascii_lower_u16(y);
+                if (x != y) return (int32_t)x - (int32_t)y;
+            }
+        }
+    }
+    return la - lb;
+}

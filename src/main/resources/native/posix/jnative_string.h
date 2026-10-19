@@ -85,6 +85,15 @@ char *jnative_string_to_cstr(void *s);
 /** Encode into caller buffer; returns bytes written (no NUL). buf may be NULL to measure. */
 int32_t jnative_string_encode_utf8(void *s, uint8_t *buf, int32_t bufCap);
 
+/** Java Double/Float.toString into out (>= 48 bytes); returns length. */
+int32_t jnative_fp_to_chars(double v, int32_t isFloat, char *out);
+
+/* System shim: exit with flush; write UTF-8 C string to stdout/stderr (+ optional newline). */
+int32_t jnative_is_windows(void);
+void jnative_exit(int32_t status);
+void jnative_stdout_write(const char *s, int32_t newline);
+void jnative_stderr_write(const char *s, int32_t newline);
+
 #ifdef __cplusplus
 }
 #endif

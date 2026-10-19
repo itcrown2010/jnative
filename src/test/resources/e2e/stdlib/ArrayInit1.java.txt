@@ -1,0 +1,72 @@
+public class Main {
+    static int[] PRIMES = {2, 3, 5, 7, 11, 13};
+    static String[] NAMES = {"alpha", "beta", "gamma"};
+    int[] inst = {10, 20, 30,};
+    long[] big = {1, 2L, 3};
+
+    static int sum(int[] a) {
+        int s = 0;
+        int i = 0;
+        while (i < a.length) {
+            s = s + a[i];
+            i = i + 1;
+        }
+        return s;
+    }
+
+    static int[] pair(int a, int b) {
+        return new int[] {a, b};
+    }
+
+    static int seq = 0;
+    static int next() {
+        seq = seq + 1;
+        return seq;
+    }
+
+    public static void main(String[] args) {
+        int[] a = {5, 4, 3, 2, 1};
+        System.out.println(a.length);
+        System.out.println(sum(a));
+        System.out.println(sum(new int[] {1, 2, 3, 4}));
+        System.out.println(sum(new int[] {}));
+        int[] empty = {};
+        System.out.println(empty.length);
+        System.out.println(sum(PRIMES));
+        System.out.println(NAMES[1] + NAMES.length);
+        Main m = new Main();
+        System.out.println(sum(m.inst));
+        System.out.println(m.big[0] + m.big[1] + m.big[2]);
+        int[] p = pair(7, 9);
+        System.out.println(p[0] * 10 + p[1]);
+
+        double[] d = {1, 2.5, 3};
+        System.out.println(d[0] + d[1] + d[2]);
+        char[] cs = {'a', 'b', 'c'};
+        System.out.println(cs[1]);
+        System.out.println(cs.length);
+        boolean[] bs = {true, false, true};
+        if (bs[0] && !bs[1] && bs[2]) {
+            System.out.println("bools ok");
+        }
+        String[] ss = new String[] {"x", "y" + "z", "w"};
+        System.out.println(ss[0] + ss[1] + ss[2]);
+        Integer[] boxed = {1, 2, 3};
+        System.out.println(boxed[0] + boxed[2]);
+        byte[] bytes = {1, 2, 3, 127};
+        System.out.println(bytes[3]);
+        int[] ev = {next(), next(), next()};
+        System.out.println(ev[0] * 100 + ev[1] * 10 + ev[2]);
+        int base = 4;
+        int[] expr = {base * 2, base + 1, a[0] - a[4]};
+        System.out.println(expr[0] + "," + expr[1] + "," + expr[2]);
+        a[0] = 100;
+        System.out.println(a[0]);
+        String[] objs = {"q" + "q", "r"};
+        System.out.println(objs[0] + objs[1]);
+        for (int i = 0; i < 3; i++) {
+            int[] tmp = {i, i * i};
+            System.out.println(tmp[0] + tmp[1]);
+        }
+    }
+}

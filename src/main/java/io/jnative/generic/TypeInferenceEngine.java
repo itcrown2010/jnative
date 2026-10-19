@@ -49,13 +49,18 @@ public final class TypeInferenceEngine {
         }
     }
 
-    public record InferenceResult(boolean success, TypeSubstitution substitution, String message) {
+    /** {@code defaulted}: some type parameter was unconstrained and fell back to the default (Object). */
+    public record InferenceResult(boolean success, TypeSubstitution substitution, String message, boolean defaulted) {
         public static InferenceResult ok(TypeSubstitution sub) {
-            return new InferenceResult(true, sub, null);
+            return new InferenceResult(true, sub, null, false);
+        }
+
+        public static InferenceResult ok(TypeSubstitution sub, boolean defaulted) {
+            return new InferenceResult(true, sub, null, defaulted);
         }
 
         public static InferenceResult fail(String message) {
-            return new InferenceResult(false, new TypeSubstitution(Map.of()), message);
+            return new InferenceResult(false, new TypeSubstitution(Map.of()), message, false);
         }
     }
 
@@ -72,24 +77,45 @@ public final class TypeInferenceEngine {
             JType declaredReturn,
             JType targetReturn
     ) {
+        return inferMethod(typeParams, formalParams, actualArgs, declaredReturn, targetReturn, null);
+    }
+
+    /** As above; type parameters left unconstrained default to {@code unconstrainedDefault} (Java: Object). */
+    public static InferenceResult inferMethod(
+            List<TypeParameterSymbol> typeParams,
+            List<JType> formalParams,
+            List<JType> actualArgs,
+            JType declaredReturn,
+            JType targetReturn,
+            JType unconstrainedDefault
+    ) {
         if (typeParams == null || typeParams.isEmpty()) {
             return InferenceResult.ok(new TypeSubstitution(Map.of()));
         }
         ConstraintSet set = new ConstraintSet();
         int n = Math.min(formalParams.size(), actualArgs.size());
         for (int i = 0; i < n; i++) {
+            if (actualArgs.get(i) == null) {
+                continue; // weakly typed argument (e.g. Collections.reverseOrder()): no constraint
+            }
             addEqualityConstraints(set, formalParams.get(i), actualArgs.get(i));
         }
         if (targetReturn != null && declaredReturn != null) {
             addEqualityConstraints(set, declaredReturn, targetReturn);
         }
-        return solve(typeParams, set);
+        return solve(typeParams, set, unconstrainedDefault);
     }
 
     private static void addEqualityConstraints(ConstraintSet set, JType formal, JType actual) {
         if (formal instanceof TypeVariable) {
             set.equal(formal, actual);
             return;
+        }
+        if (formal instanceof ParameterizedType fp2 && !(actual instanceof ParameterizedType ap0 && ap0.raw().name().equals(fp2.raw().name()))) {
+            ParameterizedType viewed = ParameterizedType.asSuper(actual, fp2.raw());
+            if (viewed != null) {
+                actual = viewed;
+            }
         }
         if (formal instanceof ParameterizedType fp && actual instanceof ParameterizedType ap) {
             if (fp.raw().name().equals(ap.raw().name())
@@ -105,7 +131,8 @@ public final class TypeInferenceEngine {
         }
     }
 
-    private static InferenceResult solve(List<TypeParameterSymbol> typeParams, ConstraintSet set) {
+    private static InferenceResult solve(List<TypeParameterSymbol> typeParams, ConstraintSet set,
+            JType unconstrainedDefault) {
         Map<TypeParameterSymbol, JType> bound = new LinkedHashMap<>();
         for (Constraint c : set.constraints()) {
             if (c.kind() != Kind.EQUAL) {
@@ -148,9 +175,14 @@ public final class TypeInferenceEngine {
                 }
             }
         }
+        boolean defaulted = false;
         for (TypeParameterSymbol p : typeParams) {
             if (!bound.containsKey(p)) {
-                return InferenceResult.fail("cannot infer type parameter " + p.name());
+                if (unconstrainedDefault == null) {
+                    return InferenceResult.fail("cannot infer type parameter " + p.name());
+                }
+                bound.put(p, unconstrainedDefault);
+                defaulted = true;
             }
             for (JType b : p.bounds()) {
                 JType arg = bound.get(p);
@@ -160,7 +192,7 @@ public final class TypeInferenceEngine {
                 }
             }
         }
-        return InferenceResult.ok(new TypeSubstitution(bound));
+        return InferenceResult.ok(new TypeSubstitution(bound), defaulted);
     }
 
     private static JType stripWildcard(JType t) {

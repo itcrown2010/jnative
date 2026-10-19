@@ -19,6 +19,63 @@ public record ParameterizedType(ReferenceTypeSymbol raw, List<JType> typeArgumen
         typeArguments = List.copyOf(typeArguments);
     }
 
+    /**
+     * Views {@code actual} (parameterized or plain class/interface type) as an instantiation of the
+     * generic {@code target} (e.g. {@code ArrayList<Integer>} as {@code Collection<Integer>}),
+     * walking implemented interfaces and super-interfaces with type-argument substitution.
+     * Returns null when {@code actual} is not a subtype of {@code target} or carries no type arguments.
+     */
+    public static ParameterizedType asSuper(JType actual, ReferenceTypeSymbol target) {
+        return asSuper(actual, target, 0);
+    }
+
+    private static ParameterizedType asSuper(JType actual, ReferenceTypeSymbol target, int depth) {
+        if (depth > 16) {
+            return null;
+        }
+        ReferenceTypeSymbol raw;
+        List<JType> args;
+        if (actual instanceof ParameterizedType p) {
+            raw = p.raw();
+            args = p.typeArguments();
+        } else if (actual instanceof ClassType c) {
+            raw = c.classSymbol();
+            args = List.of();
+        } else if (actual instanceof InterfaceType it) {
+            raw = it.interfaceSymbol();
+            args = List.of();
+        } else {
+            return null;
+        }
+        if (raw == target) {
+            return actual instanceof ParameterizedType p ? p : null;
+        }
+        List<TypeParameterSymbol> params = raw instanceof ClassSymbol cs ? cs.typeParameters()
+                : ((InterfaceSymbol) raw).typeParameters();
+        io.jnative.generic.TypeSubstitution sub = (!params.isEmpty() && params.size() == args.size())
+                ? io.jnative.generic.TypeSubstitution.zip(params, args) : null;
+        List<ParameterizedType> supers = new java.util.ArrayList<>();
+        if (raw instanceof ClassSymbol cs) {
+            supers.addAll(cs.implementedParameterizedInterfaces());
+        } else {
+            supers.addAll(((InterfaceSymbol) raw).parameterizedSuperInterfaces());
+        }
+        for (ParameterizedType sup : supers) {
+            List<JType> mapped = new java.util.ArrayList<>();
+            for (JType a : sup.typeArguments()) {
+                mapped.add(sub != null ? sub.apply(a) : a);
+            }
+            ParameterizedType found = asSuper(new ParameterizedType(sup.raw(), mapped), target, depth + 1);
+            if (found != null) {
+                return found;
+            }
+        }
+        if (raw instanceof ClassSymbol cs && cs.superClass().isPresent()) {
+            return asSuper(cs.superClass().get().asType(), target, depth + 1);
+        }
+        return null;
+    }
+
     public JType rawType() {
         return raw.asJType();
     }
@@ -72,10 +129,39 @@ public record ParameterizedType(ReferenceTypeSymbol raw, List<JType> typeArgumen
                 }
                 return true;
             }
+            // ArrayList<Integer> → Collection<Integer>, Set<Integer> → Collection<Integer>, ...
+            ParameterizedType viewed = asSuper(pt, raw);
+            if (viewed != null && viewed.typeArguments.size() == typeArguments.size()) {
+                for (int i = 0; i < typeArguments.size(); i++) {
+                    if (!typeEquals(typeArguments.get(i), viewed.typeArguments.get(i))) {
+                        return false;
+                    }
+                }
+                return true;
+            }
             // e.g. ArrayListIterator<T> → Iterator<T>
             if (pt.raw() instanceof ClassSymbol cs && raw instanceof InterfaceSymbol iface) {
                 if (!cs.implementsInterface(iface)) {
                     return false;
+                }
+                // Direct "implements Iface<...>" declaration: map the class's own type parameters
+                // (e.g. class Values<K, V> implements Collection<V>) instead of comparing positionally.
+                for (ClassSymbol c = cs; c != null; c = c.superClass().orElse(null)) {
+                    for (ParameterizedType declared : c.implementedParameterizedInterfaces()) {
+                        if (declared.raw() == iface
+                                && declared.typeArguments().size() == typeArguments.size()
+                                && c == cs
+                                && cs.typeParameters().size() == pt.typeArguments().size()) {
+                            io.jnative.generic.TypeSubstitution sub = io.jnative.generic.TypeSubstitution.zip(
+                                    cs.typeParameters(), pt.typeArguments());
+                            for (int i = 0; i < typeArguments.size(); i++) {
+                                if (!typeEquals(typeArguments.get(i), sub.apply(declared.typeArguments().get(i)))) {
+                                    return false;
+                                }
+                            }
+                            return true;
+                        }
+                    }
                 }
                 int n = Math.min(typeArguments.size(), pt.typeArguments.size());
                 for (int i = 0; i < n; i++) {

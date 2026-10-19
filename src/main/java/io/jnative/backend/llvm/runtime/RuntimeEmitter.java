@@ -44,6 +44,7 @@ public final class RuntimeEmitter {
         sb.append("declare i32 @printf(ptr noundef, ...)\n");
         sb.append("declare i32 @snprintf(ptr noundef, i64 noundef, ptr noundef, ...)\n");
         sb.append("declare double @strtod(ptr noundef, ptr noundef)\n");
+        sb.append("declare i32 @jnative_fp_to_chars(double noundef, i32 noundef, ptr noundef)\n");
         sb.append("declare i32 @puts(ptr noundef)\n");
         sb.append("declare void @exit(i32 noundef)\n");
         sb.append("declare void @abort()\n");

@@ -1,0 +1,121 @@
+class Money implements Comparable<Money> {
+    int cents;
+    Money(int c) { this.cents = c; }
+    public int compareTo(Money o) { return cents - o.cents; }
+    public String toString() { return "$" + cents; }
+}
+
+public class Main {
+    public static void main(String[] args) {
+        ArrayList<Integer> list = new ArrayList<Integer>();
+        list.add(3);
+        list.add(1);
+        list.add(2);
+        list.add(0, 9);
+        list.remove(0);
+        list.remove(Integer.valueOf(1));
+        list.addAll(list);
+        System.out.println(list);
+        Collections.sort(list);
+        System.out.println(Collections.max(list) + " " + Collections.min(list));
+        list.sort(null);
+        System.out.println(list.indexOf(3) + " " + list.lastIndexOf(3) + " " + list.contains(2));
+        List<Integer> view = new ArrayList<Integer>(list);
+        view.removeIf(x -> x == 2);
+        System.out.println(view + " " + view.equals(list) + " " + view.hashCode());
+        System.out.println(view.subList(0, 2));
+
+        int[] arr = {5, 3, 1, 4};
+        Arrays.sort(arr);
+        System.out.println(Arrays.toString(arr));
+        String[] names = {"pear", "fig", "apple"};
+        Arrays.sort(names);
+        System.out.println(Arrays.toString(names));
+        double[] ds = {2.5, -1.0, 9.75};
+        Arrays.sort(ds);
+        System.out.println(Arrays.toString(ds));
+        long[] big = new long[3];
+        Arrays.fill(big, 7L);
+        System.out.println(Arrays.toString(big) + " " + Arrays.equals(arr, new int[] {1, 3, 4, 5}));
+        System.out.println(Arrays.toString(Arrays.copyOfRange(arr, 1, 3)) + Arrays.toString(Arrays.copyOf(arr, 6)));
+
+        List<Money> wallet = new ArrayList<Money>();
+        wallet.add(new Money(300));
+        wallet.add(new Money(50));
+        wallet.add(new Money(125));
+        Collections.sort(wallet);
+        System.out.println(wallet);
+        Collections.sort(wallet, Collections.reverseOrder());
+        System.out.println(wallet);
+        Collections.reverse(wallet);
+        System.out.println(wallet + " " + Collections.max(wallet));
+
+        HashMap<String, Integer> m = new HashMap<String, Integer>();
+        String[] words = {"delta", "alpha", "charlie", "bravo", "echo", "alpha", "delta", "alpha"};
+        for (String w : words) {
+            m.put(w, m.getOrDefault(w, 0) + 1);
+        }
+        System.out.println(m);
+        m.putIfAbsent("zulu", 26);
+        m.putIfAbsent("alpha", 100);
+        m.merge("echo", 10, (a, b) -> a + b);
+        for (String k : m.keySet()) {
+            System.out.print(k + ":" + m.get(k) + " ");
+        }
+        System.out.println();
+        int total = 0;
+        for (int v : m.values()) {
+            total += v;
+        }
+        for (Map.Entry<String, Integer> e : m.entrySet()) {
+            total += e.getValue() * 2;
+            e.setValue(e.getValue() + 1);
+        }
+        System.out.println(total + " " + m + " " + m.containsValue(27) + " " + m.size());
+        m.remove("bravo");
+        m.keySet().remove("delta");
+        System.out.println(m + " " + m.keySet() + " " + m.values());
+
+        HashMap<Integer, String> byNum = new HashMap<Integer, String>();
+        for (int i = 0; i < 40; i++) {
+            byNum.put(i * 7 % 41, "v" + i);
+        }
+        System.out.println(byNum);
+
+        HashSet<Integer> hs = new HashSet<Integer>();
+        for (int i = 0; i < 20; i++) {
+            hs.add(i * 13 % 31);
+        }
+        System.out.println(hs + " " + hs.size() + " " + hs.contains(26));
+        HashSet<String> ss = new HashSet<String>();
+        ss.add("x");
+        ss.add("yy");
+        ss.add("zzz");
+        ss.add("x");
+        System.out.println(ss);
+        Set<Integer> copy = new HashSet<Integer>(hs);
+        copy.removeIf(x -> x % 2 == 0);
+        System.out.println(copy + " " + copy.equals(hs) + " " + hs.containsAll(copy));
+
+        List<Integer> fixed = List.of(4, 5, 6);
+        System.out.println(fixed + " " + fixed.size());
+        List<String> asl = Arrays.asList("p", "q");
+        System.out.println(asl + " " + List.of("a").get(0));
+        Map<String, Integer> mo = Map.of("one", 1);
+        System.out.println(mo);
+        Map<String, Integer> bigMap = new HashMap<String, Integer>();
+        for (int i = 0; i < 100; i++) {
+            bigMap.put("key" + i, i);
+        }
+        int sum = 0;
+        for (Map.Entry<String, Integer> e : bigMap.entrySet()) {
+            sum += e.getValue();
+        }
+        System.out.println(bigMap.size() + " " + sum);
+        String first = "";
+        for (String k : bigMap.keySet()) {
+            first = first + k.charAt(k.length() - 1);
+        }
+        System.out.println(first);
+    }
+}

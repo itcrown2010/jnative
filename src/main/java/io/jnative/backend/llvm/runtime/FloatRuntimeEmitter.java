@@ -75,25 +75,23 @@ public final class FloatRuntimeEmitter {
                   ret i64 %r
                 }
 
+                ; Java Double.toString / Float.toString (shortest round-trip, JDK layout).
                 define ptr @jnative_string_value_of_f64(double %v) {
                 entry:
-                  %buf = alloca [64 x i8], align 1
-                  %p = getelementptr [64 x i8], ptr %buf, i64 0, i64 0
-                  %n = call i32 (ptr, i64, ptr, ...) @snprintf(ptr %p, i64 64, ptr @.fmt.double.raw, double %v)
-                  %neg = icmp slt i32 %n, 0
-                  br i1 %neg, label %empty, label %mk
-                empty:
-                  %e = call ptr @jnative_string_from_literal(ptr @.jn.emptystr, i32 0, ptr @meta.String)
-                  ret ptr %e
-                mk:
+                  %buf = alloca [48 x i8], align 1
+                  %p = getelementptr [48 x i8], ptr %buf, i64 0, i64 0
+                  %n = call i32 @jnative_fp_to_chars(double %v, i32 0, ptr %p)
                   %r = call ptr @jnative_string_from_literal(ptr %p, i32 %n, ptr @meta.String)
                   ret ptr %r
                 }
 
                 define ptr @jnative_string_value_of_f32(float %v) {
                 entry:
+                  %buf = alloca [48 x i8], align 1
+                  %p = getelementptr [48 x i8], ptr %buf, i64 0, i64 0
                   %d = fpext float %v to double
-                  %r = call ptr @jnative_string_value_of_f64(double %d)
+                  %n = call i32 @jnative_fp_to_chars(double %d, i32 1, ptr %p)
+                  %r = call ptr @jnative_string_from_literal(ptr %p, i32 %n, ptr @meta.String)
                   ret ptr %r
                 }
 

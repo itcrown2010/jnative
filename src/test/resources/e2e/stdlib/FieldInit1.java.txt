@@ -1,0 +1,63 @@
+public class Main {
+    static int counter = 100;
+    int a = 5;
+    int b = a + 1;
+    int c = twice(b);
+    String s = "x" + a;
+    StringBuilder sb = new StringBuilder();
+    ArrayList<String> names = new ArrayList<>();
+    int[] table = {a, b, c, 7};
+    Main self = this;
+    int id = counter + 1;
+    long total = a * 1000L;
+    double ratio = a / 2.0;
+
+    Main() {
+        counter = counter + 1;
+        names.add("ctor");
+    }
+
+    Main(int extra) {
+        a = a + extra;
+        names.add("extra" + extra);
+    }
+
+    static int twice(int v) {
+        return v * 2;
+    }
+
+    int sumTable() {
+        int s = 0;
+        for (int i = 0; i < table.length; i++) {
+            s = s + table[i];
+        }
+        return s;
+    }
+
+    public static void main(String[] args) {
+        Main m = new Main();
+        System.out.println(m.a);
+        System.out.println(m.b);
+        System.out.println(m.c);
+        System.out.println(m.s);
+        System.out.println(m.sumTable());
+        System.out.println(m.self == m);
+        System.out.println(m.id);
+        System.out.println(m.total);
+        System.out.println(m.ratio);
+        m.sb.append("hi").append(m.a);
+        System.out.println(m.sb.toString());
+        System.out.println(m.names.get(0));
+        Main n = new Main(10);
+        System.out.println(n.a);
+        System.out.println(n.b);
+        System.out.println(n.id);
+        System.out.println(n.names.get(0));
+        System.out.println(n.table.length);
+        byte by = 3;
+        short sh = 4;
+        System.out.println(by);
+        System.out.println(sh);
+        System.out.println(by + sh);
+    }
+}

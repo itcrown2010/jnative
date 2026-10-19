@@ -133,18 +133,27 @@ interface Collection<T> extends Iterable<T> {
     boolean isEmpty();
     boolean contains(T value);
     void clear();
+    boolean addAll(Collection<T> other);
+    boolean containsAll(Collection<T> other);
+    boolean removeIf(Predicate<T> filter);
+    boolean removeAll(Collection<T> other);
+    boolean retainAll(Collection<T> other);
+    void forEach(Consumer<T> action);
 }
 
 interface List<T> extends Collection<T> {
     T get(int index);
     T set(int index, T value);
-    void add(T value);
+    boolean add(T value);
     void addAt(int index, T value);
     /** Remove by index (not overloaded with value remove — avoids Integer ambiguity). */
     T removeAt(int index);
     /** Remove first equal element; returns whether an element was removed. */
     boolean removeValue(T value);
     int indexOf(T value);
+    int lastIndexOf(T value);
+    void sort(Comparator<T> c);
+    List<T> subList(int fromIndex, int toIndex);
 }
 
 interface Set<T> extends Collection<T> {
@@ -160,11 +169,32 @@ interface Map<K, V> {
     V remove(K key);
     boolean containsKey(K key);
     void clear();
+    boolean containsValue(V value);
+    V getOrDefault(K key, V defaultValue);
+    V putIfAbsent(K key, V value);
+    void putAll(Map<K, V> other);
+    V replace(K key, V value);
+    void forEach(BiConsumer<K, V> action);
+    V merge(K key, V value, BiFunction<V, V, V> fn);
+    V computeIfAbsent(K key, Function<K, V> fn);
+    V computeIfPresent(K key, BiFunction<K, V, V> fn);
+    Set<K> keySet();
+    Collection<V> values();
+    Set<Entry<K, V>> entrySet();
 }
 
 interface Entry<K, V> {
     K getKey();
     V getValue();
+    V setValue(V value);
+}
+
+interface BiConsumer<T, U> {
+    void accept(T a, U b);
+}
+
+interface BiFunction<T, U, R> {
+    R apply(T a, U b);
 }
 
 /**
@@ -350,11 +380,12 @@ class ArrayList<T> implements List<T> {
         return old;
     }
 
-    public void add(T value) {
+    public boolean add(T value) {
         ensureCapacity(this.size + 1);
         this.storage[this.size] = value;
         this.size = this.size + 1;
         this.modCount = this.modCount + 1;
+        return true;
     }
 
     public void addAt(int index, T value) {
@@ -443,6 +474,183 @@ class ArrayList<T> implements List<T> {
         return new ArrayListIterator<T>(this);
     }
 
+    ArrayList(Collection<T> other) {
+        this.storage = null;
+        this.size = 0;
+        this.modCount = 0;
+        addAll(other);
+    }
+
+    public boolean addAll(Collection<T> other) {
+        int extra = other.size();
+        if (extra == 0) {
+            return false;
+        }
+        Object otherObj = other;
+        Object selfObj = this;
+        ensureCapacity(this.size + extra);
+        if (otherObj == selfObj) {
+            int i = 0;
+            while (i < extra) {
+                this.storage[this.size + i] = this.storage[i];
+                i = i + 1;
+            }
+            this.size = this.size + extra;
+        } else {
+            Iterator<T> it = other.iterator();
+            while (it.hasNext()) {
+                this.storage[this.size] = it.next();
+                this.size = this.size + 1;
+            }
+        }
+        this.modCount = this.modCount + 1;
+        return true;
+    }
+
+    public boolean containsAll(Collection<T> other) {
+        Iterator<T> it = other.iterator();
+        while (it.hasNext()) {
+            if (!contains(it.next())) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    public boolean removeAll(Collection<T> other) {
+        return removeIf(x -> other.contains(x));
+    }
+
+    public boolean retainAll(Collection<T> other) {
+        return removeIf(x -> !other.contains(x));
+    }
+
+    public int lastIndexOf(T value) {
+        int i = this.size - 1;
+        while (i >= 0) {
+            if (valueEquals(value, this.storage[i])) {
+                return i;
+            }
+            i = i - 1;
+        }
+        return -1;
+    }
+
+    public boolean removeIf(Predicate<T> filter) {
+        if (filter == null) {
+            throw new NullPointerException("filter");
+        }
+        int keep = 0;
+        int i = 0;
+        while (i < this.size) {
+            T v = this.storage[i];
+            if (!filter.test(v)) {
+                this.storage[keep] = v;
+                keep = keep + 1;
+            }
+            i = i + 1;
+        }
+        boolean changed = keep != this.size;
+        int j = keep;
+        while (j < this.size) {
+            this.storage[j] = null;
+            j = j + 1;
+        }
+        this.size = keep;
+        if (changed) {
+            this.modCount = this.modCount + 1;
+        }
+        return changed;
+    }
+
+    int compareElems(Comparator<T> c, T a, T b) {
+        if (c == null) {
+            return SortSupport.natural(a, b);
+        }
+        return c.compare(a, b);
+    }
+
+    /** Stable merge sort; {@code null} comparator = natural ordering. */
+    public void sort(Comparator<T> c) {
+        if (this.size > 1) {
+            T[] src = this.storage;
+            int[] order = SortSupport.sortedOrder(this.size, (i, j) -> compareElems(c, src[i], src[j]));
+            T[] out = new T[src.length];
+            int k = 0;
+            while (k < this.size) {
+                out[k] = src[order[k]];
+                k = k + 1;
+            }
+            this.storage = out;
+        }
+        this.modCount = this.modCount + 1;
+    }
+    /** Copy of the range (Java returns a view; mutations are not reflected). */
+    public List<T> subList(int fromIndex, int toIndex) {
+        if (fromIndex < 0 || toIndex > this.size || fromIndex > toIndex) {
+            throw new IndexOutOfBoundsException("subList");
+        }
+        ArrayList<T> out = new ArrayList<T>();
+        int i = fromIndex;
+        while (i < toIndex) {
+            out.add(this.storage[i]);
+            i = i + 1;
+        }
+        return out;
+    }
+
+    public String toString() {
+        StringBuilder sb = new StringBuilder();
+        sb.append("[");
+        int i = 0;
+        while (i < this.size) {
+            if (i > 0) {
+                sb.append(", ");
+            }
+            sb.append(String.valueOf(this.storage[i]));
+            i = i + 1;
+        }
+        sb.append("]");
+        return sb.toString();
+    }
+
+    public boolean equals(Object o) {
+        Object selfObj = this;
+        if (o == selfObj) {
+            return true;
+        }
+        if (!(o instanceof ArrayList)) {
+            return false;
+        }
+        ArrayList<T> other = (ArrayList<T>) o;
+        if (other.size != this.size) {
+            return false;
+        }
+        int i = 0;
+        while (i < this.size) {
+            if (!valueEquals(this.storage[i], other.storage[i])) {
+                return false;
+            }
+            i = i + 1;
+        }
+        return true;
+    }
+
+    public int hashCode() {
+        int h = 1;
+        int i = 0;
+        while (i < this.size) {
+            Object x = this.storage[i];
+            int eh = 0;
+            if (x != null) {
+                eh = x.hashCode();
+            }
+            h = 31 * h + eh;
+            i = i + 1;
+        }
+        return h;
+    }
+
     /**
      * Invoke {@code action} for each element in index order.
      * Structural modification of this list during forEach → ConcurrentModificationException.
@@ -511,155 +719,116 @@ class ArrayList<T> implements List<T> {
     }
 }
 
+/**
+ * Chained hash table with the same bucketing, resize policy and insertion order as
+ * java.util.HashMap (so iteration order matches Java for the same keys/hash codes).
+ * Null keys and null values are allowed. Bins are never treeified.
+ */
 class HashMap<K, V> implements Map<K, V> {
-    static int EMPTY = 0;
-    static int OCCUPIED = 1;
-    static int DELETED = 2;
-
-    K[] keys;
-    V[] values;
-    int[] states;
+    HashMapEntry<K, V>[] table;
     int size;
     int modCount;
     int threshold;
 
     HashMap() {
-        this.keys = null;
-        this.values = null;
-        this.states = null;
+        this.table = null;
         this.size = 0;
         this.modCount = 0;
         this.threshold = 0;
     }
 
     HashMap(int initialCapacity) {
-        this.size = 0;
-        this.modCount = 0;
         if (initialCapacity < 0) {
             throw new IllegalArgumentException("negative initialCapacity");
         }
-        if (initialCapacity == 0) {
-            this.keys = null;
-            this.values = null;
-            this.states = null;
-            this.threshold = 0;
-        } else {
-            int cap = initialCapacity;
-            if (cap < 4) {
-                cap = 4;
-            }
-            allocTable(cap);
-        }
+        this.table = null;
+        this.size = 0;
+        this.modCount = 0;
+        this.threshold = tableSizeFor(initialCapacity);
     }
 
-    static int spreadHash(int h) {
-        // Mix without bitwise ops (language has no &/^/>>> yet).
-        int x = h * 16777619;
-        if (x < 0) {
-            x = -x;
-        }
-        if (x < 0) {
-            x = 0;
-        }
-        return x;
+    HashMap(Map<K, V> other) {
+        this.table = null;
+        this.size = 0;
+        this.modCount = 0;
+        this.threshold = 0;
+        putAll(other);
     }
 
-    void allocTable(int capacity) {
-        this.keys = new K[capacity];
-        this.values = new V[capacity];
-        this.states = new int[capacity];
-        this.threshold = (capacity * 3) / 4;
+    static int tableSizeFor(int cap) {
+        int n = 1;
+        while (n < cap) {
+            n = n + n;
+        }
+        return n;
     }
 
-    int capacity() {
-        if (this.states == null) {
+    int hashOf(K key) {
+        if (key == null) {
             return 0;
         }
-        return this.states.length;
-    }
-
-    int indexFor(int hash, int cap) {
-        int idx = hash % cap;
-        if (idx < 0) {
-            idx = -idx;
-        }
-        if (idx >= cap) {
-            idx = idx % cap;
-        }
-        return idx;
+        int h = key.hashCode();
+        return h ^ (h >>> 16);
     }
 
     boolean keysEqual(K a, K b) {
-        // Null keys unsupported in 0.16 (also keeps primitive specialization free of null checks).
         if (a == b) {
             return true;
+        }
+        if (a == null || b == null) {
+            return false;
         }
         return a.equals(b);
     }
 
     void resize() {
-        int oldCap = capacity();
-        int newCap = oldCap + oldCap;
-        if (newCap < 8) {
-            newCap = 8;
+        HashMapEntry<K, V>[] old = this.table;
+        int oldCap = 0;
+        if (old != null) {
+            oldCap = old.length;
         }
-        K[] oldKeys = this.keys;
-        V[] oldValues = this.values;
-        int[] oldStates = this.states;
-        allocTable(newCap);
-        this.size = 0;
+        int newCap = 16;
+        if (oldCap > 0) {
+            newCap = oldCap + oldCap;
+        } else if (this.threshold > 0) {
+            newCap = this.threshold;
+        }
+        this.threshold = (newCap * 3) / 4;
+        HashMapEntry<K, V>[] neu = new HashMapEntry<K, V>[newCap];
+        HashMapEntry<K, V>[] tails = new HashMapEntry<K, V>[newCap];
         int i = 0;
         while (i < oldCap) {
-            if (oldStates[i] == OCCUPIED) {
-                putInsert(oldKeys[i], oldValues[i]);
+            HashMapEntry<K, V> e = old[i];
+            while (e != null) {
+                HashMapEntry<K, V> nxt = e.next;
+                e.next = null;
+                int idx = e.hash & (newCap - 1);
+                if (tails[idx] == null) {
+                    neu[idx] = e;
+                } else {
+                    tails[idx].next = e;
+                }
+                tails[idx] = e;
+                e = nxt;
             }
             i = i + 1;
         }
+        this.table = neu;
     }
 
-    void putInsert(K key, V value) {
-        int cap = capacity();
-        int h = spreadHash(key.hashCode());
-        int idx = indexFor(h, cap);
-        int firstDeleted = -1;
-        int probed = 0;
-        while (probed < cap) {
-            int st = this.states[idx];
-            if (st == EMPTY) {
-                int dest = idx;
-                if (firstDeleted >= 0) {
-                    dest = firstDeleted;
-                }
-                this.keys[dest] = key;
-                this.values[dest] = value;
-                this.states[dest] = OCCUPIED;
-                this.size = this.size + 1;
-                return;
-            }
-            if (st == DELETED) {
-                if (firstDeleted < 0) {
-                    firstDeleted = idx;
-                }
-            } else {
-                if (keysEqual(this.keys[idx], key)) {
-                    this.values[idx] = value;
-                    return;
-                }
-            }
-            idx = idx + 1;
-            if (idx >= cap) {
-                idx = 0;
-            }
-            probed = probed + 1;
+    HashMapEntry<K, V> findNode(K key) {
+        if (this.table == null) {
+            return null;
         }
-        if (firstDeleted >= 0) {
-            this.keys[firstDeleted] = key;
-            this.values[firstDeleted] = value;
-            this.states[firstDeleted] = OCCUPIED;
-            this.size = this.size + 1;
-            return;
+        int h = hashOf(key);
+        HashMapEntry<K, V> e = this.table[h & (this.table.length - 1)];
+        while (e != null) {
+            if (e.hash == h && keysEqual(e.key, key)) {
+                return e;
+            }
+            e = e.next;
         }
-        throw new IllegalStateException("HashMap full");
+        return null;
     }
 
     public int size() {
@@ -670,148 +839,279 @@ class HashMap<K, V> implements Map<K, V> {
         return this.size == 0;
     }
 
-    public V put(K key, V value) {
-        if (this.states == null) {
-            allocTable(8);
-        }
-        if (this.size + 1 > this.threshold) {
-            resize();
-        }
-        int cap = capacity();
-        int h = spreadHash(key.hashCode());
-        int idx = indexFor(h, cap);
-        int firstDeleted = -1;
-        int probed = 0;
-        while (probed < cap) {
-            int st = this.states[idx];
-            if (st == EMPTY) {
-                int dest = idx;
-                if (firstDeleted >= 0) {
-                    dest = firstDeleted;
-                }
-                this.keys[dest] = key;
-                this.values[dest] = value;
-                this.states[dest] = OCCUPIED;
-                this.size = this.size + 1;
-                this.modCount = this.modCount + 1;
-                return null;
-            }
-            if (st == DELETED) {
-                if (firstDeleted < 0) {
-                    firstDeleted = idx;
-                }
-            } else {
-                if (keysEqual(this.keys[idx], key)) {
-                    V old = this.values[idx];
-                    this.values[idx] = value;
-                    return old;
-                }
-            }
-            idx = idx + 1;
-            if (idx >= cap) {
-                idx = 0;
-            }
-            probed = probed + 1;
-        }
-        throw new IllegalStateException("HashMap full");
-    }
-
-    int findSlot(K key) {
-        int cap = capacity();
-        if (cap == 0) {
-            return -1;
-        }
-        int h = spreadHash(key.hashCode());
-        int idx = indexFor(h, cap);
-        int probed = 0;
-        while (probed < cap) {
-            int st = this.states[idx];
-            if (st == EMPTY) {
-                return -1;
-            }
-            if (st == OCCUPIED && keysEqual(this.keys[idx], key)) {
-                return idx;
-            }
-            idx = idx + 1;
-            if (idx >= cap) {
-                idx = 0;
-            }
-            probed = probed + 1;
-        }
-        return -1;
-    }
-
     public V get(K key) {
-        int slot = findSlot(key);
-        if (slot < 0) {
+        HashMapEntry<K, V> e = findNode(key);
+        if (e == null) {
             return null;
         }
-        return this.values[slot];
+        return e.value;
     }
 
     public boolean containsKey(K key) {
-        return findSlot(key) >= 0;
+        return findNode(key) != null;
+    }
+
+    public V put(K key, V value) {
+        int h = hashOf(key);
+        if (this.table == null) {
+            resize();
+        }
+        int idx = h & (this.table.length - 1);
+        HashMapEntry<K, V> e = this.table[idx];
+        HashMapEntry<K, V> last = null;
+        while (e != null) {
+            if (e.hash == h && keysEqual(e.key, key)) {
+                V old = e.value;
+                e.value = value;
+                return old;
+            }
+            last = e;
+            e = e.next;
+        }
+        HashMapEntry<K, V> n = new HashMapEntry<K, V>(h, key, value);
+        if (last == null) {
+            this.table[idx] = n;
+        } else {
+            last.next = n;
+        }
+        this.modCount = this.modCount + 1;
+        this.size = this.size + 1;
+        if (this.size > this.threshold) {
+            resize();
+        }
+        return null;
     }
 
     public V remove(K key) {
-        int slot = findSlot(key);
-        if (slot < 0) {
+        if (this.table == null) {
             return null;
         }
-        V old = this.values[slot];
-        this.keys[slot] = null;
-        this.values[slot] = null;
-        this.states[slot] = DELETED;
-        this.size = this.size - 1;
-        this.modCount = this.modCount + 1;
-        return old;
+        int h = hashOf(key);
+        int idx = h & (this.table.length - 1);
+        HashMapEntry<K, V> e = this.table[idx];
+        HashMapEntry<K, V> prev = null;
+        while (e != null) {
+            if (e.hash == h && keysEqual(e.key, key)) {
+                if (prev == null) {
+                    this.table[idx] = e.next;
+                } else {
+                    prev.next = e.next;
+                }
+                this.modCount = this.modCount + 1;
+                this.size = this.size - 1;
+                return e.value;
+            }
+            prev = e;
+            e = e.next;
+        }
+        return null;
     }
 
     public void clear() {
-        int cap = capacity();
-        int i = 0;
-        while (i < cap) {
-            this.keys[i] = null;
-            this.values[i] = null;
-            this.states[i] = EMPTY;
-            i = i + 1;
+        if (this.table != null) {
+            int i = 0;
+            while (i < this.table.length) {
+                this.table[i] = null;
+                i = i + 1;
+            }
         }
         this.size = 0;
         this.modCount = this.modCount + 1;
     }
 
-    /** Snapshot of occupied keys (iteration support for HashSet). Unordered. */
+    public boolean containsValue(V value) {
+        HashMapCursor<K, V> c = new HashMapCursor<K, V>(this);
+        while (c.hasNext()) {
+            V v = c.nextEntry().value;
+            if (v == value) {
+                return true;
+            }
+            if (v != null && v.equals(value)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    public V getOrDefault(K key, V defaultValue) {
+        HashMapEntry<K, V> e = findNode(key);
+        if (e == null) {
+            return defaultValue;
+        }
+        return e.value;
+    }
+
+    public V putIfAbsent(K key, V value) {
+        HashMapEntry<K, V> e = findNode(key);
+        if (e == null) {
+            put(key, value);
+            return null;
+        }
+        return e.value;
+    }
+
+    public void putAll(Map<K, V> other) {
+        Iterator<Entry<K, V>> it = other.entrySet().iterator();
+        while (it.hasNext()) {
+            Entry<K, V> e = it.next();
+            put(e.getKey(), e.getValue());
+        }
+    }
+
+    public V replace(K key, V value) {
+        HashMapEntry<K, V> e = findNode(key);
+        if (e == null) {
+            return null;
+        }
+        V old = e.value;
+        e.value = value;
+        return old;
+    }
+
+    public void forEach(BiConsumer<K, V> action) {
+        int expected = this.modCount;
+        HashMapCursor<K, V> c = new HashMapCursor<K, V>(this);
+        while (c.hasNext()) {
+            HashMapEntry<K, V> e = c.nextEntry();
+            action.accept(e.key, e.value);
+            if (expected != this.modCount) {
+                throw new ConcurrentModificationException("HashMap modified during forEach");
+            }
+        }
+    }
+
+    public V merge(K key, V value, BiFunction<V, V, V> fn) {
+        HashMapEntry<K, V> e = findNode(key);
+        if (e == null) {
+            put(key, value);
+            return value;
+        }
+        V nv = fn.apply(e.value, value);
+        e.value = nv;
+        return nv;
+    }
+
+    public V computeIfAbsent(K key, Function<K, V> fn) {
+        HashMapEntry<K, V> e = findNode(key);
+        if (e != null) {
+            return e.value;
+        }
+        V nv = fn.apply(key);
+        put(key, nv);
+        return nv;
+    }
+
+    public V computeIfPresent(K key, BiFunction<K, V, V> fn) {
+        HashMapEntry<K, V> e = findNode(key);
+        if (e == null) {
+            return null;
+        }
+        V nv = fn.apply(key, e.value);
+        e.value = nv;
+        return nv;
+    }
+
+    public Set<K> keySet() {
+        return new HashMapKeySet<K, V>(this);
+    }
+
+    public Collection<V> values() {
+        return new HashMapValues<K, V>(this);
+    }
+
+    public Set<Entry<K, V>> entrySet() {
+        return new HashMapEntrySet<K, V>(this);
+    }
+
+    /** Snapshot of keys in iteration order. */
     public K[] keysArray() {
         K[] out = new K[this.size];
         int n = 0;
-        int cap = capacity();
-        int i = 0;
-        while (i < cap) {
-            if (this.states[i] == OCCUPIED) {
-                out[n] = this.keys[i];
-                n = n + 1;
-            }
-            i = i + 1;
+        HashMapCursor<K, V> c = new HashMapCursor<K, V>(this);
+        while (c.hasNext()) {
+            out[n] = c.nextEntry().key;
+            n = n + 1;
         }
         return out;
     }
 
-    /**
-     * Entry iterator (unordered). Fail-fast on structural modification via modCount.
-     * Does not claim concurrent safety.
-     */
     public HashMapEntryIterator<K, V> entryIterator() {
         return new HashMapEntryIterator<K, V>(this);
+    }
+
+    public String toString() {
+        StringBuilder sb = new StringBuilder();
+        sb.append("{");
+        HashMapCursor<K, V> c = new HashMapCursor<K, V>(this);
+        boolean first = true;
+        while (c.hasNext()) {
+            HashMapEntry<K, V> e = c.nextEntry();
+            if (!first) {
+                sb.append(", ");
+            }
+            first = false;
+            sb.append(String.valueOf(e.key));
+            sb.append("=");
+            sb.append(String.valueOf(e.value));
+        }
+        sb.append("}");
+        return sb.toString();
+    }
+
+    public boolean equals(Object o) {
+        Object selfObj = this;
+        if (o == selfObj) {
+            return true;
+        }
+        if (!(o instanceof HashMap)) {
+            return false;
+        }
+        HashMap<K, V> other = (HashMap<K, V>) o;
+        if (other.size != this.size) {
+            return false;
+        }
+        HashMapCursor<K, V> c = new HashMapCursor<K, V>(this);
+        while (c.hasNext()) {
+            HashMapEntry<K, V> e = c.nextEntry();
+            HashMapEntry<K, V> oe = other.findNode(e.key);
+            if (oe == null) {
+                return false;
+            }
+            V a = e.value;
+            V b = oe.value;
+            if (a != b) {
+                if (a == null || b == null) {
+                    return false;
+                }
+                if (!a.equals(b)) {
+                    return false;
+                }
+            }
+        }
+        return true;
+    }
+
+    public int hashCode() {
+        int h = 0;
+        HashMapCursor<K, V> c = new HashMapCursor<K, V>(this);
+        while (c.hasNext()) {
+            h = h + c.nextEntry().hashCode();
+        }
+        return h;
     }
 }
 
 class HashMapEntry<K, V> implements Entry<K, V> {
+    int hash;
     K key;
     V value;
+    HashMapEntry<K, V> next;
 
-    HashMapEntry(K key, V value) {
+    HashMapEntry(int hash, K key, V value) {
+        this.hash = hash;
         this.key = key;
         this.value = value;
+        this.next = null;
     }
 
     public K getKey() {
@@ -821,49 +1121,443 @@ class HashMapEntry<K, V> implements Entry<K, V> {
     public V getValue() {
         return this.value;
     }
+
+    public V setValue(V value) {
+        V old = this.value;
+        this.value = value;
+        return old;
+    }
+
+    public String toString() {
+        return String.valueOf(this.key) + "=" + String.valueOf(this.value);
+    }
+
+    public boolean equals(Object o) {
+        if (!(o instanceof HashMapEntry)) {
+            return false;
+        }
+        HashMapEntry<K, V> other = (HashMapEntry<K, V>) o;
+        Object k1 = this.key;
+        Object k2 = other.key;
+        Object v1 = this.value;
+        Object v2 = other.value;
+        if (k1 != k2 && (k1 == null || !k1.equals(k2))) {
+            return false;
+        }
+        if (v1 != v2 && (v1 == null || !v1.equals(v2))) {
+            return false;
+        }
+        return true;
+    }
+
+    public int hashCode() {
+        Object k = this.key;
+        Object v = this.value;
+        int kh = 0;
+        int vh = 0;
+        if (k != null) {
+            kh = k.hashCode();
+        }
+        if (v != null) {
+            vh = v.hashCode();
+        }
+        return kh ^ vh;
+    }
+}
+
+/** Shared bucket-walking cursor (fail-fast on structural modification). */
+class HashMapCursor<K, V> {
+    HashMap<K, V> map;
+    HashMapEntry<K, V> upcoming;
+    int bucket;
+    int expectedModCount;
+
+    HashMapCursor(HashMap<K, V> map) {
+        this.map = map;
+        this.expectedModCount = map.modCount;
+        this.bucket = 0;
+        this.upcoming = null;
+        advanceBucket();
+    }
+
+    void advanceBucket() {
+        HashMapEntry<K, V>[] t = this.map.table;
+        if (t == null) {
+            return;
+        }
+        while (this.upcoming == null && this.bucket < t.length) {
+            this.upcoming = t[this.bucket];
+            this.bucket = this.bucket + 1;
+        }
+    }
+
+    boolean hasNext() {
+        return this.upcoming != null;
+    }
+
+    HashMapEntry<K, V> nextEntry() {
+        if (this.expectedModCount != this.map.modCount) {
+            throw new ConcurrentModificationException("HashMap modified during iteration");
+        }
+        HashMapEntry<K, V> e = this.upcoming;
+        if (e == null) {
+            throw new NoSuchElementException("HashMap iterator");
+        }
+        this.upcoming = e.next;
+        if (this.upcoming == null) {
+            advanceBucket();
+        }
+        return e;
+    }
 }
 
 class HashMapEntryIterator<K, V> implements Iterator<HashMapEntry<K, V>> {
-    HashMap<K, V> map;
-    int slot;
-    int expectedModCount;
-    HashMapEntry<K, V> nextEntry;
+    HashMapCursor<K, V> cursor;
 
     HashMapEntryIterator(HashMap<K, V> map) {
-        this.map = map;
-        this.slot = 0;
-        this.expectedModCount = map.modCount;
-        this.nextEntry = null;
-        advance();
-    }
-
-    void advance() {
-        this.nextEntry = null;
-        int cap = this.map.capacity();
-        while (this.slot < cap) {
-            int i = this.slot;
-            this.slot = this.slot + 1;
-            if (this.map.states[i] == HashMap.OCCUPIED) {
-                this.nextEntry = new HashMapEntry<K, V>(this.map.keys[i], this.map.values[i]);
-                return;
-            }
-        }
+        this.cursor = new HashMapCursor<K, V>(map);
     }
 
     public boolean hasNext() {
-        return this.nextEntry != null;
+        return this.cursor.hasNext();
     }
 
     public HashMapEntry<K, V> next() {
-        if (this.expectedModCount != this.map.modCount) {
-            throw new ConcurrentModificationException("HashMap modified during entry iteration");
+        return this.cursor.nextEntry();
+    }
+}
+
+class HashMapKeyIterator<K, V> implements Iterator<K> {
+    HashMapCursor<K, V> cursor;
+
+    HashMapKeyIterator(HashMap<K, V> map) {
+        this.cursor = new HashMapCursor<K, V>(map);
+    }
+
+    public boolean hasNext() {
+        return this.cursor.hasNext();
+    }
+
+    public K next() {
+        return this.cursor.nextEntry().key;
+    }
+}
+
+class HashMapValueIterator<K, V> implements Iterator<V> {
+    HashMapCursor<K, V> cursor;
+
+    HashMapValueIterator(HashMap<K, V> map) {
+        this.cursor = new HashMapCursor<K, V>(map);
+    }
+
+    public boolean hasNext() {
+        return this.cursor.hasNext();
+    }
+
+    public V next() {
+        return this.cursor.nextEntry().value;
+    }
+}
+
+class HashMapEntryViewIterator<K, V> implements Iterator<Entry<K, V>> {
+    HashMapCursor<K, V> cursor;
+
+    HashMapEntryViewIterator(HashMap<K, V> map) {
+        this.cursor = new HashMapCursor<K, V>(map);
+    }
+
+    public boolean hasNext() {
+        return this.cursor.hasNext();
+    }
+
+    public Entry<K, V> next() {
+        return this.cursor.nextEntry();
+    }
+}
+
+/** Live key view (remove-capable, add unsupported). */
+class HashMapKeySet<K, V> implements Set<K> {
+    HashMap<K, V> map;
+
+    HashMapKeySet(HashMap<K, V> map) {
+        this.map = map;
+    }
+
+    public int size() {
+        return this.map.size;
+    }
+
+    public boolean isEmpty() {
+        return this.map.size == 0;
+    }
+
+    public boolean contains(K value) {
+        return this.map.containsKey(value);
+    }
+
+    public void clear() {
+        this.map.clear();
+    }
+
+    public boolean add(K value) {
+        throw new UnsupportedOperationException("add");
+    }
+
+    public boolean remove(K value) {
+        if (!this.map.containsKey(value)) {
+            return false;
         }
-        if (this.nextEntry == null) {
-            throw new NoSuchElementException("HashMapEntryIterator");
+        this.map.remove(value);
+        return true;
+    }
+
+    public boolean addAll(Collection<K> other) {
+        throw new UnsupportedOperationException("addAll");
+    }
+
+    public boolean containsAll(Collection<K> other) {
+        Iterator<K> it = other.iterator();
+        while (it.hasNext()) {
+            if (!contains(it.next())) {
+                return false;
+            }
         }
-        HashMapEntry<K, V> e = this.nextEntry;
-        advance();
-        return e;
+        return true;
+    }
+
+    public boolean removeIf(Predicate<K> filter) {
+        ArrayList<K> doomed = new ArrayList<K>();
+        HashMapCursor<K, V> c = new HashMapCursor<K, V>(this.map);
+        while (c.hasNext()) {
+            K k = c.nextEntry().key;
+            if (filter.test(k)) {
+                doomed.add(k);
+            }
+        }
+        int i = 0;
+        while (i < doomed.size()) {
+            this.map.remove(doomed.get(i));
+            i = i + 1;
+        }
+        return doomed.size() > 0;
+    }
+
+    public boolean removeAll(Collection<K> other) {
+        return removeIf(x -> other.contains(x));
+    }
+
+    public boolean retainAll(Collection<K> other) {
+        return removeIf(x -> !other.contains(x));
+    }
+
+    public void forEach(Consumer<K> action) {
+        Iterator<K> it = iterator();
+        while (it.hasNext()) {
+            action.accept(it.next());
+        }
+    }
+
+    public Iterator<K> iterator() {
+        return new HashMapKeyIterator<K, V>(this.map);
+    }
+
+    public String toString() {
+        return CollectionText.join(iterator());
+    }
+}
+
+class HashMapValues<K, V> implements Collection<V> {
+    HashMap<K, V> map;
+
+    HashMapValues(HashMap<K, V> map) {
+        this.map = map;
+    }
+
+    public int size() {
+        return this.map.size;
+    }
+
+    public boolean isEmpty() {
+        return this.map.size == 0;
+    }
+
+    public boolean contains(V value) {
+        return this.map.containsValue(value);
+    }
+
+    public void clear() {
+        this.map.clear();
+    }
+
+    public boolean addAll(Collection<V> other) {
+        throw new UnsupportedOperationException("addAll");
+    }
+
+    public boolean containsAll(Collection<V> other) {
+        Iterator<V> it = other.iterator();
+        while (it.hasNext()) {
+            if (!contains(it.next())) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    public boolean removeIf(Predicate<V> filter) {
+        ArrayList<K> doomed = new ArrayList<K>();
+        HashMapCursor<K, V> c = new HashMapCursor<K, V>(this.map);
+        while (c.hasNext()) {
+            HashMapEntry<K, V> e = c.nextEntry();
+            if (filter.test(e.value)) {
+                doomed.add(e.key);
+            }
+        }
+        int i = 0;
+        while (i < doomed.size()) {
+            this.map.remove(doomed.get(i));
+            i = i + 1;
+        }
+        return doomed.size() > 0;
+    }
+
+    public boolean removeAll(Collection<V> other) {
+        return removeIf(x -> other.contains(x));
+    }
+
+    public boolean retainAll(Collection<V> other) {
+        return removeIf(x -> !other.contains(x));
+    }
+
+    public void forEach(Consumer<V> action) {
+        Iterator<V> it = iterator();
+        while (it.hasNext()) {
+            action.accept(it.next());
+        }
+    }
+
+    public Iterator<V> iterator() {
+        return new HashMapValueIterator<K, V>(this.map);
+    }
+
+    public String toString() {
+        return CollectionText.join(iterator());
+    }
+}
+
+class HashMapEntrySet<K, V> implements Set<Entry<K, V>> {
+    HashMap<K, V> map;
+
+    HashMapEntrySet(HashMap<K, V> map) {
+        this.map = map;
+    }
+
+    public int size() {
+        return this.map.size;
+    }
+
+    public boolean isEmpty() {
+        return this.map.size == 0;
+    }
+
+    public boolean contains(Entry<K, V> value) {
+        HashMapEntry<K, V> e = this.map.findNode(value.getKey());
+        if (e == null) {
+            return false;
+        }
+        Object a = e.value;
+        Object b = value.getValue();
+        if (a == b) {
+            return true;
+        }
+        return a != null && a.equals(b);
+    }
+
+    public void clear() {
+        this.map.clear();
+    }
+
+    public boolean add(Entry<K, V> value) {
+        throw new UnsupportedOperationException("add");
+    }
+
+    public boolean remove(Entry<K, V> value) {
+        if (!contains(value)) {
+            return false;
+        }
+        this.map.remove(value.getKey());
+        return true;
+    }
+
+    public boolean addAll(Collection<Entry<K, V>> other) {
+        throw new UnsupportedOperationException("addAll");
+    }
+
+    public boolean containsAll(Collection<Entry<K, V>> other) {
+        Iterator<Entry<K, V>> it = other.iterator();
+        while (it.hasNext()) {
+            if (!contains(it.next())) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    public boolean removeIf(Predicate<Entry<K, V>> filter) {
+        ArrayList<K> doomed = new ArrayList<K>();
+        HashMapCursor<K, V> c = new HashMapCursor<K, V>(this.map);
+        while (c.hasNext()) {
+            HashMapEntry<K, V> e = c.nextEntry();
+            if (filter.test(e)) {
+                doomed.add(e.key);
+            }
+        }
+        int i = 0;
+        while (i < doomed.size()) {
+            this.map.remove(doomed.get(i));
+            i = i + 1;
+        }
+        return doomed.size() > 0;
+    }
+
+    public boolean removeAll(Collection<Entry<K, V>> other) {
+        return removeIf(x -> other.contains(x));
+    }
+
+    public boolean retainAll(Collection<Entry<K, V>> other) {
+        return removeIf(x -> !other.contains(x));
+    }
+
+    public void forEach(Consumer<Entry<K, V>> action) {
+        Iterator<Entry<K, V>> it = iterator();
+        while (it.hasNext()) {
+            action.accept(it.next());
+        }
+    }
+
+    public Iterator<Entry<K, V>> iterator() {
+        return new HashMapEntryViewIterator<K, V>(this.map);
+    }
+
+    public String toString() {
+        return CollectionText.join(iterator());
+    }
+}
+
+class CollectionText {
+    /** Java AbstractCollection.toString format: [a, b, c]. */
+    static <T> String join(Iterator<T> it) {
+        StringBuilder sb = new StringBuilder();
+        sb.append("[");
+        boolean first = true;
+        while (it.hasNext()) {
+            if (!first) {
+                sb.append(", ");
+            }
+            first = false;
+            sb.append(String.valueOf(it.next()));
+        }
+        sb.append("]");
+        return sb.toString();
     }
 }
 
@@ -908,6 +1602,21 @@ class HashSet<T> implements Set<T> {
         this.present = new PresentMarker();
     }
 
+    HashSet(int initialCapacity) {
+        this.map = new HashMap<T, PresentMarker>(initialCapacity);
+        this.present = new PresentMarker();
+    }
+
+    HashSet(Collection<T> other) {
+        int cap = (other.size() * 4) / 3 + 1;
+        if (cap < 16) {
+            cap = 16;
+        }
+        this.map = new HashMap<T, PresentMarker>(cap);
+        this.present = new PresentMarker();
+        addAll(other);
+    }
+
     public int size() {
         return this.map.size();
     }
@@ -921,27 +1630,103 @@ class HashSet<T> implements Set<T> {
     }
 
     public boolean add(T value) {
-        if (this.map.containsKey(value)) {
-            return false;
-        }
-        this.map.put(value, this.present);
-        return true;
+        return this.map.put(value, this.present) == null;
     }
 
     public boolean remove(T value) {
-        if (!this.map.containsKey(value)) {
-            return false;
-        }
-        this.map.remove(value);
-        return true;
+        return this.map.remove(value) != null;
     }
 
     public void clear() {
         this.map.clear();
     }
 
+    public boolean addAll(Collection<T> other) {
+        boolean changed = false;
+        Iterator<T> it = other.iterator();
+        while (it.hasNext()) {
+            if (add(it.next())) {
+                changed = true;
+            }
+        }
+        return changed;
+    }
+
+    public boolean containsAll(Collection<T> other) {
+        Iterator<T> it = other.iterator();
+        while (it.hasNext()) {
+            if (!contains(it.next())) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    public boolean removeIf(Predicate<T> filter) {
+        ArrayList<T> doomed = new ArrayList<T>();
+        Iterator<T> it = iterator();
+        while (it.hasNext()) {
+            T v = it.next();
+            if (filter.test(v)) {
+                doomed.add(v);
+            }
+        }
+        int i = 0;
+        while (i < doomed.size()) {
+            this.map.remove(doomed.get(i));
+            i = i + 1;
+        }
+        return doomed.size() > 0;
+    }
+
+    public boolean removeAll(Collection<T> other) {
+        return removeIf(x -> other.contains(x));
+    }
+
+    public boolean retainAll(Collection<T> other) {
+        return removeIf(x -> !other.contains(x));
+    }
+
+    public void forEach(Consumer<T> action) {
+        Iterator<T> it = iterator();
+        while (it.hasNext()) {
+            action.accept(it.next());
+        }
+    }
+
     public Iterator<T> iterator() {
-        return new ArrayIterator<T>(this.map.keysArray());
+        return new HashMapKeyIterator<T, PresentMarker>(this.map);
+    }
+
+    public String toString() {
+        return CollectionText.join(iterator());
+    }
+
+    public boolean equals(Object o) {
+        Object selfObj = this;
+        if (o == selfObj) {
+            return true;
+        }
+        if (!(o instanceof HashSet)) {
+            return false;
+        }
+        HashSet<T> other = (HashSet<T>) o;
+        if (other.size() != size()) {
+            return false;
+        }
+        return containsAll(other);
+    }
+
+    public int hashCode() {
+        int h = 0;
+        Iterator<T> it = iterator();
+        while (it.hasNext()) {
+            Object x = it.next();
+            if (x != null) {
+                h = h + x.hashCode();
+            }
+        }
+        return h;
     }
 }
 
@@ -1209,8 +1994,114 @@ class StringBuilder {
     }
 }
 
+interface IndexCmp {
+    int compare(int i, int j);
+}
+
+class SortSupport {
+    static int natural(Object a, Object b) {
+        if (a instanceof String) {
+            return ((String) a).compareTo((String) b);
+        }
+        if (a instanceof Integer) {
+            return ((Integer) a).compareTo((Integer) b);
+        }
+        if (a instanceof Long) {
+            return ((Long) a).compareTo((Long) b);
+        }
+        if (a instanceof Double) {
+            return ((Double) a).compareTo((Double) b);
+        }
+        if (a instanceof Character) {
+            return ((Character) a).compareTo((Character) b);
+        }
+        if (a instanceof Comparable) {
+            Comparable<?> c = (Comparable<?>) a;
+            return c.compareTo(b);
+        }
+        throw new ClassCastException("not Comparable");
+    }
+
+    static <T> int compareWith(Comparator<T> c, T a, T b) {
+        if (c == null) {
+            return natural(a, b);
+        }
+        return c.compare(a, b);
+    }
+
+    /** Stable merge sort of positions 0..n-1 under {@code cmp}; returns the sorted permutation. */
+    static int[] sortedOrder(int n, IndexCmp cmp) {
+        int[] order = new int[n];
+        int[] tmp = new int[n];
+        int i = 0;
+        while (i < n) {
+            order[i] = i;
+            i = i + 1;
+        }
+        mergeOrder(order, tmp, 0, n, cmp);
+        return order;
+    }
+
+    static void mergeOrder(int[] a, int[] tmp, int from, int to, IndexCmp cmp) {
+        int n = to - from;
+        if (n < 2) {
+            return;
+        }
+        if (n < 7) {
+            int i = from + 1;
+            while (i < to) {
+                int v = a[i];
+                int j = i - 1;
+                while (j >= from && cmp.compare(a[j], v) > 0) {
+                    a[j + 1] = a[j];
+                    j = j - 1;
+                }
+                a[j + 1] = v;
+                i = i + 1;
+            }
+            return;
+        }
+        int mid = from + n / 2;
+        mergeOrder(a, tmp, from, mid, cmp);
+        mergeOrder(a, tmp, mid, to, cmp);
+        if (cmp.compare(a[mid - 1], a[mid]) <= 0) {
+            return;
+        }
+        int p = from;
+        int q = mid;
+        int k = from;
+        while (p < mid && q < to) {
+            if (cmp.compare(a[q], a[p]) < 0) {
+                tmp[k] = a[q];
+                q = q + 1;
+            } else {
+                tmp[k] = a[p];
+                p = p + 1;
+            }
+            k = k + 1;
+        }
+        while (p < mid) {
+            tmp[k] = a[p];
+            p = p + 1;
+            k = k + 1;
+        }
+        while (q < to) {
+            tmp[k] = a[q];
+            q = q + 1;
+            k = k + 1;
+        }
+        int m = from;
+        while (m < to) {
+            a[m] = tmp[m];
+            m = m + 1;
+        }
+    }
+}
 class Arrays {
     static <T> T[] copyOf(T[] original, int newLength) {
+        if (newLength < 0) {
+            throw new NegativeArraySizeException("copyOf");
+        }
         T[] result = new T[newLength];
         int n = original.length;
         if (n > newLength) {
@@ -1219,6 +2110,22 @@ class Arrays {
         int i = 0;
         while (i < n) {
             result[i] = original[i];
+            i = i + 1;
+        }
+        return result;
+    }
+
+    static <T> T[] copyOfRange(T[] original, int from, int to) {
+        if (from > to) {
+            throw new IllegalArgumentException("from > to");
+        }
+        if (from < 0 || from > original.length) {
+            throw new ArrayIndexOutOfBoundsException("copyOfRange");
+        }
+        T[] result = new T[to - from];
+        int i = from;
+        while (i < to && i < original.length) {
+            result[i - from] = original[i];
             i = i + 1;
         }
         return result;
@@ -1233,6 +2140,10 @@ class Arrays {
     }
 
     static boolean arraysEqual(Object[] a, Object[] b) {
+        return equals(a, b);
+    }
+
+    static boolean equals(Object[] a, Object[] b) {
         if (a == b) {
             return true;
         }
@@ -1246,19 +2157,719 @@ class Arrays {
         while (i < a.length) {
             Object x = a[i];
             Object y = b[i];
-            if (x == y) {
-                i = i + 1;
-            } else {
+            if (x != y) {
                 if (x == null || y == null) {
                     return false;
                 }
                 if (!x.equals(y)) {
                     return false;
                 }
-                i = i + 1;
             }
+            i = i + 1;
         }
         return true;
+    }
+
+    static int hashCode(Object[] a) {
+        if (a == null) {
+            return 0;
+        }
+        int h = 1;
+        int i = 0;
+        while (i < a.length) {
+            Object x = a[i];
+            int eh = 0;
+            if (x != null) {
+                eh = x.hashCode();
+            }
+            h = 31 * h + eh;
+            i = i + 1;
+        }
+        return h;
+    }
+
+    static String toString(Object[] a) {
+        if (a == null) {
+            return "null";
+        }
+        StringBuilder sb = new StringBuilder();
+        sb.append("[");
+        int i = 0;
+        while (i < a.length) {
+            if (i > 0) {
+                sb.append(", ");
+            }
+            sb.append(String.valueOf(a[i]));
+            i = i + 1;
+        }
+        sb.append("]");
+        return sb.toString();
+    }
+
+    static void sort(Object[] a) {
+        sortRange(a, 0, a.length);
+    }
+
+    static void sortRange(Object[] a, int from, int to) {
+        sortWith(a, from, to, null);
+    }
+
+    static <T> void sort(T[] a, Comparator<T> c) {
+        sortWith(a, 0, a.length, c);
+    }
+
+    static <T> void sortWith(T[] a, int from, int to, Comparator<T> c) {
+        if (from < 0 || to > a.length || from > to) {
+            throw new ArrayIndexOutOfBoundsException("sort range");
+        }
+        int n = to - from;
+        if (n < 2) {
+            return;
+        }
+        int[] order = SortSupport.sortedOrder(n, (i, j) -> SortSupport.compareWith(c, a[from + i], a[from + j]));
+        T[] copy = new T[n];
+        int k = 0;
+        while (k < n) {
+            copy[k] = a[from + order[k]];
+            k = k + 1;
+        }
+        k = 0;
+        while (k < n) {
+            a[from + k] = copy[k];
+            k = k + 1;
+        }
+    }
+
+    static <T> List<T> asList(T[] a) {
+        ArrayList<T> out = new ArrayList<T>(a.length);
+        int i = 0;
+        while (i < a.length) {
+            out.add(a[i]);
+            i = i + 1;
+        }
+        return out;
+    }
+    static void fill(int[] a, int value) {
+        int i = 0;
+        while (i < a.length) {
+            a[i] = value;
+            i = i + 1;
+        }
+    }
+
+    static int[] copyOf(int[] original, int newLength) {
+        if (newLength < 0) {
+            throw new NegativeArraySizeException("copyOf");
+        }
+        int[] result = new int[newLength];
+        int n = original.length;
+        if (n > newLength) {
+            n = newLength;
+        }
+        int i = 0;
+        while (i < n) {
+            result[i] = original[i];
+            i = i + 1;
+        }
+        return result;
+    }
+
+    static int[] copyOfRange(int[] original, int from, int to) {
+        if (from > to) {
+            throw new IllegalArgumentException("from > to");
+        }
+        if (from < 0 || from > original.length) {
+            throw new ArrayIndexOutOfBoundsException("copyOfRange");
+        }
+        int[] result = new int[to - from];
+        int i = from;
+        while (i < to && i < original.length) {
+            result[i - from] = original[i];
+            i = i + 1;
+        }
+        return result;
+    }
+
+    static boolean equals(int[] a, int[] b) {
+        if (a == b) {
+            return true;
+        }
+        if (a == null || b == null) {
+            return false;
+        }
+        if (a.length != b.length) {
+            return false;
+        }
+        int i = 0;
+        while (i < a.length) {
+            if (a[i] != b[i]) {
+                return false;
+            }
+            i = i + 1;
+        }
+        return true;
+    }
+
+    static String toString(int[] a) {
+        if (a == null) {
+            return "null";
+        }
+        StringBuilder sb = new StringBuilder();
+        sb.append("[");
+        int i = 0;
+        while (i < a.length) {
+            if (i > 0) {
+                sb.append(", ");
+            }
+            sb.append(String.valueOf(a[i]));
+            i = i + 1;
+        }
+        sb.append("]");
+        return sb.toString();
+    }
+    static void fill(long[] a, long value) {
+        int i = 0;
+        while (i < a.length) {
+            a[i] = value;
+            i = i + 1;
+        }
+    }
+
+    static long[] copyOf(long[] original, int newLength) {
+        if (newLength < 0) {
+            throw new NegativeArraySizeException("copyOf");
+        }
+        long[] result = new long[newLength];
+        int n = original.length;
+        if (n > newLength) {
+            n = newLength;
+        }
+        int i = 0;
+        while (i < n) {
+            result[i] = original[i];
+            i = i + 1;
+        }
+        return result;
+    }
+
+    static long[] copyOfRange(long[] original, int from, int to) {
+        if (from > to) {
+            throw new IllegalArgumentException("from > to");
+        }
+        if (from < 0 || from > original.length) {
+            throw new ArrayIndexOutOfBoundsException("copyOfRange");
+        }
+        long[] result = new long[to - from];
+        int i = from;
+        while (i < to && i < original.length) {
+            result[i - from] = original[i];
+            i = i + 1;
+        }
+        return result;
+    }
+
+    static boolean equals(long[] a, long[] b) {
+        if (a == b) {
+            return true;
+        }
+        if (a == null || b == null) {
+            return false;
+        }
+        if (a.length != b.length) {
+            return false;
+        }
+        int i = 0;
+        while (i < a.length) {
+            if (a[i] != b[i]) {
+                return false;
+            }
+            i = i + 1;
+        }
+        return true;
+    }
+
+    static String toString(long[] a) {
+        if (a == null) {
+            return "null";
+        }
+        StringBuilder sb = new StringBuilder();
+        sb.append("[");
+        int i = 0;
+        while (i < a.length) {
+            if (i > 0) {
+                sb.append(", ");
+            }
+            sb.append(String.valueOf(a[i]));
+            i = i + 1;
+        }
+        sb.append("]");
+        return sb.toString();
+    }
+    static void fill(double[] a, double value) {
+        int i = 0;
+        while (i < a.length) {
+            a[i] = value;
+            i = i + 1;
+        }
+    }
+
+    static double[] copyOf(double[] original, int newLength) {
+        if (newLength < 0) {
+            throw new NegativeArraySizeException("copyOf");
+        }
+        double[] result = new double[newLength];
+        int n = original.length;
+        if (n > newLength) {
+            n = newLength;
+        }
+        int i = 0;
+        while (i < n) {
+            result[i] = original[i];
+            i = i + 1;
+        }
+        return result;
+    }
+
+    static double[] copyOfRange(double[] original, int from, int to) {
+        if (from > to) {
+            throw new IllegalArgumentException("from > to");
+        }
+        if (from < 0 || from > original.length) {
+            throw new ArrayIndexOutOfBoundsException("copyOfRange");
+        }
+        double[] result = new double[to - from];
+        int i = from;
+        while (i < to && i < original.length) {
+            result[i - from] = original[i];
+            i = i + 1;
+        }
+        return result;
+    }
+
+    static boolean equals(double[] a, double[] b) {
+        if (a == b) {
+            return true;
+        }
+        if (a == null || b == null) {
+            return false;
+        }
+        if (a.length != b.length) {
+            return false;
+        }
+        int i = 0;
+        while (i < a.length) {
+            if (a[i] != b[i]) {
+                return false;
+            }
+            i = i + 1;
+        }
+        return true;
+    }
+
+    static String toString(double[] a) {
+        if (a == null) {
+            return "null";
+        }
+        StringBuilder sb = new StringBuilder();
+        sb.append("[");
+        int i = 0;
+        while (i < a.length) {
+            if (i > 0) {
+                sb.append(", ");
+            }
+            sb.append(String.valueOf(a[i]));
+            i = i + 1;
+        }
+        sb.append("]");
+        return sb.toString();
+    }
+    static void fill(char[] a, char value) {
+        int i = 0;
+        while (i < a.length) {
+            a[i] = value;
+            i = i + 1;
+        }
+    }
+
+    static char[] copyOf(char[] original, int newLength) {
+        if (newLength < 0) {
+            throw new NegativeArraySizeException("copyOf");
+        }
+        char[] result = new char[newLength];
+        int n = original.length;
+        if (n > newLength) {
+            n = newLength;
+        }
+        int i = 0;
+        while (i < n) {
+            result[i] = original[i];
+            i = i + 1;
+        }
+        return result;
+    }
+
+    static char[] copyOfRange(char[] original, int from, int to) {
+        if (from > to) {
+            throw new IllegalArgumentException("from > to");
+        }
+        if (from < 0 || from > original.length) {
+            throw new ArrayIndexOutOfBoundsException("copyOfRange");
+        }
+        char[] result = new char[to - from];
+        int i = from;
+        while (i < to && i < original.length) {
+            result[i - from] = original[i];
+            i = i + 1;
+        }
+        return result;
+    }
+
+    static boolean equals(char[] a, char[] b) {
+        if (a == b) {
+            return true;
+        }
+        if (a == null || b == null) {
+            return false;
+        }
+        if (a.length != b.length) {
+            return false;
+        }
+        int i = 0;
+        while (i < a.length) {
+            if (a[i] != b[i]) {
+                return false;
+            }
+            i = i + 1;
+        }
+        return true;
+    }
+
+    static String toString(char[] a) {
+        if (a == null) {
+            return "null";
+        }
+        StringBuilder sb = new StringBuilder();
+        sb.append("[");
+        int i = 0;
+        while (i < a.length) {
+            if (i > 0) {
+                sb.append(", ");
+            }
+            sb.append(String.valueOf(a[i]));
+            i = i + 1;
+        }
+        sb.append("]");
+        return sb.toString();
+    }
+    static void fill(boolean[] a, boolean value) {
+        int i = 0;
+        while (i < a.length) {
+            a[i] = value;
+            i = i + 1;
+        }
+    }
+
+    static boolean[] copyOf(boolean[] original, int newLength) {
+        if (newLength < 0) {
+            throw new NegativeArraySizeException("copyOf");
+        }
+        boolean[] result = new boolean[newLength];
+        int n = original.length;
+        if (n > newLength) {
+            n = newLength;
+        }
+        int i = 0;
+        while (i < n) {
+            result[i] = original[i];
+            i = i + 1;
+        }
+        return result;
+    }
+
+    static boolean[] copyOfRange(boolean[] original, int from, int to) {
+        if (from > to) {
+            throw new IllegalArgumentException("from > to");
+        }
+        if (from < 0 || from > original.length) {
+            throw new ArrayIndexOutOfBoundsException("copyOfRange");
+        }
+        boolean[] result = new boolean[to - from];
+        int i = from;
+        while (i < to && i < original.length) {
+            result[i - from] = original[i];
+            i = i + 1;
+        }
+        return result;
+    }
+
+    static boolean equals(boolean[] a, boolean[] b) {
+        if (a == b) {
+            return true;
+        }
+        if (a == null || b == null) {
+            return false;
+        }
+        if (a.length != b.length) {
+            return false;
+        }
+        int i = 0;
+        while (i < a.length) {
+            if (a[i] != b[i]) {
+                return false;
+            }
+            i = i + 1;
+        }
+        return true;
+    }
+
+    static String toString(boolean[] a) {
+        if (a == null) {
+            return "null";
+        }
+        StringBuilder sb = new StringBuilder();
+        sb.append("[");
+        int i = 0;
+        while (i < a.length) {
+            if (i > 0) {
+                sb.append(", ");
+            }
+            sb.append(String.valueOf(a[i]));
+            i = i + 1;
+        }
+        sb.append("]");
+        return sb.toString();
+    }
+    static void sort(int[] a) {
+        sort(a, 0, a.length);
+    }
+
+    static void sort(int[] a, int from, int to) {
+        if (from < 0 || to > a.length || from > to) {
+            throw new ArrayIndexOutOfBoundsException("sort range");
+        }
+        int n = to - from;
+        if (n < 2) {
+            return;
+        }
+        int[] tmp = new int[n];
+        int width = 1;
+        while (width < n) {
+            int lo = 0;
+            while (lo < n) {
+                int mid = lo + width;
+                int hi = lo + width + width;
+                if (mid > n) {
+                    mid = n;
+                }
+                if (hi > n) {
+                    hi = n;
+                }
+                int p = lo;
+                int q = mid;
+                int k = lo;
+                while (p < mid && q < hi) {
+                    if (a[from + q] < a[from + p]) {
+                        tmp[k] = a[from + q];
+                        q = q + 1;
+                    } else {
+                        tmp[k] = a[from + p];
+                        p = p + 1;
+                    }
+                    k = k + 1;
+                }
+                while (p < mid) {
+                    tmp[k] = a[from + p];
+                    p = p + 1;
+                    k = k + 1;
+                }
+                while (q < hi) {
+                    tmp[k] = a[from + q];
+                    q = q + 1;
+                    k = k + 1;
+                }
+                lo = lo + width + width;
+            }
+            int m = 0;
+            while (m < n) {
+                a[from + m] = tmp[m];
+                m = m + 1;
+            }
+            width = width + width;
+        }
+    }
+    static void sort(long[] a) {
+        sort(a, 0, a.length);
+    }
+
+    static void sort(long[] a, int from, int to) {
+        if (from < 0 || to > a.length || from > to) {
+            throw new ArrayIndexOutOfBoundsException("sort range");
+        }
+        int n = to - from;
+        if (n < 2) {
+            return;
+        }
+        long[] tmp = new long[n];
+        int width = 1;
+        while (width < n) {
+            int lo = 0;
+            while (lo < n) {
+                int mid = lo + width;
+                int hi = lo + width + width;
+                if (mid > n) {
+                    mid = n;
+                }
+                if (hi > n) {
+                    hi = n;
+                }
+                int p = lo;
+                int q = mid;
+                int k = lo;
+                while (p < mid && q < hi) {
+                    if (a[from + q] < a[from + p]) {
+                        tmp[k] = a[from + q];
+                        q = q + 1;
+                    } else {
+                        tmp[k] = a[from + p];
+                        p = p + 1;
+                    }
+                    k = k + 1;
+                }
+                while (p < mid) {
+                    tmp[k] = a[from + p];
+                    p = p + 1;
+                    k = k + 1;
+                }
+                while (q < hi) {
+                    tmp[k] = a[from + q];
+                    q = q + 1;
+                    k = k + 1;
+                }
+                lo = lo + width + width;
+            }
+            int m = 0;
+            while (m < n) {
+                a[from + m] = tmp[m];
+                m = m + 1;
+            }
+            width = width + width;
+        }
+    }
+    static void sort(double[] a) {
+        sort(a, 0, a.length);
+    }
+
+    static void sort(double[] a, int from, int to) {
+        if (from < 0 || to > a.length || from > to) {
+            throw new ArrayIndexOutOfBoundsException("sort range");
+        }
+        int n = to - from;
+        if (n < 2) {
+            return;
+        }
+        double[] tmp = new double[n];
+        int width = 1;
+        while (width < n) {
+            int lo = 0;
+            while (lo < n) {
+                int mid = lo + width;
+                int hi = lo + width + width;
+                if (mid > n) {
+                    mid = n;
+                }
+                if (hi > n) {
+                    hi = n;
+                }
+                int p = lo;
+                int q = mid;
+                int k = lo;
+                while (p < mid && q < hi) {
+                    if (a[from + q] < a[from + p]) {
+                        tmp[k] = a[from + q];
+                        q = q + 1;
+                    } else {
+                        tmp[k] = a[from + p];
+                        p = p + 1;
+                    }
+                    k = k + 1;
+                }
+                while (p < mid) {
+                    tmp[k] = a[from + p];
+                    p = p + 1;
+                    k = k + 1;
+                }
+                while (q < hi) {
+                    tmp[k] = a[from + q];
+                    q = q + 1;
+                    k = k + 1;
+                }
+                lo = lo + width + width;
+            }
+            int m = 0;
+            while (m < n) {
+                a[from + m] = tmp[m];
+                m = m + 1;
+            }
+            width = width + width;
+        }
+    }
+    static void sort(char[] a) {
+        sort(a, 0, a.length);
+    }
+
+    static void sort(char[] a, int from, int to) {
+        if (from < 0 || to > a.length || from > to) {
+            throw new ArrayIndexOutOfBoundsException("sort range");
+        }
+        int n = to - from;
+        if (n < 2) {
+            return;
+        }
+        char[] tmp = new char[n];
+        int width = 1;
+        while (width < n) {
+            int lo = 0;
+            while (lo < n) {
+                int mid = lo + width;
+                int hi = lo + width + width;
+                if (mid > n) {
+                    mid = n;
+                }
+                if (hi > n) {
+                    hi = n;
+                }
+                int p = lo;
+                int q = mid;
+                int k = lo;
+                while (p < mid && q < hi) {
+                    if (a[from + q] < a[from + p]) {
+                        tmp[k] = a[from + q];
+                        q = q + 1;
+                    } else {
+                        tmp[k] = a[from + p];
+                        p = p + 1;
+                    }
+                    k = k + 1;
+                }
+                while (p < mid) {
+                    tmp[k] = a[from + p];
+                    p = p + 1;
+                    k = k + 1;
+                }
+                while (q < hi) {
+                    tmp[k] = a[from + q];
+                    q = q + 1;
+                    k = k + 1;
+                }
+                lo = lo + width + width;
+            }
+            int m = 0;
+            while (m < n) {
+                a[from + m] = tmp[m];
+                m = m + 1;
+            }
+            width = width + width;
+        }
     }
 }
 
@@ -1281,6 +2892,723 @@ class Collections {
             i = i + 1;
             j = j - 1;
         }
+    }
+
+    static <T> void sort(List<T> list) {
+        list.sort(null);
+    }
+
+    static <T> void sort(List<T> list, Comparator<T> c) {
+        list.sort(c);
+    }
+
+    static <T> T max(Collection<T> c) {
+        return maxWith(c, null);
+    }
+
+    static <T> T max(Collection<T> c, Comparator<T> cmp) {
+        return maxWith(c, cmp);
+    }
+
+    static <T> T min(Collection<T> c) {
+        return minWith(c, null);
+    }
+
+    static <T> T min(Collection<T> c, Comparator<T> cmp) {
+        return minWith(c, cmp);
+    }
+
+    static <T> T maxWith(Collection<T> c, Comparator<T> cmp) {
+        Iterator<T> it = c.iterator();
+        T best = it.next();
+        while (it.hasNext()) {
+            T v = it.next();
+            if (SortSupport.compareWith(cmp, v, best) > 0) {
+                best = v;
+            }
+        }
+        return best;
+    }
+
+    static <T> T minWith(Collection<T> c, Comparator<T> cmp) {
+        Iterator<T> it = c.iterator();
+        T best = it.next();
+        while (it.hasNext()) {
+            T v = it.next();
+            if (SortSupport.compareWith(cmp, v, best) < 0) {
+                best = v;
+            }
+        }
+        return best;
+    }
+
+    static <T> Comparator<T> reverseOrder() {
+        return (a, b) -> SortSupport.natural(b, a);
+    }
+
+    static <T> Comparator<T> reverseOrder(Comparator<T> c) {
+        return (a, b) -> SortSupport.compareWith(c, b, a);
+    }
+
+    static <T> int frequency(Collection<T> c, Object o) {
+        int n = 0;
+        Iterator<T> it = c.iterator();
+        while (it.hasNext()) {
+            Object x = it.next();
+            if (x == o || (x != null && x.equals(o))) {
+                n = n + 1;
+            }
+        }
+        return n;
+    }
+
+    static <T> int binarySearch(List<T> list, T key) {
+        int lo = 0;
+        int hi = list.size() - 1;
+        while (lo <= hi) {
+            int mid = (lo + hi) >>> 1;
+            int c = SortSupport.natural(list.get(mid), key);
+            if (c < 0) {
+                lo = mid + 1;
+            } else if (c > 0) {
+                hi = mid - 1;
+            } else {
+                return mid;
+            }
+        }
+        return -(lo + 1);
+    }
+
+    static <T> List<T> emptyList() {
+        return new ArrayList<T>();
+    }
+}
+/** Desugaring targets for List.of / Arrays.asList / List.copyOf (mutable lists; see docs). */
+class JnLists {
+    static <T> List<T> copyOf(Collection<T> c) {
+        return new ArrayList<T>(c);
+    }
+
+    static <T> List<T> of() {
+        return new ArrayList<T>(0);
+    }
+
+    static <T> List<T> of(T a1) {
+        ArrayList<T> l = new ArrayList<T>(1);
+        l.add(a1);
+        return l;
+    }
+
+    static <T> List<T> of(T a1, T a2) {
+        ArrayList<T> l = new ArrayList<T>(2);
+        l.add(a1);
+        l.add(a2);
+        return l;
+    }
+
+    static <T> List<T> of(T a1, T a2, T a3) {
+        ArrayList<T> l = new ArrayList<T>(3);
+        l.add(a1);
+        l.add(a2);
+        l.add(a3);
+        return l;
+    }
+
+    static <T> List<T> of(T a1, T a2, T a3, T a4) {
+        ArrayList<T> l = new ArrayList<T>(4);
+        l.add(a1);
+        l.add(a2);
+        l.add(a3);
+        l.add(a4);
+        return l;
+    }
+
+    static <T> List<T> of(T a1, T a2, T a3, T a4, T a5) {
+        ArrayList<T> l = new ArrayList<T>(5);
+        l.add(a1);
+        l.add(a2);
+        l.add(a3);
+        l.add(a4);
+        l.add(a5);
+        return l;
+    }
+
+    static <T> List<T> of(T a1, T a2, T a3, T a4, T a5, T a6) {
+        ArrayList<T> l = new ArrayList<T>(6);
+        l.add(a1);
+        l.add(a2);
+        l.add(a3);
+        l.add(a4);
+        l.add(a5);
+        l.add(a6);
+        return l;
+    }
+
+    static <T> List<T> of(T a1, T a2, T a3, T a4, T a5, T a6, T a7) {
+        ArrayList<T> l = new ArrayList<T>(7);
+        l.add(a1);
+        l.add(a2);
+        l.add(a3);
+        l.add(a4);
+        l.add(a5);
+        l.add(a6);
+        l.add(a7);
+        return l;
+    }
+
+    static <T> List<T> of(T a1, T a2, T a3, T a4, T a5, T a6, T a7, T a8) {
+        ArrayList<T> l = new ArrayList<T>(8);
+        l.add(a1);
+        l.add(a2);
+        l.add(a3);
+        l.add(a4);
+        l.add(a5);
+        l.add(a6);
+        l.add(a7);
+        l.add(a8);
+        return l;
+    }
+
+    static <T> List<T> of(T a1, T a2, T a3, T a4, T a5, T a6, T a7, T a8, T a9) {
+        ArrayList<T> l = new ArrayList<T>(9);
+        l.add(a1);
+        l.add(a2);
+        l.add(a3);
+        l.add(a4);
+        l.add(a5);
+        l.add(a6);
+        l.add(a7);
+        l.add(a8);
+        l.add(a9);
+        return l;
+    }
+
+    static <T> List<T> of(T a1, T a2, T a3, T a4, T a5, T a6, T a7, T a8, T a9, T a10) {
+        ArrayList<T> l = new ArrayList<T>(10);
+        l.add(a1);
+        l.add(a2);
+        l.add(a3);
+        l.add(a4);
+        l.add(a5);
+        l.add(a6);
+        l.add(a7);
+        l.add(a8);
+        l.add(a9);
+        l.add(a10);
+        return l;
+    }
+
+}
+
+/** Desugaring targets for Set.of / Set.copyOf. */
+class JnSets {
+    static <T> Set<T> copyOf(Collection<T> c) {
+        return new HashSet<T>(c);
+    }
+
+    static <T> Set<T> of() {
+        return new HashSet<T>();
+    }
+
+    static <T> Set<T> of(T a1) {
+        HashSet<T> s = new HashSet<T>();
+        if (!s.add(a1)) {
+            throw new IllegalArgumentException("duplicate element");
+        }
+        return s;
+    }
+
+    static <T> Set<T> of(T a1, T a2) {
+        HashSet<T> s = new HashSet<T>();
+        if (!s.add(a1)) {
+            throw new IllegalArgumentException("duplicate element");
+        }
+        if (!s.add(a2)) {
+            throw new IllegalArgumentException("duplicate element");
+        }
+        return s;
+    }
+
+    static <T> Set<T> of(T a1, T a2, T a3) {
+        HashSet<T> s = new HashSet<T>();
+        if (!s.add(a1)) {
+            throw new IllegalArgumentException("duplicate element");
+        }
+        if (!s.add(a2)) {
+            throw new IllegalArgumentException("duplicate element");
+        }
+        if (!s.add(a3)) {
+            throw new IllegalArgumentException("duplicate element");
+        }
+        return s;
+    }
+
+    static <T> Set<T> of(T a1, T a2, T a3, T a4) {
+        HashSet<T> s = new HashSet<T>();
+        if (!s.add(a1)) {
+            throw new IllegalArgumentException("duplicate element");
+        }
+        if (!s.add(a2)) {
+            throw new IllegalArgumentException("duplicate element");
+        }
+        if (!s.add(a3)) {
+            throw new IllegalArgumentException("duplicate element");
+        }
+        if (!s.add(a4)) {
+            throw new IllegalArgumentException("duplicate element");
+        }
+        return s;
+    }
+
+    static <T> Set<T> of(T a1, T a2, T a3, T a4, T a5) {
+        HashSet<T> s = new HashSet<T>();
+        if (!s.add(a1)) {
+            throw new IllegalArgumentException("duplicate element");
+        }
+        if (!s.add(a2)) {
+            throw new IllegalArgumentException("duplicate element");
+        }
+        if (!s.add(a3)) {
+            throw new IllegalArgumentException("duplicate element");
+        }
+        if (!s.add(a4)) {
+            throw new IllegalArgumentException("duplicate element");
+        }
+        if (!s.add(a5)) {
+            throw new IllegalArgumentException("duplicate element");
+        }
+        return s;
+    }
+
+    static <T> Set<T> of(T a1, T a2, T a3, T a4, T a5, T a6) {
+        HashSet<T> s = new HashSet<T>();
+        if (!s.add(a1)) {
+            throw new IllegalArgumentException("duplicate element");
+        }
+        if (!s.add(a2)) {
+            throw new IllegalArgumentException("duplicate element");
+        }
+        if (!s.add(a3)) {
+            throw new IllegalArgumentException("duplicate element");
+        }
+        if (!s.add(a4)) {
+            throw new IllegalArgumentException("duplicate element");
+        }
+        if (!s.add(a5)) {
+            throw new IllegalArgumentException("duplicate element");
+        }
+        if (!s.add(a6)) {
+            throw new IllegalArgumentException("duplicate element");
+        }
+        return s;
+    }
+
+    static <T> Set<T> of(T a1, T a2, T a3, T a4, T a5, T a6, T a7) {
+        HashSet<T> s = new HashSet<T>();
+        if (!s.add(a1)) {
+            throw new IllegalArgumentException("duplicate element");
+        }
+        if (!s.add(a2)) {
+            throw new IllegalArgumentException("duplicate element");
+        }
+        if (!s.add(a3)) {
+            throw new IllegalArgumentException("duplicate element");
+        }
+        if (!s.add(a4)) {
+            throw new IllegalArgumentException("duplicate element");
+        }
+        if (!s.add(a5)) {
+            throw new IllegalArgumentException("duplicate element");
+        }
+        if (!s.add(a6)) {
+            throw new IllegalArgumentException("duplicate element");
+        }
+        if (!s.add(a7)) {
+            throw new IllegalArgumentException("duplicate element");
+        }
+        return s;
+    }
+
+    static <T> Set<T> of(T a1, T a2, T a3, T a4, T a5, T a6, T a7, T a8) {
+        HashSet<T> s = new HashSet<T>();
+        if (!s.add(a1)) {
+            throw new IllegalArgumentException("duplicate element");
+        }
+        if (!s.add(a2)) {
+            throw new IllegalArgumentException("duplicate element");
+        }
+        if (!s.add(a3)) {
+            throw new IllegalArgumentException("duplicate element");
+        }
+        if (!s.add(a4)) {
+            throw new IllegalArgumentException("duplicate element");
+        }
+        if (!s.add(a5)) {
+            throw new IllegalArgumentException("duplicate element");
+        }
+        if (!s.add(a6)) {
+            throw new IllegalArgumentException("duplicate element");
+        }
+        if (!s.add(a7)) {
+            throw new IllegalArgumentException("duplicate element");
+        }
+        if (!s.add(a8)) {
+            throw new IllegalArgumentException("duplicate element");
+        }
+        return s;
+    }
+
+    static <T> Set<T> of(T a1, T a2, T a3, T a4, T a5, T a6, T a7, T a8, T a9) {
+        HashSet<T> s = new HashSet<T>();
+        if (!s.add(a1)) {
+            throw new IllegalArgumentException("duplicate element");
+        }
+        if (!s.add(a2)) {
+            throw new IllegalArgumentException("duplicate element");
+        }
+        if (!s.add(a3)) {
+            throw new IllegalArgumentException("duplicate element");
+        }
+        if (!s.add(a4)) {
+            throw new IllegalArgumentException("duplicate element");
+        }
+        if (!s.add(a5)) {
+            throw new IllegalArgumentException("duplicate element");
+        }
+        if (!s.add(a6)) {
+            throw new IllegalArgumentException("duplicate element");
+        }
+        if (!s.add(a7)) {
+            throw new IllegalArgumentException("duplicate element");
+        }
+        if (!s.add(a8)) {
+            throw new IllegalArgumentException("duplicate element");
+        }
+        if (!s.add(a9)) {
+            throw new IllegalArgumentException("duplicate element");
+        }
+        return s;
+    }
+
+    static <T> Set<T> of(T a1, T a2, T a3, T a4, T a5, T a6, T a7, T a8, T a9, T a10) {
+        HashSet<T> s = new HashSet<T>();
+        if (!s.add(a1)) {
+            throw new IllegalArgumentException("duplicate element");
+        }
+        if (!s.add(a2)) {
+            throw new IllegalArgumentException("duplicate element");
+        }
+        if (!s.add(a3)) {
+            throw new IllegalArgumentException("duplicate element");
+        }
+        if (!s.add(a4)) {
+            throw new IllegalArgumentException("duplicate element");
+        }
+        if (!s.add(a5)) {
+            throw new IllegalArgumentException("duplicate element");
+        }
+        if (!s.add(a6)) {
+            throw new IllegalArgumentException("duplicate element");
+        }
+        if (!s.add(a7)) {
+            throw new IllegalArgumentException("duplicate element");
+        }
+        if (!s.add(a8)) {
+            throw new IllegalArgumentException("duplicate element");
+        }
+        if (!s.add(a9)) {
+            throw new IllegalArgumentException("duplicate element");
+        }
+        if (!s.add(a10)) {
+            throw new IllegalArgumentException("duplicate element");
+        }
+        return s;
+    }
+
+}
+
+/** Desugaring targets for Map.of / Map.entry / Map.copyOf. */
+class JnMaps {
+    static <K, V> Map<K, V> copyOf(Map<K, V> m) {
+        return new HashMap<K, V>(m);
+    }
+
+    static <K, V> Entry<K, V> entry(K k, V v) {
+        return new HashMapEntry<K, V>(0, k, v);
+    }
+
+    static <K, V> Map<K, V> of() {
+        return new HashMap<K, V>();
+    }
+
+    static <K, V> Map<K, V> of(K k1, V v1) {
+        HashMap<K, V> m = new HashMap<K, V>();
+        if (m.containsKey(k1)) {
+            throw new IllegalArgumentException("duplicate key");
+        }
+        m.put(k1, v1);
+        return m;
+    }
+
+    static <K, V> Map<K, V> of(K k1, V v1, K k2, V v2) {
+        HashMap<K, V> m = new HashMap<K, V>();
+        if (m.containsKey(k1)) {
+            throw new IllegalArgumentException("duplicate key");
+        }
+        m.put(k1, v1);
+        if (m.containsKey(k2)) {
+            throw new IllegalArgumentException("duplicate key");
+        }
+        m.put(k2, v2);
+        return m;
+    }
+
+    static <K, V> Map<K, V> of(K k1, V v1, K k2, V v2, K k3, V v3) {
+        HashMap<K, V> m = new HashMap<K, V>();
+        if (m.containsKey(k1)) {
+            throw new IllegalArgumentException("duplicate key");
+        }
+        m.put(k1, v1);
+        if (m.containsKey(k2)) {
+            throw new IllegalArgumentException("duplicate key");
+        }
+        m.put(k2, v2);
+        if (m.containsKey(k3)) {
+            throw new IllegalArgumentException("duplicate key");
+        }
+        m.put(k3, v3);
+        return m;
+    }
+
+    static <K, V> Map<K, V> of(K k1, V v1, K k2, V v2, K k3, V v3, K k4, V v4) {
+        HashMap<K, V> m = new HashMap<K, V>();
+        if (m.containsKey(k1)) {
+            throw new IllegalArgumentException("duplicate key");
+        }
+        m.put(k1, v1);
+        if (m.containsKey(k2)) {
+            throw new IllegalArgumentException("duplicate key");
+        }
+        m.put(k2, v2);
+        if (m.containsKey(k3)) {
+            throw new IllegalArgumentException("duplicate key");
+        }
+        m.put(k3, v3);
+        if (m.containsKey(k4)) {
+            throw new IllegalArgumentException("duplicate key");
+        }
+        m.put(k4, v4);
+        return m;
+    }
+
+    static <K, V> Map<K, V> of(K k1, V v1, K k2, V v2, K k3, V v3, K k4, V v4, K k5, V v5) {
+        HashMap<K, V> m = new HashMap<K, V>();
+        if (m.containsKey(k1)) {
+            throw new IllegalArgumentException("duplicate key");
+        }
+        m.put(k1, v1);
+        if (m.containsKey(k2)) {
+            throw new IllegalArgumentException("duplicate key");
+        }
+        m.put(k2, v2);
+        if (m.containsKey(k3)) {
+            throw new IllegalArgumentException("duplicate key");
+        }
+        m.put(k3, v3);
+        if (m.containsKey(k4)) {
+            throw new IllegalArgumentException("duplicate key");
+        }
+        m.put(k4, v4);
+        if (m.containsKey(k5)) {
+            throw new IllegalArgumentException("duplicate key");
+        }
+        m.put(k5, v5);
+        return m;
+    }
+
+    static <K, V> Map<K, V> of(K k1, V v1, K k2, V v2, K k3, V v3, K k4, V v4, K k5, V v5, K k6, V v6) {
+        HashMap<K, V> m = new HashMap<K, V>();
+        if (m.containsKey(k1)) {
+            throw new IllegalArgumentException("duplicate key");
+        }
+        m.put(k1, v1);
+        if (m.containsKey(k2)) {
+            throw new IllegalArgumentException("duplicate key");
+        }
+        m.put(k2, v2);
+        if (m.containsKey(k3)) {
+            throw new IllegalArgumentException("duplicate key");
+        }
+        m.put(k3, v3);
+        if (m.containsKey(k4)) {
+            throw new IllegalArgumentException("duplicate key");
+        }
+        m.put(k4, v4);
+        if (m.containsKey(k5)) {
+            throw new IllegalArgumentException("duplicate key");
+        }
+        m.put(k5, v5);
+        if (m.containsKey(k6)) {
+            throw new IllegalArgumentException("duplicate key");
+        }
+        m.put(k6, v6);
+        return m;
+    }
+
+    static <K, V> Map<K, V> of(K k1, V v1, K k2, V v2, K k3, V v3, K k4, V v4, K k5, V v5, K k6, V v6, K k7, V v7) {
+        HashMap<K, V> m = new HashMap<K, V>();
+        if (m.containsKey(k1)) {
+            throw new IllegalArgumentException("duplicate key");
+        }
+        m.put(k1, v1);
+        if (m.containsKey(k2)) {
+            throw new IllegalArgumentException("duplicate key");
+        }
+        m.put(k2, v2);
+        if (m.containsKey(k3)) {
+            throw new IllegalArgumentException("duplicate key");
+        }
+        m.put(k3, v3);
+        if (m.containsKey(k4)) {
+            throw new IllegalArgumentException("duplicate key");
+        }
+        m.put(k4, v4);
+        if (m.containsKey(k5)) {
+            throw new IllegalArgumentException("duplicate key");
+        }
+        m.put(k5, v5);
+        if (m.containsKey(k6)) {
+            throw new IllegalArgumentException("duplicate key");
+        }
+        m.put(k6, v6);
+        if (m.containsKey(k7)) {
+            throw new IllegalArgumentException("duplicate key");
+        }
+        m.put(k7, v7);
+        return m;
+    }
+
+    static <K, V> Map<K, V> of(K k1, V v1, K k2, V v2, K k3, V v3, K k4, V v4, K k5, V v5, K k6, V v6, K k7, V v7, K k8, V v8) {
+        HashMap<K, V> m = new HashMap<K, V>();
+        if (m.containsKey(k1)) {
+            throw new IllegalArgumentException("duplicate key");
+        }
+        m.put(k1, v1);
+        if (m.containsKey(k2)) {
+            throw new IllegalArgumentException("duplicate key");
+        }
+        m.put(k2, v2);
+        if (m.containsKey(k3)) {
+            throw new IllegalArgumentException("duplicate key");
+        }
+        m.put(k3, v3);
+        if (m.containsKey(k4)) {
+            throw new IllegalArgumentException("duplicate key");
+        }
+        m.put(k4, v4);
+        if (m.containsKey(k5)) {
+            throw new IllegalArgumentException("duplicate key");
+        }
+        m.put(k5, v5);
+        if (m.containsKey(k6)) {
+            throw new IllegalArgumentException("duplicate key");
+        }
+        m.put(k6, v6);
+        if (m.containsKey(k7)) {
+            throw new IllegalArgumentException("duplicate key");
+        }
+        m.put(k7, v7);
+        if (m.containsKey(k8)) {
+            throw new IllegalArgumentException("duplicate key");
+        }
+        m.put(k8, v8);
+        return m;
+    }
+
+    static <K, V> Map<K, V> of(K k1, V v1, K k2, V v2, K k3, V v3, K k4, V v4, K k5, V v5, K k6, V v6, K k7, V v7, K k8, V v8, K k9, V v9) {
+        HashMap<K, V> m = new HashMap<K, V>();
+        if (m.containsKey(k1)) {
+            throw new IllegalArgumentException("duplicate key");
+        }
+        m.put(k1, v1);
+        if (m.containsKey(k2)) {
+            throw new IllegalArgumentException("duplicate key");
+        }
+        m.put(k2, v2);
+        if (m.containsKey(k3)) {
+            throw new IllegalArgumentException("duplicate key");
+        }
+        m.put(k3, v3);
+        if (m.containsKey(k4)) {
+            throw new IllegalArgumentException("duplicate key");
+        }
+        m.put(k4, v4);
+        if (m.containsKey(k5)) {
+            throw new IllegalArgumentException("duplicate key");
+        }
+        m.put(k5, v5);
+        if (m.containsKey(k6)) {
+            throw new IllegalArgumentException("duplicate key");
+        }
+        m.put(k6, v6);
+        if (m.containsKey(k7)) {
+            throw new IllegalArgumentException("duplicate key");
+        }
+        m.put(k7, v7);
+        if (m.containsKey(k8)) {
+            throw new IllegalArgumentException("duplicate key");
+        }
+        m.put(k8, v8);
+        if (m.containsKey(k9)) {
+            throw new IllegalArgumentException("duplicate key");
+        }
+        m.put(k9, v9);
+        return m;
+    }
+
+    static <K, V> Map<K, V> of(K k1, V v1, K k2, V v2, K k3, V v3, K k4, V v4, K k5, V v5, K k6, V v6, K k7, V v7, K k8, V v8, K k9, V v9, K k10, V v10) {
+        HashMap<K, V> m = new HashMap<K, V>();
+        if (m.containsKey(k1)) {
+            throw new IllegalArgumentException("duplicate key");
+        }
+        m.put(k1, v1);
+        if (m.containsKey(k2)) {
+            throw new IllegalArgumentException("duplicate key");
+        }
+        m.put(k2, v2);
+        if (m.containsKey(k3)) {
+            throw new IllegalArgumentException("duplicate key");
+        }
+        m.put(k3, v3);
+        if (m.containsKey(k4)) {
+            throw new IllegalArgumentException("duplicate key");
+        }
+        m.put(k4, v4);
+        if (m.containsKey(k5)) {
+            throw new IllegalArgumentException("duplicate key");
+        }
+        m.put(k5, v5);
+        if (m.containsKey(k6)) {
+            throw new IllegalArgumentException("duplicate key");
+        }
+        m.put(k6, v6);
+        if (m.containsKey(k7)) {
+            throw new IllegalArgumentException("duplicate key");
+        }
+        m.put(k7, v7);
+        if (m.containsKey(k8)) {
+            throw new IllegalArgumentException("duplicate key");
+        }
+        m.put(k8, v8);
+        if (m.containsKey(k9)) {
+            throw new IllegalArgumentException("duplicate key");
+        }
+        m.put(k9, v9);
+        if (m.containsKey(k10)) {
+            throw new IllegalArgumentException("duplicate key");
+        }
+        m.put(k10, v10);
+        return m;
     }
 
 }

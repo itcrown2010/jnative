@@ -1,0 +1,49 @@
+class Pt {
+    int x;
+    int y;
+    Pt(int x, int y) { this.x = x; this.y = y; }
+    public String toString() { return "(" + x + "," + y + ")"; }
+}
+
+class Plain { }
+
+public class Main {
+    public static void main(String[] args) {
+        Integer i = 42;
+        Long l = 7L;
+        Boolean b = true;
+        Double d = 2.5;
+        Character c = 'z';
+        System.out.println(i);
+        System.out.println(l);
+        System.out.println(b);
+        System.out.println(d);
+        System.out.println(c);
+        Pt p = new Pt(1, 2);
+        System.out.println(p);
+        System.out.println("p=" + p);
+        System.out.println(p + "!");
+        Pt np = null;
+        System.out.println("null? " + np);
+        System.out.println(np);
+        String sn = null;
+        System.out.println("sn=" + sn);
+        System.out.println(sn);
+        System.out.println("flag=" + true + "," + false);
+        System.out.println(true + "x");
+        System.out.println("i=" + i + " l=" + l + " d=" + d + " c=" + c);
+        Object o = p;
+        System.out.println("o=" + o);
+        Object os = "str";
+        System.out.println("os=" + os);
+        Plain pl = new Plain();
+        String ps = "" + pl;
+        System.out.println(ps.startsWith("Plain@"));
+        short sh = -5;
+        byte by = -3;
+        System.out.println("sh=" + sh + " by=" + by);
+        System.out.println(sh);
+        System.out.println("null literal " + null);
+        System.out.println(1 + 2 + "3" + 4 + 5);
+    }
+}

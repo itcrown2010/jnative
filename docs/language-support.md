@@ -46,7 +46,12 @@ Levels: L0–L4 per readiness audit.
 | method overload | SUPPORTED | L2–L3 | Ambiguity diagnosed; `OverloadEndToEndTest` |
 | constructor overload | SUPPORTED | L2 | |
 | `override` (virtual dispatch) | SUPPORTED | L3 | Dynamic dispatch e2e |
-| arrays | SUPPORTED | L3 | Runtime + e2e |
+| arrays | SUPPORTED | L3 | Runtime + e2e; 1-D only (no `int[][]`) |
+| array initializers `{1, 2}` / `new T[] {..}` | SUPPORTED | L2 | 1-D, trailing comma ok; nested `{{..}}` diagnosed; `ArrayInitEndToEndTest` (diff vs javac) |
+| instance field initializers (`int[] f = {..}; List<T> l = new ArrayList<>();`) | SUPPORTED | L2 | Run before constructor body; `ArrayInitEndToEndTest` |
+| `Object.toString()` / `println(obj)` / `"s" + obj` | SUPPORTED | L2 | Wrapper/boolean/null/object (`Cls@hex` default); user `toString` virtual dispatch; `ArrayInitEndToEndTest#toStringAndConcatMatchJava` |
+| `Integer/Long/Boolean/Float/Double/Character` stdlib APIs | SUPPORTED | L2 | `MAX_VALUE`, `parseInt/parseLong/parseDouble`, `toString(radix)`, `toHexString`, `compare`, `Character.isDigit/isLetter/...`, `NumberFormatException`; `StdlibNumbersEndToEndTest` (diff vs javac) |
+| `double`/`float` printing | SUPPORTED | L2 | Java `Double.toString` algorithm (shortest round-trip, `E` notation) |
 | generics (basic / specialized collections) | SUPPORTED | L2–L3 | `GenericsEndToEndTest` |
 | wildcards `?` / `? extends` / `? super` | EXPERIMENTAL | L1 | Parsing exists; **no native wildcard e2e** |
 | lambda / SAM | SUPPORTED | L2–L3 | `CallableEndToEndTest` |

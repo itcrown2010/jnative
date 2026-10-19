@@ -153,6 +153,15 @@ public final class StdlibIncluder {
                 || sourceText.contains("TrendChart");
     }
 
+    private static final java.util.regex.Pattern SYSTEM_SHIM = java.util.regex.Pattern.compile(
+            "System\\s*\\.\\s*(exit|err|currentTimeMillis|nanoTime|arraycopy|lineSeparator)\\b"
+                    + "|System\\s*\\.\\s*out\\s*\\.\\s*print\\s*\\(");
+
+    /** {@code System.exit/err/print/currentTimeMillis/nanoTime/arraycopy/lineSeparator} → {@code JnSystem}. */
+    public static boolean needsSystem(String sourceText) {
+        return sourceText != null && SYSTEM_SHIM.matcher(sourceText).find();
+    }
+
     public static boolean needsMath(String sourceText) {
         if (sourceText == null) {
             return false;
@@ -219,7 +228,27 @@ public final class StdlibIncluder {
                 || sourceText.contains("new StringBuilder")
                 || sourceText.contains("Collections.")
                 || sourceText.contains("Arrays.")
+                || sourceText.contains("BiFunction<")
+                || sourceText.contains("BiConsumer<")
+                || sourceText.contains("UnsupportedOperationException")
+                || sourceText.contains("Map.Entry")
+                || usesCollectionType(sourceText, "List")
+                || usesCollectionType(sourceText, "Set")
+                || usesCollectionType(sourceText, "Map")
+                || usesCollectionType(sourceText, "Collection")
                 || needsBoxing(sourceText);
+    }
+
+    /**
+     * True when {@code Name<..>} / {@code Name.of(} appears and the program does not declare its own
+     * type of that name (a user-defined {@code class List} must keep working).
+     */
+    private static boolean usesCollectionType(String src, String name) {
+        if (src.contains("class " + name + " ") || src.contains("class " + name + "<")
+                || src.contains("interface " + name + " ") || src.contains("interface " + name + "<")) {
+            return false;
+        }
+        return src.contains(name + "<") || src.contains(name + ".of(") || src.contains(name + ".copyOf(");
     }
 
     /** Boxed primitives and types that typically imply autobox. */
@@ -228,6 +257,8 @@ public final class StdlibIncluder {
             return false;
         }
         return sourceText.contains("Integer")
+                // primitives box into Object ({@code Object o = 5}) via the wrapper classes
+                || sourceText.contains("Object")
                 || sourceText.contains("Boolean")
                 || sourceText.contains("Float")
                 || sourceText.contains("Double")
@@ -238,7 +269,10 @@ public final class StdlibIncluder {
                 || sourceText.contains("<Long")
                 || sourceText.contains("Long.")
                 || sourceText.contains("(Long)")
-                || sourceText.contains("new Long");
+                || sourceText.contains("new Long")
+                || sourceText.contains("NumberFormatException")
+                // A user-defined class Character (e.g. a game entity) must keep working.
+                || (sourceText.contains("Character") && !sourceText.contains("class Character"));
     }
 
     public static boolean needsGraphics(String sourceText) {
@@ -728,6 +762,9 @@ public final class StdlibIncluder {
             resources.add("stdlib/collections/CollectionsLib.java");
         } else if (needsBoxing(userSource)) {
             resources.add("stdlib/collections/BoxingLib.java");
+        }
+        if (needsSystem(userSource)) {
+            resources.add("stdlib/system/SystemLib.java");
         }
         if (wantMath || needsMath(userSource)) {
             resources.add("stdlib/math/MathLib.java");

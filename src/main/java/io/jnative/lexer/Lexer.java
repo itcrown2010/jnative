@@ -62,6 +62,8 @@ public final class Lexer {
             case '+' -> {
                 if (match('+')) {
                     addToken(TokenType.PLUS_PLUS);
+                } else if (match('=')) {
+                    addToken(TokenType.COMPOUND_ASSIGN);
                 } else {
                     addToken(TokenType.PLUS);
                 }
@@ -71,12 +73,14 @@ public final class Lexer {
                     addToken(TokenType.MINUS_MINUS);
                 } else if (match('>')) {
                     addToken(TokenType.ARROW);
+                } else if (match('=')) {
+                    addToken(TokenType.COMPOUND_ASSIGN);
                 } else {
                     addToken(TokenType.MINUS);
                 }
             }
-            case '*' -> addToken(TokenType.STAR);
-            case '%' -> addToken(TokenType.PERCENT);
+            case '*' -> addToken(match('=') ? TokenType.COMPOUND_ASSIGN : TokenType.STAR);
+            case '%' -> addToken(match('=') ? TokenType.COMPOUND_ASSIGN : TokenType.PERCENT);
             case '!' -> addToken(match('=') ? TokenType.NE : TokenType.NOT);
             case '?' -> addToken(TokenType.QUESTION);
             case ':' -> {
@@ -87,11 +91,35 @@ public final class Lexer {
                 }
             }
             case '=' -> addToken(match('=') ? TokenType.EQ : TokenType.ASSIGN);
-            case '<' -> addToken(match('=') ? TokenType.LE : TokenType.LT);
-            case '>' -> addToken(match('=') ? TokenType.GE : TokenType.GT);
+            case '<' -> {
+                if (peek() == '<' && peekNext() == '=') {
+                    advance();
+                    advance();
+                    addToken(TokenType.COMPOUND_ASSIGN);
+                } else {
+                    addToken(match('=') ? TokenType.LE : TokenType.LT);
+                }
+            }
+            case '>' -> {
+                if (peek() == '>' && peekNext() == '=') {
+                    advance();
+                    advance();
+                    addToken(TokenType.COMPOUND_ASSIGN);
+                } else if (peek() == '>' && peekNext() == '>' && current + 2 < source.length()
+                        && source.charAt(current + 2) == '=') {
+                    advance();
+                    advance();
+                    advance();
+                    addToken(TokenType.COMPOUND_ASSIGN);
+                } else {
+                    addToken(match('=') ? TokenType.GE : TokenType.GT);
+                }
+            }
             case '&' -> {
                 if (match('&')) {
                     addToken(TokenType.AND);
+                } else if (match('=')) {
+                    addToken(TokenType.COMPOUND_ASSIGN);
                 } else {
                     addToken(TokenType.BIT_AND);
                 }
@@ -99,11 +127,13 @@ public final class Lexer {
             case '|' -> {
                 if (match('|')) {
                     addToken(TokenType.OR);
+                } else if (match('=')) {
+                    addToken(TokenType.COMPOUND_ASSIGN);
                 } else {
                     addToken(TokenType.BIT_OR);
                 }
             }
-            case '^' -> addToken(TokenType.BIT_XOR);
+            case '^' -> addToken(match('=') ? TokenType.COMPOUND_ASSIGN : TokenType.BIT_XOR);
             case '~' -> addToken(TokenType.BIT_NOT);
             case '/' -> {
                 if (match('/')) {
@@ -112,6 +142,8 @@ public final class Lexer {
                     }
                 } else if (match('*')) {
                     skipBlockComment();
+                } else if (match('=')) {
+                    addToken(TokenType.COMPOUND_ASSIGN);
                 } else {
                     addToken(TokenType.SLASH);
                 }

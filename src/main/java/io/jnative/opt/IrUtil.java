@@ -73,6 +73,8 @@ public final class IrUtil {
             case IrInstruction.ArrayLength a -> a.dest();
             case IrInstruction.InstanceOf i -> i.dest();
             case IrInstruction.CheckedCast c -> c.dest();
+            case IrInstruction.InstanceOfInterface i -> i.dest();
+            case IrInstruction.CheckedCastInterface c -> c.dest();
             case IrInstruction.StringLiteral s -> s.dest();
             case IrInstruction.NativeCall n -> n.dest();
             case IrInstruction.AddressOf a -> a.dest();
@@ -141,6 +143,8 @@ public final class IrUtil {
             case IrInstruction.ArrayLength a -> out.add(new ValueUse(a.array(), "array"));
             case IrInstruction.InstanceOf i -> out.add(new ValueUse(i.object(), "object"));
             case IrInstruction.CheckedCast c -> out.add(new ValueUse(c.object(), "object"));
+            case IrInstruction.InstanceOfInterface i -> out.add(new ValueUse(i.object(), "object"));
+            case IrInstruction.CheckedCastInterface c -> out.add(new ValueUse(c.object(), "object"));
             case IrInstruction.Throw t -> out.add(new ValueUse(t.exception(), "exception"));
             case IrInstruction.NativeCall n -> n.args().forEach(a -> out.add(new ValueUse(a, "arg")));
             case IrInstruction.AddressOf a -> out.add(new ValueUse(a.stackLocal(), "stackLocal"));
@@ -243,6 +247,10 @@ public final class IrUtil {
                     mapTemp(io.dest(), map), map.apply(io.object()), io.targetMetaGlobal());
             case IrInstruction.CheckedCast cc -> new IrInstruction.CheckedCast(
                     mapTemp(cc.dest(), map), map.apply(cc.object()), cc.targetMetaGlobal());
+            case IrInstruction.InstanceOfInterface ii -> new IrInstruction.InstanceOfInterface(
+                    mapTemp(ii.dest(), map), map.apply(ii.object()), ii.interfaceId());
+            case IrInstruction.CheckedCastInterface ci -> new IrInstruction.CheckedCastInterface(
+                    mapTemp(ci.dest(), map), map.apply(ci.object()), ci.interfaceId());
             case IrInstruction.StringLiteral sl -> new IrInstruction.StringLiteral(
                     mapTemp(sl.dest(), map), sl.cString(), sl.byteLength());
             case IrInstruction.Throw t -> new IrInstruction.Throw(map.apply(t.exception()));

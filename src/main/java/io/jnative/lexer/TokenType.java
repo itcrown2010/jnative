@@ -106,6 +106,8 @@ public enum TokenType {
     QUESTION,
     COLON,
     PLUS_PLUS,
+    /** Compound assignment: += -= *= /= %= &= |= ^= <<= >>= >>>= (lexeme holds the operator). */
+    COMPOUND_ASSIGN,
     MINUS_MINUS,
     ARROW,
     COLON_COLON,

@@ -34,6 +34,7 @@ import io.jnative.semantic.NativePtrType;
 import io.jnative.semantic.NativeStructFieldSymbol;
 import io.jnative.semantic.NativeStructSymbol;
 import io.jnative.semantic.NativeStructType;
+import io.jnative.semantic.NullType;
 import io.jnative.semantic.EnhancedForDesugar;
 import io.jnative.semantic.ErrorType;
 import io.jnative.semantic.InterfaceType;
@@ -288,6 +289,11 @@ public final class IrGenerator {
         lowerBuiltinStringObjectMethods(module, typed);
         lowerBuiltinThrowableMethods(module, typed);
         lowerDelegatingBuiltinConstructors(module, typed);
+        // Lambda bodies are shared (erased) code: never remap type variables using whichever class
+        // happened to be lowered last.
+        currentClass = null;
+        currentMethod = null;
+        currentConstructor = null;
         lowerCallableFunctions(module, typed);
         lowerThreadBuiltins(module, typed);
         lowerStaticClinit(module, typed);
@@ -513,6 +519,21 @@ public final class IrGenerator {
                     "jnative_identity_hashcode", IrType.I32, List.of(builder.load(thisLocal)));
             builder.ret(h);
         });
+        object.findMethod("toString").ifPresent(ms -> {
+            if (functionsByMangled.containsKey(ms.mangledName())) {
+                return;
+            }
+            IrFunction function = new IrFunction(
+                    ms.mangledName(), IrType.PTR, List.of(new IrValue.Param("this", IrType.PTR)), false);
+            module.addFunction(function);
+            functionsByMangled.put(ms.mangledName(), function);
+            builder.beginFunction(function);
+            IrValue.Local thisLocal = builder.alloca("this", IrType.PTR);
+            builder.store(new IrValue.Param("this", IrType.PTR), thisLocal);
+            // Default Object.toString(): "ClassName@hexIdentityHash".
+            builder.ret(builder.call(
+                    "jnative_object_to_string", IrType.PTR, List.of(builder.load(thisLocal))));
+        });
     }
 
     private void lowerBuiltinStringObjectMethods(IrModule module, TypedCompilationUnit typed) {
@@ -557,6 +578,19 @@ public final class IrGenerator {
                     IrType.I32,
                     List.of(builder.load(thisLocal)));
             builder.ret(result);
+        });
+        string.findMethod("toString").ifPresent(ms -> {
+            if (functionsByMangled.containsKey(ms.mangledName())) {
+                return;
+            }
+            IrFunction function = new IrFunction(
+                    ms.mangledName(), IrType.PTR, List.of(new IrValue.Param("this", IrType.PTR)), false);
+            module.addFunction(function);
+            functionsByMangled.put(ms.mangledName(), function);
+            builder.beginFunction(function);
+            IrValue.Local thisLocal = builder.alloca("this", IrType.PTR);
+            builder.store(new IrValue.Param("this", IrType.PTR), thisLocal);
+            builder.ret(builder.load(thisLocal));
         });
     }
 
@@ -758,9 +792,7 @@ public final class IrGenerator {
     ) {
         for (MethodDeclaration method : cls.methods()) {
             if (method.isConstructor()) {
-                ConstructorSymbol ctor = classSymbol.isSpecialized()
-                        ? findCtorByArity(classSymbol, method)
-                        : findCtor(classSymbol, method);
+                ConstructorSymbol ctor = findCtor(classSymbol, method);
                 if (ctor == null) {
                     continue;
                 }
@@ -833,9 +865,33 @@ public final class IrGenerator {
         for (Parameter p : method.parameters()) {
             pts.add(resolveTypeNameInOwner(p.type(), p.isArray(), owner));
         }
+        if (!method.typeParameters().isEmpty()) {
+            /* Generic method: its own <T> is unknown to resolveTypeNameInOwner, so the
+             * type-based lookup below could pick a concrete sibling overload. Shape first. */
+            List<MethodSymbol> genericShape = new ArrayList<>();
+            for (MethodSymbol m : overs) {
+                if (astShapeMatches(owner, method, m)) {
+                    genericShape.add(m);
+                }
+            }
+            if (genericShape.size() == 1) {
+                return genericShape.get(0);
+            }
+        }
         Optional<MethodSymbol> exact = owner.findMethod(method.name(), pts);
         if (exact.isPresent()) {
             return exact.get();
+        }
+        /* Overloads mixing generic and concrete params (e.g. show(int[]) / <T> show(T[])):
+         * compare the declaration's shape (array-ness, type-variable vs concrete name). */
+        List<MethodSymbol> shape = new ArrayList<>();
+        for (MethodSymbol m : overs) {
+            if (astShapeMatches(owner, method, m)) {
+                shape.add(m);
+            }
+        }
+        if (shape.size() == 1) {
+            return shape.get(0);
         }
         /* Specialized generics: AST type vars vs substituted params — match arity. */
         List<MethodSymbol> arity = new ArrayList<>();
@@ -853,6 +909,50 @@ public final class IrGenerator {
         return overs.get(0);
     }
 
+    private static boolean astShapeMatches(ClassSymbol owner, MethodDeclaration method, MethodSymbol sym) {
+        return paramShapeMatches(owner, method.typeParameters(), method.parameters(), sym.parameterTypes());
+    }
+
+    private static boolean paramShapeMatches(ClassSymbol owner, List<? extends io.jnative.ast.TypeParameterDeclaration> methodTypeParams,
+            List<Parameter> astParams, List<JType> symParams) {
+        if (astParams.size() != symParams.size()) {
+            return false;
+        }
+        java.util.Set<String> typeVars = new java.util.HashSet<>();
+        for (var tp : methodTypeParams) {
+            typeVars.add(tp.name());
+        }
+        for (var tp : owner.typeParameters()) {
+            typeVars.add(tp.name());
+        }
+        for (int i = 0; i < astParams.size(); i++) {
+            Parameter p = astParams.get(i);
+            JType st = symParams.get(i);
+            boolean symArray = st instanceof ArrayType;
+            if (p.isArray() != symArray) {
+                return false;
+            }
+            JType element = symArray ? ((ArrayType) st).elementType() : st;
+            String astName = p.type().name();
+            if (typeVars.contains(astName)) {
+                // Declaration names a type variable: the symbol must be generic there too,
+                // unless the owner is a specialized instance (params already substituted).
+                if (!owner.isSpecialized() && !(element instanceof TypeVariable)) {
+                    return false;
+                }
+                continue;
+            }
+            if (element instanceof TypeVariable) {
+                return false; // symbol is generic here but the declaration names a concrete type
+            }
+            String shown = element.displayName();
+            if (!(shown.equals(astName) || shown.startsWith(astName + "<"))) {
+                return false;
+            }
+        }
+        return true;
+    }
+
     private ConstructorSymbol findCtor(ClassSymbol owner, MethodDeclaration method) {
         List<JType> pts = new ArrayList<>();
         for (Parameter p : method.parameters()) {
@@ -863,8 +963,19 @@ public final class IrGenerator {
                 return c;
             }
         }
-        // Generic classes: AST may spell type variables as CLASS names; match by arity.
+        // Generic classes: AST may spell type variables as CLASS names; match by shape, then arity.
         if (owner.isGeneric() || owner.isSpecialized()) {
+            ConstructorSymbol only = null;
+            int hits = 0;
+            for (ConstructorSymbol c : owner.constructors()) {
+                if (paramShapeMatches(owner, List.of(), method.parameters(), c.parameterTypes())) {
+                    only = c;
+                    hits++;
+                }
+            }
+            if (hits == 1) {
+                return only;
+            }
             return findCtorByArity(owner, method);
         }
         return null;
@@ -1504,9 +1615,21 @@ public final class IrGenerator {
             if (retJt != null) {
                 builder.ret(convertTo(value, remapType(typed.expressionTypes().get(r.value())), retJt));
             } else {
-                builder.ret(castIfNeeded(value, builder.function().returnType()));
+                builder.ret(lambdaReturnValue(value, typed.expressionTypes().get(r.value()),
+                        builder.function().returnType()));
             }
         }
+    }
+
+    /** Box a primitive result returned through a reference-typed SAM return (e.g. BiFunction<Integer,..>). */
+    private IrValue lambdaReturnValue(IrValue value, JType exprType, IrType ret) {
+        if (ret == IrType.PTR && exprType instanceof PrimitiveType) {
+            ClassSymbol obj = typed.classes().get("Object");
+            if (obj != null) {
+                return convertTo(value, exprType, obj.asType());
+            }
+        }
+        return castIfNeeded(value, ret);
     }
 
     private TryFrame innermostFinallyFrame() {
@@ -2455,13 +2578,23 @@ public final class IrGenerator {
             case UnaryExpression u -> lowerUnary(u);
             case MethodCallExpression m -> lowerCall(m);
             case PrintlnExpression p -> {
-                builder.println(lowerExpression(p.argument()));
+                IrValue printed = lowerExpression(p.argument());
+                JType printedType = typed.expressionTypes().get(p.argument());
+                if (printedType == PrimitiveType.BYTE || printedType == PrimitiveType.SHORT) {
+                    // IR I16 means "char" for println, and I8 has no println overload: widen to int.
+                    printed = castIfNeeded(printed, IrType.I32);
+                } else if (!(remapType(printedType) instanceof PrimitiveType)) {
+                    // String (null prints "null"), wrappers and objects: text first, then println(String).
+                    printed = stringify(printed, printedType);
+                }
+                builder.println(printed);
                 yield new IrValue.Const(IrType.I32, 0);
             }
             case GroupingExpression g -> lowerExpression(g.expression());
             case NewObjectExpression n -> lowerNew(n);
             case FieldAccessExpression f -> lowerFieldLoad(f);
             case NewArrayExpression n -> lowerNewArray(n);
+            case ArrayInitExpression n -> lowerArrayInit(n);
             case ArrayAccessExpression a -> lowerArrayLoad(a);
             case InstanceOfExpression i -> lowerInstanceOf(i);
             case CastExpression c -> lowerCast(c);
@@ -2596,7 +2729,7 @@ public final class IrGenerator {
                 if (ret == IrType.VOID) {
                     builder.retVoid();
                 } else {
-                    builder.ret(castIfNeeded(result, ret));
+                    builder.ret(lambdaReturnValue(result, typed.expressionTypes().get(binding.bodyExpression()), ret));
                 }
             }
         } finally {
@@ -2670,6 +2803,110 @@ public final class IrGenerator {
         } else {
             builder.ret(castIfNeeded(result, ret));
         }
+    }
+
+    /**
+     * Declared (pre-erasure) type of an expression: keeps {@code Foo<K, V>} for variables, fields
+     * and call results inside generic bodies, where {@code typed.expressionTypes()} only retains the
+     * erased raw class. Used to find primitive-specialised classes of nested generic objects.
+     */
+    private JType richTypeOf(Expression e) {
+        if (e instanceof GroupingExpression g) {
+            return richTypeOf(g.expression());
+        }
+        if (e instanceof VariableExpression v) {
+            Object r = typed.resolvedSymbols().get(v);
+            if (r instanceof VariableSymbol vs) {
+                return vs.type();
+            }
+            if (r instanceof FieldSymbol fs) {
+                return fs.type();
+            }
+        } else if (e instanceof FieldAccessExpression f) {
+            Object r = typed.resolvedSymbols().get(f);
+            if (r instanceof FieldSymbol fs) {
+                return substituteOwnerArgs(fs.type(), fs.owner(), f.receiver());
+            }
+        } else if (e instanceof MethodCallExpression m) {
+            Object r = typed.resolvedSymbols().get(m);
+            if (r instanceof MethodSymbol ms && ms.classOwner() != null) {
+                return substituteOwnerArgs(ms.returnType(), ms.classOwner(), m.receiver());
+            }
+            if (r instanceof InterfaceCallTarget ict) {
+                return ict.returnType();
+            }
+        } else if (e instanceof ArrayAccessExpression a) {
+            JType arr = richTypeOf(a.array());
+            if (arr instanceof ArrayType at) {
+                return at.elementType();
+            }
+        }
+        return typed.expressionTypes().get(e);
+    }
+
+    private JType substituteOwnerArgs(JType declared, Object owner, Expression receiver) {
+        if (declared == null || receiver == null || !(owner instanceof ClassSymbol cs) || !cs.isGeneric()) {
+            return declared;
+        }
+        JType recv = richTypeOf(receiver);
+        if (recv instanceof ParameterizedType pt && pt.raw() == cs
+                && pt.typeArguments().size() == cs.typeParameters().size()) {
+            return TypeSubstitution.zip(cs.typeParameters(), pt.typeArguments()).apply(declared);
+        }
+        return declared;
+    }
+
+    /**
+     * When the receiver is a generic object whose type arguments are primitive after remapping the
+     * current specialised body (e.g. {@code HashMapEntry<K, V>} with V=int), return its specialised
+     * class so field/method access uses the specialised layout and ABI.
+     */
+    private ClassSymbol specializedOwnerFor(Expression receiver, ClassSymbol owner) {
+        if (receiver == null || owner == null || !owner.isGeneric() || owner.isSpecialized()
+                || currentClass == null || !currentClass.isSpecialized()) {
+            return null;
+        }
+        JType rich = richTypeOf(receiver);
+        if (rich == null) {
+            return null;
+        }
+        rich = remapType(rich);
+        if (rich instanceof ParameterizedType pt && pt.raw() == owner && pt.needsPrimitiveSpecialization()) {
+            return typed.classes().get(GenericLowering.specializedName(owner, pt.typeArguments()));
+        }
+        return null;
+    }
+
+    private FieldSymbol specializeFieldFor(FieldSymbol field, Expression receiver) {
+        if (field.isStatic()) {
+            return field;
+        }
+        ClassSymbol spec = specializedOwnerFor(receiver, field.owner());
+        return spec == null ? field : spec.findField(field.name()).orElse(field);
+    }
+
+    private MethodSymbol specializeMethodFor(MethodSymbol ms, Expression receiver) {
+        if (ms.isStatic() || ms.classOwner() == null) {
+            return ms;
+        }
+        ClassSymbol owner = ms.classOwner();
+        ClassSymbol spec = specializedOwnerFor(receiver, owner);
+        if (spec == null) {
+            return ms;
+        }
+        // resolvedSymbols may hold a substituted copy of the declared symbol: match by mangled name.
+        int idx = -1;
+        List<MethodSymbol> originMethods = owner.declaredMethods();
+        for (int k = 0; k < originMethods.size(); k++) {
+            if (originMethods.get(k) == ms || originMethods.get(k).mangledName().equals(ms.mangledName())) {
+                idx = k;
+                break;
+            }
+        }
+        if (idx < 0 || idx >= spec.declaredMethods().size()) {
+            return ms;
+        }
+        return spec.declaredMethods().get(idx);
     }
 
     /** Prefer specialized field layout when lowering a specialized class body. */
@@ -2816,7 +3053,7 @@ public final class IrGenerator {
                 builder.nativeStore(addr, casted);
                 return casted;
             }
-            FieldSymbol field = remapField((FieldSymbol) resolved);
+            FieldSymbol field = specializeFieldFor(remapField((FieldSymbol) resolved), f.receiver());
             IrValue casted = convertTo(value, fromJt, remapType(field.type()));
             if (field.isStatic()) {
                 builder.storeStatic(field.staticGlobal(), casted, field.isVolatile());
@@ -2854,7 +3091,7 @@ public final class IrGenerator {
                     nfs.offset());
             return builder.nativeLoad(addr, IrType.from(nfs.type()));
         }
-        FieldSymbol field = remapField((FieldSymbol) resolved);
+        FieldSymbol field = specializeFieldFor(remapField((FieldSymbol) resolved), f.receiver());
         if (field.isStatic()) {
             return builder.loadStatic(
                     field.staticGlobal(), IrType.from(field.type()), field.isVolatile());
@@ -2962,6 +3199,32 @@ public final class IrGenerator {
                 elementType.isReference());
     }
 
+    /**
+     * {@code {a, b, c}}: evaluate every element first (left to right), then allocate the array and
+     * store them, so no half-initialised array is live while user expressions run.
+     */
+    private IrValue lowerArrayInit(ArrayInitExpression n) {
+        ArrayType at = (ArrayType) remapType(typed.expressionTypes().get(n));
+        JType elementType = at.elementType();
+        List<IrValue> values = new ArrayList<>();
+        for (Expression e : n.elements()) {
+            IrValue v = lowerExpression(e);
+            JType from = remapType(typed.expressionTypes().get(e));
+            values.add(convertTo(v, from, elementType));
+        }
+        ClassMetadata meta = arrayMetadataForElement(elementType);
+        IrValue arr = builder.newArray(
+                IrType.from(elementType),
+                new IrValue.Const(IrType.I32, values.size()),
+                ObjectLayoutBuilder.sizeOf(elementType),
+                meta.globalName(),
+                elementType.isReference());
+        for (int i = 0; i < values.size(); i++) {
+            builder.storeElement(arr, new IrValue.Const(IrType.I32, i), values.get(i));
+        }
+        return arr;
+    }
+
     private IrValue lowerArrayLoad(ArrayAccessExpression a) {
         IrValue array = lowerExpression(a.array());
         IrValue index = lowerExpression(a.index());
@@ -2983,6 +3246,13 @@ public final class IrGenerator {
         JType targetType = typed.expressionTypes().get(c);
         JType sourceType = typed.expressionTypes().get(c.expression());
         IrValue obj = lowerExpression(c.expression());
+        if (io.jnative.parser.Parser.COMPOUND_CAST_MARKER.equals(c.type().name())) {
+            if (targetType != null && targetType.isPrimitive() && sourceType != null && sourceType.isPrimitive()
+                    && targetType != sourceType) {
+                return lowerPrimitiveCast(obj, sourceType, targetType);
+            }
+            return obj;
+        }
         if (targetType != null && targetType.isPrimitive()
                 && sourceType != null && sourceType.isPrimitive()) {
             return lowerPrimitiveCast(obj, sourceType, targetType);
@@ -3154,9 +3424,30 @@ public final class IrGenerator {
                 IrValue arg = lowerExpression(m.arguments().get(i));
                 if (i < paramTypes.size()) {
                     JType from = remapType(typed.expressionTypes().get(m.arguments().get(i)));
-                    arg = convertTo(arg, from, remapType(paramTypes.get(i)));
+                    JType to = remapType(paramTypes.get(i));
+                    List<JType> abiParams = ict.interfaceMethod().parameterTypes();
+                    boolean erasedSlot = i < abiParams.size()
+                            && IrType.from(abiParams.get(i)) == IrType.PTR;
+                    if (erasedSlot && to instanceof PrimitiveType) {
+                        // Primitive-specialised body calling an erased generic interface (T -> ptr).
+                        arg = boxForErasedSlot(convertTo(arg, from, to), (PrimitiveType) to);
+                    } else {
+                        arg = convertTo(arg, from, to);
+                    }
                 }
                 args.add(arg);
+            }
+            JType declRet = remapType(ict.returnType());
+            boolean erasedRet = IrType.from(ict.interfaceMethod().returnType()) == IrType.PTR;
+            if (erasedRet && declRet instanceof PrimitiveType primRet) {
+                IrValue boxedRet = builder.interfaceCall(
+                        receiver,
+                        ict.interfaceSymbol().interfaceId(),
+                        ict.slot(),
+                        IrType.PTR,
+                        args,
+                        ict.interfaceSymbol().name() + "." + ict.interfaceMethod().name());
+                return unboxFromErasedSlot(boxedRet, primRet);
             }
             return builder.interfaceCall(
                     receiver,
@@ -3166,7 +3457,7 @@ public final class IrGenerator {
                     args,
                     ict.interfaceSymbol().name() + "." + ict.interfaceMethod().name());
         }
-        MethodSymbol ms = (MethodSymbol) resolved;
+        MethodSymbol ms = specializeMethodFor((MethodSymbol) resolved, m.receiver());
         List<IrValue> args = new ArrayList<>();
         IrValue receiver = null;
         if (!ms.isStatic()) {
@@ -3255,9 +3546,27 @@ public final class IrGenerator {
                 case "charAt" -> builder.call("jnative_string_char_at", IrType.I16, args);
                 case "equals" -> builder.call("jnative_string_equals_object", IrType.I1, args);
                 case "hashCode" -> builder.call("jnative_string_hashcode", IrType.I32, List.of(receiver));
-                case "indexOf" -> builder.call("jnative_string_index_of", IrType.I32, args);
+                case "indexOf" -> lowerStringSearch(ms, args, false);
                 case "indexOfFrom" -> builder.call("jnative_string_index_of_from", IrType.I32, args);
-                case "substring" -> builder.call("jnative_string_substring", IrType.PTR, args);
+                case "substring" -> args.size() == 2
+                        ? builder.call("jnative_string_substring_from", IrType.PTR, args)
+                        : builder.call("jnative_string_substring", IrType.PTR, args);
+                case "repeat" -> builder.call("jnative_string_repeat", IrType.PTR, args);
+                case "isBlank" -> i32ToI1(builder.call(
+                        "jnative_string_is_blank", IrType.I32, List.of(receiver)));
+                case "strip" -> builder.call("jnative_string_trim", IrType.PTR, List.of(receiver));
+                case "concat" -> builder.call("jnative_string_concat", IrType.PTR, args);
+                case "compareToIgnoreCase" -> builder.call(
+                        "jnative_string_compare_to_ignore_case", IrType.I32, args);
+                case "toCharArray" -> {
+                    JType charT = PrimitiveType.CHAR;
+                    ClassMetadata charMeta = arrayMetadataForElement(charT);
+                    IrValue len = builder.call("jnative_string_length", IrType.I32, List.of(receiver));
+                    IrValue arr = builder.newArray(IrType.from(charT), len,
+                            ObjectLayoutBuilder.sizeOf(charT), charMeta.globalName(), false);
+                    builder.call("jnative_string_copy_chars", IrType.VOID, List.of(receiver, arr));
+                    yield arr;
+                }
                 case "substringFrom" -> builder.call("jnative_string_substring_from", IrType.PTR, args);
                 case "startsWith" -> i32ToI1(builder.call("jnative_string_starts_with", IrType.I32, args));
                 case "endsWith" -> i32ToI1(builder.call("jnative_string_ends_with", IrType.I32, args));
@@ -3269,11 +3578,14 @@ public final class IrGenerator {
                 case "isEmpty" -> i32ToI1(builder.call(
                         "jnative_string_is_empty", IrType.I32, List.of(receiver)));
                 case "contains" -> i32ToI1(builder.call("jnative_string_contains", IrType.I32, args));
-                case "lastIndexOf" -> builder.call("jnative_string_last_index_of", IrType.I32, args);
+                case "lastIndexOf" -> lowerStringSearch(ms, args, true);
                 case "lastIndexOfFrom" -> builder.call("jnative_string_last_index_of_from", IrType.I32, args);
                 case "compareTo" -> builder.call("jnative_string_compare_to", IrType.I32, args);
                 case "toUpperCase" -> builder.call("jnative_string_to_upper", IrType.PTR, List.of(receiver));
-                case "replace" -> builder.call("jnative_string_replace", IrType.PTR, args);
+                case "replace" -> ms.parameterTypes().get(0) == PrimitiveType.CHAR
+                        ? builder.call("jnative_string_replace", IrType.PTR, List.of(
+                                receiver, charToString(args.get(1)), charToString(args.get(2))))
+                        : builder.call("jnative_string_replace", IrType.PTR, args);
                 case "split" -> builder.call("jnative_string_split", IrType.PTR, args);
                 default -> builder.call(ms.mangledName(), IrType.from(ms.returnType()), args);
             };
@@ -3389,6 +3701,13 @@ public final class IrGenerator {
                 return builder.call("jnative_string_from_bytes", IrType.PTR, List.of(args.get(0)), false);
             }
             if ("valueOf".equals(ms.name())) {
+                JType valueType = ms.parameterTypes().isEmpty() ? null : ms.parameterTypes().get(0);
+                if (valueType instanceof ArrayType) {
+                    return builder.call("jnative_string_from_chars", IrType.PTR, List.of(args.get(0)));
+                }
+                if (valueType != null && valueType != PrimitiveType.INT && valueType != PrimitiveType.CHAR) {
+                    return stringify(args.get(0), valueType);
+                }
                 if (!args.isEmpty() && args.get(0).type() == IrType.I16) {
                     return builder.call("jnative_string_value_of_char", IrType.PTR, List.of(args.get(0)), false);
                 }
@@ -3740,14 +4059,8 @@ public final class IrGenerator {
             boolean leftStr = lt instanceof ClassType lc && lc.name().equals("String");
             boolean rightStr = rt instanceof ClassType rc && rc.name().equals("String");
             if (leftStr || rightStr) {
-                IrValue left = lowerExpression(b.left());
-                IrValue right = lowerExpression(b.right());
-                if (!leftStr && lt != null && lt.isNumeric()) {
-                    left = numericToString(left, lt);
-                }
-                if (!rightStr && rt != null && rt.isNumeric()) {
-                    right = numericToString(right, rt);
-                }
+                IrValue left = stringify(lowerExpression(b.left()), lt);
+                IrValue right = stringify(lowerExpression(b.right()), rt);
                 return builder.call("jnative_string_concat", IrType.PTR, List.of(left, right));
             }
         }
@@ -3957,6 +4270,78 @@ public final class IrGenerator {
         return builder.compare(IrInstruction.CmpOp.NE, v, new IrValue.Const(IrType.I32, 0));
     }
 
+    private IrValue charToString(IrValue c) {
+        return builder.call("jnative_string_value_of_char", IrType.PTR, List.of(c), false);
+    }
+
+    /**
+     * {@code indexOf}/{@code lastIndexOf} overloads: (String), (String,int), (char), (char,int).
+     * char needles are widened to one-unit Strings.
+     */
+    private IrValue lowerStringSearch(MethodSymbol ms, List<IrValue> args, boolean last) {
+        boolean charNeedle = ms.parameterTypes().get(0) == PrimitiveType.CHAR;
+        IrValue needle = charNeedle ? charToString(args.get(1)) : args.get(1);
+        boolean hasFrom = args.size() == 3;
+        List<IrValue> callArgs = hasFrom
+                ? List.of(args.get(0), needle, args.get(2))
+                : List.of(args.get(0), needle);
+        String fn = (last ? "jnative_string_last_index_of" : "jnative_string_index_of")
+                + (hasFrom ? "_from" : "");
+        return builder.call(fn, IrType.I32, callArgs);
+    }
+
+    private int stringifyCounter;
+
+    /**
+     * Text of any printable value, with Java semantics: primitives via their decimal form,
+     * {@code null} as "null", objects via a virtual {@code toString()} call.
+     */
+    private IrValue stringify(IrValue value, JType rawType) {
+        JType type = rawType == null ? null : remapType(rawType);
+        if (type instanceof PrimitiveType p) {
+            if (p == PrimitiveType.BOOLEAN) {
+                return builder.call("jnative_string_value_of_bool", IrType.PTR,
+                        List.of(castIfNeeded(value, IrType.I1)), false);
+            }
+            return numericToString(value, type);
+        }
+        if (type instanceof NullType || (type instanceof ClassType ct && ct.name().equals("String"))) {
+            return builder.call("jnative_string_or_null", IrType.PTR, List.of(value), false);
+        }
+        if (type == null && value.type() != IrType.PTR) {
+            return numericToString(value, null);
+        }
+        return referenceToString(value);
+    }
+
+    /** {@code obj == null ? "null" : obj.toString()} through Object's vtable slot. */
+    private IrValue referenceToString(IrValue obj) {
+        ClassSymbol object = typed.classes().get("Object");
+        MethodSymbol toStringMethod = object == null ? null : object.findMethod("toString").orElse(null);
+        if (toStringMethod == null || toStringMethod.vtableSlot() == null) {
+            throw new IllegalStateException("Object.toString is not in the Object vtable");
+        }
+        int id = stringifyCounter++;
+        IrValue.Local slot = builder.alloca("tostr.tmp" + id, IrType.PTR);
+        IrBasicBlock nullBlock = builder.newBlock("tostr.null" + id);
+        IrBasicBlock callBlock = builder.newBlock("tostr.call" + id);
+        IrBasicBlock endBlock = builder.newBlock("tostr.end" + id);
+        IrValue isNull = builder.compare(
+                IrInstruction.CmpOp.EQ, obj, new IrValue.Const(IrType.PTR, "null"));
+        builder.condBranch(isNull, nullBlock, callBlock);
+        builder.setBlock(nullBlock);
+        builder.store(builder.call("jnative_string_or_null", IrType.PTR,
+                List.of(new IrValue.Const(IrType.PTR, "null")), false), slot);
+        builder.branch(endBlock);
+        builder.setBlock(callBlock);
+        IrValue text = builder.virtualCall(
+                obj, toStringMethod.vtableSlot(), IrType.PTR, List.of(obj), "Object.toString");
+        builder.store(text, slot);
+        builder.branch(endBlock);
+        builder.setBlock(endBlock);
+        return builder.load(slot);
+    }
+
     private IrValue numericToString(IrValue value, JType type) {
         if (type == PrimitiveType.CHAR) {
             return builder.call("jnative_string_value_of_char", IrType.PTR,
@@ -4022,6 +4407,15 @@ public final class IrGenerator {
                 IrValue widened = castIfNeeded(value, IrType.from(targetPrim));
                 yield emitBox(widened, targetPrim, ((ClassType) to).name());
             }
+            case BOX_OBJECT -> {
+                PrimitiveType prim = (PrimitiveType) from;
+                IrValue operand = value;
+                if (prim == PrimitiveType.BYTE || prim == PrimitiveType.SHORT) {
+                    operand = castIfNeeded(value, IrType.I32);
+                    prim = PrimitiveType.INT;
+                }
+                yield emitBox(operand, prim, Boxing.wrapperNameOf(prim));
+            }
             case UNBOX -> emitUnbox(value, ((ClassType) from).name(), (PrimitiveType) to);
             case UNBOX_WIDEN -> {
                 PrimitiveType boxed = Boxing.primitiveOfWrapper(from);
@@ -4030,6 +4424,23 @@ public final class IrGenerator {
             }
             case NONE -> castIfNeeded(value, IrType.from(to));
         };
+    }
+
+    /** Wrapper type used when a primitive crosses an erased generic (T -> ptr) boundary. */
+    private static PrimitiveType erasedBoxPrim(PrimitiveType prim) {
+        return (prim == PrimitiveType.BYTE || prim == PrimitiveType.SHORT) ? PrimitiveType.INT : prim;
+    }
+
+    private IrValue boxForErasedSlot(IrValue value, PrimitiveType prim) {
+        PrimitiveType boxPrim = erasedBoxPrim(prim);
+        IrValue operand = boxPrim == prim ? value : castIfNeeded(value, IrType.from(boxPrim));
+        return emitBox(operand, boxPrim, Boxing.wrapperNameOf(boxPrim));
+    }
+
+    private IrValue unboxFromErasedSlot(IrValue boxed, PrimitiveType prim) {
+        PrimitiveType boxPrim = erasedBoxPrim(prim);
+        IrValue raw = emitUnbox(boxed, Boxing.wrapperNameOf(boxPrim), boxPrim);
+        return boxPrim == prim ? raw : castIfNeeded(raw, IrType.from(prim));
     }
 
     private IrValue emitBox(IrValue primitive, PrimitiveType prim, String wrapperName) {

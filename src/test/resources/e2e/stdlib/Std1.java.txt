@@ -1,0 +1,170 @@
+public class Main {
+    static void p(String s) { System.out.println(s); }
+    static void pi(String label, int v) { System.out.println(label + "=" + v); }
+    static void pb(String label, boolean v) { if (v) { System.out.println(label + "=true"); } else { System.out.println(label + "=false"); } }
+
+    static void tryInt(String s, int radix) {
+        try {
+            System.out.println("parseInt(" + s + "," + radix + ")=" + Integer.parseInt(s, radix));
+        } catch (NumberFormatException e) {
+            System.out.println("parseInt(" + s + "," + radix + ") NFE " + e.getMessage());
+        }
+    }
+    static void tryLong(String s) {
+        try {
+            System.out.println("parseLong(" + s + ")=" + Long.parseLong(s));
+        } catch (NumberFormatException e) {
+            System.out.println("parseLong(" + s + ") NFE " + e.getMessage());
+        }
+    }
+    static void tryDouble(String s, double expect) {
+        try {
+            double d = Double.parseDouble(s);
+            pb("parseDouble(" + s + ")==" + expect, d == expect);
+        } catch (NumberFormatException e) {
+            System.out.println("parseDouble(" + s + ") NFE " + e.getMessage());
+        }
+    }
+
+    public static void main(String[] args) {
+        pi("MAX", Integer.MAX_VALUE);
+        pi("MIN", Integer.MIN_VALUE);
+        p("LMAX=" + Long.MAX_VALUE);
+        p("LMIN=" + Long.MIN_VALUE);
+        tryInt("123", 10);
+        tryInt("-123", 10);
+        tryInt("+7", 10);
+        tryInt("2147483647", 10);
+        tryInt("-2147483648", 10);
+        tryInt("2147483648", 10);
+        tryInt("-2147483649", 10);
+        tryInt("", 10);
+        tryInt("-", 10);
+        tryInt("12a", 10);
+        tryInt(" 1", 10);
+        tryInt("ff", 16);
+        tryInt("-FF", 16);
+        tryInt("zz", 36);
+        tryInt("101", 2);
+        tryInt("102", 2);
+        tryLong("9223372036854775807");
+        tryLong("-9223372036854775808");
+        tryLong("9223372036854775808");
+        tryLong("abc");
+        pi("cmp1", Integer.compare(3, 5));
+        pi("cmp2", Integer.compare(5, 3));
+        pi("cmp3", Integer.compare(4, 4));
+        pi("signum", Integer.signum(-9));
+        pi("bitCount", Integer.bitCount(255));
+        pi("bitCountNeg", Integer.bitCount(-1));
+        pi("nlz", Integer.numberOfLeadingZeros(1));
+        pi("ntz", Integer.numberOfTrailingZeros(8));
+        pi("max", Integer.max(3, 9));
+        pi("min", Integer.min(3, 9));
+        p(Integer.toString(255, 16));
+        p(Integer.toString(-255, 2));
+        p(Integer.toString(Integer.MIN_VALUE, 16));
+        p(Integer.toString(35, 36));
+        p(Integer.toHexString(255));
+        p(Integer.toHexString(-1));
+        p(Integer.toBinaryString(10));
+        p(Integer.toBinaryString(-8));
+        p(Integer.toOctalString(64));
+        p(Long.toHexString(-1L));
+        p(Long.toBinaryString(5L));
+        p(Long.toString(Long.MIN_VALUE, 16));
+        p(Long.toString(255L, 7));
+        p(Long.toOctalString(-1L));
+        Integer boxed = Integer.valueOf("42");
+        pi("boxed", boxed);
+        pi("boxedCmp", boxed.compareTo(Integer.valueOf(50)));
+        p(boxed.toString());
+        pb("parseBool1", Boolean.parseBoolean("TRUE"));
+        pb("parseBool2", Boolean.parseBoolean("yes"));
+        pb("parseBool3", Boolean.parseBoolean(null));
+        p(Boolean.toString(true));
+        pi("boolCmp", Boolean.compare(true, false));
+
+        // Character
+        pb("isDigit5", Character.isDigit('5'));
+        pb("isDigitA", Character.isDigit('A'));
+        pb("isLetterA", Character.isLetter('A'));
+        pb("isLetterZ", Character.isLetter('z'));
+        pb("isLetter1", Character.isLetter('1'));
+        pb("isLetterE9", Character.isLetter('\u00e9'));
+        pb("isLetterCJK", Character.isLetter('\u4e2d'));
+        pb("isLetterSpace", Character.isLetter(' '));
+        pb("isLetterOrDigit", Character.isLetterOrDigit('_'));
+        pb("isWS1", Character.isWhitespace(' '));
+        pb("isWS2", Character.isWhitespace('\t'));
+        pb("isWS3", Character.isWhitespace('\n'));
+        pb("isWS4", Character.isWhitespace('x'));
+        pb("isWS5", Character.isWhitespace('\u00a0'));
+        pb("isWS6", Character.isWhitespace('\u3000'));
+        pb("isUpper", Character.isUpperCase('Q'));
+        pb("isUpper2", Character.isUpperCase('q'));
+        pb("isLower", Character.isLowerCase('q'));
+        pb("isLower2", Character.isLowerCase('\u00df'));
+        System.out.println(Character.toUpperCase('a'));
+        System.out.println(Character.toLowerCase('Z'));
+        System.out.println(Character.toUpperCase('1'));
+        pi("digit1", Character.digit('7', 10));
+        pi("digit2", Character.digit('f', 16));
+        pi("digit3", Character.digit('g', 16));
+        pi("digit4", Character.digit('z', 36));
+        System.out.println(Character.forDigit(11, 16));
+        pi("numval", Character.getNumericValue('9'));
+        pi("numval2", Character.getNumericValue('a'));
+        p(Character.toString('x'));
+        pi("ccmp", Character.compare('a', 'c'));
+        char cc = 'k';
+        Character boxedC = cc;
+        char back = boxedC;
+        System.out.println(back);
+        System.out.println(boxedC.charValue());
+
+        // Double
+        tryDouble("1.5", 1.5);
+        tryDouble("-2.25", -2.25);
+        tryDouble("  3.0  ", 3.0);
+        tryDouble("1e3", 1000.0);
+        tryDouble("1E-2", 0.01);
+        tryDouble("123456789.125", 123456789.125);
+        tryDouble(".5", 0.5);
+        tryDouble("5.", 5.0);
+        tryDouble("0.1", 0.1);
+        tryDouble("3.14159", 3.14159);
+        tryDouble("2.5d", 2.5);
+        tryDouble("2.5f", 2.5);
+        tryDouble("+1.5e+2", 150.0);
+        tryDouble("1e22", 1e22);
+        tryDouble("9007199254740992", 9007199254740992.0);
+        tryDouble("0", 0.0);
+        tryDouble("-0", -0.0);
+        tryDouble("abc", 0.0);
+        tryDouble("", 0.0);
+        tryDouble("1e", 0.0);
+        tryDouble(".", 0.0);
+        tryDouble("1.2.3", 0.0);
+        tryDouble("1 2", 0.0);
+        pb("nan", Double.isNaN(Double.parseDouble("NaN")));
+        pb("inf", Double.parseDouble("Infinity") == Double.POSITIVE_INFINITY);
+        pb("ninf", Double.parseDouble("-Infinity") == Double.NEGATIVE_INFINITY);
+        pb("isInf", Double.isInfinite(1.0 / 0.0));
+        pb("isFinite", Double.isFinite(1.0));
+        pb("maxv", Double.MAX_VALUE > 1.0e308);
+        pb("minv", Double.MIN_VALUE > 0.0);
+        pb("big", Double.parseDouble("1e308") > 9e307);
+        pb("huge", Double.parseDouble("1e999") == Double.POSITIVE_INFINITY);
+        pb("tiny", Double.parseDouble("1e-999") == 0.0);
+        pi("dcmp1", Double.compare(1.0, 2.0));
+        pi("dcmp2", Double.compare(0.0, -0.0));
+        pi("dcmp3", Double.compare(Double.NaN, 1.0));
+        pi("dcmp4", Double.compare(Double.NaN, Double.NaN));
+        Double bd = Double.valueOf("2.5");
+        pb("bd", bd.doubleValue() == 2.5);
+        pi("intValue", bd.intValue());
+        pb("float", Float.parseFloat("1.5") == 1.5f);
+        p("done");
+    }
+}

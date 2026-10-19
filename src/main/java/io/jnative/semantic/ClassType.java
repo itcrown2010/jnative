@@ -63,7 +63,16 @@ public record ClassType(ClassSymbol classSymbol) implements JType {
         if (other instanceof TypeVariable) {
             return true;
         }
-        // Interface → class only via null/Error (already handled); not generally assignable.
+        // Every interface-typed reference is an object: assignable to Object.
+        if ("Object".equals(classSymbol.name())) {
+            if (other instanceof InterfaceType) {
+                return true;
+            }
+            if (other instanceof ParameterizedType pt && pt.raw() instanceof InterfaceSymbol) {
+                return true;
+            }
+        }
+        // Interface → other classes only via null/Error (already handled); not generally assignable.
         return false;
     }
 

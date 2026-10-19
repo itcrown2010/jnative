@@ -1029,7 +1029,7 @@ public final class LlvmIrGenerator {
             case "jnative_invoke_i32_i32" -> List.of(IrType.I32);
             case "jnative_invoke_i32_i32_i32" -> List.of(IrType.I32, IrType.I32);
             case "jnative_invoke_void_ptr", "jnative_invoke_i32_ptr", "jnative_invoke_ptr_ptr" -> List.of(IrType.PTR);
-            case "jnative_invoke_void_ptr_ptr", "jnative_invoke_i32_ptr_ptr" -> List.of(IrType.PTR, IrType.PTR);
+            case "jnative_invoke_void_ptr_ptr", "jnative_invoke_i32_ptr_ptr", "jnative_invoke_ptr_ptr_ptr" -> List.of(IrType.PTR, IrType.PTR);
             default -> List.of();
         };
     }
@@ -1037,7 +1037,7 @@ public final class LlvmIrGenerator {
     private static IrType invokeRuntimeReturnType(String invokeRuntime) {
         return switch (invokeRuntime) {
             case "jnative_invoke_void", "jnative_invoke_void_ptr", "jnative_invoke_void_ptr_ptr" -> IrType.VOID;
-            case "jnative_invoke_ptr", "jnative_invoke_ptr_ptr" -> IrType.PTR;
+            case "jnative_invoke_ptr", "jnative_invoke_ptr_ptr", "jnative_invoke_ptr_ptr_ptr" -> IrType.PTR;
             default -> IrType.I32;
         };
     }
@@ -1489,11 +1489,7 @@ public final class LlvmIrGenerator {
             case I32 -> line("  call void @jnative_println_i32(i32 " + llvmOperand(v) + ")");
             case I64 -> line("  call void @jnative_println_i64(i64 " + llvmOperand(v) + ")");
             case DOUBLE -> line("  call void @jnative_println_f64(double " + llvmOperand(v) + ")");
-            case FLOAT -> {
-                String w = scratch();
-                line("  " + w + " = fpext float " + llvmOperand(v) + " to double");
-                line("  call void @jnative_println_f64(double " + w + ")");
-            }
+            case FLOAT -> line("  call void @jnative_println_f32(float " + llvmOperand(v) + ")");
             case I1 -> line("  call void @jnative_println_bool(i1 " + llvmOperand(v) + ")");
             case I16 -> line("  call void @jnative_println_char(i16 " + llvmOperand(v) + ")");
             case PTR -> line("  call void @jnative_println_string(ptr " + llvmOperand(v) + ")");
@@ -1554,14 +1550,11 @@ public final class LlvmIrGenerator {
             }
             return Double.toString(d);
         }
+        // LLVM requires a `float` immediate to be exactly representable as float; a decimal such
+        // as 0.1 or 3.4028235E38 is parsed as a double and rejected. The hex form is the
+        // IEEE-754 double bit pattern of the (exactly widened) float value.
         float f = (float) d;
-        int bits = Float.floatToRawIntBits(f);
-        // LLVM float hex immediates: f32 bits in the high half of a 64-bit word.
-        if (Float.isNaN(f) || Float.isInfinite(f) || bits == 0x80000000) {
-            long llvmBits = ((long) bits) << 32;
-            return "0x" + Long.toHexString(llvmBits).toUpperCase();
-        }
-        return Float.toString(f);
+        return "0x" + Long.toHexString(Double.doubleToRawLongBits((double) f)).toUpperCase();
     }
 
     /** LLVM zeroinitializer token appropriate for the given IR type. */

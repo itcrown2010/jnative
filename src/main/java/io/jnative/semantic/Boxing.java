@@ -6,7 +6,7 @@
 package io.jnative.semantic;
 
 /**
- * Boxing / unboxing conversion helpers (Integer, Long, Boolean, Float, Double).
+ * Boxing / unboxing conversion helpers (Integer, Long, Boolean, Float, Double, Character).
  * Conversion kind order for overload resolution: exact → widening → boxing.
  * @author 张晓达
  */
@@ -21,7 +21,9 @@ public final class Boxing {
         /** primitive widen then box, e.g. int → Long */
         WIDEN_BOX,
         /** unbox then primitive widen, e.g. Integer → long */
-        UNBOX_WIDEN
+        UNBOX_WIDEN,
+        /** box into its wrapper and view it as Object, e.g. {@code Object o = 5} */
+        BOX_OBJECT
     }
 
     public static boolean isWrapperName(String name) {
@@ -29,7 +31,8 @@ public final class Boxing {
                 || "Long".equals(name)
                 || "Boolean".equals(name)
                 || "Float".equals(name)
-                || "Double".equals(name);
+                || "Double".equals(name)
+                || "Character".equals(name);
     }
 
     public static boolean isWrapper(JType type) {
@@ -46,6 +49,7 @@ public final class Boxing {
             case "Boolean" -> PrimitiveType.BOOLEAN;
             case "Float" -> PrimitiveType.FLOAT;
             case "Double" -> PrimitiveType.DOUBLE;
+            case "Character" -> PrimitiveType.CHAR;
             default -> null;
         };
     }
@@ -57,6 +61,7 @@ public final class Boxing {
             case BOOLEAN -> "Boolean";
             case FLOAT -> "Float";
             case DOUBLE -> "Double";
+            case CHAR -> "Character";
             default -> null;
         };
     }
@@ -68,6 +73,7 @@ public final class Boxing {
             case "Boolean" -> "booleanValue";
             case "Float" -> "floatValue";
             case "Double" -> "doubleValue";
+            case "Character" -> "charValue";
             default -> null;
         };
     }
@@ -103,6 +109,11 @@ public final class Boxing {
             if (targetPrim != null && targetPrim.isAssignableFrom(ap) && !ap.equals(targetPrim)) {
                 // e.g. int → Long: widen to long then box
                 return Kind.WIDEN_BOX;
+            }
+            // int/long/boolean/... → Object (byte/short box as Integer)
+            if ("Object".equals(want)
+                    && (wrapperNameOf(ap) != null || ap == PrimitiveType.BYTE || ap == PrimitiveType.SHORT)) {
+                return Kind.BOX_OBJECT;
             }
             return null;
         }

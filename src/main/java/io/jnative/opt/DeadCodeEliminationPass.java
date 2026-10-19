@@ -93,6 +93,7 @@ public final class DeadCodeEliminationPass implements OptimizationPass {
                 || inst instanceof IrInstruction.ReleaseNativeCallback
                 || inst instanceof IrInstruction.ClearException
                 || inst instanceof IrInstruction.InvokeCallable
+                || inst instanceof IrInstruction.InterfaceCall
                 || inst instanceof IrInstruction.NativeCall) {
             return true;
         }

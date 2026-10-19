@@ -59,7 +59,11 @@ public record WildcardType(Kind kind, JType bound) implements JType {
 
     @Override
     public boolean isAssignableFrom(JType other) {
-        return other instanceof ErrorType || other instanceof NullType;
+        if (other instanceof ErrorType || other instanceof NullType) {
+            return true;
+        }
+        // Lenient: an unbounded '?' parameter (e.g. Comparable<?>.compareTo) takes any reference.
+        return kind == Kind.UNBOUNDED && other.isReference();
     }
 
     @Override
