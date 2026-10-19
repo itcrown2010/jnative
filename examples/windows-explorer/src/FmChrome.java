@@ -123,11 +123,11 @@ class FmChrome {
         Gfx.glyph(59169, sx + sw - 30, y, 24, 32, Ft.sub, Ft.fIconS, 1 + 4);
         int ex = sx + 10;
         int ew = sw - 44;
-        if (FmApp.sbX != ex || FmApp.sbW != ew || FmApp.sbY != y + 7) {
+        if (FmApp.sbX != ex || FmApp.sbW != ew || FmApp.sbY != y + 5) {
             FmApp.sbX = ex;
             FmApp.sbW = ew;
-            FmApp.sbY = y + 7;
-            FmApp.sbox.setBounds(ex, y + 7, ew, 18);
+            FmApp.sbY = y + 5;
+            FmApp.sbox.setBounds(ex, y + 5, ew, 22);
         }
     }
 

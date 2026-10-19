@@ -430,6 +430,13 @@ char *jn_fm_full_path(const char *path) {
     if (n == 0 || n >= 4096) {
         return w2u(ex);
     }
+    {   /* expand 8.3 short names (C:\Users\ZHANGX~1 -> C:\Users\zhangxiaoda) like the shell does */
+        wchar_t lng[4096];
+        DWORD m = GetLongPathNameW(full, lng, 4096);
+        if (m > 0 && m < 4096) {
+            return w2u(lng);
+        }
+    }
     r = w2u(full);
     return r;
 }

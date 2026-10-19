@@ -922,7 +922,7 @@ class FmApp {
             t = "主页";
         }
         addr.setText(t);
-        addr.setBounds(addrX + 34, 8 + 7, addrW - 44, 18);
+        addr.setBounds(addrX + 34, 8 + 5, addrW - 44, 22);
         addr.setVisible(true);
         addr.requestFocus();
         addr.selectAll();
