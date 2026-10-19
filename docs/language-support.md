@@ -90,6 +90,11 @@ Levels: L0–L4 per readiness audit.
 | Feature | Status | Level | Evidence / Notes |
 |---|---|---|---|
 | arithmetic `+ - * / %` | SUPPORTED | L2–L3 | |
+| char literals `'a'` `'\n'` `'\u0041'` `'\101'` | SUPPORTED | L2 | Type `char`; usable as `case` labels; `"x" + 'a'` and `String.valueOf(char)` yield the character (not the code). `LiteralEndToEndTest` vs javac |
+| hex / binary int literals `0xFF` `0b1010`, `L` suffix | SUPPORTED | L2 | Two's complement wrap like javac (`0xFFFFFFFF` = -1); range-checked |
+| digit separators `1_000_000` | SUPPORTED | L2 | Only between digits; misplaced `_` is a diagnostic |
+| `-2147483648`, `-9223372036854775808L` | SUPPORTED | L2 | Literal only valid as operand of unary minus; other overflow is a diagnostic (no compiler crash) |
+| string escapes `\n \t \r \b \f \s \" \' \\ \uXXXX \0..\377` | SUPPORTED | L2 | Unknown escapes are now an error (previously silently the escaped char) |
 | comparison / logical `&& \|\| !` | SUPPORTED | L3 | |
 | bitwise `& \| ^ ~` | SUPPORTED | L2 | Integer + boolean non-short-circuit; `PrimitiveOpsEndToEndTest` |
 | shifts `<< >> >>>` | SUPPORTED | L2 | Distance masked 0x1f / 0x3f; ashr/lshr | 
@@ -146,8 +151,8 @@ Ship as hard errors or absence — **never** silent wrong codegen:
 1. switch expressions / arrow `case ->`  
 2. string switch / pattern matching  
 3. enum bodies, ctor args, user members  
-4. hex float literals / digit separators in numbers (`0x1.0p0`, `1_000`) — hard error  
-5. hex / binary integer literals (`0x…`)  
+4. hex floating-point literals (`0x1.0p0`) — hard error  
+5. octal integer literals (`017` is still read as decimal 17 — **differs from Java**)  
 6. varargs / records  
 7. labeled break  
 8. bitwise compound assignment (`&=`, `<<=`, …)  

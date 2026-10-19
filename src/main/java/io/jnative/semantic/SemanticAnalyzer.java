@@ -651,6 +651,13 @@ public final class SemanticAnalyzer {
         valueOf.setFfiIntrinsic(true);
         stringClass.addMethod(valueOf);
 
+        MethodSymbol valueOfChar = new MethodSymbol(
+                stringClass, "valueOf", stringType,
+                List.of(new ParameterSymbol("value", PrimitiveType.CHAR, SourceLocation.UNKNOWN)),
+                true, false, true, "_JN_String_valueOf_char", SourceLocation.UNKNOWN);
+        valueOfChar.setFfiIntrinsic(true);
+        stringClass.addMethod(valueOfChar);
+
         stringClass.setLayout(ObjectLayoutBuilder.build(stringClass));
         stringClass.setVtable(VTableBuilder.build(stringClass));
     }
@@ -2518,7 +2525,7 @@ public final class SemanticAnalyzer {
     private Integer evalSwitchIntConstant(Expression expr) {
         return switch (expr) {
             case LiteralExpression lit -> switch (lit.kind()) {
-                case INT -> (Integer) lit.value();
+                case INT, CHAR -> (Integer) lit.value();
                 case LONG -> {
                     long v = (Long) lit.value();
                     if (v < Integer.MIN_VALUE || v > Integer.MAX_VALUE) {
@@ -3238,6 +3245,7 @@ public final class SemanticAnalyzer {
             case DOUBLE -> PrimitiveType.DOUBLE;
             case BOOLEAN -> PrimitiveType.BOOLEAN;
             case STRING -> stringClass.asType();
+            case CHAR -> PrimitiveType.CHAR;
         };
     }
 

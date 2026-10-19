@@ -61,6 +61,58 @@ class LexerTest {
         assertFalse(tokens.stream().anyMatch(t -> t.type() == TokenType.ERROR));
     }
 
+    private static String lex1(String src, TokenType expected) {
+        List<Token> tokens = new Lexer(src, "t.java").tokenize();
+        assertEquals(expected, tokens.get(0).type(), src);
+        assertEquals(TokenType.EOF, tokens.get(1).type(), src);
+        return tokens.get(0).lexeme();
+    }
+
+    @Test
+    void charLiterals() {
+        // lexeme is the decimal UTF-16 code unit
+        assertEquals("97", lex1("'a'", TokenType.CHAR_LITERAL));
+        assertEquals("10", lex1("'\\n'", TokenType.CHAR_LITERAL));
+        assertEquals("39", lex1("'\\''", TokenType.CHAR_LITERAL));
+        assertEquals("92", lex1("'\\\\'", TokenType.CHAR_LITERAL));
+        assertEquals("65", lex1("'\\u0041'", TokenType.CHAR_LITERAL));
+        assertEquals("65", lex1("'\\101'", TokenType.CHAR_LITERAL));
+        assertEquals("0", lex1("'\\0'", TokenType.CHAR_LITERAL));
+        assertEquals("20013", lex1("'\u4e2d'", TokenType.CHAR_LITERAL));
+    }
+
+    @Test
+    void malformedCharLiteralsAreErrors() {
+        for (String s : new String[] {"''", "'ab'", "'a", "'\\q'", "'\\u12'"}) {
+            List<Token> tokens = new Lexer(s, "t.java").tokenize();
+            assertTrue(tokens.stream().anyMatch(t -> t.type() == TokenType.ERROR), s);
+        }
+    }
+
+    @Test
+    void radixAndSeparatedIntegerLiterals() {
+        // radix literals are canonicalised to the signed decimal value (two's complement, like javac)
+        assertEquals("255", lex1("0xFF", TokenType.INT_LITERAL));
+        assertEquals("255", lex1("0Xff", TokenType.INT_LITERAL));
+        assertEquals("-1", lex1("0xFFFFFFFF", TokenType.INT_LITERAL));
+        assertEquals("-2147483648", lex1("0x80000000", TokenType.INT_LITERAL));
+        assertEquals("10", lex1("0b1010", TokenType.INT_LITERAL));
+        assertEquals("-889275714", lex1("0xCAFE_BABE", TokenType.INT_LITERAL));
+        assertEquals("1000000", lex1("1_000_000", TokenType.INT_LITERAL));
+        assertEquals("4294967295L", lex1("0xFFFFFFFFL", TokenType.LONG_LITERAL));
+        assertEquals("-1L", lex1("0xFFFFFFFFFFFFFFFFL", TokenType.LONG_LITERAL));
+        assertEquals("123456789012L", lex1("123_456_789_012L", TokenType.LONG_LITERAL));
+        assertEquals("1_0.2_5".replace("_", ""), lex1("1_0.2_5", TokenType.DOUBLE_LITERAL));
+    }
+
+    @Test
+    void malformedNumbersAreErrors() {
+        for (String s : new String[] {"1_", "0x_1", "0x", "0b102", "0x1FFFFFFFF", "0x1.8p3", "1__"}) {
+            List<Token> tokens = new Lexer(s, "t.java").tokenize();
+            assertTrue(tokens.stream().anyMatch(t -> t.type() == TokenType.ERROR), s);
+        }
+    }
+
     @Test
     void recordsSourcePosition() {
         Token token = new Lexer("\n  abc", "pos.java").tokenize().get(0);

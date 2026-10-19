@@ -106,6 +106,54 @@ public final class StringRuntimeEmitter {
                   ret ptr %r2
                 }
 
+                ; String.valueOf(char) / "" + 'c': one UTF-16 code unit -> UTF-8 (1..3 bytes) -> String.
+                define ptr @jnative_string_value_of_char(i16 %c) {
+                entry:
+                  %buf = alloca [4 x i8], align 1
+                  %p = getelementptr [4 x i8], ptr %buf, i64 0, i64 0
+                  %v = zext i16 %c to i32
+                  %lt80 = icmp ult i32 %v, 128
+                  br i1 %lt80, label %one, label %t2
+                one:
+                  %o0 = trunc i32 %v to i8
+                  store i8 %o0, ptr %p, align 1
+                  %r1 = call ptr @jnative_string_from_literal(ptr %p, i32 1, ptr @meta.String)
+                  ret ptr %r1
+                t2:
+                  %lt800 = icmp ult i32 %v, 2048
+                  br i1 %lt800, label %two, label %three
+                two:
+                  %th = lshr i32 %v, 6
+                  %th1 = or i32 %th, 192
+                  %tb0 = trunc i32 %th1 to i8
+                  store i8 %tb0, ptr %p, align 1
+                  %tl = and i32 %v, 63
+                  %tl1 = or i32 %tl, 128
+                  %tb1 = trunc i32 %tl1 to i8
+                  %tp1 = getelementptr i8, ptr %p, i64 1
+                  store i8 %tb1, ptr %tp1, align 1
+                  %r2 = call ptr @jnative_string_from_literal(ptr %p, i32 2, ptr @meta.String)
+                  ret ptr %r2
+                three:
+                  %ha = lshr i32 %v, 12
+                  %ha1 = or i32 %ha, 224
+                  %hb0 = trunc i32 %ha1 to i8
+                  store i8 %hb0, ptr %p, align 1
+                  %hm = lshr i32 %v, 6
+                  %hm1 = and i32 %hm, 63
+                  %hm2 = or i32 %hm1, 128
+                  %hb1 = trunc i32 %hm2 to i8
+                  %hp1 = getelementptr i8, ptr %p, i64 1
+                  store i8 %hb1, ptr %hp1, align 1
+                  %hl = and i32 %v, 63
+                  %hl1 = or i32 %hl, 128
+                  %hb2 = trunc i32 %hl1 to i8
+                  %hp2 = getelementptr i8, ptr %p, i64 2
+                  store i8 %hb2, ptr %hp2, align 1
+                  %r3 = call ptr @jnative_string_from_literal(ptr %p, i32 3, ptr @meta.String)
+                  ret ptr %r3
+                }
+
                 define ptr @jnative_string_value_of_i64(i64 %value) {
                 entry:
                   %buf = alloca [24 x i8], align 1

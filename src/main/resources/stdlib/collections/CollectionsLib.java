@@ -1088,6 +1088,48 @@ class StringBuilder {
         return append(String.valueOf(v));
     }
 
+    /** Appends one UTF-16 code unit (Java: {@code append(char)}). */
+    public StringBuilder append(char c) {
+        return append(String.valueOf(c));
+    }
+
+    /** Appends the decimal digits of {@code v} (Java: {@code append(int)}). */
+    public StringBuilder append(int v) {
+        return append(String.valueOf(v));
+    }
+
+    public boolean isEmpty() {
+        return this.length == 0;
+    }
+
+    public char charAt(int index) {
+        if (index < 0 || index >= this.length) {
+            throw new IndexOutOfBoundsException("StringBuilder.charAt");
+        }
+        return toString().charAt(index);
+    }
+
+    public StringBuilder setCharAt(int index, char c) {
+        if (index < 0 || index >= this.length) {
+            throw new IndexOutOfBoundsException("StringBuilder.setCharAt");
+        }
+        String all = toString();
+        String left = all.substring(0, index);
+        String right = all.substringFrom(index + 1);
+        this.parts.clear();
+        this.parts.add(left);
+        this.parts.add(String.valueOf(c));
+        this.parts.add(right);
+        return this;
+    }
+
+    public StringBuilder deleteCharAt(int index) {
+        if (index < 0 || index >= this.length) {
+            throw new IndexOutOfBoundsException("StringBuilder.deleteCharAt");
+        }
+        return delete(index, index + 1);
+    }
+
     public int length() {
         return this.length;
     }

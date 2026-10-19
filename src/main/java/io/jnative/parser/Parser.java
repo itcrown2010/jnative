@@ -1809,6 +1809,15 @@ public final class Parser {
         }
         if (match(TokenType.MINUS)) {
             Token op = previous();
+            // The most negative values are only representable as a negated literal: -2147483648, -9223372036854775808L.
+            if (check(TokenType.INT_LITERAL) && peek().lexeme().equals("2147483648")) {
+                advance();
+                return LiteralExpression.ofInt(Integer.MIN_VALUE, op.location());
+            }
+            if (check(TokenType.LONG_LITERAL) && peek().lexeme().equals("9223372036854775808L")) {
+                advance();
+                return LiteralExpression.ofLong(Long.MIN_VALUE, op.location());
+            }
             return new UnaryExpression(UnaryOp.NEGATE, parseUnary(), op.location());
         }
         if (match(TokenType.PLUS)) {
@@ -1905,7 +1914,16 @@ public final class Parser {
         }
         if (match(TokenType.INT_LITERAL)) {
             Token t = previous();
-            return LiteralExpression.ofInt(Integer.parseInt(t.lexeme()), t.location());
+            try {
+                return LiteralExpression.ofInt(Integer.parseInt(t.lexeme()), t.location());
+            } catch (NumberFormatException e) {
+                // 2147483648 is only legal as the operand of unary minus (handled in parseUnary).
+                throw error(t, "integer number too large: " + t.lexeme());
+            }
+        }
+        if (match(TokenType.CHAR_LITERAL)) {
+            Token t = previous();
+            return LiteralExpression.ofChar(Integer.parseInt(t.lexeme()), t.location());
         }
         if (match(TokenType.LONG_LITERAL)) {
             Token t = previous();
@@ -1913,7 +1931,11 @@ public final class Parser {
             if (lex.endsWith("L") || lex.endsWith("l")) {
                 lex = lex.substring(0, lex.length() - 1);
             }
-            return LiteralExpression.ofLong(Long.parseLong(lex), t.location());
+            try {
+                return LiteralExpression.ofLong(Long.parseLong(lex), t.location());
+            } catch (NumberFormatException e) {
+                throw error(t, "long number too large: " + lex);
+            }
         }
         if (match(TokenType.FLOAT_LITERAL)) {
             Token t = previous();
@@ -2065,8 +2087,8 @@ public final class Parser {
             return false;
         }
         return switch (after.type()) {
-            case IDENTIFIER, INT_LITERAL, LONG_LITERAL, FLOAT_LITERAL, DOUBLE_LITERAL, STRING_LITERAL,
-                 TRUE, FALSE, NULL, THIS, SUPER, NEW, LPAREN, NOT, BIT_NOT -> true;
+            case IDENTIFIER, INT_LITERAL, LONG_LITERAL, CHAR_LITERAL, FLOAT_LITERAL, DOUBLE_LITERAL,
+                 STRING_LITERAL, TRUE, FALSE, NULL, THIS, SUPER, NEW, LPAREN, NOT, BIT_NOT -> true;
             case MINUS, PLUS -> primitive;
             default -> false;
         };

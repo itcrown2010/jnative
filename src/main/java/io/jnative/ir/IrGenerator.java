@@ -2429,7 +2429,7 @@ public final class IrGenerator {
     private static int evalCaseInt(Expression expr) {
         return switch (expr) {
             case LiteralExpression lit -> switch (lit.kind()) {
-                case INT -> (Integer) lit.value();
+                case INT, CHAR -> (Integer) lit.value();
                 case LONG -> (int) (long) (Long) lit.value();
                 default -> throw new IllegalStateException("non-int case");
             };
@@ -3389,6 +3389,9 @@ public final class IrGenerator {
                 return builder.call("jnative_string_from_bytes", IrType.PTR, List.of(args.get(0)), false);
             }
             if ("valueOf".equals(ms.name())) {
+                if (!args.isEmpty() && args.get(0).type() == IrType.I16) {
+                    return builder.call("jnative_string_value_of_char", IrType.PTR, List.of(args.get(0)), false);
+                }
                 if (!args.isEmpty() && args.get(0).type() == IrType.I64) {
                     return builder.call("jnative_string_value_of_i64", IrType.PTR, List.of(args.get(0)), false);
                 }
@@ -3711,6 +3714,7 @@ public final class IrGenerator {
             case FLOAT -> new IrValue.Const(IrType.FLOAT, l.value());
             case DOUBLE -> new IrValue.Const(IrType.DOUBLE, l.value());
             case BOOLEAN -> new IrValue.Const(IrType.I1, l.value());
+            case CHAR -> new IrValue.Const(IrType.I16, l.value());
             case STRING -> {
                 String content = (String) l.value();
                 IrValue.GlobalString gs = builder.stringConstant(content);
@@ -3954,6 +3958,10 @@ public final class IrGenerator {
     }
 
     private IrValue numericToString(IrValue value, JType type) {
+        if (type == PrimitiveType.CHAR) {
+            return builder.call("jnative_string_value_of_char", IrType.PTR,
+                    List.of(castIfNeeded(value, IrType.I16)), false);
+        }
         if (type == PrimitiveType.LONG) {
             return builder.call("jnative_string_value_of_i64", IrType.PTR,
                     List.of(castIfNeeded(value, IrType.I64)), false);

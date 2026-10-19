@@ -22,7 +22,13 @@ public record LiteralExpression(
         FLOAT,
         DOUBLE,
         BOOLEAN,
-        STRING
+        STRING,
+        /** {@code char}; value is the UTF-16 code unit as an {@link Integer}. */
+        CHAR
+    }
+
+    public static LiteralExpression ofChar(int codeUnit, SourceLocation loc) {
+        return new LiteralExpression(Kind.CHAR, codeUnit, loc);
     }
 
     public static LiteralExpression ofInt(int value, SourceLocation loc) {

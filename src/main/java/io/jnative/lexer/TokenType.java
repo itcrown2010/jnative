@@ -67,6 +67,8 @@ public enum TokenType {
     IDENTIFIER,
     INT_LITERAL,
     LONG_LITERAL,
+    /** Character literal; the lexeme is the decimal UTF-16 code unit (e.g. {@code 'a'} -> {@code "97"}). */
+    CHAR_LITERAL,
     FLOAT_LITERAL,
     DOUBLE_LITERAL,
     STRING_LITERAL,

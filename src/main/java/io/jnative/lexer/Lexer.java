@@ -117,6 +117,7 @@ public final class Lexer {
                 }
             }
             case '"' -> stringLiteral();
+            case '\'' -> charLiteral();
             case ' ', '\r', '\t' -> {
                 // ignore
             }
@@ -161,16 +162,23 @@ public final class Lexer {
                     errorToken("unterminated string literal");
                     return;
                 }
-                char esc = advance();
-                sb.append(switch (esc) {
-                    case 'n' -> '\n';
-                    case 't' -> '\t';
-                    case 'r' -> '\r';
-                    case '"' -> '"';
-                    case '\\' -> '\\';
-                    case '0' -> '\0';
-                    default -> esc;
-                });
+                int unit = escapeSequence();
+                if (unit < 0) {
+                    // Error recovery: drop the rest of the literal so the closing quote is not read as an opening one.
+                    while (!isAtEnd() && peek() != '"' && peek() != '\n') {
+                        if (peek() == '\\') {
+                            advance();
+                        }
+                        if (!isAtEnd() && peek() != '\n') {
+                            advance();
+                        }
+                    }
+                    if (peek() == '"') {
+                        advance();
+                    }
+                    return;
+                }
+                sb.append((char) unit);
             } else {
                 sb.append(advance());
             }
@@ -183,27 +191,129 @@ public final class Lexer {
         tokens.add(new Token(TokenType.STRING_LITERAL, sb.toString(), startLine, startColumn, file));
     }
 
-    private void number() {
-        // First digit already consumed in scanToken. Detect 0x… from that digit.
-        // Hex floats (0x1.0p0) and hex ints — hard error (language-support).
-        if (source.charAt(start) == '0' && (peek() == 'x' || peek() == 'X')) {
+    /**
+     * Character literal: {@code 'a'}, {@code '\n'}, {@code '\u0041'}, {@code '\''}. The token lexeme is the
+     * decimal UTF-16 code unit so the parser needs no escape handling of its own.
+     */
+    private void charLiteral() {
+        if (isAtEnd() || peek() == '\n' || peek() == '\r') {
+            errorToken("unterminated character literal");
+            return;
+        }
+        char c = peek();
+        if (c == '\'') {
             advance();
-            while (isHexDigit(peek()) || peek() == '.' || peek() == 'p' || peek() == 'P'
-                    || peek() == '+' || peek() == '-' || peek() == '_') {
-                advance();
+            errorToken("empty character literal");
+            return;
+        }
+        int unit;
+        if (c == '\\') {
+            advance();
+            unit = escapeSequence();
+            if (unit < 0) {
+                skipToCharLiteralEnd();
+                return;
             }
-            if (peek() == 'f' || peek() == 'F' || peek() == 'd' || peek() == 'D') {
-                advance();
+        } else {
+            advance();
+            unit = c;
+            if (Character.isHighSurrogate(c) || Character.isLowSurrogate(c)) {
+                skipToCharLiteralEnd();
+                errorToken("character literal must be a single UTF-16 code unit (use a String for supplementary characters)");
+                return;
             }
-            errorToken("hexadecimal numeric literals are not supported");
+        }
+        if (peek() != '\'') {
+            skipToCharLiteralEnd();
+            errorToken("unclosed character literal");
+            return;
+        }
+        advance();
+        tokens.add(new Token(TokenType.CHAR_LITERAL, Integer.toString(unit), startLine, startColumn, file));
+    }
+
+    /** Error recovery: drop the rest of a malformed character literal (up to its closing quote or end of line). */
+    private void skipToCharLiteralEnd() {
+        while (!isAtEnd() && peek() != '\n' && peek() != '\r' && peek() != '\'') {
+            advance();
+        }
+        if (peek() == '\'') {
+            advance();
+        }
+    }
+
+    /**
+     * Reads one escape sequence; the backslash is already consumed. Returns the UTF-16 code unit, or -1 after
+     * emitting an error token. Supports {@code \n \t \r \b \f \s \" \' \\}, octal {@code \0..\377}
+     * and {@code \}{@code uXXXX}.
+     */
+    private int escapeSequence() {
+        if (isAtEnd()) {
+            errorToken("unterminated escape sequence");
+            return -1;
+        }
+        char esc = advance();
+        switch (esc) {
+            case 'n':
+                return '\n';
+            case 't':
+                return '\t';
+            case 'r':
+                return '\r';
+            case 'b':
+                return '\b';
+            case 'f':
+                return '\f';
+            case 's':
+                return ' ';
+            case '"':
+                return '"';
+            case '\'':
+                return '\'';
+            case '\\':
+                return '\\';
+            case 'u': {
+                while (peek() == 'u') {
+                    advance();
+                }
+                int v = 0;
+                for (int i = 0; i < 4; i++) {
+                    int d = Character.digit(peek(), 16);
+                    if (d < 0) {
+                        errorToken("illegal unicode escape");
+                        return -1;
+                    }
+                    advance();
+                    v = v * 16 + d;
+                }
+                return v;
+            }
+            default:
+                if (esc >= '0' && esc <= '7') {
+                    int v = esc - '0';
+                    int max = esc <= '3' ? 2 : 1;
+                    for (int i = 0; i < max && peek() >= '0' && peek() <= '7'; i++) {
+                        v = v * 8 + (advance() - '0');
+                    }
+                    return v;
+                }
+                errorToken("illegal escape character '\\" + esc + "'");
+                return -1;
+        }
+    }
+
+    private void number() {
+        // First digit already consumed in scanToken.
+        if (source.charAt(start) == '0' && (peek() == 'x' || peek() == 'X')) {
+            radixLiteral(16);
+            return;
+        }
+        if (source.charAt(start) == '0' && (peek() == 'b' || peek() == 'B')) {
+            radixLiteral(2);
             return;
         }
 
-        while (isDigit(peek())) {
-            advance();
-        }
-        if (peek() == '_') {
-            errorToken("numeric digit separators are not supported");
+        if (!digitRun(10)) {
             return;
         }
 
@@ -211,11 +321,7 @@ public final class Lexer {
         if (peek() == '.' && isDigit(peekNext())) {
             isFloating = true;
             advance();
-            while (isDigit(peek())) {
-                advance();
-            }
-            if (peek() == '_') {
-                errorToken("numeric digit separators are not supported");
+            if (!digitRun(10)) {
                 return;
             }
         }
@@ -230,40 +336,127 @@ public final class Lexer {
                 errorToken("exponent has no digits");
                 return;
             }
-            while (isDigit(peek())) {
-                advance();
-            }
-            if (peek() == '_') {
-                errorToken("numeric digit separators are not supported");
+            if (!digitRun(10)) {
                 return;
             }
         }
 
+        TokenType type;
         if (peek() == 'f' || peek() == 'F') {
             advance();
-            addToken(TokenType.FLOAT_LITERAL);
-            return;
-        }
-        if (peek() == 'd' || peek() == 'D') {
+            type = TokenType.FLOAT_LITERAL;
+        } else if (peek() == 'd' || peek() == 'D') {
             advance();
-            addToken(TokenType.DOUBLE_LITERAL);
-            return;
-        }
-        if (!isFloating && (peek() == 'L' || peek() == 'l')) {
+            type = TokenType.DOUBLE_LITERAL;
+        } else if (!isFloating && (peek() == 'L' || peek() == 'l')) {
             advance();
-            addToken(TokenType.LONG_LITERAL);
-            return;
-        }
-
-        if (isFloating) {
-            addToken(TokenType.DOUBLE_LITERAL);
+            type = TokenType.LONG_LITERAL;
+        } else if (isFloating) {
+            type = TokenType.DOUBLE_LITERAL;
         } else {
-            addToken(TokenType.INT_LITERAL);
+            type = TokenType.INT_LITERAL;
+        }
+        // Digit separators are only a lexical convenience: the parser sees plain digits.
+        String text = source.substring(start, current).replace("_", "");
+        tokens.add(new Token(type, text, startLine, startColumn, file));
+    }
+
+    /**
+     * Hexadecimal ({@code 0xFF}) and binary ({@code 0b1010}) integer literals, with optional {@code L} suffix and
+     * {@code _} separators. The token lexeme is the canonical signed decimal value (two's complement wrap, exactly
+     * like javac: {@code 0xFFFFFFFF} is {@code -1}), so the parser and later phases need no radix knowledge.
+     * Hexadecimal floating-point literals ({@code 0x1.0p0}) stay unsupported.
+     */
+    private void radixLiteral(int radix) {
+        advance(); // x / b
+        int digitsStart = current;
+        if (peek() == '_') {
+            skipRestOfNumber();
+            errorToken("illegal underscore in numeric literal");
+            return;
+        }
+        if (!digitRun(radix)) {
+            return;
+        }
+        if (current == digitsStart) {
+            skipRestOfNumber();
+            errorToken(radix == 16 ? "hexadecimal literal has no digits" : "binary literal has no digits");
+            return;
+        }
+        if (radix == 16 && (peek() == '.' || peek() == 'p' || peek() == 'P')) {
+            skipRestOfNumber();
+            errorToken("hexadecimal floating-point literals are not supported");
+            return;
+        }
+        if (radix == 2 && isDigit(peek())) {
+            skipRestOfNumber();
+            errorToken("illegal digit in binary literal");
+            return;
+        }
+        String digits = source.substring(digitsStart, current).replace("_", "");
+        boolean isLong = false;
+        if (peek() == 'L' || peek() == 'l') {
+            advance();
+            isLong = true;
+        }
+        java.math.BigInteger value = new java.math.BigInteger(digits, radix);
+        if (isLong) {
+            if (value.bitLength() > 64) {
+                errorToken("long literal out of range");
+                return;
+            }
+            tokens.add(new Token(TokenType.LONG_LITERAL, Long.toString(value.longValue()) + "L",
+                    startLine, startColumn, file));
+        } else {
+            if (value.bitLength() > 32) {
+                errorToken("int literal out of range");
+                return;
+            }
+            tokens.add(new Token(TokenType.INT_LITERAL, Integer.toString(value.intValue()),
+                    startLine, startColumn, file));
         }
     }
 
-    private boolean isHexDigit(char c) {
-        return (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F');
+    /**
+     * Consumes a run of digits of the given radix with Java's underscore rule: separators may only appear
+     * <em>between</em> digits. Returns false (after emitting an error token) on a misplaced underscore.
+     */
+    private boolean digitRun(int radix) {
+        while (true) {
+            char c = peek();
+            if (Character.digit(c, radix) >= 0 && c < 128) {
+                advance();
+            } else if (c == '_') {
+                int k = current;
+                while (k < source.length() && source.charAt(k) == '_') {
+                    k++;
+                }
+                boolean digitAfter = k < source.length()
+                        && source.charAt(k) < 128 && Character.digit(source.charAt(k), radix) >= 0;
+                boolean digitBefore = current > start && isDigitOfAnyRadix(source.charAt(current - 1), radix);
+                if (!digitAfter || !digitBefore) {
+                    skipRestOfNumber();
+                    errorToken("illegal underscore in numeric literal");
+                    return false;
+                }
+                while (peek() == '_') {
+                    advance();
+                }
+            } else {
+                return true;
+            }
+        }
+    }
+
+    private static boolean isDigitOfAnyRadix(char c, int radix) {
+        return c < 128 && Character.digit(c, radix) >= 0;
+    }
+
+    /** Error recovery: swallow the remainder of a malformed numeric literal so it yields a single error. */
+    private void skipRestOfNumber() {
+        while (isAlphaNumeric(peek()) || peek() == '.') {
+            advance();
+        }
     }
 
     private void identifier() {
