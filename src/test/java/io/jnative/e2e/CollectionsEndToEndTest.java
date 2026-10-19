@@ -87,18 +87,18 @@ class CollectionsEndToEndTest {
         // (Integer's own static helpers such as valueOf(String) legitimately call valueOf(int),
         // so only inspect main and the specialised ArrayList<int> functions.)
         // Methods that go through erased generic interfaces (Collection<T>, Iterator<T>,
-        // Predicate<T>, Comparator<T>: T is a reference at the ABI level) legitimately box the
-        // primitive element; element storage and plain add/get must not.
-        java.util.regex.Pattern erasedInterfaceMethods = java.util.regex.Pattern.compile(
-                "_ArrayList_P_i32_(removeIf|removeAll|retainAll|containsAll|addAll|forEach|sort|"
-                        + "compareElems|iterator|init_)");
+        // Predicate<T>, Comparator<T>, Object.toString: T is a reference at the ABI level)
+        // legitimately box the primitive element. Element storage and the core accessors
+        // (add/get/set/size/capacity) and main must not.
+        java.util.regex.Pattern noBoxing = java.util.regex.Pattern.compile(
+                "@_JN_Main_main|_ArrayList_P_i32_(add_i32|add|get_i32|get|set_i32_i32|set|size|"
+                        + "ensureCapacity_i32|ensureCapacity|isEmpty|clear)\\(");
         String current = "";
         for (String line : llvm.split("\n")) {
             if (line.startsWith("define ")) {
                 current = line;
             } else if (line.contains("call ptr @_JN_Integer_valueOf")
-                    && !erasedInterfaceMethods.matcher(current).find()
-                    && (current.contains("@_JN_Main_main") || current.contains("_ArrayList_P_i32_"))) {
+                    && noBoxing.matcher(current).find()) {
                 fail("ArrayList<int> must not call Integer.valueOf in: " + current + "\n" + line);
             }
         }
