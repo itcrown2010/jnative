@@ -545,7 +545,10 @@ class FmFolder {
         e.isDir = 1;
         e.full = p;
         e.dir = FmPath.parent(p);
-        e.name = FmPath.nameOf(p);
+        e.name = FmNative.take(FmNative.displayName(p));
+        if (e.name.length() == 0) {
+            e.name = FmPath.nameOf(p);
+        }
         if (e.name.length() == 0) {
             e.name = fallback;
         }
@@ -723,7 +726,10 @@ class FmNavTree {
         if (p.length() == 0) {
             return;
         }
-        String nm = FmPath.nameOf(p);
+        String nm = FmNative.take(FmNative.displayName(p));
+        if (nm.length() == 0) {
+            nm = FmPath.nameOf(p);
+        }
         if (nm.length() == 0) {
             nm = fallback;
         }

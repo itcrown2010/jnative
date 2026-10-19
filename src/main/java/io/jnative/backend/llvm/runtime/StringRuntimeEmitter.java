@@ -191,6 +191,16 @@ public final class StringRuntimeEmitter {
                   store ptr %s, ptr %ep0, align 8
                   ret ptr %one
                 count:
+                  %sSl = alloca ptr, align 8
+                  %sDl = alloca ptr, align 8
+                  %sAl = alloca ptr, align 8
+                  store ptr %s, ptr %sSl, align 8
+                  store ptr %delim, ptr %sDl, align 8
+                  store ptr null, ptr %sAl, align 8
+                  %sfr = call ptr @jnative_gc_frame_push(i32 3)
+                  call void @jnative_gc_frame_set_root(ptr %sfr, i32 0, ptr %sSl)
+                  call void @jnative_gc_frame_set_root(ptr %sfr, i32 1, ptr %sDl)
+                  call void @jnative_gc_frame_set_root(ptr %sfr, i32 2, ptr %sAl)
                   br label %scan
                 scan:
                   %i = phi i32 [ 0, %count ], [ %i2, %scannext ]
@@ -200,8 +210,10 @@ public final class StringRuntimeEmitter {
                   br i1 %done, label %alloc, label %try
                 try:
                   %end = add i32 %i, %dlen
-                  %cand = call ptr @jnative_string_substring(ptr %s, i32 %i, i32 %end)
-                  %m = call i32 @jnative_string_equals(ptr %cand, ptr %delim)
+                  %sc1 = load ptr, ptr %sSl, align 8
+                  %cand = call ptr @jnative_string_substring(ptr %sc1, i32 %i, i32 %end)
+                  %dc1 = load ptr, ptr %sDl, align 8
+                  %m = call i32 @jnative_string_equals(ptr %cand, ptr %dc1)
                   %hit = icmp ne i32 %m, 0
                   br i1 %hit, label %hitL, label %miss
                 hitL:
@@ -216,7 +228,8 @@ public final class StringRuntimeEmitter {
                   %parts2 = phi i32 [ %parts1, %hitL ], [ %parts, %miss ]
                   br label %scan
                 alloc:
-                  %arr = call ptr @jnative_array_alloc(i64 8, i32 %parts, ptr @meta.array.CString)
+                  %arr0 = call ptr @jnative_array_alloc(i64 8, i32 %parts, ptr @meta.array.CString)
+                  store ptr %arr0, ptr %sAl, align 8
                   br label %build
                 build:
                   %si = phi i32 [ 0, %alloc ], [ %siN, %bcont ]
@@ -233,13 +246,17 @@ public final class StringRuntimeEmitter {
                   br i1 %can, label %bmatch, label %badv
                 bmatch:
                   %end2 = add i32 %si, %dlen
-                  %cand2 = call ptr @jnative_string_substring(ptr %s, i32 %si, i32 %end2)
-                  %bm = call i32 @jnative_string_equals(ptr %cand2, ptr %delim)
+                  %sc2 = load ptr, ptr %sSl, align 8
+                  %cand2 = call ptr @jnative_string_substring(ptr %sc2, i32 %si, i32 %end2)
+                  %dc2 = load ptr, ptr %sDl, align 8
+                  %bm = call i32 @jnative_string_equals(ptr %cand2, ptr %dc2)
                   %bhit = icmp ne i32 %bm, 0
                   br i1 %bhit, label %bemit, label %badv
                 bemit:
-                  %piece2 = call ptr @jnative_string_substring(ptr %s, i32 %start, i32 %si)
-                  %ep = call ptr @jnative_array_elem_ptr(ptr %arr, i32 %pi, i64 8)
+                  %sc3 = load ptr, ptr %sSl, align 8
+                  %piece2 = call ptr @jnative_string_substring(ptr %sc3, i32 %start, i32 %si)
+                  %arr1 = load ptr, ptr %sAl, align 8
+                  %ep = call ptr @jnative_array_elem_ptr(ptr %arr1, i32 %pi, i64 8)
                   store ptr %piece2, ptr %ep, align 8
                   %siR = add i32 %si, %dlen
                   %piR = add i32 %pi, 1
@@ -248,8 +265,10 @@ public final class StringRuntimeEmitter {
                   %siC = add i32 %si, 1
                   br label %bcont2
                 emitTail:
-                  %pieceT = call ptr @jnative_string_substring(ptr %s, i32 %start, i32 %slen)
-                  %epT = call ptr @jnative_array_elem_ptr(ptr %arr, i32 %pi, i64 8)
+                  %sc4 = load ptr, ptr %sSl, align 8
+                  %pieceT = call ptr @jnative_string_substring(ptr %sc4, i32 %start, i32 %slen)
+                  %arr2 = load ptr, ptr %sAl, align 8
+                  %epT = call ptr @jnative_array_elem_ptr(ptr %arr2, i32 %pi, i64 8)
                   store ptr %pieceT, ptr %epT, align 8
                   br label %doneB
                 bcont2:
@@ -260,7 +279,9 @@ public final class StringRuntimeEmitter {
                   %startN = phi i32 [ %siR, %bemit ], [ %start, %bcont2 ]
                   br label %build
                 doneB:
-                  ret ptr %arr
+                  %resArr = load ptr, ptr %sAl, align 8
+                  call void @jnative_gc_frame_pop()
+                  ret ptr %resArr
                 }
 
                 define ptr @jnative_string_join(ptr %delim, ptr %arr) {
@@ -274,24 +295,37 @@ public final class StringRuntimeEmitter {
                   %e = call ptr @jnative_string_from_literal(ptr @.jn.emptystr, i32 0, ptr @meta.String)
                   ret ptr %e
                 loopInit:
+                  %jD = alloca ptr, align 8
+                  %jA = alloca ptr, align 8
+                  %jC = alloca ptr, align 8
+                  store ptr %delim, ptr %jD, align 8
+                  store ptr %arr, ptr %jA, align 8
+                  store ptr null, ptr %jC, align 8
+                  %jfr = call ptr @jnative_gc_frame_push(i32 3)
+                  call void @jnative_gc_frame_set_root(ptr %jfr, i32 0, ptr %jD)
+                  call void @jnative_gc_frame_set_root(ptr %jfr, i32 1, ptr %jA)
+                  call void @jnative_gc_frame_set_root(ptr %jfr, i32 2, ptr %jC)
                   %acc0 = call ptr @jnative_string_from_literal(ptr @.jn.emptystr, i32 0, ptr @meta.String)
+                  store ptr %acc0, ptr %jC, align 8
                   br label %loop
                 loop:
                   %i = phi i32 [ 0, %loopInit ], [ %inext, %next ]
-                  %acc = phi ptr [ %acc0, %loopInit ], [ %accN, %next ]
                   %done = icmp sge i32 %i, %n
                   br i1 %done, label %ret, label %body
                 body:
                   %needD = icmp sgt i32 %i, 0
                   br i1 %needD, label %addD, label %addE
                 addD:
-                  %accD = call ptr @jnative_string_concat(ptr %acc, ptr %delim)
+                  %accC0 = load ptr, ptr %jC, align 8
+                  %dD0 = load ptr, ptr %jD, align 8
+                  %accD = call ptr @jnative_string_concat(ptr %accC0, ptr %dD0)
+                  store ptr %accD, ptr %jC, align 8
                   br label %addE2
                 addE:
                   br label %addE2
                 addE2:
-                  %acc1 = phi ptr [ %accD, %addD ], [ %acc, %addE ]
-                  %ep = call ptr @jnative_array_elem_ptr(ptr %arr, i32 %i, i64 8)
+                  %arrJ = load ptr, ptr %jA, align 8
+                  %ep = call ptr @jnative_array_elem_ptr(ptr %arrJ, i32 %i, i64 8)
                   %el = load ptr, ptr %ep, align 8
                   %isnull = icmp eq ptr %el, null
                   br i1 %isnull, label %usenull, label %useel
@@ -302,13 +336,17 @@ public final class StringRuntimeEmitter {
                   br label %cat
                 cat:
                   %piece = phi ptr [ %ns, %usenull ], [ %el, %useel ]
+                  %acc1 = load ptr, ptr %jC, align 8
                   %accN = call ptr @jnative_string_concat(ptr %acc1, ptr %piece)
+                  store ptr %accN, ptr %jC, align 8
                   %inext = add i32 %i, 1
                   br label %next
                 next:
                   br label %loop
                 ret:
-                  ret ptr %acc
+                  %accR = load ptr, ptr %jC, align 8
+                  call void @jnative_gc_frame_pop()
+                  ret ptr %accR
                 }
 
                 """);

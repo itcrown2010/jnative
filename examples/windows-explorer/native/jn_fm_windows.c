@@ -373,6 +373,24 @@ char *jn_fm_type_name(const char *name, int32_t isdir) {
     return r;
 }
 
+char *jn_fm_display_name(const char *path) {
+    wchar_t *w = u2w(path);
+    SHFILEINFOW sfi;
+    char *r;
+    memset(&sfi, 0, sizeof(sfi));
+    if (w != NULL) {
+        SHGetFileInfoW(w, 0, &sfi, sizeof(sfi), SHGFI_DISPLAYNAME);
+    }
+    free(w);
+    {
+        Buf b;
+        buf_init(&b);
+        buf_field(&b, sfi.szDisplayName);
+        r = buf_take(&b);
+    }
+    return r;
+}
+
 int32_t jn_fm_exists(const char *path) {
     wchar_t *w = u2w(path);
     wchar_t *lp;

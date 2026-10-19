@@ -167,6 +167,18 @@ char *jn_fm_type_name(const char *name, int32_t isdir) {
     return dupz(t);
 }
 
+char *jn_fm_display_name(const char *path) {
+    /* test shim: no localization, the last path component is the display name */
+    const char *b = path;
+    const char *s;
+    for (s = path; *s != '\0'; s++) {
+        if ((*s == '/' || *s == '\\\\') && s[1] != '\0') {
+            b = s + 1;
+        }
+    }
+    return dupz(b);
+}
+
 int32_t jn_fm_exists(const char *path) {
     char *m = map(path);
     struct stat st;

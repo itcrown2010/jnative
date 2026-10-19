@@ -124,6 +124,9 @@ class FmApp {
             FmApp.onResize();
         });
         win.show();
+        /* setVisible(false) before the native window exists is not honoured: hide again now */
+        addr.setVisible(false);
+        ren.setVisible(false);
         onResize();
         String first = "::home";
         if (startPath.length() > 0) {

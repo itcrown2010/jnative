@@ -17,6 +17,9 @@ class FmNative {
     @Native(symbol = "jn_fm_known_folder", library = "jn_fm")
     static native NativePtr knownFolder(int id);
 
+    @Native(symbol = "jn_fm_display_name", library = "jn_fm")
+    static native NativePtr displayName(String path);
+
     @Native(symbol = "jn_fm_type_name", library = "jn_fm")
     static native NativePtr typeName(String name, int isDir);
 

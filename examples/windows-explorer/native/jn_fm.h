@@ -19,6 +19,7 @@
  * jn_fm_known_folder(id)      0 profile 1 desktop 2 downloads 3 documents 4 pictures 5 music
  *                             6 videos 7 appdata 8 temp 9 OneDrive ("" when absent)
  * jn_fm_type_name(name,isdir) localized shell type name ("TXT 文件", "文件夹")
+ * jn_fm_display_name(path)   localized shell display name of an existing path ("桌面", "下载", "本地磁盘 (C:)")
  * jn_fm_exists(path)          0 missing, 1 file, 2 directory
  * jn_fm_full_path(path)       expands %VARS% and makes the path absolute
  * jn_fm_file_op(op,srcs,dst,flags)  op 1 copy 2 move 3 delete 4 recycle; srcs '\n' separated;
@@ -45,6 +46,7 @@ char *jn_fm_list(const char *path);
 char *jn_fm_drives(void);
 char *jn_fm_known_folder(int32_t id);
 char *jn_fm_type_name(const char *name, int32_t isdir);
+char *jn_fm_display_name(const char *path);
 int32_t jn_fm_exists(const char *path);
 char *jn_fm_full_path(const char *path);
 int32_t jn_fm_file_op(int32_t op, const char *srcs, const char *dst, int32_t flags);
