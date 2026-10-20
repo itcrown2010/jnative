@@ -1,0 +1,136 @@
+import java.util.*;
+
+public class Main {
+    public static void main(String[] args) {
+        // BFS-style Queue via LinkedList
+        Queue<Integer> q = new LinkedList<>();
+        q.add(1);
+        q.offer(2);
+        q.add(3);
+        System.out.println(q + " " + q.size() + " " + q.peek());
+        System.out.println(q.poll() + " " + q.remove() + " " + q.element());
+        System.out.println(q.isEmpty() + " " + q.poll() + " " + q.poll() + " " + q.peek());
+        try {
+            q.remove();
+        } catch (NoSuchElementException e) {
+            System.out.println("NSEE remove");
+        }
+
+        // Deque as stack and as queue
+        Deque<String> d = new ArrayDeque<>();
+        d.push("a");
+        d.push("b");
+        d.addLast("z");
+        d.offerFirst("top");
+        System.out.println(d + " " + d.peekFirst() + " " + d.peekLast() + " " + d.getFirst() + " " + d.getLast());
+        System.out.println(d.pop() + " " + d.pollLast() + " " + d.removeFirst() + " " + d.size());
+        for (String s : d) {
+            System.out.println("it " + s);
+        }
+        d.clear();
+        System.out.println(d.pollFirst() + " " + d.peek() + " " + d.isEmpty());
+        Deque<Integer> big = new ArrayDeque<>();
+        for (int i = 0; i < 100; i++) {
+            if (i % 2 == 0) {
+                big.addLast(i);
+            } else {
+                big.addFirst(i);
+            }
+        }
+        int sum = 0;
+        while (big.size() > 10) {
+            sum += big.pollFirst() - big.pollLast();
+        }
+        System.out.println(sum + " " + big);
+        Iterator<Integer> desc = big.descendingIterator();
+        StringBuilder sb = new StringBuilder();
+        while (desc.hasNext()) {
+            sb.append(desc.next()).append(',');
+        }
+        System.out.println(sb);
+
+        // LinkedList as a List
+        LinkedList<Integer> ll = new LinkedList<>();
+        ll.add(10);
+        ll.add(20);
+        ll.add(30);
+        ll.add(1, 15);
+        ll.addFirst(5);
+        ll.addLast(40);
+        System.out.println(ll + " " + ll.get(2) + " " + ll.indexOf(30) + " " + ll.contains(15));
+        ll.set(0, 6);
+        ll.remove(1);
+        ll.remove(Integer.valueOf(30));
+        System.out.println(ll + " " + ll.size() + " " + ll.getFirst() + " " + ll.getLast());
+        ll.removeFirst();
+        ll.removeLast();
+        System.out.println(ll);
+        List<String> names = new LinkedList<>();
+        names.add("bob");
+        names.add("al");
+        names.add("cy");
+        Collections.sort(names);
+        System.out.println(names + " " + names.equals(new LinkedList<String>(names)));
+
+        // PriorityQueue: natural ordering, comparator, heap layout
+        PriorityQueue<Integer> pq = new PriorityQueue<>();
+        int[] vals = {5, 3, 8, 1, 9, 2, 7, 3};
+        for (int v : vals) {
+            pq.add(v);
+        }
+        System.out.println(pq + " " + pq.peek() + " " + pq.size());
+        pq.remove(8);
+        System.out.println(pq + " " + pq.contains(9) + " " + pq.contains(4));
+        StringBuilder out = new StringBuilder();
+        while (!pq.isEmpty()) {
+            out.append(pq.poll()).append(' ');
+        }
+        System.out.println(out);
+        PriorityQueue<Integer> maxq = new PriorityQueue<>(Collections.reverseOrder());
+        for (int v : vals) {
+            maxq.offer(v);
+        }
+        System.out.println(maxq + " " + maxq.poll() + " " + maxq.poll());
+        PriorityQueue<String> byLen = new PriorityQueue<>((a, b) -> a.length() - b.length());
+        byLen.add("ccc");
+        byLen.add("a");
+        byLen.add("bb");
+        byLen.add("dddd");
+        System.out.println(byLen.poll() + " " + byLen.poll() + " " + byLen.size());
+        List<Integer> src = new ArrayList<>();
+        src.add(4);
+        src.add(1);
+        src.add(3);
+        src.add(2);
+        PriorityQueue<Integer> fromList = new PriorityQueue<>(src);
+        System.out.println(fromList);
+        int total = 0;
+        for (int x : fromList) {
+            total += x;
+        }
+        System.out.println(total);
+        fromList.removeIf(x -> x % 2 == 0);
+        System.out.println(fromList);
+
+        // Stack
+        Stack<Integer> st = new Stack<>();
+        System.out.println(st.empty());
+        st.push(1);
+        st.push(2);
+        st.push(3);
+        System.out.println(st + " " + st.peek() + " " + st.search(1) + " " + st.search(9));
+        System.out.println(st.pop() + " " + st.pop() + " " + st.size() + " " + st.isEmpty());
+        st.pop();
+        try {
+            st.pop();
+        } catch (EmptyStackException e) {
+            System.out.println("ESE");
+        }
+        Stack<String> ss = new Stack<>();
+        ss.push("x");
+        ss.push("y");
+        for (String s : ss) {
+            System.out.println(s);
+        }
+    }
+}

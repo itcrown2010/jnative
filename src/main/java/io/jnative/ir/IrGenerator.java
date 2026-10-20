@@ -1034,6 +1034,7 @@ public final class IrGenerator {
             }
             case WILDCARD -> typed.classes().get("Object").asType();
             case TYPE_VAR -> typed.classes().get("Object").asType();
+            case ARRAY -> new ArrayType(resolveTypeName(typeName.typeArgument(), false));
             case CLASS -> resolveClassTypeName(typeName);
         };
         return isArray ? new ArrayType(base) : base;

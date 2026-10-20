@@ -1,0 +1,33 @@
+import java.util.*;
+public class Main {
+    static int sumAll(List<int[]> rows) {
+        int s = 0;
+        for (int[] r : rows) {
+            for (int i = 0; i < r.length; i++) s += r[i];
+        }
+        return s;
+    }
+    public static void main(String[] args) {
+        List<int[]> rows = new ArrayList<>();
+        rows.add(new int[] {1, 2, 3});
+        rows.add(new int[] {10, 20});
+        System.out.println(sumAll(rows) + " " + rows.size() + " " + rows.get(1)[0]);
+        PriorityQueue<int[]> heap = new PriorityQueue<>((a, b) -> a[0] - b[0]);
+        heap.add(new int[] {5, 50});
+        heap.add(new int[] {1, 10});
+        heap.add(new int[] {3, 30});
+        while (!heap.isEmpty()) {
+            int[] top = heap.poll();
+            System.out.println(top[0] + ":" + top[1]);
+        }
+        Map<String, int[]> m = new HashMap<>();
+        m.put("a", new int[] {7, 8});
+        System.out.println(m.get("a")[1]);
+        Deque<int[]> dq = new ArrayDeque<>();
+        dq.add(new int[] {4});
+        System.out.println(dq.poll()[0]);
+        List<String[]> parts = new ArrayList<>();
+        parts.add(new String[] {"x", "y"});
+        System.out.println(parts.get(0)[1]);
+    }
+}

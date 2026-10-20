@@ -1,0 +1,66 @@
+import java.util.*;
+
+public class Main {
+    public static void main(String[] args) {
+        LinkedHashMap<String, Integer> m = new LinkedHashMap<>();
+        m.put("zeta", 1);
+        m.put("alpha", 2);
+        m.put("mid", 3);
+        m.put("beta", 4);
+        m.put("alpha", 20);
+        System.out.println(m);
+        m.remove("mid");
+        m.put("mid", 30);
+        System.out.println(m);
+        for (String k : m.keySet()) {
+            System.out.println(k + "=" + m.get(k));
+        }
+        for (Integer v : m.values()) {
+            System.out.println(v);
+        }
+        for (Map.Entry<String, Integer> e : m.entrySet()) {
+            System.out.println(e.getKey() + "->" + e.getValue());
+        }
+        System.out.println(m.size());
+
+        Map<Integer, String> n = new LinkedHashMap<>();
+        for (int i = 50; i > 0; i -= 7) {
+            n.put(i, "v" + i);
+        }
+        System.out.println(n);
+        n.remove(50);
+        n.remove(8);
+        System.out.println(n);
+        n.clear();
+        System.out.println(n.isEmpty());
+        n.put(3, "c");
+        n.put(1, "a");
+        System.out.println(n);
+
+        Map<String, Integer> copy = new LinkedHashMap<>(m);
+        System.out.println(copy);
+
+        LinkedHashSet<String> s = new LinkedHashSet<>();
+        s.add("pear");
+        s.add("apple");
+        s.add("fig");
+        s.add("apple");
+        s.add("kiwi");
+        System.out.println(s);
+        s.remove("apple");
+        s.add("apple");
+        System.out.println(s);
+        for (String x : s) {
+            System.out.println(x);
+        }
+
+        List<Integer> src = new ArrayList<>();
+        src.add(9);
+        src.add(3);
+        src.add(7);
+        src.add(3);
+        Set<Integer> t = new LinkedHashSet<>(src);
+        System.out.println(t);
+        System.out.println(t.size() + " " + t.contains(7) + " " + t.contains(8));
+    }
+}

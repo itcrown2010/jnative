@@ -197,31 +197,40 @@ interface BiFunction<T, U, R> {
     R apply(T a, U b);
 }
 
-/**
- * Core Collections 1.0 Queue surface (does not extend Collection yet —
- * primitive specialization + deep interface hierarchies are fragile).
- */
-interface Queue<T> {
-    int size();
-    boolean isEmpty();
+/** java.util.Queue surface (implemented by ArrayDeque/LinkedList and PriorityQueue). */
+interface Queue<T> extends Collection<T> {
+    boolean add(T value);
     boolean offer(T value);
     T poll();
     T peek();
+    /** Queue.remove(): retrieves and removes the head, throws when empty. */
+    T remove();
+    T element();
 }
 
-/** Core Collections 1.0 Deque surface. */
-interface Deque<T> {
-    int size();
-    boolean isEmpty();
+/** java.util.Deque surface. */
+interface Deque<T> extends Queue<T> {
     void addFirst(T value);
     void addLast(T value);
+    boolean offerFirst(T value);
+    boolean offerLast(T value);
     T removeFirst();
     T removeLast();
+    T pollFirst();
+    T pollLast();
+    T getFirst();
+    T getLast();
     T peekFirst();
     T peekLast();
-    boolean offer(T value);
-    T poll();
-    T peek();
+    void push(T value);
+    T pop();
+    Iterator<T> descendingIterator();
+}
+
+class EmptyStackException extends RuntimeException {
+    EmptyStackException() {
+        super();
+    }
 }
 
 interface Comparator<T> {
@@ -695,6 +704,39 @@ class ArrayList<T> implements List<T> {
         return out;
     }
 
+    // java.util.Stack surface (the parser maps Stack to ArrayList; top of stack = last element).
+    public T push(T value) {
+        add(value);
+        return value;
+    }
+
+    public T pop() {
+        if (this.size == 0) {
+            throw new EmptyStackException();
+        }
+        return removeAt(this.size - 1);
+    }
+
+    public T peek() {
+        if (this.size == 0) {
+            throw new EmptyStackException();
+        }
+        return this.storage[this.size - 1];
+    }
+
+    public boolean empty() {
+        return this.size == 0;
+    }
+
+    /** 1-based distance from the top of the stack, or -1. */
+    public int search(T value) {
+        int i = lastIndexOf(value);
+        if (i >= 0) {
+            return this.size - i;
+        }
+        return -1;
+    }
+
     /**
      * Map each element through {@code mapper} into a new {@code ArrayList<Object>}
      * (same length, index order). Result is independent. Structural modification → CME.
@@ -729,12 +771,54 @@ class HashMap<K, V> implements Map<K, V> {
     int size;
     int modCount;
     int threshold;
+    /** True for LinkedHashMap semantics (insertion-ordered iteration). */
+    boolean ordered;
+    HashMapEntry<K, V> head;
+    HashMapEntry<K, V> tail;
 
     HashMap() {
         this.table = null;
         this.size = 0;
         this.modCount = 0;
         this.threshold = 0;
+        this.ordered = false;
+        this.head = null;
+        this.tail = null;
+    }
+
+    /** Parser target of {@code new LinkedHashMap<K,V>()}: insertion-ordered. */
+    HashMap(boolean ordered) {
+        this.table = null;
+        this.size = 0;
+        this.modCount = 0;
+        this.threshold = 0;
+        this.ordered = ordered;
+        this.head = null;
+        this.tail = null;
+    }
+
+    HashMap(boolean ordered, int initialCapacity) {
+        if (initialCapacity < 0) {
+            throw new IllegalArgumentException("negative initialCapacity");
+        }
+        this.table = null;
+        this.size = 0;
+        this.modCount = 0;
+        this.threshold = tableSizeFor(initialCapacity);
+        this.ordered = ordered;
+        this.head = null;
+        this.tail = null;
+    }
+
+    HashMap(boolean ordered, Map<K, V> other) {
+        this.table = null;
+        this.size = 0;
+        this.modCount = 0;
+        this.threshold = 0;
+        this.ordered = ordered;
+        this.head = null;
+        this.tail = null;
+        putAll(other);
     }
 
     HashMap(int initialCapacity) {
@@ -874,6 +958,15 @@ class HashMap<K, V> implements Map<K, V> {
         } else {
             last.next = n;
         }
+        if (this.ordered) {
+            n.before = this.tail;
+            if (this.tail == null) {
+                this.head = n;
+            } else {
+                this.tail.after = n;
+            }
+            this.tail = n;
+        }
         this.modCount = this.modCount + 1;
         this.size = this.size + 1;
         if (this.size > this.threshold) {
@@ -897,6 +990,18 @@ class HashMap<K, V> implements Map<K, V> {
                 } else {
                     prev.next = e.next;
                 }
+                if (this.ordered) {
+                    if (e.before == null) {
+                        this.head = e.after;
+                    } else {
+                        e.before.after = e.after;
+                    }
+                    if (e.after == null) {
+                        this.tail = e.before;
+                    } else {
+                        e.after.before = e.before;
+                    }
+                }
                 this.modCount = this.modCount + 1;
                 this.size = this.size - 1;
                 return e.value;
@@ -916,6 +1021,8 @@ class HashMap<K, V> implements Map<K, V> {
             }
         }
         this.size = 0;
+        this.head = null;
+        this.tail = null;
         this.modCount = this.modCount + 1;
     }
 
@@ -1106,12 +1213,17 @@ class HashMapEntry<K, V> implements Entry<K, V> {
     K key;
     V value;
     HashMapEntry<K, V> next;
+    /** Insertion-order links (only maintained by ordered maps). */
+    HashMapEntry<K, V> before;
+    HashMapEntry<K, V> after;
 
     HashMapEntry(int hash, K key, V value) {
         this.hash = hash;
         this.key = key;
         this.value = value;
         this.next = null;
+        this.before = null;
+        this.after = null;
     }
 
     public K getKey() {
@@ -1177,7 +1289,11 @@ class HashMapCursor<K, V> {
         this.expectedModCount = map.modCount;
         this.bucket = 0;
         this.upcoming = null;
-        advanceBucket();
+        if (map.ordered) {
+            this.upcoming = map.head;
+        } else {
+            advanceBucket();
+        }
     }
 
     void advanceBucket() {
@@ -1202,6 +1318,10 @@ class HashMapCursor<K, V> {
         HashMapEntry<K, V> e = this.upcoming;
         if (e == null) {
             throw new NoSuchElementException("HashMap iterator");
+        }
+        if (this.map.ordered) {
+            this.upcoming = e.after;
+            return e;
         }
         this.upcoming = e.next;
         if (this.upcoming == null) {
@@ -1607,6 +1727,23 @@ class HashSet<T> implements Set<T> {
         this.present = new PresentMarker();
     }
 
+    /** Parser targets of {@code new LinkedHashSet<T>(...)}: insertion-ordered. */
+    HashSet(boolean ordered) {
+        this.map = new HashMap<T, PresentMarker>(ordered);
+        this.present = new PresentMarker();
+    }
+
+    HashSet(boolean ordered, int initialCapacity) {
+        this.map = new HashMap<T, PresentMarker>(ordered, initialCapacity);
+        this.present = new PresentMarker();
+    }
+
+    HashSet(boolean ordered, Collection<T> other) {
+        this.map = new HashMap<T, PresentMarker>(ordered);
+        this.present = new PresentMarker();
+        addAll(other);
+    }
+
     HashSet(Collection<T> other) {
         int cap = (other.size() * 4) / 3 + 1;
         if (cap < 16) {
@@ -1730,35 +1867,117 @@ class HashSet<T> implements Set<T> {
     }
 }
 
-class ArrayDeque<T> {
+class ArrayDequeIterator<T> implements Iterator<T> {
+    ArrayDeque<T> dq;
+    int index;
+    int expectedModCount;
+    boolean descending;
+
+    ArrayDequeIterator(ArrayDeque<T> dq, boolean descending) {
+        this.dq = dq;
+        this.descending = descending;
+        this.expectedModCount = dq.modCount;
+        if (descending) {
+            this.index = dq.size - 1;
+        } else {
+            this.index = 0;
+        }
+    }
+
+    public boolean hasNext() {
+        if (this.descending) {
+            return this.index >= 0;
+        }
+        return this.index < this.dq.size;
+    }
+
+    public T next() {
+        if (this.expectedModCount != this.dq.modCount) {
+            throw new ConcurrentModificationException("ArrayDeque modified during iteration");
+        }
+        if (!hasNext()) {
+            throw new NoSuchElementException("ArrayDequeIterator");
+        }
+        T value = this.dq.storage[this.dq.physical(this.index)];
+        if (this.descending) {
+            this.index = this.index - 1;
+        } else {
+            this.index = this.index + 1;
+        }
+        return value;
+    }
+}
+
+/**
+ * Ring-buffer deque that also implements List: it backs both ArrayDeque and LinkedList
+ * (the parser maps LinkedList to this class). O(1) at both ends and O(1) indexed access.
+ */
+class ArrayDeque<T> implements List<T>, Deque<T> {
     T[] storage;
     int head;
-    int tail;
     int size;
+    int modCount;
 
     ArrayDeque() {
-        this.storage = new T[8];
+        this.storage = new T[16];
         this.head = 0;
-        this.tail = 0;
         this.size = 0;
+        this.modCount = 0;
+    }
+
+    ArrayDeque(int capacity) {
+        int cap = capacity;
+        if (cap < 1) {
+            cap = 1;
+        }
+        this.storage = new T[cap];
+        this.head = 0;
+        this.size = 0;
+        this.modCount = 0;
+    }
+
+    ArrayDeque(Collection<T> other) {
+        this.storage = new T[16];
+        this.head = 0;
+        this.size = 0;
+        this.modCount = 0;
+        addAll(other);
+    }
+
+    int physical(int i) {
+        int p = this.head + i;
+        if (p >= this.storage.length) {
+            p = p - this.storage.length;
+        }
+        return p;
     }
 
     void grow() {
         int oldCap = this.storage.length;
-        int newCap = oldCap + oldCap;
-        T[] neu = new T[newCap];
+        T[] neu = new T[oldCap + oldCap];
         int i = 0;
         while (i < this.size) {
-            int idx = this.head + i;
-            if (idx >= oldCap) {
-                idx = idx - oldCap;
-            }
-            neu[i] = this.storage[idx];
+            neu[i] = this.storage[physical(i)];
             i = i + 1;
         }
         this.storage = neu;
         this.head = 0;
-        this.tail = this.size;
+    }
+
+    void rangeCheck(int index) {
+        if (index < 0 || index >= this.size) {
+            throw new IndexOutOfBoundsException("Index: " + index + ", Size: " + this.size);
+        }
+    }
+
+    boolean valueEquals(T a, T b) {
+        if (a == b) {
+            return true;
+        }
+        if (a == null) {
+            return false;
+        }
+        return a.equals(b);
     }
 
     public int size() {
@@ -1773,12 +1992,9 @@ class ArrayDeque<T> {
         if (this.size == this.storage.length) {
             grow();
         }
-        this.storage[this.tail] = value;
-        this.tail = this.tail + 1;
-        if (this.tail >= this.storage.length) {
-            this.tail = 0;
-        }
+        this.storage[physical(this.size)] = value;
         this.size = this.size + 1;
+        this.modCount = this.modCount + 1;
     }
 
     public void addFirst(T value) {
@@ -1791,6 +2007,31 @@ class ArrayDeque<T> {
         }
         this.storage[this.head] = value;
         this.size = this.size + 1;
+        this.modCount = this.modCount + 1;
+    }
+
+    public boolean offerFirst(T value) {
+        addFirst(value);
+        return true;
+    }
+
+    public boolean offerLast(T value) {
+        addLast(value);
+        return true;
+    }
+
+    public boolean offer(T value) {
+        addLast(value);
+        return true;
+    }
+
+    public boolean add(T value) {
+        addLast(value);
+        return true;
+    }
+
+    public void push(T value) {
+        addFirst(value);
     }
 
     public T removeFirst() {
@@ -1804,6 +2045,7 @@ class ArrayDeque<T> {
             this.head = 0;
         }
         this.size = this.size - 1;
+        this.modCount = this.modCount + 1;
         return value;
     }
 
@@ -1811,14 +2053,56 @@ class ArrayDeque<T> {
         if (this.size == 0) {
             throw new NoSuchElementException("ArrayDeque");
         }
-        this.tail = this.tail - 1;
-        if (this.tail < 0) {
-            this.tail = this.storage.length - 1;
-        }
-        T value = this.storage[this.tail];
-        this.storage[this.tail] = null;
+        int p = physical(this.size - 1);
+        T value = this.storage[p];
+        this.storage[p] = null;
         this.size = this.size - 1;
+        this.modCount = this.modCount + 1;
         return value;
+    }
+
+    public T pollFirst() {
+        if (this.size == 0) {
+            return null;
+        }
+        return removeFirst();
+    }
+
+    public T pollLast() {
+        if (this.size == 0) {
+            return null;
+        }
+        return removeLast();
+    }
+
+    public T poll() {
+        return pollFirst();
+    }
+
+    public T remove() {
+        return removeFirst();
+    }
+
+    public T pop() {
+        return removeFirst();
+    }
+
+    public T getFirst() {
+        if (this.size == 0) {
+            throw new NoSuchElementException("ArrayDeque");
+        }
+        return this.storage[this.head];
+    }
+
+    public T getLast() {
+        if (this.size == 0) {
+            throw new NoSuchElementException("ArrayDeque");
+        }
+        return this.storage[physical(this.size - 1)];
+    }
+
+    public T element() {
+        return getFirst();
     }
 
     public T peekFirst() {
@@ -1832,17 +2116,650 @@ class ArrayDeque<T> {
         if (this.size == 0) {
             return null;
         }
-        int idx = this.tail - 1;
-        if (idx < 0) {
-            idx = this.storage.length - 1;
-        }
-        return this.storage[idx];
+        return this.storage[physical(this.size - 1)];
     }
 
-    /** Queue-compatible alias for addLast. */
-    public boolean offer(T value) {
-        addLast(value);
+    public T peek() {
+        return peekFirst();
+    }
+
+    public T get(int index) {
+        rangeCheck(index);
+        return this.storage[physical(index)];
+    }
+
+    public T set(int index, T value) {
+        rangeCheck(index);
+        int p = physical(index);
+        T old = this.storage[p];
+        this.storage[p] = value;
+        return old;
+    }
+
+    public void addAt(int index, T value) {
+        if (index < 0 || index > this.size) {
+            throw new IndexOutOfBoundsException("Index: " + index + ", Size: " + this.size);
+        }
+        if (index == this.size) {
+            addLast(value);
+            return;
+        }
+        if (index == 0) {
+            addFirst(value);
+            return;
+        }
+        if (this.size == this.storage.length) {
+            grow();
+        }
+        int k = this.size;
+        while (k > index) {
+            this.storage[physical(k)] = this.storage[physical(k - 1)];
+            k = k - 1;
+        }
+        this.storage[physical(index)] = value;
+        this.size = this.size + 1;
+        this.modCount = this.modCount + 1;
+    }
+
+    public T removeAt(int index) {
+        rangeCheck(index);
+        T old = this.storage[physical(index)];
+        int k = index;
+        while (k + 1 < this.size) {
+            this.storage[physical(k)] = this.storage[physical(k + 1)];
+            k = k + 1;
+        }
+        this.storage[physical(this.size - 1)] = null;
+        this.size = this.size - 1;
+        this.modCount = this.modCount + 1;
+        return old;
+    }
+
+    public int indexOf(T value) {
+        int i = 0;
+        while (i < this.size) {
+            if (valueEquals(value, this.storage[physical(i)])) {
+                return i;
+            }
+            i = i + 1;
+        }
+        return -1;
+    }
+
+    public int lastIndexOf(T value) {
+        int i = this.size - 1;
+        while (i >= 0) {
+            if (valueEquals(value, this.storage[physical(i)])) {
+                return i;
+            }
+            i = i - 1;
+        }
+        return -1;
+    }
+
+    public boolean contains(T value) {
+        return indexOf(value) >= 0;
+    }
+
+    public boolean removeValue(T value) {
+        int idx = indexOf(value);
+        if (idx < 0) {
+            return false;
+        }
+        removeAt(idx);
         return true;
+    }
+
+    public void clear() {
+        int i = 0;
+        while (i < this.size) {
+            this.storage[physical(i)] = null;
+            i = i + 1;
+        }
+        this.head = 0;
+        this.size = 0;
+        this.modCount = this.modCount + 1;
+    }
+
+    public Iterator<T> iterator() {
+        return new ArrayDequeIterator<T>(this, false);
+    }
+
+    public Iterator<T> descendingIterator() {
+        return new ArrayDequeIterator<T>(this, true);
+    }
+
+    public boolean addAll(Collection<T> other) {
+        if (other.size() == 0) {
+            return false;
+        }
+        Object otherObj = other;
+        Object selfObj = this;
+        if (otherObj == selfObj) {
+            int n = this.size;
+            int i = 0;
+            while (i < n) {
+                addLast(this.storage[physical(i)]);
+                i = i + 1;
+            }
+            return true;
+        }
+        Iterator<T> it = other.iterator();
+        while (it.hasNext()) {
+            addLast(it.next());
+        }
+        return true;
+    }
+
+    public boolean containsAll(Collection<T> other) {
+        Iterator<T> it = other.iterator();
+        while (it.hasNext()) {
+            if (!contains(it.next())) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    public boolean removeAll(Collection<T> other) {
+        return removeIf(x -> other.contains(x));
+    }
+
+    public boolean retainAll(Collection<T> other) {
+        return removeIf(x -> !other.contains(x));
+    }
+
+    public boolean removeIf(Predicate<T> filter) {
+        if (filter == null) {
+            throw new NullPointerException("filter");
+        }
+        int keep = 0;
+        int i = 0;
+        while (i < this.size) {
+            T v = this.storage[physical(i)];
+            if (!filter.test(v)) {
+                this.storage[physical(keep)] = v;
+                keep = keep + 1;
+            }
+            i = i + 1;
+        }
+        boolean changed = keep != this.size;
+        int j = keep;
+        while (j < this.size) {
+            this.storage[physical(j)] = null;
+            j = j + 1;
+        }
+        this.size = keep;
+        if (changed) {
+            this.modCount = this.modCount + 1;
+        }
+        return changed;
+    }
+
+    int compareElems(Comparator<T> c, T a, T b) {
+        if (c == null) {
+            return SortSupport.natural(a, b);
+        }
+        return c.compare(a, b);
+    }
+
+    /** Stable merge sort; {@code null} comparator = natural ordering. */
+    public void sort(Comparator<T> c) {
+        if (this.size > 1) {
+            T[] src = new T[this.size];
+            int k = 0;
+            while (k < this.size) {
+                src[k] = this.storage[physical(k)];
+                k = k + 1;
+            }
+            int[] order = SortSupport.sortedOrder(this.size, (i, j) -> compareElems(c, src[i], src[j]));
+            T[] out = new T[this.storage.length];
+            k = 0;
+            while (k < this.size) {
+                out[k] = src[order[k]];
+                k = k + 1;
+            }
+            this.storage = out;
+            this.head = 0;
+        }
+        this.modCount = this.modCount + 1;
+    }
+
+    /** Copy of the range (Java returns a view; mutations are not reflected). */
+    public List<T> subList(int fromIndex, int toIndex) {
+        if (fromIndex < 0 || toIndex > this.size || fromIndex > toIndex) {
+            throw new IndexOutOfBoundsException("subList");
+        }
+        ArrayList<T> out = new ArrayList<T>();
+        int i = fromIndex;
+        while (i < toIndex) {
+            out.add(this.storage[physical(i)]);
+            i = i + 1;
+        }
+        return out;
+    }
+
+    public void forEach(Consumer<T> action) {
+        if (action == null) {
+            throw new NullPointerException("action");
+        }
+        int expected = this.modCount;
+        int i = 0;
+        while (i < this.size) {
+            if (expected != this.modCount) {
+                throw new ConcurrentModificationException("ArrayDeque modified during forEach");
+            }
+            action.accept(this.storage[physical(i)]);
+            i = i + 1;
+        }
+    }
+
+    public String toString() {
+        StringBuilder sb = new StringBuilder();
+        sb.append("[");
+        int i = 0;
+        while (i < this.size) {
+            if (i > 0) {
+                sb.append(", ");
+            }
+            sb.append(String.valueOf(this.storage[physical(i)]));
+            i = i + 1;
+        }
+        sb.append("]");
+        return sb.toString();
+    }
+
+    public boolean equals(Object o) {
+        Object selfObj = this;
+        if (o == selfObj) {
+            return true;
+        }
+        if (!(o instanceof ArrayDeque)) {
+            return false;
+        }
+        ArrayDeque<T> other = (ArrayDeque<T>) o;
+        if (other.size != this.size) {
+            return false;
+        }
+        int i = 0;
+        while (i < this.size) {
+            if (!valueEquals(this.storage[physical(i)], other.storage[other.physical(i)])) {
+                return false;
+            }
+            i = i + 1;
+        }
+        return true;
+    }
+
+    public int hashCode() {
+        int h = 1;
+        int i = 0;
+        while (i < this.size) {
+            Object x = this.storage[physical(i)];
+            int eh = 0;
+            if (x != null) {
+                eh = x.hashCode();
+            }
+            h = 31 * h + eh;
+            i = i + 1;
+        }
+        return h;
+    }
+}
+
+/**
+ * java.util.PriorityQueue: binary min-heap using the JDK's siftUp/siftDown, so the array order
+ * (iteration and toString) matches Java. {@code null} comparator = natural ordering.
+ */
+class PriorityQueue<T> implements Queue<T> {
+    T[] queue;
+    int size;
+    int modCount;
+    Comparator<T> comparator;
+
+    PriorityQueue() {
+        this.queue = new T[11];
+        this.size = 0;
+        this.modCount = 0;
+        this.comparator = null;
+    }
+
+    PriorityQueue(int initialCapacity) {
+        if (initialCapacity < 1) {
+            throw new IllegalArgumentException("initialCapacity < 1");
+        }
+        this.queue = new T[initialCapacity];
+        this.size = 0;
+        this.modCount = 0;
+        this.comparator = null;
+    }
+
+    PriorityQueue(Comparator<T> comparator) {
+        this.queue = new T[11];
+        this.size = 0;
+        this.modCount = 0;
+        this.comparator = comparator;
+    }
+
+    PriorityQueue(int initialCapacity, Comparator<T> comparator) {
+        if (initialCapacity < 1) {
+            throw new IllegalArgumentException("initialCapacity < 1");
+        }
+        this.queue = new T[initialCapacity];
+        this.size = 0;
+        this.modCount = 0;
+        this.comparator = comparator;
+    }
+
+    PriorityQueue(Collection<T> other) {
+        int n = other.size();
+        int cap = n;
+        if (cap < 1) {
+            cap = 1;
+        }
+        this.queue = new T[cap];
+        this.size = 0;
+        this.modCount = 0;
+        this.comparator = null;
+        Iterator<T> it = other.iterator();
+        while (it.hasNext()) {
+            T v = it.next();
+            if (v == null) {
+                throw new NullPointerException();
+            }
+            this.queue[this.size] = v;
+            this.size = this.size + 1;
+        }
+        heapify();
+    }
+
+    int cmp(T a, T b) {
+        if (this.comparator == null) {
+            return SortSupport.natural(a, b);
+        }
+        return this.comparator.compare(a, b);
+    }
+
+    void heapify() {
+        int i = this.size / 2 - 1;
+        while (i >= 0) {
+            siftDown(i, this.queue[i]);
+            i = i - 1;
+        }
+    }
+
+    void grow() {
+        int oldCap = this.queue.length;
+        int newCap;
+        if (oldCap < 64) {
+            newCap = oldCap + oldCap + 2;
+        } else {
+            newCap = oldCap + oldCap / 2;
+        }
+        T[] neu = new T[newCap];
+        int i = 0;
+        while (i < this.size) {
+            neu[i] = this.queue[i];
+            i = i + 1;
+        }
+        this.queue = neu;
+    }
+
+    void siftUp(int pos, T x) {
+        int k = pos;
+        while (k > 0) {
+            int parent = (k - 1) / 2;
+            T e = this.queue[parent];
+            if (cmp(x, e) >= 0) {
+                break;
+            }
+            this.queue[k] = e;
+            k = parent;
+        }
+        this.queue[k] = x;
+    }
+
+    void siftDown(int pos, T x) {
+        int k = pos;
+        int n = this.size;
+        int half = n / 2;
+        while (k < half) {
+            int child = 2 * k + 1;
+            T c = this.queue[child];
+            int right = child + 1;
+            if (right < n && cmp(c, this.queue[right]) > 0) {
+                child = right;
+                c = this.queue[child];
+            }
+            if (cmp(x, c) <= 0) {
+                break;
+            }
+            this.queue[k] = c;
+            k = child;
+        }
+        this.queue[k] = x;
+    }
+
+    public int size() {
+        return this.size;
+    }
+
+    public boolean isEmpty() {
+        return this.size == 0;
+    }
+
+    public boolean offer(T value) {
+        if (value == null) {
+            throw new NullPointerException();
+        }
+        this.modCount = this.modCount + 1;
+        int i = this.size;
+        if (i >= this.queue.length) {
+            grow();
+        }
+        this.size = i + 1;
+        if (i == 0) {
+            this.queue[0] = value;
+        } else {
+            siftUp(i, value);
+        }
+        return true;
+    }
+
+    public boolean add(T value) {
+        return offer(value);
+    }
+
+    public T peek() {
+        if (this.size == 0) {
+            return null;
+        }
+        return this.queue[0];
+    }
+
+    public T element() {
+        if (this.size == 0) {
+            throw new NoSuchElementException("PriorityQueue");
+        }
+        return this.queue[0];
+    }
+
+    public T poll() {
+        if (this.size == 0) {
+            return null;
+        }
+        this.modCount = this.modCount + 1;
+        T result = this.queue[0];
+        this.size = this.size - 1;
+        int n = this.size;
+        T x = this.queue[n];
+        this.queue[n] = null;
+        if (n > 0) {
+            siftDown(0, x);
+        }
+        return result;
+    }
+
+    public T remove() {
+        if (this.size == 0) {
+            throw new NoSuchElementException("PriorityQueue");
+        }
+        return poll();
+    }
+
+    int indexOfValue(T value) {
+        if (value == null) {
+            return -1;
+        }
+        int i = 0;
+        while (i < this.size) {
+            T cur = this.queue[i];
+            if (value == cur || value.equals(cur)) {
+                return i;
+            }
+            i = i + 1;
+        }
+        return -1;
+    }
+
+    public boolean contains(T value) {
+        return indexOfValue(value) >= 0;
+    }
+
+    void removeAtIndex(int i) {
+        this.modCount = this.modCount + 1;
+        this.size = this.size - 1;
+        int s = this.size;
+        if (s == i) {
+            this.queue[i] = null;
+        } else {
+            T moved = this.queue[s];
+            this.queue[s] = null;
+            siftDown(i, moved);
+            if (this.queue[i] == moved) {
+                siftUp(i, moved);
+            }
+        }
+    }
+
+    public boolean remove(T value) {
+        int i = indexOfValue(value);
+        if (i < 0) {
+            return false;
+        }
+        removeAtIndex(i);
+        return true;
+    }
+
+    public void clear() {
+        int i = 0;
+        while (i < this.size) {
+            this.queue[i] = null;
+            i = i + 1;
+        }
+        this.size = 0;
+        this.modCount = this.modCount + 1;
+    }
+
+    public Iterator<T> iterator() {
+        T[] snap = new T[this.size];
+        int i = 0;
+        while (i < this.size) {
+            snap[i] = this.queue[i];
+            i = i + 1;
+        }
+        return new ArrayIterator<T>(snap);
+    }
+
+    public boolean addAll(Collection<T> other) {
+        Object otherObj = other;
+        Object selfObj = this;
+        if (otherObj == selfObj) {
+            throw new IllegalArgumentException();
+        }
+        boolean changed = false;
+        Iterator<T> it = other.iterator();
+        while (it.hasNext()) {
+            offer(it.next());
+            changed = true;
+        }
+        return changed;
+    }
+
+    public boolean containsAll(Collection<T> other) {
+        Iterator<T> it = other.iterator();
+        while (it.hasNext()) {
+            if (!contains(it.next())) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    public boolean removeAll(Collection<T> other) {
+        return removeIf(x -> other.contains(x));
+    }
+
+    public boolean retainAll(Collection<T> other) {
+        return removeIf(x -> !other.contains(x));
+    }
+
+    public boolean removeIf(Predicate<T> filter) {
+        if (filter == null) {
+            throw new NullPointerException("filter");
+        }
+        int keep = 0;
+        int i = 0;
+        while (i < this.size) {
+            T v = this.queue[i];
+            if (!filter.test(v)) {
+                this.queue[keep] = v;
+                keep = keep + 1;
+            }
+            i = i + 1;
+        }
+        boolean changed = keep != this.size;
+        int j = keep;
+        while (j < this.size) {
+            this.queue[j] = null;
+            j = j + 1;
+        }
+        this.size = keep;
+        if (changed) {
+            this.modCount = this.modCount + 1;
+            heapify();
+        }
+        return changed;
+    }
+
+    public void forEach(Consumer<T> action) {
+        if (action == null) {
+            throw new NullPointerException("action");
+        }
+        int expected = this.modCount;
+        int i = 0;
+        while (i < this.size) {
+            if (expected != this.modCount) {
+                throw new ConcurrentModificationException("PriorityQueue modified during forEach");
+            }
+            action.accept(this.queue[i]);
+            i = i + 1;
+        }
+    }
+
+    public String toString() {
+        StringBuilder sb = new StringBuilder();
+        sb.append("[");
+        int i = 0;
+        while (i < this.size) {
+            if (i > 0) {
+                sb.append(", ");
+            }
+            sb.append(String.valueOf(this.queue[i]));
+            i = i + 1;
+        }
+        sb.append("]");
+        return sb.toString();
     }
 }
 
@@ -1858,6 +2775,21 @@ class StringBuilder {
     StringBuilder() {
         this.parts = new ArrayList<String>();
         this.length = 0;
+    }
+
+    /** Java: {@code new StringBuilder(int capacity)} (capacity is only a hint here). */
+    StringBuilder(int capacity) {
+        this.parts = new ArrayList<String>();
+        this.length = 0;
+        if (capacity < 0) {
+            throw new IllegalArgumentException("capacity");
+        }
+    }
+
+    StringBuilder(String initial) {
+        this.parts = new ArrayList<String>();
+        this.length = 0;
+        append(initial);
     }
 
     public StringBuilder append(String s) {
@@ -1984,13 +2916,120 @@ class StringBuilder {
     }
 
     public String toString() {
+        int n = this.parts.size();
+        if (n == 0) {
+            return "";
+        }
+        if (n == 1) {
+            return this.parts.get(0);
+        }
         String out = "";
         int i = 0;
-        while (i < this.parts.size()) {
+        while (i < n) {
             out = out + this.parts.get(i);
             i = i + 1;
         }
+        // Collapse so repeated toString()/charAt() stay linear.
+        this.parts.clear();
+        this.parts.add(out);
         return out;
+    }
+
+    public StringBuilder append(long v) {
+        return append(String.valueOf(v));
+    }
+
+    public StringBuilder append(float v) {
+        return append(String.valueOf(v));
+    }
+
+    public StringBuilder append(double v) {
+        return append(String.valueOf(v));
+    }
+
+    public StringBuilder append(boolean v) {
+        return append(String.valueOf(v));
+    }
+
+    public StringBuilder append(char[] v) {
+        return append(String.valueOf(v));
+    }
+
+    /** Java: {@code append(Object)} — {@code String.valueOf(obj)} (null becomes "null"). */
+    public StringBuilder append(Object v) {
+        return append(String.valueOf(v));
+    }
+
+    public StringBuilder insert(int offset, char c) {
+        return insert(offset, String.valueOf(c));
+    }
+
+    public StringBuilder insert(int offset, int v) {
+        return insert(offset, String.valueOf(v));
+    }
+
+    public StringBuilder insert(int offset, long v) {
+        return insert(offset, String.valueOf(v));
+    }
+
+    public StringBuilder insert(int offset, double v) {
+        return insert(offset, String.valueOf(v));
+    }
+
+    public StringBuilder insert(int offset, boolean v) {
+        return insert(offset, String.valueOf(v));
+    }
+
+    public StringBuilder replace(int start, int end, String s) {
+        String all = toString();
+        int len = all.length();
+        if (start < 0 || start > len || start > end) {
+            throw new IndexOutOfBoundsException("StringBuilder.replace");
+        }
+        if (end > len) {
+            end = len;
+        }
+        if (s == null) {
+            s = "null";
+        }
+        String left = all.substring(0, start);
+        String right = all.substringFrom(end);
+        this.parts.clear();
+        this.parts.add(left);
+        this.parts.add(s);
+        this.parts.add(right);
+        this.length = left.length() + s.length() + right.length();
+        return this;
+    }
+
+    public int indexOf(String needle) {
+        return toString().indexOf(needle, 0);
+    }
+
+    public int indexOf(String needle, int from) {
+        return toString().indexOf(needle, from);
+    }
+
+    public int lastIndexOf(String needle) {
+        return toString().lastIndexOf(needle, toString().length());
+    }
+
+    public String substring(int start) {
+        if (start < 0 || start > this.length) {
+            throw new IndexOutOfBoundsException("StringBuilder.substring");
+        }
+        return toString().substringFrom(start);
+    }
+
+    public String substring(int start, int end) {
+        if (start < 0 || end > this.length || start > end) {
+            throw new IndexOutOfBoundsException("StringBuilder.substring");
+        }
+        return toString().substring(start, end);
+    }
+
+    public int capacity() {
+        return this.length < 16 ? 16 : this.length;
     }
 }
 

@@ -1,0 +1,103 @@
+import java.util.*;
+
+public class Main {
+    public static void main(String[] args) {
+        // Objects
+        String a = null;
+        String b = "x";
+        System.out.println(Objects.equals(a, b));
+        System.out.println(Objects.equals(a, null));
+        System.out.println(Objects.equals("hi", "hi"));
+        System.out.println(Objects.equals(5, 5));
+        System.out.println(Objects.hashCode(null));
+        System.out.println(Objects.hashCode("abc"));
+        System.out.println(Objects.hash("a"));
+        System.out.println(Objects.hash("a", 2));
+        System.out.println(Objects.hash("a", 2, 3L, true));
+        System.out.println(Objects.hash(1, 2, 3, 4, 5, 6));
+        System.out.println(Objects.hash(null, "z"));
+        System.out.println(Objects.toString(null));
+        System.out.println(Objects.toString(a, "dflt"));
+        System.out.println(Objects.toString(42));
+        System.out.println(Objects.isNull(a) + " " + Objects.nonNull(a));
+        System.out.println(Objects.requireNonNull(b));
+        System.out.println(Objects.requireNonNullElse(a, "else"));
+        try {
+            Objects.requireNonNull(a, "a is null");
+        } catch (NullPointerException e) {
+            System.out.println("NPE " + e.getMessage());
+        }
+        System.out.println(Objects.checkIndex(2, 3));
+        try {
+            Objects.checkIndex(3, 3);
+        } catch (IndexOutOfBoundsException e) {
+            System.out.println("IOOBE");
+        }
+
+        // Optional
+        Optional<String> e1 = Optional.empty();
+        Optional<String> p1 = Optional.of("hello");
+        Optional<String> n1 = Optional.ofNullable(a);
+        System.out.println(e1 + " " + p1 + " " + n1);
+        System.out.println(e1.isPresent() + " " + p1.isPresent() + " " + p1.isEmpty());
+        System.out.println(p1.get() + " " + e1.orElse("none") + " " + p1.orElse("none"));
+        System.out.println(e1.orElseGet(() -> "gen"));
+        p1.ifPresent(s -> System.out.println("present " + s));
+        e1.ifPresent(s -> System.out.println("never " + s));
+        System.out.println(p1.map(s -> s.length()));
+        System.out.println(p1.map(s -> s + "!").get());
+        System.out.println(e1.map(s -> s + "!"));
+        System.out.println(p1.filter(s -> s.startsWith("h")));
+        System.out.println(p1.filter(s -> s.startsWith("z")));
+        System.out.println(p1.equals(Optional.of("hello")) + " " + p1.equals(e1) + " " + e1.equals(Optional.empty()));
+        System.out.println(p1.hashCode() == "hello".hashCode());
+        try {
+            e1.get();
+        } catch (NoSuchElementException ex) {
+            System.out.println("NSEE " + ex.getMessage());
+        }
+        try {
+            e1.orElseThrow();
+        } catch (NoSuchElementException ex) {
+            System.out.println("NSEE2");
+        }
+        Optional<Integer> oi = Optional.of(7);
+        int v = oi.get();
+        System.out.println(v + oi.orElse(0));
+        List<Integer> list = new ArrayList<>();
+        list.add(4);
+        list.add(8);
+        Optional<List<Integer>> ol = Optional.of(list);
+        System.out.println(ol.map(l -> l.size()).orElse(-1));
+
+        // Random: seeded sequences must match the JDK exactly
+        Random r = new Random(12345L);
+        System.out.println(r.nextInt());
+        System.out.println(r.nextInt(100));
+        System.out.println(r.nextInt(64));
+        System.out.println(r.nextInt(1000000007));
+        System.out.println(r.nextLong());
+        System.out.println(r.nextDouble());
+        System.out.println(r.nextBoolean());
+        System.out.println(r.nextFloat());
+        System.out.println(r.nextInt(5, 10));
+        Random r2 = new Random(-7L);
+        long sum = 0;
+        for (int i = 0; i < 1000; i++) {
+            sum += r2.nextInt(1 << 20);
+        }
+        System.out.println(sum);
+        Random r3 = new Random(0);
+        for (int i = 0; i < 5; i++) {
+            System.out.println(r3.nextInt(10));
+        }
+        try {
+            r3.nextInt(0);
+        } catch (IllegalArgumentException ex) {
+            System.out.println("IAE " + ex.getMessage());
+        }
+        Random unseeded = new Random();
+        int u = unseeded.nextInt(10);
+        System.out.println(u >= 0 && u < 10);
+    }
+}

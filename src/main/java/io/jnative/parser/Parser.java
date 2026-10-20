@@ -119,6 +119,8 @@ public final class Parser {
                 consume(TokenType.SEMICOLON, "expected ';' after import");
                 if (name.startsWith("jnative.")) {
                     currentImports.add(new ImportDeclaration(name + ".*", imp.location()));
+                } else if (isBuiltinJavaPackage(name)) {
+                    // java.util.* / java.util.function.*: the supported subset is built in.
                 } else {
                     reporter.error(imp.location(),
                             "wildcard import is not supported; use an explicit type import");
@@ -135,8 +137,32 @@ public final class Parser {
                     "import must be a fully qualified type name (e.g. com.acme.Foo)");
             return;
         }
+        if (isBuiltinJavaPackage(name.substring(0, name.lastIndexOf('.')))) {
+            // `import java.util.ArrayList;` — the type is built in; an unsupported type fails
+            // later as an unknown type.
+            return;
+        }
         currentImports.add(new ImportDeclaration(name, imp.location()));
         knownClassNames.add(name.substring(name.lastIndexOf('.') + 1));
+    }
+
+    /** Packages whose supported subset is provided by the built-in stdlib. */
+    /** Maps LinkedHashMap/LinkedHashSet to their ordered HashMap/HashSet backing, unless user-declared. */
+    private String linkedHashAlias(String name) {
+        if (programTypeNames.contains(name)) {
+            return null;
+        }
+        return switch (name) {
+            case "LinkedHashMap" -> "HashMap";
+            case "LinkedHashSet" -> "HashSet";
+            case "LinkedList" -> "ArrayDeque";
+            case "Stack" -> "ArrayList";
+            default -> null;
+        };
+    }
+
+    private static boolean isBuiltinJavaPackage(String pkg) {
+        return "java.util".equals(pkg) || "java.util.function".equals(pkg);
     }
 
     private String parseQualifiedName(String message) {
@@ -208,6 +234,11 @@ public final class Parser {
         knownClassNames.add("NativeCallbackHandle");
         knownClassNames.add("Future");
         knownClassNames.addAll(programTypeNames);
+        // Aliased to the insertion-ordered HashMap/HashSet (see linkedHashAlias).
+        knownClassNames.add("LinkedHashMap");
+        knownClassNames.add("LinkedHashSet");
+        knownClassNames.add("LinkedList");
+        knownClassNames.add("Stack");
         int saved = current;
         current = 0;
         while (!isAtEnd()) {
@@ -987,6 +1018,10 @@ public final class Parser {
             if (qualified.equals("Map.Entry")) {
                 qualified = "Entry";
             }
+            String linkedBase = linkedHashAlias(qualified);
+            if (linkedBase != null) {
+                qualified = linkedBase;
+            }
             return TypeName.ofClass(qualified, args, id.location());
         }
         if (match(TokenType.QUESTION)) {
@@ -1020,7 +1055,13 @@ public final class Parser {
         if (match(TokenType.QUESTION)) {
             return parseWildcardType(previous());
         }
-        return parseType();
+        TypeName t = parseType();
+        while (check(TokenType.LBRACKET) && peekAt(1) != null && peekAt(1).type() == TokenType.RBRACKET) {
+            Token lb = advance();
+            advance();
+            t = TypeName.ofArray(t, lb.location());
+        }
+        return t;
     }
 
     /** Skip {@code <T, U extends X>} during class-name pre-scan. */
@@ -2132,7 +2173,19 @@ public final class Parser {
         List<Expression> args = parseArgumentList();
         consume(TokenType.RPAREN, "expected ')' after arguments");
         List<TypeName> typeArgs = type.hasTypeArguments() ? type.typeArguments() : List.of();
-        return new NewObjectExpression(type.name(), typeArgs, diamond, args, newTok.location());
+        String className = type.name();
+        String linkedBase = linkedHashAlias(className);
+        if (linkedBase != null) {
+            if (className.startsWith("LinkedHash")) {
+                // LinkedHashMap/LinkedHashSet are insertion-ordered HashMap/HashSet: pass ordered=true.
+                List<Expression> withFlag = new ArrayList<>();
+                withFlag.add(LiteralExpression.ofBoolean(true, newTok.location()));
+                withFlag.addAll(args);
+                args = withFlag;
+            }
+            className = linkedBase;
+        }
+        return new NewObjectExpression(className, typeArgs, diamond, args, newTok.location());
     }
 
     /**

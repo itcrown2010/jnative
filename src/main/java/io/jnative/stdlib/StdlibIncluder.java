@@ -236,6 +236,14 @@ public final class StdlibIncluder {
                 || usesCollectionType(sourceText, "Set")
                 || usesCollectionType(sourceText, "Map")
                 || usesCollectionType(sourceText, "Collection")
+                || usesCollectionType(sourceText, "Queue")
+                || usesCollectionType(sourceText, "Deque")
+                || usesCollectionType(sourceText, "LinkedList")
+                || usesCollectionType(sourceText, "Stack")
+                || usesCollectionType(sourceText, "PriorityQueue")
+                || needsObjects(sourceText)
+                || needsOptional(sourceText)
+                || needsRandom(sourceText)
                 || needsBoxing(sourceText);
     }
 
@@ -249,6 +257,31 @@ public final class StdlibIncluder {
             return false;
         }
         return src.contains(name + "<") || src.contains(name + ".of(") || src.contains(name + ".copyOf(");
+    }
+
+    private static final java.util.regex.Pattern OBJECTS_USE =
+            java.util.regex.Pattern.compile("(?<![A-Za-z0-9_$.])Objects\\s*\\.");
+    private static final java.util.regex.Pattern OPTIONAL_USE =
+            java.util.regex.Pattern.compile("(?<![A-Za-z0-9_$.])Optional\\s*[<.]");
+    private static final java.util.regex.Pattern RANDOM_USE =
+            java.util.regex.Pattern.compile("(?<![A-Za-z0-9_$])Random\\b");
+
+    private static boolean declaresType(String src, String name) {
+        return src.contains("class " + name + " ") || src.contains("class " + name + "<")
+                || src.contains("class " + name + "{") || src.contains("class " + name + "\n")
+                || src.contains("interface " + name + " ") || src.contains("interface " + name + "<");
+    }
+
+    public static boolean needsObjects(String src) {
+        return src != null && OBJECTS_USE.matcher(src).find() && !declaresType(src, "Objects");
+    }
+
+    public static boolean needsOptional(String src) {
+        return src != null && OPTIONAL_USE.matcher(src).find() && !declaresType(src, "Optional");
+    }
+
+    public static boolean needsRandom(String src) {
+        return src != null && RANDOM_USE.matcher(src).find() && !declaresType(src, "Random");
     }
 
     /** Boxed primitives and types that typically imply autobox. */
@@ -760,6 +793,15 @@ public final class StdlibIncluder {
                 || wantAsync || wantDatabase || wantCrypto || wantRpc || wantTime || wantTlsEarly || needsNet(userSource)) {
             resources.add("stdlib/collections/BoxingLib.java");
             resources.add("stdlib/collections/CollectionsLib.java");
+            if (needsObjects(userSource)) {
+                resources.add("stdlib/collections/ObjectsLib.java");
+            }
+            if (needsOptional(userSource)) {
+                resources.add("stdlib/collections/OptionalLib.java");
+            }
+            if (needsRandom(userSource)) {
+                resources.add("stdlib/collections/RandomLib.java");
+            }
         } else if (needsBoxing(userSource)) {
             resources.add("stdlib/collections/BoxingLib.java");
         }

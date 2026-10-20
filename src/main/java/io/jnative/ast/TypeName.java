@@ -37,7 +37,9 @@ public record TypeName(
         CLASS,
         NATIVE_PTR,
         WILDCARD,
-        TYPE_VAR
+        TYPE_VAR,
+        /** {@code T[]} used as a type argument (element type in {@link #typeArgument()}). */
+        ARRAY
     }
 
     public enum WildcardKind {
@@ -108,6 +110,10 @@ public record TypeName(
                 arg != null ? List.of(arg) : List.of(), WildcardKind.NONE, null, loc);
     }
 
+    public static TypeName ofArray(TypeName element, SourceLocation loc) {
+        return new TypeName(Kind.ARRAY, "[]", element, List.of(element), WildcardKind.NONE, null, loc);
+    }
+
     public static TypeName ofWildcard(WildcardKind kind, TypeName bound, SourceLocation loc) {
         return new TypeName(Kind.WILDCARD, "?", null, List.of(), kind, bound, loc);
     }
@@ -128,6 +134,9 @@ public record TypeName(
                 case EXTENDS -> "? extends " + wildcardBound;
                 case SUPER -> "? super " + wildcardBound;
             };
+        }
+        if (kind == Kind.ARRAY) {
+            return typeArgument + "[]";
         }
         if (kind == Kind.NATIVE_PTR) {
             return "NativePtr<" + (typeArgument != null ? typeArgument : "Void") + ">";

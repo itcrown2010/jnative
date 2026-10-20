@@ -1,0 +1,53 @@
+import java.util.*;
+import java.util.function.Predicate;
+
+public class Main {
+    public static void main(String[] args) {
+        StringBuilder sb = new StringBuilder();
+        sb.append("a").append('b').append(3).append(4L).append(2.5).append(true);
+        sb.append(1.5f).append((Object) "obj").append(new char[] {'x', 'y'});
+        System.out.println(sb.toString());
+        System.out.println(sb.length());
+
+        Object nul = null;
+        sb.append(nul);
+        String ns = null;
+        sb.append(ns);
+        System.out.println(sb);
+
+        StringBuilder t = new StringBuilder("hello");
+        t.insert(0, 'X').insert(3, 42).insert(1, 7L).insert(2, true).insert(0, "<<");
+        System.out.println(t);
+        t.replace(0, 2, "[]");
+        System.out.println(t);
+        t.replace(3, 100, "END");
+        System.out.println(t);
+        System.out.println(t.indexOf("END"));
+        System.out.println(t.indexOf("zzz"));
+        System.out.println(t.lastIndexOf("E"));
+        System.out.println(t.substring(2));
+        System.out.println(t.substring(1, 4));
+        t.reverse();
+        System.out.println(t);
+        t.setLength(3);
+        System.out.println(t);
+        t.deleteCharAt(0);
+        t.setCharAt(0, 'Q');
+        System.out.println(t + "|" + t.length() + "|" + t.charAt(1));
+
+        StringBuilder big = new StringBuilder();
+        int i = 0;
+        while (i < 200) {
+            big.append(i).append(',');
+            i += 1;
+        }
+        System.out.println(big.length());
+        System.out.println(big.substring(0, 20));
+        System.out.println(big.toString().hashCode());
+
+        ArrayList<String> list = new ArrayList<String>();
+        list.add("x");
+        Predicate<String> p = s -> s.length() > 0;
+        System.out.println(list + " " + p.test("q"));
+    }
+}

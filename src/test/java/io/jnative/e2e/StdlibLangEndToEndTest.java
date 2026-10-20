@@ -42,6 +42,36 @@ class StdlibLangEndToEndTest {
     }
 
     @Test
+    void linkedHashCollectionsMatchJava(@TempDir Path dir) throws Exception {
+        Assumptions.assumeTrue(Toolchain.detect().isPresent(), "clang not available");
+        compareWithJava(dir, "/e2e/stdlib/Lhm1.java.txt");
+    }
+
+    @Test
+    void objectsOptionalRandomMatchJava(@TempDir Path dir) throws Exception {
+        Assumptions.assumeTrue(Toolchain.detect().isPresent(), "clang not available");
+        compareWithJava(dir, "/e2e/stdlib/Util1.java.txt");
+    }
+
+    @Test
+    void queuesDequesPriorityQueueStackMatchJava(@TempDir Path dir) throws Exception {
+        Assumptions.assumeTrue(Toolchain.detect().isPresent(), "clang not available");
+        compareWithJava(dir, "/e2e/stdlib/Queue1.java.txt");
+    }
+
+    @Test
+    void arrayTypeArgumentsMatchJava(@TempDir Path dir) throws Exception {
+        Assumptions.assumeTrue(Toolchain.detect().isPresent(), "clang not available");
+        compareWithJava(dir, "/e2e/stdlib/ArrArg1.java.txt");
+    }
+
+    @Test
+    void stringBuilderMatchesJava(@TempDir Path dir) throws Exception {
+        Assumptions.assumeTrue(Toolchain.detect().isPresent(), "clang not available");
+        compareWithJava(dir, "/e2e/stdlib/Sb1.java.txt");
+    }
+
+    @Test
     void compoundAssignmentMatchesJava(@TempDir Path dir) throws Exception {
         Assumptions.assumeTrue(Toolchain.detect().isPresent(), "clang not available");
         compareWithJava(dir, "/e2e/stdlib/Compound1.java.txt");

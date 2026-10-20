@@ -1639,6 +1639,7 @@ public final class SemanticAnalyzer {
             }
             List<TypeParameterSymbol> methodTypeParams =
                     createTypeParameters(method.typeParameters(), symbol, null);
+            methodTypeParamSymbols.addAll(methodTypeParams);
             pushTypeParamScope(methodTypeParams);
             List<ParameterSymbol> params = new ArrayList<>();
             for (Parameter p : method.parameters()) {
@@ -1761,6 +1762,7 @@ public final class SemanticAnalyzer {
             }
             List<TypeParameterSymbol> methodTypeParams =
                     createTypeParameters(method.typeParameters(), symbol, null);
+            methodTypeParamSymbols.addAll(methodTypeParams);
             pushTypeParamScope(methodTypeParams);
             List<ParameterSymbol> params = new ArrayList<>();
             for (Parameter p : method.parameters()) {
@@ -3777,7 +3779,7 @@ public final class SemanticAnalyzer {
         if ("add".equals(name) && argc == 2 && has.test("addAt")) {
             return "addAt";
         }
-        if ("remove".equals(name) && argc == 1 && !has.test("remove")
+        if ("remove".equals(name) && argc == 1
                 && has.test("removeAt") && has.test("removeValue")) {
             JType at = analyzeExpression(m.arguments().get(0));
             if (at instanceof PrimitiveType p
@@ -3963,6 +3965,13 @@ public final class SemanticAnalyzer {
             if (recvSub != null) {
                 callTarget = substituteMethod(ms, recvSub);
             }
+            if (ms.isGeneric()) {
+                // Generic instance method (e.g. Optional<T>.<R>map): infer R from the arguments.
+                if (callTarget != ms) {
+                    callTarget.setTypeParameters(ms.typeParameters());
+                }
+                return resolveGenericCall(m, callTarget, expectedReturn);
+            }
             checkArguments(m, callTarget);
             // Store substituted params/return so IR can box (ArrayList<Integer>.add(int)).
             resolvedSymbols.put(m, callTarget);
@@ -4097,6 +4106,50 @@ public final class SemanticAnalyzer {
         return null;
     }
 
+    /** Type parameters declared by generic methods (as opposed to classes). */
+    private final java.util.Set<TypeParameterSymbol> methodTypeParamSymbols =
+            java.util.Collections.newSetFromMap(new java.util.IdentityHashMap<>());
+
+    /** Body types of expression lambdas whose SAM return type is a not-yet-inferred method type variable. */
+    private final java.util.Map<LambdaExpression, JType> lambdaBodyTypes = new java.util.IdentityHashMap<>();
+
+    /**
+     * For a lambda argument against a parameterized functional formal such as {@code Function<T, R>}
+     * with {@code R} a method type parameter: the formal with {@code R} replaced by the (boxed) lambda
+     * body type, so the inference engine can bind {@code R}. Null when no evidence is available.
+     */
+    private JType lambdaArgumentType(LambdaExpression lambda, JType formal) {
+        if (!(formal instanceof ParameterizedType pt) || !(pt.raw() instanceof InterfaceSymbol iface)
+                || iface.functionType() == null
+                || !(iface.functionType().returnType() instanceof TypeVariable rv)) {
+            return null;
+        }
+        lambdaBodyTypes.remove(lambda);
+        analyzeExpression(lambda, formal);
+        JType body = lambdaBodyTypes.remove(lambda);
+        if (body == null || body instanceof ErrorType || body instanceof NullType
+                || body instanceof VoidType) {
+            return null;
+        }
+        if (body instanceof PrimitiveType p) {
+            String wrapper = Boxing.wrapperNameOf(p);
+            ClassSymbol wrapperSym = wrapper == null ? null : classes.get(wrapper);
+            if (wrapperSym == null) {
+                return null;
+            }
+            body = new ClassType(wrapperSym);
+        }
+        List<TypeParameterSymbol> tps = iface.typeParameters();
+        List<JType> args = new ArrayList<>(pt.typeArguments());
+        for (int j = 0; j < tps.size() && j < args.size(); j++) {
+            if (tps.get(j) == rv.symbol()) {
+                args.set(j, body);
+                return new ParameterizedType(pt.raw(), args);
+            }
+        }
+        return null;
+    }
+
     /** Generic calls whose type arguments fell back to Object (no argument/target constraint yet). */
     private final java.util.Set<Expression> weaklyTypedCalls =
             java.util.Collections.newSetFromMap(new java.util.IdentityHashMap<>());
@@ -4120,7 +4173,13 @@ public final class SemanticAnalyzer {
                 List<JType> formals = ms.parameterTypes();
                 int argIndex = 0;
                 for (Expression arg : m.arguments()) {
-                    JType actual = analyzeExpression(arg);
+                    JType actual = null;
+                    if (arg instanceof LambdaExpression lam && argIndex < formals.size()) {
+                        actual = lambdaArgumentType(lam, formals.get(argIndex));
+                    }
+                    if (actual == null) {
+                        actual = analyzeExpression(arg);
+                    }
                     if (arg instanceof MethodCallExpression && weaklyTypedCalls.contains(arg)) {
                         actual = null; // inferred only from defaults; the target type decides
                     }
@@ -4396,7 +4455,13 @@ public final class SemanticAnalyzer {
                 }
             } else {
                 JType bodyType = analyzeExpression(lambda.expressionBody());
-                if (!assignableWithBoxing(expected.returnType(), bodyType)
+                if (expected.returnType() instanceof TypeVariable rtv
+                        && methodTypeParamSymbols.contains(rtv.symbol())
+                        && !(currentMethod != null && currentMethod.typeParameters().contains(rtv.symbol()))) {
+                    // Return type is a type parameter of the generic method being called: the
+                    // body type is the inference evidence (see lambdaArgumentType), not an error.
+                    lambdaBodyTypes.put(lambda, bodyType);
+                } else if (!assignableWithBoxing(expected.returnType(), bodyType)
                         && !(expected.returnType() instanceof VoidType)) {
                     if (!(bodyType instanceof ErrorType)) {
                         reporter.error(lambda.expressionBody().location(),
@@ -4769,21 +4834,44 @@ public final class SemanticAnalyzer {
             return false;
         }
         for (ParameterizedType iface : cls.implementedParameterizedInterfaces()) {
-            if (iface.raw().name().equals(target.raw().name())
-                    && iface.typeArguments().size() == target.typeArguments().size()) {
-                boolean any = false;
-                List<TypeParameterSymbol> params = cls.typeParameters();
-                for (int j = 0; j < iface.typeArguments().size(); j++) {
-                    if (iface.typeArguments().get(j) instanceof TypeVariable tv) {
-                        for (int k = 0; k < params.size(); k++) {
-                            if (params.get(k) == tv.symbol() && bound.length > k) {
-                                bound[k] = target.typeArguments().get(j);
-                                any = true;
-                            }
+            if (bindThroughInterface(iface, target, cls.typeParameters(), bound, 0)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** Binds class type parameters via {@code iface} or (recursively) its super-interfaces. */
+    private boolean bindThroughInterface(
+            ParameterizedType iface, ParameterizedType target,
+            List<TypeParameterSymbol> params, JType[] bound, int depth) {
+        if (depth > 8) {
+            return false;
+        }
+        if (iface.raw().name().equals(target.raw().name())
+                && iface.typeArguments().size() == target.typeArguments().size()) {
+            boolean any = false;
+            for (int j = 0; j < iface.typeArguments().size(); j++) {
+                if (iface.typeArguments().get(j) instanceof TypeVariable tv) {
+                    for (int k = 0; k < params.size(); k++) {
+                        if (params.get(k) == tv.symbol() && bound.length > k) {
+                            bound[k] = target.typeArguments().get(j);
+                            any = true;
                         }
                     }
                 }
-                if (any) {
+            }
+            return any;
+        }
+        if (iface.raw() instanceof InterfaceSymbol is
+                && is.typeParameters().size() == iface.typeArguments().size()) {
+            TypeSubstitution sub = TypeSubstitution.zip(is.typeParameters(), iface.typeArguments());
+            for (ParameterizedType sup : is.parameterizedSuperInterfaces()) {
+                List<JType> args = new ArrayList<>();
+                for (JType a : sup.typeArguments()) {
+                    args.add(sub.apply(a));
+                }
+                if (bindThroughInterface(new ParameterizedType(sup.raw(), args), target, params, bound, depth + 1)) {
                     return true;
                 }
             }
@@ -4889,8 +4977,41 @@ public final class SemanticAnalyzer {
                         n.arguments().get(i), samExpectedType(expectedParam)));
             }
         } else {
-            for (Expression arg : n.arguments()) {
-                argTypes.add(analyzeExpression(arg));
+            for (int i = 0; i < n.arguments().size(); i++) {
+                Expression arg = n.arguments().get(i);
+                // Substituted parameter type i of every constructor with matching arity.
+                List<JType> paramsAt = new ArrayList<>();
+                for (ConstructorSymbol c : byArity) {
+                    JType p = c.parameters().get(i).type();
+                    paramsAt.add(ctorSub != null ? ctorSub.apply(p) : p);
+                }
+                JType lambdaExpected = null;
+                if (arg instanceof LambdaExpression || arg instanceof MethodReferenceExpression) {
+                    // Only constructors taking a functional interface can accept a lambda.
+                    int sams = 0;
+                    for (JType p : paramsAt) {
+                        if (samExpectedType(p) != null) {
+                            sams++;
+                            lambdaExpected = samExpectedType(p);
+                        }
+                    }
+                    if (sams != 1) {
+                        lambdaExpected = null;
+                    }
+                }
+                JType at = analyzeExpression(arg, lambdaExpected);
+                if (arg instanceof MethodCallExpression && weaklyTypedCalls.contains(arg)
+                        && at instanceof ParameterizedType atp) {
+                    // new PriorityQueue<>(Collections.reverseOrder()): retarget the weakly typed call.
+                    for (JType p : paramsAt) {
+                        if (p instanceof ParameterizedType pp
+                                && pp.raw().name().equals(atp.raw().name())) {
+                            at = analyzeExpression(arg, p);
+                            break;
+                        }
+                    }
+                }
+                argTypes.add(at);
             }
         }
         List<CallableResolver.Candidate> candidates = new ArrayList<>();
@@ -5262,6 +5383,15 @@ public final class SemanticAnalyzer {
             case NATIVE_PTR -> resolveNativePtrType(typeName, loc);
             case WILDCARD -> resolveWildcardType(typeName, loc);
             case TYPE_VAR -> resolveTypeVariable(typeName.name(), loc);
+            case ARRAY -> {
+                JType elem = resolveTypeName(typeName.typeArgument(), false, loc);
+                if (elem instanceof VoidType || elem instanceof ErrorType || elem instanceof NativeStructType) {
+                    reporter.error(loc, "invalid array type");
+                    yield ErrorType.INSTANCE;
+                }
+                arrayMetadataFor(elem);
+                yield new ArrayType(elem);
+            }
             case CLASS -> resolveClassTypeName(typeName, loc);
         };
         if (isArray) {

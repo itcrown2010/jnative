@@ -103,6 +103,7 @@ Levels: L0–L4 per readiness audit.
 | comparison / logical `&& \|\| !` | SUPPORTED | L3 | |
 | bitwise `& \| ^ ~` | SUPPORTED | L2 | Integer + boolean non-short-circuit; `PrimitiveOpsEndToEndTest` |
 | shifts `<< >> >>>` | SUPPORTED | L2 | Distance masked 0x1f / 0x3f; ashr/lshr | 
+| compound assignment `+= -= *= /= %= &= \|= ^= <<= >>= >>>=` | SUPPORTED | L2 | Desugared in the parser to `a = (T)(a op b)` with Java's implicit narrowing (`char c += 2`, `int i += 2.9`, `byte b += 10`; `String +=`). The target is evaluated twice, so side-effecting targets (e.g. `a[i++] += 1`) are rejected with a diagnostic. `StdlibLangEndToEndTest` vs javac |
 | varargs `...` | **NOT SUPPORTED IN 1.0** | L0 | |
 | primitive casts `(int)x` | SUPPORTED | L2 | Integer + float/double (NaN→0/saturate); boolean rejected; char zext |
 | reference cast / `instanceof` | SUPPORTED | L2–L3 | RuntimeError + Interface e2e |
@@ -133,8 +134,34 @@ Levels: L0–L4 per readiness audit.
 | consecutive / trailing empties | kept |
 | null delimiter | NPE |
 | case folding | ASCII only (`toLowerCase` / `equalsIgnoreCase`) |
-| `StringBuilder` | Present in CollectionsLib — Level **L2** (not full Java parity) |
+| `StringBuilder` | Level **L2**, differential-tested vs javac (`Sb1`): ctors `()`/`(int)`/`(String)`; `append` for String/char/int/long/float/double/boolean/char[]/Object (null → `"null"`); `insert` (String/char/int/long/double/boolean), `replace`, `delete`, `deleteCharAt`, `reverse`, `setLength`, `setCharAt`, `charAt`, `indexOf`/`lastIndexOf(String)`, `substring`, `length`, `capacity` (hint only). Not provided: `append(CharSequence)`, `chars()`, `compareTo` |
 | Details | See `docs/string.md` |
+
+### 5.1 Collections (`java.util` subset, CollectionsLib)
+
+Differential-tested against real Java (`Col1`, -O0 and -O2): `HashMap`/`HashSet` iteration order and `toString` formats match Java's.
+
+| API | Notes |
+|---|---|
+| `ArrayList<T>` | `add/addAll/get/set/remove(int)/remove(Object)/indexOf/lastIndexOf/contains/containsAll/removeAll/retainAll/removeIf/sort/subList/forEach`, `toString/equals/hashCode`. `ArrayList<int>` etc. stay primitive-specialised (no boxing in `add/get`) |
+| `HashMap<K,V>` | Java-compatible bucket table (hash spreading, load factor 0.75, resize order preserved, null keys). `put/get/getOrDefault/putIfAbsent/merge/computeIfAbsent/computeIfPresent/replace/remove/containsKey/containsValue/putAll/forEach/keySet/values/entrySet` (live views, `Entry.setValue`) |
+| `HashSet<T>` | Backed by `HashMap`; `add/remove/contains/addAll/removeIf/...`, same iteration order as Java |
+| `LinkedHashMap<K,V>`, `LinkedHashSet<T>` | Insertion-ordered `HashMap`/`HashSet` (the parser rewrites the type name and `new LinkedHashMap<>(args)` to `new HashMap<>(true, args)`); same API as above, re-`put` keeps the original position. Access-order mode (`new LinkedHashMap<>(n, lf, true)`) is not supported |
+| `Queue<T>`, `Deque<T>`, `ArrayDeque<T>`, `LinkedList<T>` | One ring-buffer class implements `List` and `Deque`; the parser maps `LinkedList` to it. `add/offer/poll/peek/remove()/element`, `addFirst/addLast/offerFirst/offerLast/removeFirst/removeLast/pollFirst/pollLast/getFirst/getLast/peekFirst/peekLast/push/pop`, `iterator/descendingIterator`, and the full `List` API (`get/set/add(i,x)/remove(i)/remove(Object)/indexOf/sort/subList/...`) with `toString/equals/hashCode`. O(1) at both ends and for `get(i)`, O(n) for insertion in the middle. Deviation: `ArrayDeque` also accepts `null` and index operations |
+| `PriorityQueue<T>` | The JDK's binary heap (`siftUp/siftDown`, same array order for iteration and `toString`); natural ordering or a `Comparator` (lambda or `Collections.reverseOrder()`); `add/offer/poll/peek/remove()/remove(x)/element/contains/removeIf/iterator`, collection constructor. No `PriorityQueue(PriorityQueue)` fast path |
+| `Stack<T>` | Parser maps `Stack` to `ArrayList` plus `push/pop/peek/empty/search`; `EmptyStackException` on an empty stack. Iteration order is bottom to top as in Java |
+| Array type arguments | `List<int[]>`, `PriorityQueue<int[]>`, `Map<String, String[]>` etc. (one-dimensional array as a type argument; multi-dimensional arrays are still unsupported) |
+| `Objects` | `equals/hashCode/hash` (1–6 args; no varargs)/`toString`(1–2 args)`/isNull/nonNull/requireNonNull`(1–2 args)`/requireNonNullElse/checkIndex` |
+| `Optional<T>` | `empty/of/ofNullable/isPresent/isEmpty/get/orElse/orElseGet/orElseThrow()/ifPresent/map/filter/or`, `equals/hashCode/toString`. `map` infers its result type from an expression lambda body (also available for user generic methods taking `Function<T,R>`); no `flatMap`, `OptionalInt` & co |
+| `Random` | The JDK's 48-bit LCG: a seeded `Random` yields the identical sequence (`nextInt()/nextInt(bound)/nextInt(origin,bound)/nextLong/nextDouble/nextFloat/nextBoolean`); no `nextGaussian`/streams |
+| `List.of/copyOf`, `Set.of/copyOf`, `Map.of/entry/copyOf`, `Arrays.asList` | Desugared by the parser (0–10 elements/pairs). Results are **mutable**; `Set.of`/`Map.of` use insertion-bucket order, not Java's randomised order |
+| `Arrays` | `copyOf/copyOfRange/fill/equals/toString/hashCode/sort` (primitives, `Object[]`, `T[]` + `Comparator`, ranges), `asList(T[])` |
+| `Collections` | `sort/reverse/swap/max/min/reverseOrder/frequency/binarySearch/emptyList` |
+| Functional interfaces | `Comparator`, `Predicate`, `Consumer`, `Function`, `BiConsumer`, `BiFunction` (lambdas and method refs) |
+
+Documented deviations from Java: `List.subList` is a **copy** (not a view); no tree bins in `HashMap`; `Map.Entry` is spelled `Entry` internally (the `Map.Entry` form is accepted); `import java.util.*;`, `import java.util.function.*;` and single-type imports from those packages are accepted and ignored (the supported subset is built in); other wildcard imports are still an error. Methods taking `Collection<T>`/`Iterator<T>`/`Predicate<T>` on primitive-specialised collections box the element (erased generic interfaces).
+
+Not yet provided: `TreeMap`/`TreeSet`, `iterator.remove`, `Collections.shuffle`.
 
 ---
 
@@ -160,7 +187,7 @@ Ship as hard errors or absence — **never** silent wrong codegen:
 5. octal integer literals (`017` is still read as decimal 17 — **differs from Java**)  
 6. varargs / records  
 7. labeled break  
-8. bitwise compound assignment (`&=`, `<<=`, …)  
+8. compound assignment on side-effecting targets (`a[i++] += 1`) — diagnostic  
 9. `final` fields (blank or initialized)  
 10. Wildcard capture / multi-bound generics / full Stream & concurrent collections  
     (boxing `Integer`/`Long`/`Boolean` + `ArrayList`/`HashMap`: see `docs/jnative-boxing-collections.md`)  
