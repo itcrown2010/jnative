@@ -12,6 +12,7 @@ import io.jnative.ffi.AbiType;
 import io.jnative.layout.ClassLayout;
 import io.jnative.layout.ObjectLayoutBuilder;
 import io.jnative.semantic.ArrayLengthSymbol;
+import io.jnative.semantic.SemanticAnalyzer;
 import io.jnative.semantic.ArrayType;
 import io.jnative.semantic.Boxing;
 import io.jnative.semantic.CallableBinding;
@@ -123,18 +124,19 @@ public final class IrGenerator {
             int breakTargetId,
             int continueTargetId,
             int tryDepthAtEntry,
-            boolean isSwitch
+            boolean isSwitch,
+            FrameKind kind,
+            String label,
+            IrValue.Local resultSlot,
+            JType resultType
     ) {
-        private LoopFrame(
-                IrBasicBlock breakTarget,
-                IrBasicBlock continueTarget,
-                int breakTargetId,
-                int continueTargetId,
-                int tryDepthAtEntry
-        ) {
-            this(breakTarget, continueTarget, breakTargetId, continueTargetId, tryDepthAtEntry, false);
-        }
     }
+
+    /** What a {@link LoopFrame} stands for: only LOOP and SWITCH take an unlabeled break. */
+    private enum FrameKind { LOOP, SWITCH, BLOCK, SWITCH_EXPR }
+
+    /** Label of the labeled statement being lowered, consumed by the loop/switch frame it pushes. */
+    private String pendingLabel;
 
     public IrModule generate(TypedCompilationUnit typed) {
         this.typed = typed;
@@ -255,11 +257,7 @@ public final class IrGenerator {
                 IrFunction function = new IrFunction(ctor.mangledName(), IrType.VOID, params, false);
                 module.addFunction(function);
                 functionsByMangled.put(ctor.mangledName(), function);
-                if (cls.isEnum()) {
-                    lowerEnumConstructor(function, ctor);
-                } else {
-                    lowerImplicitConstructor(function, ctor);
-                }
+                lowerImplicitConstructor(function, ctor);
             }
             if (cls.isEnum()) {
                 lowerEnumMethods(module, cls);
@@ -315,11 +313,14 @@ public final class IrGenerator {
             for (ClassSymbol cls : typed.classes().values()) {
                 currentClass = cls;
                 currentMethod = null;
-                if (pass == 1 && cls.isEnum()) {
-                    lowerEnumConstantInit(cls);
-                }
                 for (FieldSymbol field : cls.declaredFields()) {
                     if (!field.isStatic() || field.initializer() == null) {
+                        continue;
+                    }
+                    if (cls.isEnum() && cls.enumConstants().contains(field.name())) {
+                        if (pass == 1) {
+                            lowerEnumConstantInit(cls, field);
+                        }
                         continue;
                     }
                     boolean literal = field.initializer() instanceof LiteralExpression;
@@ -335,24 +336,24 @@ public final class IrGenerator {
         builder.retVoid();
     }
 
-    /** Allocate each enum constant as a managed object and store into its static field (GC root). */
-    private void lowerEnumConstantInit(ClassSymbol cls) {
-        ConstructorSymbol ctor = cls.constructors().getFirst();
-        String llvmType = cls.layout().llvmTypeName();
-        long size = cls.layout().instanceSize();
-        String meta = cls.metadata().globalName();
-        int ordinal = 0;
-        for (String name : cls.enumConstants()) {
-            FieldSymbol field = cls.findField(name).orElseThrow();
-            IrValue obj = builder.newObject(cls.name(), llvmType, size, meta);
-            IrValue.GlobalString gs = builder.stringConstant(name);
-            int len = name.getBytes(java.nio.charset.StandardCharsets.UTF_8).length;
-            IrValue nameStr = builder.stringLiteral(gs, len);
-            builder.constructorCall(ctor.mangledName(),
-                    List.of(obj, nameStr, new IrValue.Const(IrType.I32, ordinal)));
-            builder.storeStatic(field.staticGlobal(), obj, false);
-            ordinal++;
-        }
+    /**
+     * Run {@code new Enum(args)} for one constant, record its name and ordinal, and store it into
+     * its static field (a GC root). Constants initialise in declaration order.
+     */
+    private void lowerEnumConstantInit(ClassSymbol cls, FieldSymbol field) {
+        IrValue.Local slot = builder.alloca("enum.const", IrType.PTR);
+        builder.store(lowerExpression(field.initializer()), slot);
+        IrValue.GlobalString gs = builder.stringConstant(field.name());
+        int len = field.name().getBytes(java.nio.charset.StandardCharsets.UTF_8).length;
+        IrValue nameStr = builder.stringLiteral(gs, len);
+        FieldSymbol nameField = cls.findField("$name").orElseThrow();
+        FieldSymbol ordinalField = cls.findField("$ordinal").orElseThrow();
+        builder.storeField(builder.load(slot), cls.name(), cls.layout().llvmTypeName(),
+                nameField.gepIndex(), nameStr);
+        builder.storeField(builder.load(slot), cls.name(), cls.layout().llvmTypeName(),
+                ordinalField.gepIndex(),
+                new IrValue.Const(IrType.I32, cls.enumConstants().indexOf(field.name())));
+        builder.storeStatic(field.staticGlobal(), builder.load(slot), false);
     }
 
     private void lowerThreadBuiltins(IrModule module, TypedCompilationUnit typed) {
@@ -1090,7 +1091,25 @@ public final class IrGenerator {
         if (raw == null || raw.isEmpty()) {
             return raw;
         }
+        if (currentClass != null) {
+            // Member types of the current class and of its enclosing classes shadow everything else.
+            String owner = currentClass.name();
+            while (owner != null && !owner.isEmpty()) {
+                String key = owner + "." + raw;
+                if (typeKeyExists(key)) {
+                    return key;
+                }
+                int dot = owner.lastIndexOf('.');
+                owner = dot < 0 ? null : owner.substring(0, dot);
+            }
+        }
         if (raw.contains(".")) {
+            if (currentClass != null && !typeKeyExists(raw)) {
+                String pkg = currentClass.packageName();
+                if (pkg != null && !pkg.isEmpty() && typeKeyExists(pkg + "." + raw)) {
+                    return pkg + "." + raw;
+                }
+            }
             return raw;
         }
         if (currentClass != null) {
@@ -1112,6 +1131,12 @@ public final class IrGenerator {
             }
         }
         return raw;
+    }
+
+    private boolean typeKeyExists(String key) {
+        return typed.classes().containsKey(key)
+                || typed.interfaces().containsKey(key)
+                || typed.nativeStructs().containsKey(key);
     }
 
     private List<JType> resolveTypeArguments(List<TypeName> typeArgs) {
@@ -1136,21 +1161,6 @@ public final class IrGenerator {
         builder.retVoid();
     }
 
-    private void lowerEnumConstructor(IrFunction function, ConstructorSymbol ctor) {
-        ClassSymbol cls = ctor.owner();
-        builder.beginFunction(function);
-        IrValue.Local thisLocal = builder.alloca("this", IrType.PTR);
-        builder.store(new IrValue.Param("this", IrType.PTR), thisLocal);
-        IrValue thisPtr = builder.load(thisLocal);
-        FieldSymbol nameField = cls.findField("$name").orElseThrow();
-        FieldSymbol ordinalField = cls.findField("$ordinal").orElseThrow();
-        builder.storeField(thisPtr, cls.name(), cls.layout().llvmTypeName(),
-                nameField.gepIndex(), new IrValue.Param("$name", IrType.PTR));
-        builder.storeField(thisPtr, cls.name(), cls.layout().llvmTypeName(),
-                ordinalField.gepIndex(), new IrValue.Param("$ordinal", IrType.I32));
-        builder.retVoid();
-    }
-
     private void lowerEnumMethods(IrModule module, ClassSymbol cls) {
         for (MethodSymbol ms : cls.declaredMethods()) {
             if (functionsByMangled.containsKey(ms.mangledName())) {
@@ -1172,6 +1182,8 @@ public final class IrGenerator {
                 case "ordinal" -> lowerEnumOrdinal(function, cls);
                 case "values" -> lowerEnumValues(function, cls);
                 case "valueOf" -> lowerEnumValueOf(function, cls);
+                case "toString" -> lowerEnumName(function, cls);
+                case "compareTo" -> lowerEnumCompareTo(function, cls);
                 default -> throw new IllegalStateException("unexpected enum method " + ms.name());
             }
         }
@@ -1197,6 +1209,22 @@ public final class IrGenerator {
         builder.ret(builder.loadField(
                 thisPtr, cls.name(), cls.layout().llvmTypeName(),
                 ordinalField.gepIndex(), IrType.I32));
+    }
+
+    private void lowerEnumCompareTo(IrFunction function, ClassSymbol cls) {
+        builder.beginFunction(function);
+        IrValue.Local thisLocal = builder.alloca("this", IrType.PTR);
+        builder.store(new IrValue.Param("this", IrType.PTR), thisLocal);
+        IrValue.Local otherLocal = builder.alloca("other", IrType.PTR);
+        builder.store(new IrValue.Param("other", IrType.PTR), otherLocal);
+        FieldSymbol ordinalField = cls.findField("$ordinal").orElseThrow();
+        IrValue a = builder.loadField(
+                builder.load(thisLocal), cls.name(), cls.layout().llvmTypeName(),
+                ordinalField.gepIndex(), IrType.I32);
+        IrValue b = builder.loadField(
+                builder.load(otherLocal), cls.name(), cls.layout().llvmTypeName(),
+                ordinalField.gepIndex(), IrType.I32);
+        builder.ret(builder.binary(IrInstruction.BinOp.SUB, a, b));
     }
 
     private void lowerEnumValues(IrFunction function, ClassSymbol cls) {
@@ -1492,8 +1520,10 @@ public final class IrGenerator {
             case ForStatement f -> lowerFor(f);
             case EnhancedForStatement ef -> lowerEnhancedFor(ef);
             case SwitchStatement s -> lowerSwitch(s);
-            case BreakStatement ignored -> lowerBreak();
-            case ContinueStatement ignored -> lowerContinue();
+            case BreakStatement b -> lowerBreak(b.label());
+            case ContinueStatement c -> lowerContinue(c.label());
+            case LabeledStatement l -> lowerLabeled(l);
+            case YieldStatement y -> lowerYield(y);
             case ReturnStatement r -> lowerReturn(r);
             case ConstructorDelegationStatement ignored -> {
                 // handled in lowerConstructor
@@ -1516,24 +1546,74 @@ public final class IrGenerator {
         return id;
     }
 
+    private String takePendingLabel() {
+        String label = pendingLabel;
+        pendingLabel = null;
+        return label;
+    }
+
     private void pushLoop(IrBasicBlock breakTarget, IrBasicBlock continueTarget) {
         int breakId = registerAbruptTarget(breakTarget);
         int continueId = registerAbruptTarget(continueTarget);
         loopFrames.push(new LoopFrame(
-                breakTarget, continueTarget, breakId, continueId, tryFrames.size(), false));
+                breakTarget, continueTarget, breakId, continueId, tryFrames.size(), false,
+                FrameKind.LOOP, takePendingLabel(), null, null));
     }
 
     private void pushSwitch(IrBasicBlock breakTarget) {
         int breakId = registerAbruptTarget(breakTarget);
         loopFrames.push(new LoopFrame(
-                breakTarget, null, breakId, -1, tryFrames.size(), true));
+                breakTarget, null, breakId, -1, tryFrames.size(), true,
+                FrameKind.SWITCH, takePendingLabel(), null, null));
     }
 
-    private void lowerBreak() {
-        if (loopFrames.isEmpty()) {
+    /** {@code label: { ... break label; ... }} — a labeled non-loop statement. */
+    private void pushLabeledBlock(IrBasicBlock breakTarget, String label) {
+        int breakId = registerAbruptTarget(breakTarget);
+        loopFrames.push(new LoopFrame(
+                breakTarget, null, breakId, -1, tryFrames.size(), true,
+                FrameKind.BLOCK, label, null, null));
+    }
+
+    private void pushSwitchExpr(IrBasicBlock breakTarget, IrValue.Local resultSlot, JType resultType) {
+        int breakId = registerAbruptTarget(breakTarget);
+        loopFrames.push(new LoopFrame(
+                breakTarget, null, breakId, -1, tryFrames.size(), true,
+                FrameKind.SWITCH_EXPR, null, resultSlot, resultType));
+    }
+
+    private void lowerLabeled(LabeledStatement l) {
+        Statement body = l.body();
+        if (body instanceof WhileStatement || body instanceof DoWhileStatement
+                || body instanceof ForStatement || body instanceof EnhancedForStatement
+                || body instanceof SwitchStatement) {
+            pendingLabel = l.label();
+            lowerStatement(body);
+            pendingLabel = null;
+            return;
+        }
+        IrBasicBlock end = builder.newBlock("label.end");
+        pushLabeledBlock(end, l.label());
+        lowerStatement(body);
+        if (!builder.block().isTerminated()) {
+            builder.branch(end);
+        }
+        loopFrames.pop();
+        builder.setBlock(end);
+    }
+
+    private void lowerBreak(String label) {
+        LoopFrame loop = null;
+        for (LoopFrame frame : loopFrames) {
+            if (label != null ? label.equals(frame.label())
+                    : (frame.kind() == FrameKind.LOOP || frame.kind() == FrameKind.SWITCH)) {
+                loop = frame;
+                break;
+            }
+        }
+        if (loop == null) {
             throw new IllegalStateException("break without loop/switch frame");
         }
-        LoopFrame loop = loopFrames.peek();
         TryFrame finallyTarget = innermostFinallyInsideLoop(loop);
         if (finallyTarget != null) {
             builder.setBreakCompletion(loop.breakTargetId());
@@ -1543,10 +1623,10 @@ public final class IrGenerator {
         builder.branch(loop.breakTarget());
     }
 
-    private void lowerContinue() {
+    private void lowerContinue(String label) {
         LoopFrame loop = null;
         for (LoopFrame frame : loopFrames) {
-            if (!frame.isSwitch()) {
+            if (frame.kind() == FrameKind.LOOP && (label == null || label.equals(frame.label()))) {
                 loop = frame;
                 break;
             }
@@ -1561,6 +1641,30 @@ public final class IrGenerator {
             return;
         }
         builder.branch(loop.continueTarget());
+    }
+
+    /** {@code yield v;}: store the arm value into the innermost switch expression's slot and leave it. */
+    private void lowerYield(YieldStatement y) {
+        LoopFrame target = null;
+        for (LoopFrame frame : loopFrames) {
+            if (frame.kind() == FrameKind.SWITCH_EXPR) {
+                target = frame;
+                break;
+            }
+        }
+        if (target == null) {
+            throw new IllegalStateException("yield without switch expression frame");
+        }
+        IrValue v = lowerExpression(y.value());
+        JType from = remapType(typed.expressionTypes().get(y.value()));
+        builder.store(convertTo(v, from, target.resultType()), target.resultSlot());
+        TryFrame finallyTarget = innermostFinallyInsideLoop(target);
+        if (finallyTarget != null) {
+            builder.setBreakCompletion(target.breakTargetId());
+            builder.branch(finallyTarget.finallyBlock());
+            return;
+        }
+        builder.branch(target.breakTarget());
     }
 
     private TryFrame innermostFinallyInsideLoop(LoopFrame loop) {
@@ -2207,6 +2311,10 @@ public final class IrGenerator {
                 }
             }
         }
+        if (typed.expressionTypes().get(SemanticAnalyzer.inferredLocalKey(v.name(), v.location()))
+                instanceof JType inferred) {
+            return remapType(inferred);
+        }
         JType t = resolveTypeNameInOwner(v.type(), v.isArray(), currentClass);
         return remapType(t);
     }
@@ -2298,8 +2406,10 @@ public final class IrGenerator {
             builder.branch(updateBlock);
         }
         builder.setBlock(updateBlock);
-        if (f.update() != null) {
-            lowerExpression(f.update());
+        for (Expression u : f.allUpdates()) {
+            if (!builder.block().isTerminated()) {
+                lowerExpression(u);
+            }
         }
         if (!builder.block().isTerminated()) {
             if (currentFunction == null || !currentFunction.omitSafepoints()) {
@@ -2328,8 +2438,10 @@ public final class IrGenerator {
         int id = System.identityHashCode(ef);
         JType arrJt = remapType(typed.expressionTypes().get(ef.array()));
         JType arrayElemJt = arrJt instanceof ArrayType at ? at.elementType() : PrimitiveType.INT;
-        JType declared = remapType(resolveTypeNameInOwner(
-                ef.elementType(), ef.elementIsArray(), currentClass));
+        JType declared = remapType(typed.expressionTypes().get(
+                SemanticAnalyzer.inferredLocalKey(ef.variableName(), ef.location())) instanceof JType inferredElem
+                ? inferredElem
+                : resolveTypeNameInOwner(ef.elementType(), ef.elementIsArray(), currentClass));
         IrType arrayElemIr = IrType.from(arrayElemJt);
         IrType declaredIr = IrType.from(declared);
 
@@ -2384,8 +2496,10 @@ public final class IrGenerator {
     }
 
     private void lowerIterableEnhancedFor(EnhancedForStatement ef, EnhancedForDesugar desugar) {
-        JType declared = remapType(resolveTypeNameInOwner(
-                ef.elementType(), ef.elementIsArray(), currentClass));
+        JType declared = remapType(typed.expressionTypes().get(
+                SemanticAnalyzer.inferredLocalKey(ef.variableName(), ef.location())) instanceof JType inferredElem
+                ? inferredElem
+                : resolveTypeNameInOwner(ef.elementType(), ef.elementIsArray(), currentClass));
         IrType declaredIr = IrType.from(declared);
         JType iterJt = remapType(typed.expressionTypes().get(desugar.hasNextCall().receiver()));
         IrType iterIr = IrType.from(iterJt != null ? iterJt : declared);
@@ -2435,11 +2549,30 @@ public final class IrGenerator {
      * Fall-through links section bodies; {@code break} targets {@code end}.
      */
     private void lowerSwitch(SwitchStatement s) {
-        JType selectorJt = typed.expressionTypes().get(s.selector());
-        boolean enumSwitch = selectorJt instanceof ClassType ct && ct.classSymbol().isEnum();
-        ClassSymbol enumSym = enumSwitch ? ((ClassType) selectorJt).classSymbol() : null;
+        lowerSwitchCore(s.selector(), s.sections(), null);
+    }
 
-        IrValue selectorVal = lowerExpression(s.selector());
+    /** A switch used as a value: arms {@code yield} into a result slot that is loaded after the switch. */
+    private IrValue lowerSwitchExpression(SwitchExpression e) {
+        JType resultJt = remapType(typed.expressionTypes().get(e));
+        IrType resultIr = IrType.from(resultJt);
+        IrValue.Local resultSlot = builder.alloca("switch.res" + System.identityHashCode(e), resultIr);
+        builder.store(defaultValue(resultIr), resultSlot);
+        lowerSwitchCore(e.selector(), e.sections(), new SwitchResult(resultSlot, resultJt));
+        return builder.load(resultSlot);
+    }
+
+    private record SwitchResult(IrValue.Local slot, JType type) {
+    }
+
+    private void lowerSwitchCore(Expression selector, List<SwitchSection> sections, SwitchResult result) {
+        JType selectorJt = typed.expressionTypes().get(selector);
+        boolean enumSwitch = selectorJt instanceof ClassType ct && ct.classSymbol().isEnum();
+        boolean stringSwitch = selectorJt instanceof ClassType sct && sct.classSymbol().name().equals("String");
+        ClassSymbol enumSym = enumSwitch ? ((ClassType) selectorJt).classSymbol() : null;
+        int id = System.identityHashCode(sections);
+
+        IrValue selectorVal = lowerExpression(selector);
         IrValue.Local selSlot;
         if (enumSwitch) {
             // Null check then load ordinal into an int temp.
@@ -2451,18 +2584,25 @@ public final class IrGenerator {
                     enumSym.layout().llvmTypeName(),
                     ordField.gepIndex(),
                     IrType.I32);
-            selSlot = builder.alloca("switch.sel" + System.identityHashCode(s), IrType.I32);
+            selSlot = builder.alloca("switch.sel" + id, IrType.I32);
             builder.store(ordinal, selSlot);
+        } else if (stringSwitch) {
+            builder.nullCheck(selectorVal);
+            selSlot = builder.alloca("switch.sel" + id, IrType.PTR);
+            builder.store(selectorVal, selSlot);
         } else {
             IrValue asInt = castIfNeeded(selectorVal, IrType.I32);
-            selSlot = builder.alloca("switch.sel" + System.identityHashCode(s), IrType.I32);
+            selSlot = builder.alloca("switch.sel" + id, IrType.I32);
             builder.store(asInt, selSlot);
         }
 
         IrBasicBlock endBlock = builder.newBlock("switch.end");
-        pushSwitch(endBlock);
+        if (result != null) {
+            pushSwitchExpr(endBlock, result.slot(), result.type());
+        } else {
+            pushSwitch(endBlock);
+        }
 
-        List<SwitchSection> sections = s.sections();
         int n = sections.size();
         IrBasicBlock[] bodyBlocks = new IrBasicBlock[n];
         IrBasicBlock[] testBlocks = new IrBasicBlock[n];
@@ -2477,6 +2617,10 @@ public final class IrGenerator {
             }
         }
         IrBasicBlock defaultOrEnd = defaultBody != null ? defaultBody : endBlock;
+        if (defaultBody == null && result != null) {
+            // exhaustive enum switch expression without 'default': no constant matched
+            defaultOrEnd = builder.newBlock("switch.nomatch");
+        }
 
         if (n == 0) {
             builder.branch(endBlock);
@@ -2490,6 +2634,7 @@ public final class IrGenerator {
             builder.setBlock(testBlocks[i]);
             SwitchSection section = sections.get(i);
             List<Integer> caseValues = new ArrayList<>();
+            List<Expression> caseStrings = new ArrayList<>();
             boolean isDefaultOnly = true;
             for (SwitchLabel label : section.labels()) {
                 if (label instanceof CaseLabel c) {
@@ -2497,6 +2642,8 @@ public final class IrGenerator {
                     if (enumSwitch) {
                         String name = ((VariableExpression) c.constant()).name();
                         caseValues.add(enumSym.enumOrdinal(name));
+                    } else if (stringSwitch) {
+                        caseStrings.add(c.constant());
                     } else {
                         caseValues.add(evalCaseInt(c.constant()));
                     }
@@ -2506,6 +2653,8 @@ public final class IrGenerator {
             if (isDefaultOnly) {
                 // Default-only section is not entered via tests; fall to next test or defaultOrEnd.
                 builder.branch(nextTest);
+            } else if (stringSwitch) {
+                emitStringCaseTests(selSlot, caseStrings, bodyBlocks[i], nextTest);
             } else {
                 emitCaseTests(selSlot, caseValues, bodyBlocks[i], nextTest);
             }
@@ -2517,16 +2666,38 @@ public final class IrGenerator {
                 lowerStatement(st);
             }
             if (!builder.block().isTerminated()) {
-                if (i + 1 < n) {
-                    builder.branch(bodyBlocks[i + 1]); // fall-through
-                } else {
+                if (sections.get(i).arrow() || i + 1 >= n) {
                     builder.branch(endBlock);
+                } else {
+                    builder.branch(bodyBlocks[i + 1]); // fall-through
                 }
             }
         }
 
+        if (defaultBody == null && result != null) {
+            builder.setBlock(defaultOrEnd);
+            builder.call("jnative_throw_illegal_argument", IrType.VOID, List.of(), true);
+            builder.branch(endBlock);
+        }
+
         loopFrames.pop();
         builder.setBlock(endBlock);
+    }
+
+    private void emitStringCaseTests(
+            IrValue.Local selSlot, List<Expression> literals, IrBasicBlock body, IrBasicBlock next) {
+        for (int i = 0; i < literals.size(); i++) {
+            IrValue sel = builder.load(selSlot);
+            IrValue lit = lowerExpression(literals.get(i));
+            IrValue eq = i32ToI1(builder.call("jnative_string_equals", IrType.I32, List.of(sel, lit), false));
+            if (i == literals.size() - 1) {
+                builder.condBranch(eq, body, next);
+            } else {
+                IrBasicBlock more = builder.newBlock("switch.case.or");
+                builder.condBranch(eq, body, more);
+                builder.setBlock(more);
+            }
+        }
     }
 
     private void emitCaseTests(
@@ -2573,6 +2744,7 @@ public final class IrGenerator {
             case NullLiteralExpression ignored -> new IrValue.Const(IrType.PTR, "null");
             case NativeNullExpression ignored -> new IrValue.Const(IrType.NATIVE_PTR, "null");
             case ThisExpression ignored -> builder.load(builder.local("this"));
+            case SuperExpression ignored -> builder.load(builder.local("this"));
             case VariableExpression v -> lowerVariable(v);
             case AssignmentExpression a -> lowerAssignment(a);
             case BinaryExpression b -> lowerBinary(b);
@@ -2596,6 +2768,7 @@ public final class IrGenerator {
             case FieldAccessExpression f -> lowerFieldLoad(f);
             case NewArrayExpression n -> lowerNewArray(n);
             case ArrayInitExpression n -> lowerArrayInit(n);
+            case SwitchExpression n -> lowerSwitchExpression(n);
             case ArrayAccessExpression a -> lowerArrayLoad(a);
             case InstanceOfExpression i -> lowerInstanceOf(i);
             case CastExpression c -> lowerCast(c);
@@ -3014,6 +3187,14 @@ public final class IrGenerator {
     }
 
     private IrValue lowerAssignment(AssignmentExpression a) {
+        if (a.postfix()) {
+            // x++ as a value: read the old value first, then store the incremented one.
+            IrValue old = lowerExpression(a.target());
+            // Reference loads are re-read from their slot at each use (GC relocation): pin a copy.
+            old = builder.protectRef(old);
+            lowerAssignment(a.asStatement());
+            return old;
+        }
         IrValue value = lowerExpression(a.value());
         JType fromJt = remapType(typed.expressionTypes().get(a.value()));
         Expression target = a.target();
@@ -3191,6 +3372,15 @@ public final class IrGenerator {
         ClassMetadata meta = arrayMetadataForElement(elementType);
         IrValue length = lowerExpression(n.length());
         length = castIfNeeded(length, IrType.I32);
+        if (!n.innerLengths().isEmpty()) {
+            // Java evaluates every dimension expression first (left to right), then allocates.
+            List<IrValue> lengths = new ArrayList<>();
+            lengths.add(length);
+            for (Expression e : n.innerLengths()) {
+                lengths.add(castIfNeeded(lowerExpression(e), IrType.I32));
+            }
+            return lowerNestedArray(elementType, lengths, 0);
+        }
         long elemSize = ObjectLayoutBuilder.sizeOf(elementType);
         return builder.newArray(
                 IrType.from(elementType),
@@ -3198,6 +3388,47 @@ public final class IrGenerator {
                 elemSize,
                 meta.globalName(),
                 elementType.isReference());
+    }
+
+    private int nestedArraySeq;
+
+    /**
+     * Allocates an array whose element type is {@code elementType} with {@code lengths[level]} slots and,
+     * while more lengths remain, fills every slot with a freshly allocated sub-array.
+     */
+    private IrValue lowerNestedArray(JType elementType, List<IrValue> lengths, int level) {
+        ClassMetadata meta = arrayMetadataForElement(elementType);
+        IrValue len = lengths.get(level);
+        IrValue arr = builder.newArray(
+                IrType.from(elementType),
+                len,
+                ObjectLayoutBuilder.sizeOf(elementType),
+                meta.globalName(),
+                elementType.isReference());
+        if (level + 1 >= lengths.size()) {
+            return arr;
+        }
+        int id = nestedArraySeq++;
+        IrValue.Local arrSlot = builder.alloca("narr." + id, IrType.PTR);
+        builder.store(arr, arrSlot);
+        IrValue.Local idxSlot = builder.alloca("nidx." + id, IrType.I32);
+        builder.store(new IrValue.Const(IrType.I32, 0), idxSlot);
+        IrBasicBlock cond = builder.newBlock("narr.cond");
+        IrBasicBlock body = builder.newBlock("narr.body");
+        IrBasicBlock done = builder.newBlock("narr.done");
+        builder.branch(cond);
+        builder.setBlock(cond);
+        IrValue i = builder.load(idxSlot);
+        builder.condBranch(builder.compare(IrInstruction.CmpOp.LT, i, len), body, done);
+        builder.setBlock(body);
+        IrValue inner = lowerNestedArray(((ArrayType) elementType).elementType(), lengths, level + 1);
+        IrValue cur = builder.load(arrSlot);
+        IrValue i2 = builder.load(idxSlot);
+        builder.storeElement(cur, i2, inner);
+        builder.store(builder.binary(IrInstruction.BinOp.ADD, i2, new IrValue.Const(IrType.I32, 1)), idxSlot);
+        builder.branch(cond);
+        builder.setBlock(done);
+        return builder.load(arrSlot);
     }
 
     /**
@@ -3236,6 +3467,14 @@ public final class IrGenerator {
     private IrValue lowerInstanceOf(InstanceOfExpression i) {
         Object resolved = typed.resolvedSymbols().get(i);
         IrValue obj = lowerExpression(i.expression());
+        if (i.binding() != null) {
+            // Pattern binding: store the reference unconditionally; it is only read where the test held.
+            JType bindingType = remapType(typed.expressionTypes().get(
+                    SemanticAnalyzer.inferredLocalKey(i.binding(), i.location())));
+            IrValue.Local slot = builder.alloca(i.binding(), IrType.from(bindingType), false, -1,
+                    debugTypeName(bindingType));
+            builder.store(obj, slot);
+        }
         if (resolved instanceof InterfaceMetadata im) {
             return builder.instanceOfInterface(obj, im.interfaceId());
         }
@@ -3600,7 +3839,8 @@ public final class IrGenerator {
             return lowerNativeCall(ms, args);
         }
 
-        if (ms.isVirtual() && ms.vtableSlot() != null && receiver != null) {
+        if (ms.isVirtual() && ms.vtableSlot() != null && receiver != null
+                && !(m.receiver() instanceof SuperExpression)) {
             MethodSymbol slotMethod = ms;
             while (slotMethod.overrides() != null) {
                 slotMethod = slotMethod.overrides();

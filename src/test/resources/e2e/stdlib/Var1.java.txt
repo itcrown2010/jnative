@@ -1,0 +1,36 @@
+import java.util.ArrayList;
+import java.util.List;
+
+public class Main {
+    static class Box { int v; Box(int v) { this.v = v; } int twice() { return v * 2; } }
+    static long big() { return 1L << 40; }
+
+    public static void main(String[] args) {
+        var i = 5;
+        var l = big();
+        var d = 1.5 * i;
+        var s = "n=" + i;
+        var b = i > 3;
+        var c = 'x';
+        var box = new Box(21);
+        var arr = new int[]{4, 5, 6};
+        var grid = new int[2][3];
+        grid[1][2] = 7;
+        var names = new String[]{"a", "b"};
+        var list = new ArrayList<Integer>();
+        list.add(3);
+        list.add(4);
+        System.out.println(i + " " + l + " " + d + " " + s + " " + b + " " + c);
+        System.out.println(box.twice() + " " + grid[1][2] + " " + names[1] + " " + list.size());
+        int sum = 0;
+        for (var x : arr) sum += x;
+        for (var n : list) sum += n;
+        for (var q : names) sum += q.length();
+        System.out.println(sum);
+        for (var k = 0; k < 3; k++) sum += k;
+        System.out.println(sum);
+        var t = box.twice();
+        t += 1;
+        System.out.println(t);
+    }
+}

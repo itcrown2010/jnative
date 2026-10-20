@@ -1,0 +1,44 @@
+interface Greeter { String greet(String n); }
+abstract class Base { abstract int v(); int twice() { return v() * 2; } }
+public class Main {
+    static int sfield = 100;
+    static int helper(int x) { return x + 1; }
+    public static void main(String[] args) {
+        Greeter g = new Greeter() {
+            public String greet(String n) { return "hi " + n; }
+        };
+        System.out.println(g.greet("bob"));
+        int base = 7;
+        String pre = "p-";
+        Base b = new Base() {
+            int calls = 0;
+            int v() { calls++; return base + calls; }
+        };
+        System.out.println(b.twice() + " " + b.twice());
+        Runnable r = new Runnable() {
+            public void run() { System.out.println("run " + base); }
+        };
+        r.run();
+        Greeter g2 = new Greeter() {
+            int n = base * 2;
+            public String greet(String who) { return pre + who + n + sfield + helper(1); }
+        };
+        System.out.println(g2.greet("x"));
+        for (int i = 0; i < 2; i++) {
+            final int k = i;
+            Greeter g3 = new Greeter() {
+                public String greet(String who) { return who + k; }
+            };
+            System.out.println(g3.greet("loop"));
+        }
+        var vs = "inferred";
+        Greeter g4 = new Greeter() { public String greet(String w) { return w + vs; } };
+        System.out.println(g4.greet(">"));
+        int[] counter = new int[1];
+        Runnable inc = new Runnable() { public void run() { counter[0] += 5; } };
+        inc.run(); inc.run();
+        System.out.println(counter[0]);
+        Object o = new Object() { public String toString() { return "anon-obj"; } };
+        System.out.println(o);
+    }
+}

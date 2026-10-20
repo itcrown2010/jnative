@@ -1,0 +1,135 @@
+public class Main {
+    static int[][] grid = new int[3][4];
+    int[][] inst = {{1, 2, 3}, {4, 5, 6}};
+
+    static int[][] identity(int n) {
+        int[][] m = new int[n][n];
+        for (int i = 0; i < n; i++) {
+            m[i][i] = 1;
+        }
+        return m;
+    }
+
+    static int[][] mul(int[][] a, int[][] b) {
+        int n = a.length;
+        int m = b[0].length;
+        int k = b.length;
+        int[][] c = new int[n][m];
+        for (int i = 0; i < n; i++) {
+            for (int j = 0; j < m; j++) {
+                int s = 0;
+                for (int x = 0; x < k; x++) {
+                    s += a[i][x] * b[x][j];
+                }
+                c[i][j] = s;
+            }
+        }
+        return c;
+    }
+
+    static String show(int[][] m) {
+        String out = "";
+        for (int i = 0; i < m.length; i++) {
+            for (int j = 0; j < m[i].length; j++) {
+                out = out + m[i][j] + (j + 1 < m[i].length ? "," : "");
+            }
+            out = out + ";";
+        }
+        return out;
+    }
+
+    static int total(int[][][] cube) {
+        int t = 0;
+        for (int[][] plane : cube) {
+            for (int[] row : plane) {
+                for (int v : row) {
+                    t += v;
+                }
+            }
+        }
+        return t;
+    }
+
+    public static void main(String[] args) {
+        grid[2][3] = 42;
+        grid[0][0] = 1;
+        System.out.println(grid[2][3] + " " + grid[0][0] + " " + grid.length + " " + grid[0].length);
+
+        Main o = new Main();
+        System.out.println(o.inst[1][2] + o.inst[0][0]);
+
+        int[][] a = {{1, 2}, {3, 4}};
+        int[][] b = {{5, 6}, {7, 8}};
+        System.out.println(show(mul(a, b)));
+        System.out.println(show(mul(a, identity(2))));
+
+        int[][] jag = new int[4][];
+        for (int i = 0; i < jag.length; i++) {
+            jag[i] = new int[i + 1];
+            for (int j = 0; j <= i; j++) {
+                jag[i][j] = i * 10 + j;
+            }
+        }
+        System.out.println(show(jag));
+        System.out.println(jag[2] == jag[2]);
+        int[][] nul = new int[2][];
+        System.out.println(nul[1] == null);
+
+        int[][][] cube = new int[2][3][4];
+        int c = 0;
+        for (int i = 0; i < 2; i++) {
+            for (int j = 0; j < 3; j++) {
+                for (int k = 0; k < 4; k++) {
+                    cube[i][j][k] = c++;
+                }
+            }
+        }
+        System.out.println(total(cube) + " " + cube[1][2][3] + " " + cube[0].length + " " + cube[0][0].length);
+
+        String[][] names = new String[2][2];
+        names[0][1] = "x";
+        names[1][0] = "yy";
+        System.out.println(names[0][0] + names[0][1] + names[1][0]);
+
+        double[][] dd = new double[][] {{1.5, 2.5}, {3.5}};
+        System.out.println(dd[0][1] + dd[1][0]);
+        long[][] ll = new long[2][2];
+        ll[1][1] = 1L << 40;
+        System.out.println(ll[1][1]);
+        boolean[][] flags = new boolean[2][3];
+        flags[1][2] = true;
+        System.out.println(flags[1][2] + " " + flags[0][0]);
+        char[][] chars = new char[2][2];
+        chars[0][0] = 'q';
+        System.out.println(chars[0][0]);
+
+        int[] row2[] = new int[2][2];
+        row2[1][1] = 7;
+        System.out.println(row2[1][1]);
+
+        // allocation pressure: nested arrays must survive collections while being built
+        long sum = 0;
+        for (int round = 0; round < 40; round++) {
+            int[][] big = new int[200][100];
+            for (int i = 0; i < big.length; i++) {
+                big[i][round % 100] = i;
+            }
+            String[][] strs = new String[50][5];
+            for (int i = 0; i < strs.length; i++) {
+                strs[i][i % 5] = "s" + i + "_" + round;
+            }
+            for (int i = 0; i < big.length; i++) {
+                sum += big[i][round % 100];
+            }
+            sum += strs[49][4].length();
+        }
+        System.out.println(sum);
+
+        try {
+            int[][] bad = new int[2][-1];
+            System.out.println(bad.length);
+        } catch (RuntimeException e) {
+            System.out.println("negative size");
+        }
+    }
+}

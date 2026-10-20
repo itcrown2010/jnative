@@ -1,0 +1,33 @@
+interface Shape { double area(); }
+interface LongOp { long apply(long a, long b); }
+interface DoubleFn { double f(double x); }
+interface BoolTest { boolean test(int x); }
+interface Act { void run(); }
+interface Cmp { int cmp(String a, String b); }
+interface Mk { String make(int n, double d); }
+
+public class Main {
+    static double twice(DoubleFn f, double x) { return f.f(f.f(x)); }
+    static long fold(LongOp op, long a, long b) { return op.apply(a, b); }
+    public static void main(String[] args) {
+        Shape s = () -> 2.5;
+        System.out.println(s.area());
+        LongOp add = (a, b) -> a + b;
+        System.out.println(add.apply(40000000000L, 2L));
+        System.out.println(fold((a, b) -> a * b, 100000L, 100000L));
+        System.out.println(twice(x -> x * 1.5, 2.0));
+        BoolTest even = x -> x % 2 == 0;
+        System.out.println(even.test(4) + " " + even.test(5));
+        int[] counter = new int[1];
+        Act a = () -> { counter[0]++; };
+        a.run(); a.run();
+        System.out.println(counter[0]);
+        Cmp c = (x, y) -> x.length() - y.length();
+        System.out.println(c.cmp("aaa", "b"));
+        Mk mk = (n, d) -> "n=" + n + ",d=" + d;
+        System.out.println(mk.make(3, 1.5));
+        double base = 10.0;
+        DoubleFn addBase = x -> x + base;
+        System.out.println(addBase.f(0.5));
+    }
+}

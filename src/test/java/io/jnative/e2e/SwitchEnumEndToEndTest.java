@@ -48,7 +48,7 @@ class SwitchEnumEndToEndTest {
     }
 
     @Test
-    void arrowSwitchRejected() {
+    void arrowSwitchAccepted() {
         DiagnosticReporter r = analyze("""
                 public class T {
                     public static int f(int x) {
@@ -59,9 +59,7 @@ class SwitchEnumEndToEndTest {
                     }
                 }
                 """);
-        assertTrue(r.hasErrors());
-        String msg = messages(r).toLowerCase();
-        assertTrue(msg.contains("arrow") || msg.contains("expected ':'"), msg);
+        assertFalse(r.hasErrors(), messages(r));
     }
 
     @Test

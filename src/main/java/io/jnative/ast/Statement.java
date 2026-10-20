@@ -13,7 +13,7 @@ public sealed interface Statement extends AstNode
         IfStatement, WhileStatement, DoWhileStatement, ForStatement,
         EnhancedForStatement,
         SwitchStatement,
-        BreakStatement, ContinueStatement,
+        BreakStatement, ContinueStatement, LabeledStatement, YieldStatement,
         ReturnStatement, EmptyStatement,
         ConstructorDelegationStatement, TryStatement, ThrowStatement {
 }

@@ -7,8 +7,11 @@ package io.jnative.ast;
 
 import io.jnative.diagnostics.SourceLocation;
 
-/** Unlabeled {@code continue;} — targets innermost loop continue point.
+/** {@code continue;} (innermost loop) or {@code continue label;}.
  * @author 张晓达
  */
-public record ContinueStatement(SourceLocation location) implements Statement {
+public record ContinueStatement(String label, SourceLocation location) implements Statement {
+    public ContinueStatement(SourceLocation location) {
+        this(null, location);
+    }
 }

@@ -15,7 +15,10 @@ import java.util.List;
  */
 public final class CallableResolver {
 
-    public record Candidate(List<JType> parameterTypes, Object symbol) {
+    public record Candidate(List<JType> parameterTypes, Object symbol, boolean varargs) {
+        public Candidate(List<JType> parameterTypes, Object symbol) {
+            this(parameterTypes, symbol, false);
+        }
     }
 
     private enum Phase {
@@ -36,7 +39,53 @@ public final class CallableResolver {
         if (widen != null) {
             return widen;
         }
-        return resolvePhase(candidates, argTypes, Phase.BOXING);
+        Object boxing = resolvePhase(candidates, argTypes, Phase.BOXING);
+        if (boxing != null) {
+            return boxing;
+        }
+        return resolveVarargs(candidates, argTypes);
+    }
+
+    /** Variable-arity phase: {@code f(int... xs)} accepts any number of {@code int}s. */
+    private static Object resolveVarargs(List<Candidate> candidates, List<JType> argTypes) {
+        List<Candidate> matches = new ArrayList<>();
+        for (Candidate c : candidates) {
+            if (c.varargs() && variableArityApplicable(c.parameterTypes(), argTypes)) {
+                matches.add(c);
+            }
+        }
+        return matches.size() == 1 ? matches.getFirst().symbol() : null;
+    }
+
+    /** True when {@code args} fit the fixed parameters plus zero or more trailing element arguments. */
+    public static boolean variableArityApplicable(List<JType> params, List<JType> args) {
+        int fixed = params.size() - 1;
+        if (fixed < 0 || args.size() < fixed || !(params.getLast() instanceof ArrayType at)) {
+            return false;
+        }
+        for (int i = 0; i < args.size(); i++) {
+            JType expected = i < fixed ? params.get(i) : at.elementType();
+            if (!Boxing.assignableOrBoxing(expected, args.get(i))) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /**
+     * True when a call to a varargs method must wrap its trailing arguments in a fresh array
+     * (as opposed to passing an array directly).
+     */
+    public static boolean needsVarargsPacking(List<JType> params, List<JType> args) {
+        if (args.size() != params.size()) {
+            return true;
+        }
+        JType last = args.getLast();
+        JType formal = params.getLast();
+        if (last instanceof NullType || Boxing.assignableOrBoxing(formal, last)) {
+            return false;
+        }
+        return true;
     }
 
     private static Object resolvePhase(List<Candidate> candidates, List<JType> argTypes, Phase phase) {

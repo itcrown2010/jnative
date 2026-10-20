@@ -1,0 +1,51 @@
+public class Main {
+    static int a = 1, b = 2;
+    int x, y = 5;
+
+    static String describe(Object o) {
+        if (o instanceof String s && s.length() > 2) {
+            return "long string " + s;
+        } else if (o instanceof String s) {
+            return "short string " + s;
+        }
+        if (!(o instanceof Integer n)) {
+            return "other";
+        }
+        return "int " + (n + 1);
+    }
+
+    public static void main(String[] args) {
+        int i = 0, j = 10, k;
+        for (i = 0, j = 10; i < j; i++, j--) { }
+        System.out.println(i + " " + j);
+        for (int p = 0, q = 5; p < q; p += 2, q--) {
+            System.out.println(p + ":" + q);
+        }
+        k = i + j;
+        String s1 = "x", s2 = "y" + k;
+        int[] arr = {1, 2, 3}, empty = new int[0];
+        System.out.println(s1 + s2 + arr.length + empty.length);
+        System.out.println(a + b);
+        Main m = new Main();
+        System.out.println(m.x + m.y);
+        String txt = """
+            hello
+              "world"
+            tab\there \
+            joined
+            """;
+        System.out.print(txt);
+        String t2 = """
+            no trailing newline""";
+        System.out.println(t2);
+        System.out.println(describe("hi") + "|" + describe("hello") + "|" + describe(41) + "|" + describe(2.5));
+        Object o = "str";
+        while (o instanceof String w && w.length() < 6) {
+            o = w + "!";
+        }
+        System.out.println(o);
+        int[] data = {3, 1, 2};
+        java.util.Arrays.sort(data);
+        System.out.println(data[0] + "" + data[1] + data[2]);
+    }
+}

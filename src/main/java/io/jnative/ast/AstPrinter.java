@@ -116,8 +116,8 @@ public final class AstPrinter {
                 if (f.condition() != null) {
                     indent(sb, indent + 1).append("cond ").append(printExpr(f.condition())).append('\n');
                 }
-                if (f.update() != null) {
-                    indent(sb, indent + 1).append("update ").append(printExpr(f.update())).append('\n');
+                for (Expression u : f.allUpdates()) {
+                    indent(sb, indent + 1).append("update ").append(printExpr(u)).append('\n');
                 }
                 printStmt(f.body(), sb, indent + 1);
             }
@@ -143,8 +143,16 @@ public final class AstPrinter {
                     }
                 }
             }
-            case BreakStatement ignored -> indent(sb, indent).append("Break\n");
-            case ContinueStatement ignored -> indent(sb, indent).append("Continue\n");
+            case BreakStatement b -> indent(sb, indent).append("Break")
+                    .append(b.label() == null ? "" : " " + b.label()).append('\n');
+            case ContinueStatement c -> indent(sb, indent).append("Continue")
+                    .append(c.label() == null ? "" : " " + c.label()).append('\n');
+            case LabeledStatement l -> {
+                indent(sb, indent).append("Label ").append(l.label()).append('\n');
+                printStmt(l.body(), sb, indent + 1);
+            }
+            case YieldStatement y ->
+                    indent(sb, indent).append("Yield ").append(printExpr(y.value())).append('\n');
             case ReturnStatement r -> {
                 indent(sb, indent).append("Return");
                 if (r.value() != null) {
@@ -222,7 +230,14 @@ public final class AstPrinter {
                 sb.append(')');
                 yield sb.toString();
             }
-            case NewArrayExpression n -> "new " + n.elementType() + "[" + printExpr(n.length()) + "]";
+            case NewArrayExpression n -> {
+                StringBuilder sb = new StringBuilder("new " + n.elementType() + "[" + printExpr(n.length()) + "]");
+                for (Expression inner : n.innerLengths()) {
+                    sb.append('[').append(printExpr(inner)).append(']');
+                }
+                yield sb.toString();
+            }
+            case SwitchExpression sw -> "switch " + printExpr(sw.selector()) + " {...}";
             case ArrayInitExpression n -> {
                 StringBuilder sb = new StringBuilder("new " + n.elementType() + "[] {");
                 for (int i = 0; i < n.elements().size(); i++) {
@@ -245,6 +260,7 @@ public final class AstPrinter {
             case FieldAccessExpression f -> printExpr(f.receiver()) + "." + f.fieldName();
             case NullLiteralExpression ignored -> "null";
             case ThisExpression ignored -> "this";
+            case SuperExpression ignored -> "super";
             case LambdaExpression l -> {
                 StringBuilder sb = new StringBuilder("(");
                 for (int i = 0; i < l.parameters().size(); i++) {

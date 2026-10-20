@@ -83,6 +83,7 @@ public enum TokenType {
     SEMICOLON,
     COMMA,
     DOT,
+    ELLIPSIS,
     AT,
     ASSIGN,
     PLUS,

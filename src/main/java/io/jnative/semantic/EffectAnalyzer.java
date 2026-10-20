@@ -293,8 +293,8 @@ public final class EffectAnalyzer {
                     e.union(inferExpression(f.condition(), ms, contribs));
                 }
                 e.union(inferStatement(f.body(), ms, contribs));
-                if (f.update() != null) {
-                    e.union(inferExpression(f.update(), ms, contribs));
+                for (Expression u : f.allUpdates()) {
+                    e.union(inferExpression(u, ms, contribs));
                 }
                 yield e;
             }
@@ -312,6 +312,8 @@ public final class EffectAnalyzer {
                 }
                 yield e;
             }
+            case LabeledStatement l -> inferStatement(l.body(), ms, contribs);
+            case YieldStatement y -> inferExpression(y.value(), ms, contribs);
             case ReturnStatement r -> r.value() != null
                     ? inferExpression(r.value(), ms, contribs)
                     : FunctionEffects.none();
@@ -356,6 +358,9 @@ public final class EffectAnalyzer {
                 e.with(FunctionEffects.ALLOCATES | FunctionEffects.SAFEPOINT);
                 contribs.add("new array");
                 e.union(inferExpression(n.length(), ms, contribs));
+                for (Expression inner : n.innerLengths()) {
+                    e.union(inferExpression(inner, ms, contribs));
+                }
             }
             case ArrayInitExpression n -> {
                 e.with(FunctionEffects.ALLOCATES | FunctionEffects.SAFEPOINT);
@@ -423,6 +428,15 @@ public final class EffectAnalyzer {
                     contribs.add("cast");
                 }
                 e.union(inferExpression(c.expression(), ms, contribs));
+            }
+            case SwitchExpression sw -> {
+                e.union(inferExpression(sw.selector(), ms, contribs));
+                for (SwitchSection sec : sw.sections()) {
+                    for (Statement st : sec.statements()) {
+                        e.union(inferStatement(st, ms, contribs));
+                    }
+                }
+                e.with(FunctionEffects.THROWS); // an exhaustive switch without a match throws
             }
             case ConditionalExpression c -> {
                 e.union(inferExpression(c.condition(), ms, contribs));
@@ -511,7 +525,7 @@ public final class EffectAnalyzer {
     }
 
     private FunctionEffects instanceNullCheck(Expression receiver, List<Object> contribs) {
-        if (receiver == null || receiver instanceof ThisExpression) {
+        if (receiver == null || receiver instanceof ThisExpression || receiver instanceof SuperExpression) {
             return FunctionEffects.none();
         }
         if (receiver instanceof VariableExpression ve && "this".equals(ve.name())) {
@@ -692,7 +706,7 @@ public final class EffectAnalyzer {
             case ForStatement f -> (f.initializer() != null && containsAwait(f.initializer()))
                     || (f.condition() != null && containsAwaitExpr(f.condition()))
                     || containsAwait(f.body())
-                    || (f.update() != null && containsAwaitExpr(f.update()));
+                    || f.allUpdates().stream().anyMatch(u -> containsAwaitExpr(u));
             case EnhancedForStatement ef ->
                     containsAwaitExpr(ef.array()) || containsAwait(ef.body());
             case SwitchStatement s -> containsAwaitExpr(s.selector())
@@ -700,6 +714,8 @@ public final class EffectAnalyzer {
                     sec.statements().stream().anyMatch(EffectAnalyzer::containsAwait));
             case BreakStatement ignored -> false;
             case ContinueStatement ignored -> false;
+            case LabeledStatement l -> containsAwait(l.body());
+            case YieldStatement y -> containsAwaitExpr(y.value());
             case ReturnStatement r -> r.value() != null && containsAwaitExpr(r.value());
             case ThrowStatement t -> containsAwaitExpr(t.expression());
             case TryStatement t -> t.resources().stream()
@@ -739,7 +755,13 @@ public final class EffectAnalyzer {
                 yield r;
             }
             case FieldAccessExpression f -> containsAwaitExpr(f.receiver());
-            case NewArrayExpression n -> containsAwaitExpr(n.length());
+            case NewArrayExpression n -> {
+                boolean r = containsAwaitExpr(n.length());
+                for (Expression inner : n.innerLengths()) {
+                    r = r || containsAwaitExpr(inner);
+                }
+                yield r;
+            }
             case ArrayInitExpression n -> {
                 boolean r = false;
                 for (Expression element : n.elements()) {
@@ -751,6 +773,9 @@ public final class EffectAnalyzer {
                     containsAwaitExpr(a.array()) || containsAwaitExpr(a.index());
             case InstanceOfExpression i -> containsAwaitExpr(i.expression());
             case CastExpression c -> containsAwaitExpr(c.expression());
+            case SwitchExpression sw -> containsAwaitExpr(sw.selector())
+                    || sw.sections().stream().anyMatch(sec ->
+                    sec.statements().stream().anyMatch(EffectAnalyzer::containsAwait));
             case ConditionalExpression c ->
                     containsAwaitExpr(c.condition())
                             || containsAwaitExpr(c.thenExpr())

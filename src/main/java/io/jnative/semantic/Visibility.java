@@ -33,6 +33,18 @@ public enum Visibility {
         return PACKAGE;
     }
 
+    /** Outermost enclosing type of {@code fqn} ({@code pkg.Outer.Inner} -> {@code pkg.Outer}). */
+    private static String nestRoot(String pkg, String fqn) {
+        String rest = fqn;
+        String prefix = "";
+        if (!pkg.isEmpty() && fqn.startsWith(pkg + ".")) {
+            prefix = pkg + ".";
+            rest = fqn.substring(prefix.length());
+        }
+        int dot = rest.indexOf('.');
+        return prefix + (dot < 0 ? rest : rest.substring(0, dot));
+    }
+
     /**
      * Whether {@code member} declared in {@code declaringTypePkg} / {@code declaringType}
      * is accessible from {@code fromPkg} / {@code fromType} (simple FQN names).
@@ -48,7 +60,9 @@ public enum Visibility {
         String fp = fromPkg == null ? "" : fromPkg;
         return switch (this) {
             case PUBLIC -> true;
-            case PRIVATE -> declaringTypeFqn != null && declaringTypeFqn.equals(fromTypeFqn);
+            case PRIVATE -> declaringTypeFqn != null && fromTypeFqn != null
+                    && (declaringTypeFqn.equals(fromTypeFqn)
+                    || nestRoot(dp, declaringTypeFqn).equals(nestRoot(fp, fromTypeFqn)));
             case PACKAGE -> dp.equals(fp);
             case PROTECTED -> dp.equals(fp) || fromSubtypeOfDeclaring;
         };

@@ -13,6 +13,10 @@ import io.jnative.diagnostics.SourceLocation;
 public record InstanceOfExpression(
         Expression expression,
         TypeName type,
-        SourceLocation location
+        SourceLocation location,
+        String binding
 ) implements Expression {
+    public InstanceOfExpression(Expression expression, TypeName type, SourceLocation location) {
+        this(expression, type, location, null);
+    }
 }

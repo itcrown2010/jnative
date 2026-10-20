@@ -1,0 +1,87 @@
+public class Main {
+    static int find(int[][] g, int target) {
+        int found = -1;
+        outer:
+        for (int i = 0; i < g.length; i++) {
+            for (int j = 0; j < g[i].length; j++) {
+                if (g[i][j] == target) {
+                    found = i * 10 + j;
+                    break outer;
+                }
+            }
+        }
+        return found;
+    }
+
+    static int skip() {
+        int count = 0;
+        outer:
+        for (int i = 0; i < 5; i++) {
+            int j = 0;
+            while (true) {
+                j++;
+                if (j > i) continue outer;
+                if (j == 3) break;
+                count += 10;
+            }
+            count += 1000;
+        }
+        return count;
+    }
+
+    static int doWhile() {
+        int n = 0;
+        loop:
+        do {
+            n++;
+            for (int k = 0; k < 10; k++) {
+                if (k == 2) continue loop;
+                n += 100;
+            }
+        } while (n < 500);
+        return n;
+    }
+
+    static String block(int x) {
+        String r = "start";
+        blk:
+        {
+            if (x == 1) break blk;
+            r += "-A";
+            if (x == 2) break blk;
+            r += "-B";
+        }
+        return r + "-end";
+    }
+
+    static int withTry() {
+        int total = 0;
+        outer:
+        for (int i = 0; i < 4; i++) {
+            for (int j = 0; j < 4; j++) {
+                try {
+                    total++;
+                } finally {
+                    total += 100;
+                }
+                if (j == 1) continue outer;
+                if (i == 2) break outer;
+            }
+        }
+        return total;
+    }
+
+    public static void main(String[] args) {
+        int[][] g = {{1, 2, 3}, {4, 5, 6}, {7, 8, 9}};
+        System.out.println(find(g, 6));
+        System.out.println(find(g, 42));
+        System.out.println(skip());
+        System.out.println(doWhile());
+        System.out.println(block(1) + " " + block(2) + " " + block(3));
+        System.out.println(withTry());
+        a: for (int i = 0; i < 3; i++) {
+            if (i == 1) continue a;
+            System.out.println("i=" + i);
+        }
+    }
+}

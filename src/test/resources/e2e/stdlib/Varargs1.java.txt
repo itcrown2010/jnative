@@ -1,0 +1,28 @@
+public class Main {
+    static int sum(int... xs) {
+        int t = 0;
+        for (int x : xs) t += x;
+        return t;
+    }
+    static String join(String sep, String... parts) {
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < parts.length; i++) {
+            if (i > 0) sb.append(sep);
+            sb.append(parts[i]);
+        }
+        return sb.toString();
+    }
+    static int count(Object... os) { return os.length; }
+    public static void main(String[] args) {
+        System.out.println(sum());
+        System.out.println(sum(1));
+        System.out.println(sum(1, 2, 3));
+        System.out.println(sum(new int[]{4, 5}));
+        System.out.println(join(",", "a", "b", "c"));
+        System.out.println(join("-"));
+        System.out.println(count("x", 1, 2.5));
+        System.out.println(String.format("%d-%s-%.2f", 5, "hi", 3.14159));
+        System.out.printf("%5d|%-5s|%x%n", 42, "ab", 255);
+        System.out.println(String.join("/", "p", "q", "r"));
+    }
+}

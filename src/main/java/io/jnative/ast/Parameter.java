@@ -15,9 +15,14 @@ public record Parameter(
         String name,
         boolean isArray,
         boolean isFinal,
+        boolean isVarargs,
         SourceLocation location
 ) implements AstNode {
     public Parameter(TypeName type, String name, boolean isArray, SourceLocation location) {
-        this(type, name, isArray, false, location);
+        this(type, name, isArray, false, false, location);
+    }
+
+    public Parameter(TypeName type, String name, boolean isArray, boolean isFinal, SourceLocation location) {
+        this(type, name, isArray, isFinal, false, location);
     }
 }

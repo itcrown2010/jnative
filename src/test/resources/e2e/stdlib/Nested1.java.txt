@@ -1,0 +1,172 @@
+interface Visitor {
+    int visit(int v);
+}
+
+class Outer {
+    static int counter = 0;
+    private int secret = 41;
+
+    static class Node {
+        int value;
+        Node next;
+
+        Node(int value) {
+            this.value = value;
+        }
+
+        int twice() {
+            return value * 2;
+        }
+    }
+
+    static class Stack2 {
+        private Node head;
+        int size;
+
+        void push(int v) {
+            Node n = new Node(v);
+            n.next = head;
+            head = n;
+            size++;
+        }
+
+        int pop() {
+            Node n = head;
+            head = n.next;
+            size--;
+            return n.value;
+        }
+    }
+
+    interface Shape {
+        double area();
+    }
+
+    static class Square implements Shape {
+        double s;
+
+        Square(double s) {
+            this.s = s;
+        }
+
+        public double area() {
+            return s * s;
+        }
+    }
+
+    static class Circle implements Shape {
+        double r;
+
+        Circle(double r) {
+            this.r = r;
+        }
+
+        public double area() {
+            return 3.0 * r * r;
+        }
+    }
+
+    enum Level {
+        LOW, MID, HIGH
+    }
+
+    static class Deep {
+        static class Deeper {
+            static int answer() {
+                return 42;
+            }
+        }
+    }
+
+    static class Priv {
+        private int hidden = 7;
+        private static int shared() {
+            return 99;
+        }
+    }
+
+    static int read(Priv p) {
+        return p.hidden + Priv.shared();
+    }
+
+    static Node make(int v) {
+        return new Node(v);
+    }
+
+    int peek() {
+        return secret;
+    }
+}
+
+public class Main {
+    static class Pair {
+        int a;
+        int b;
+
+        Pair(int a, int b) {
+            this.a = a;
+            this.b = b;
+        }
+
+        int sum() {
+            return a + b;
+        }
+    }
+
+    static class Base {
+        int id() {
+            return 1;
+        }
+    }
+
+    static class Derived extends Base {
+        int id() {
+            return super.id() + 10;
+        }
+    }
+
+    static int total(Outer.Shape[] shapes) {
+        double t = 0;
+        for (Outer.Shape s : shapes) {
+            t += s.area();
+        }
+        return (int) t;
+    }
+
+    public static void main(String[] args) {
+        Pair p = new Pair(3, 4);
+        System.out.println(p.sum());
+
+        Outer.Stack2 st = new Outer.Stack2();
+        st.push(1);
+        st.push(2);
+        st.push(3);
+        System.out.println(st.pop() + " " + st.size);
+
+        Outer.Node n = new Outer.Node(21);
+        System.out.println(n.twice());
+        System.out.println(Outer.make(5).value);
+
+        Outer.Shape[] shapes = {new Outer.Square(2.0), new Outer.Circle(1.0)};
+        System.out.println(total(shapes));
+
+        Outer.Level lv = Outer.Level.MID;
+        System.out.println(lv == Outer.Level.MID);
+        System.out.println(lv.ordinal());
+
+        System.out.println(Outer.Deep.Deeper.answer());
+        System.out.println(Outer.read(new Outer.Priv()));
+
+        Base b = new Derived();
+        System.out.println(b.id());
+        System.out.println(new Outer().peek());
+
+        Outer.counter++;
+        Outer.counter += 4;
+        System.out.println(Outer.counter);
+
+        Object o = new Pair(1, 2);
+        System.out.println(o instanceof Pair);
+        System.out.println(o instanceof Outer.Node);
+    }
+}

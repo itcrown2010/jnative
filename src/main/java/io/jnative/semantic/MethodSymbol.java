@@ -46,6 +46,15 @@ public final class MethodSymbol {
     /** Trusted native effects from @Native(effects=...). */
     private String nativeEffectsContract;
     private boolean isAsync;
+    private boolean varargs;
+
+    public boolean isVarargs() {
+        return varargs;
+    }
+
+    public void setVarargs(boolean varargs) {
+        this.varargs = varargs;
+    }
     private boolean isFinal;
     private JType logicalReturnType;
     private Visibility visibility = Visibility.PUBLIC;

@@ -211,14 +211,14 @@ class FinalDaForeachEndToEndTest {
     }
 
     @Test
-    void finalFieldRejected() {
+    void finalFieldAccepted() {
         DiagnosticReporter r = analyze("""
                 public class T {
                     public final int x = 1;
                 }
                 """);
-        assertTrue(r.hasErrors(), messages(r));
-        assertTrue(messages(r).toLowerCase().contains("final field"), messages(r));
+        // 'final' on fields is accepted for Java source compatibility (not enforced).
+        assertFalse(r.hasErrors(), messages(r));
     }
 
     @Test

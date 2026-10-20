@@ -22,6 +22,15 @@ public final class ConstructorSymbol {
     private final boolean isImplicit;
     private ConstructorSymbol delegatesTo;
     private boolean delegatesToSuper;
+    private boolean varargs;
+
+    public boolean isVarargs() {
+        return varargs;
+    }
+
+    public void setVarargs(boolean varargs) {
+        this.varargs = varargs;
+    }
 
     public ConstructorSymbol(
             ClassSymbol owner,

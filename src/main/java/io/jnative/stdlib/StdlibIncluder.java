@@ -155,7 +155,7 @@ public final class StdlibIncluder {
 
     private static final java.util.regex.Pattern SYSTEM_SHIM = java.util.regex.Pattern.compile(
             "System\\s*\\.\\s*(exit|err|currentTimeMillis|nanoTime|arraycopy|lineSeparator)\\b"
-                    + "|System\\s*\\.\\s*out\\s*\\.\\s*print\\s*\\(");
+                    + "|System\\s*\\.\\s*out\\s*\\.\\s*(print|printf|format)\\s*\\(");
 
     /** {@code System.exit/err/print/currentTimeMillis/nanoTime/arraycopy/lineSeparator} → {@code JnSystem}. */
     public static boolean needsSystem(String sourceText) {
@@ -201,6 +201,15 @@ public final class StdlibIncluder {
         return math + "\n\n" + userSource;
     }
 
+    /** {@code String.format}, {@code printf} and {@code System.out.format} are backed by FormatLib. */
+    public static boolean needsFormat(String sourceText) {
+        return sourceText != null
+                && (sourceText.contains("String.format(") || sourceText.contains(".printf(")
+                || sourceText.contains("out.format(") || sourceText.contains("err.format(")
+                || sourceText.contains("JnFormat"))
+                && !declaresType(sourceText, "JnFormat");
+    }
+
     public static boolean needsCollections(String sourceText) {
         if (sourceText == null) {
             return false;
@@ -244,6 +253,7 @@ public final class StdlibIncluder {
                 || needsObjects(sourceText)
                 || needsOptional(sourceText)
                 || needsRandom(sourceText)
+                || needsFormat(sourceText)
                 || needsBoxing(sourceText);
     }
 
@@ -801,6 +811,9 @@ public final class StdlibIncluder {
             }
             if (needsRandom(userSource)) {
                 resources.add("stdlib/collections/RandomLib.java");
+            }
+            if (needsFormat(userSource)) {
+                resources.add("stdlib/collections/FormatLib.java");
             }
         } else if (needsBoxing(userSource)) {
             resources.add("stdlib/collections/BoxingLib.java");

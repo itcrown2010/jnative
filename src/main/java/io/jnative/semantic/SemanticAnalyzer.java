@@ -240,11 +240,10 @@ public final class SemanticAnalyzer {
                     ClassSymbol symbol = classOf(cls);
                     if (symbol != null) {
                         currentClass = symbol;
+                        registerMethods(symbol, cls);
+                        registerConstructors(symbol, cls);
                         if (cls.isEnum()) {
                             registerEnumSynthetics(symbol, cls);
-                        } else {
-                            registerMethods(symbol, cls);
-                            registerConstructors(symbol, cls);
                         }
                     }
                 }
@@ -657,6 +656,7 @@ public final class SemanticAnalyzer {
                         List.of(stringType, new ArrayType(stringType)), false),
                 SourceLocation.UNKNOWN);
         join.setFfiIntrinsic(true);
+        join.setVarargs(true);
         stringClass.addMethod(join);
 
         MethodSymbol fromBytes = new MethodSymbol(
@@ -1175,6 +1175,10 @@ public final class SemanticAnalyzer {
     }
 
     private void indexSimpleName(String simple, String fqn) {
+        int dot = simple.lastIndexOf('.');
+        if (dot >= 0) {
+            simple = simple.substring(dot + 1); // nested type 'Outer.Inner' -> 'Inner'
+        }
         typesBySimpleName.computeIfAbsent(simple, k -> new ArrayList<>()).add(fqn);
     }
 
@@ -1367,6 +1371,22 @@ public final class SemanticAnalyzer {
                 ? TypeName.ofClass(cls.superClassName(), cls.location())
                 : TypeName.ofClass(cls.superClassName(), cls.superClassTypeArgs(), cls.location());
         JType superType = resolveTypeName(superRef, false, cls.location());
+        if (cls.isAnonymous()
+                && (superType instanceof InterfaceType
+                || (superType instanceof ParameterizedType apt && apt.raw() instanceof InterfaceSymbol))) {
+            // new SomeInterface() { ... }: the anonymous class implements it and extends Object.
+            InterfaceSymbol iface = resolveInterfaceRaw(superType, cls.location());
+            if (objectClass != null) {
+                symbol.setSuperClass(objectClass);
+            }
+            if (iface != null) {
+                symbol.addImplementedInterface(iface);
+                if (superType instanceof ParameterizedType apt2) {
+                    symbol.setImplementedParameterizedInterfaces(List.of(apt2));
+                }
+            }
+            return;
+        }
         ClassSymbol superSymbol = resolveClassRaw(superType, cls.location());
         if (superSymbol == null) {
             return;
@@ -1694,6 +1714,7 @@ public final class SemanticAnalyzer {
                     symbol, method.name(), returnType, params,
                     method.isStatic(), isMain, method.isNative(), method.isAbstract(), mangled, method.location());
             ms.setTypeParameters(methodTypeParams);
+            ms.setVarargs(!method.parameters().isEmpty() && method.parameters().getLast().isVarargs());
             ms.setFinal(method.isFinal());
             Visibility methodVis = method.visibility() == null
                     ? (method.isPublic() ? Visibility.PUBLIC : Visibility.PACKAGE)
@@ -1872,8 +1893,10 @@ public final class SemanticAnalyzer {
         ms.setFfiIntrinsic(true);
         String invokeRt = invokeRuntimeForFunctionType(ft);
         if (invokeRt == null) {
-            throw new IllegalStateException(
-                    "unsupported functional interface signature: " + iface.name() + " " + ft);
+            // Any other signature (double / long / float / char / byte / short / mixed arguments):
+            // the call is emitted inline from the actual argument types; there is just no C-callback
+            // trampoline shape for it.
+            invokeRt = "jnative_invoke_generic";
         }
         ms.setSamInvokeRuntime(invokeRt);
         adapter.addMethod(ms);
@@ -2013,7 +2036,7 @@ public final class SemanticAnalyzer {
             if (!method.isConstructor()) {
                 continue;
             }
-            if (!method.name().equals(cls.name())) {
+            if (!method.name().equals(symbol.simpleName())) {
                 reporter.error(method.location(), "constructor name must match class name");
             }
             List<ParameterSymbol> params = new ArrayList<>();
@@ -2028,6 +2051,7 @@ public final class SemanticAnalyzer {
                 }
             }
             ConstructorSymbol ctor = new ConstructorSymbol(symbol, params, false, method.location());
+            ctor.setVarargs(!method.parameters().isEmpty() && method.parameters().getLast().isVarargs());
             symbol.addConstructor(ctor);
             constructorAst.put(ctor, method);
         }
@@ -2468,6 +2492,7 @@ public final class SemanticAnalyzer {
                     .anyMatch(this::hasReturn);
             case BreakStatement ignored -> false;
             case ContinueStatement ignored -> false;
+            case LabeledStatement l -> hasReturn(l.body());
             case TryStatement t -> hasReturn(t.tryBlock())
                     || t.catches().stream().anyMatch(c -> hasReturn(c.body()))
                     || (t.finallyBlock() != null && hasReturn(t.finallyBlock()));
@@ -2476,42 +2501,51 @@ public final class SemanticAnalyzer {
     }
 
     /**
-     * Synthetic members for basic enums: {@code $name}/{@code $ordinal} instance fields,
-     * public static constants, private (String,int) constructor, and name/ordinal/values/valueOf.
+     * Synthetic members for enums: {@code $name}/{@code $ordinal} instance fields (set by the static
+     * initializer right after a constant is constructed) and the name/ordinal/toString/compareTo/
+     * values/valueOf methods. The constants themselves are ordinary public static fields declared by
+     * the parser, initialised with {@code new Enum(args)}.
      */
     private void registerEnumSynthetics(ClassSymbol symbol, ClassDeclaration cls) {
         SourceLocation loc = cls.location();
         JType self = symbol.asType();
         JType stringType = stringClass.asType();
-        FieldSymbol nameField = new FieldSymbol(
-                symbol, "$name", stringType, 0, false, false, Visibility.PRIVATE, loc);
-        FieldSymbol ordinalField = new FieldSymbol(
-                symbol, "$ordinal", PrimitiveType.INT, 1, false, false, Visibility.PRIVATE, loc);
-        symbol.addField(nameField);
-        symbol.addField(ordinalField);
-        int index = 2;
-        for (String constant : cls.enumConstants()) {
-            FieldSymbol fs = new FieldSymbol(
-                    symbol, constant, self, index++, true, false, Visibility.PUBLIC, loc);
-            if (!symbol.addField(fs)) {
-                reporter.error(loc, "duplicate enum constant '" + constant + "'");
+        int index = symbol.declaredFields().size();
+        symbol.addField(new FieldSymbol(
+                symbol, "$name", stringType, index++, false, false, Visibility.PRIVATE, loc));
+        symbol.addField(new FieldSymbol(
+                symbol, "$ordinal", PrimitiveType.INT, index, false, false, Visibility.PRIVATE, loc));
+        for (FieldSymbol f : symbol.declaredFields()) {
+            if (f.isStatic() && cls.enumConstants().contains(f.name())) {
+                enumConstantInits.add(f.initializer());
             }
         }
-        ConstructorSymbol ctor = new ConstructorSymbol(
-                symbol,
-                List.of(
-                        new ParameterSymbol("$name", stringType, loc),
-                        new ParameterSymbol("$ordinal", PrimitiveType.INT, loc)),
-                false,
-                loc);
-        symbol.addConstructor(ctor);
 
+        for (String reserved : List.of("name", "ordinal", "values", "valueOf", "compareTo")) {
+            for (MethodSymbol m : symbol.declaredMethods()) {
+                if (m.name().equals(reserved)) {
+                    reporter.error(m.location(),
+                            "enum method '" + reserved + "' is implicit and cannot be redeclared");
+                }
+            }
+        }
         addEnumMethod(symbol, "name", stringType, List.of(), false, loc);
         addEnumMethod(symbol, "ordinal", PrimitiveType.INT, List.of(), false, loc);
         addEnumMethod(symbol, "values", new ArrayType(self), List.of(), true, loc);
         addEnumMethod(symbol, "valueOf", self,
                 List.of(new ParameterSymbol("name", stringType, loc)), true, loc);
+        addEnumMethod(symbol, "compareTo", PrimitiveType.INT,
+                List.of(new ParameterSymbol("other", self, loc)), false, loc);
+        boolean userToString = symbol.declaredMethods().stream()
+                .anyMatch(m -> m.name().equals("toString") && m.parameters().isEmpty());
+        if (!userToString) {
+            addEnumMethod(symbol, "toString", stringType, List.of(), false, loc);
+        }
     }
+
+    /** Identity set of the synthetic {@code new Enum(args)} initializers of enum constants. */
+    private final java.util.Set<Expression> enumConstantInits =
+            java.util.Collections.newSetFromMap(new java.util.IdentityHashMap<>());
 
     private void addEnumMethod(
             ClassSymbol owner,
@@ -2526,17 +2560,211 @@ public final class SemanticAnalyzer {
         MethodSymbol ms = new MethodSymbol(
                 owner, name, returnType, params, isStatic, false, false, false, mangled, loc);
         ms.setVisibility(Visibility.PUBLIC);
+        if (!isStatic) {
+            owner.superClass()
+                    .flatMap(sc -> sc.findMethod(name, ms.parameterTypes()))
+                    .ifPresent(ms::setOverrides);
+        }
         // Bodies are synthesized in IrGenerator.lowerEnumMethods (no source MethodDeclaration).
         owner.addMethod(ms);
     }
 
+    /** A statement label in scope; {@code breakEnvs} collects definite-assignment states of its breaks. */
+    private static final class LabelInfo {
+        final String name;
+        final boolean isLoop;
+        final int finallyNesting;
+        final List<DaEnv> breakEnvs = new ArrayList<>();
+
+        LabelInfo(String name, boolean isLoop, int finallyNesting) {
+            this.name = name;
+            this.isLoop = isLoop;
+            this.finallyNesting = finallyNesting;
+        }
+    }
+
+    private final Deque<LabelInfo> labelStack = new ArrayDeque<>();
+
+    private LabelInfo findLabel(String name) {
+        for (LabelInfo l : labelStack) {
+            if (l.name.equals(name)) {
+                return l;
+            }
+        }
+        return null;
+    }
+
+    private void analyzeLabeled(LabeledStatement l) {
+        if (findLabel(l.label()) != null) {
+            reporter.error(l.location(), "label '" + l.label() + "' is already defined");
+        }
+        Statement body = l.body();
+        boolean isLoop = body instanceof WhileStatement || body instanceof DoWhileStatement
+                || body instanceof ForStatement || body instanceof EnhancedForStatement;
+        LabelInfo info = new LabelInfo(l.label(), isLoop, finallyNesting);
+        labelStack.push(info);
+        try {
+            analyzeStatement(body);
+        } finally {
+            labelStack.pop();
+        }
+        if (!info.breakEnvs.isEmpty()) {
+            List<DaEnv> exits = new ArrayList<>(info.breakEnvs);
+            if (daReachable) {
+                exits.add(daEnv.copy());
+            }
+            daEnv = DaEnv.mergeAll(exits);
+            daReachable = true;
+        }
+    }
+
+    /** State of one switch expression being analysed: yielded types / expressions / DA states. */
+    private static final class SwitchExprFrame {
+        final List<JType> types = new ArrayList<>();
+        final List<Expression> values = new ArrayList<>();
+        final List<DaEnv> envs = new ArrayList<>();
+        final int finallyNesting;
+
+        SwitchExprFrame(int finallyNesting) {
+            this.finallyNesting = finallyNesting;
+        }
+    }
+
+    private final Deque<SwitchExprFrame> switchExprFrames = new ArrayDeque<>();
+
+    private void analyzeYield(YieldStatement y) {
+        SwitchExprFrame frame = switchExprFrames.peek();
+        if (frame == null) {
+            reporter.error(y.location(), "yield outside of a switch expression");
+            analyzeExpression(y.value());
+            return;
+        }
+        if (finallyNesting > frame.finallyNesting && loopDepth > 0) {
+            reporter.error(y.location(),
+                    "yield from inside a loop within a try statement with finally is not supported");
+        }
+        JType t = analyzeExpression(y.value());
+        if (t instanceof VoidType) {
+            reporter.error(y.value().location(), "switch expression arm must produce a value");
+            t = ErrorType.INSTANCE;
+        }
+        frame.types.add(t);
+        frame.values.add(y.value());
+        if (daReachable) {
+            frame.envs.add(daEnv.copy());
+            daReachable = false;
+        }
+    }
+
+    private JType typeOfSwitchExpression(SwitchExpression e) {
+        SwitchExprFrame frame = new SwitchExprFrame(finallyNesting);
+        switchExprFrames.push(frame);
+        int savedLoop = loopDepth;
+        int savedSwitch = switchDepth;
+        Deque<LabelInfo> savedLabels = new ArrayDeque<>(labelStack);
+        labelStack.clear();
+        loopDepth = 0;
+        switchDepth = 0;
+        try {
+            analyzeSwitchCore(e.selector(), e.sections(), frame, e.location());
+        } finally {
+            loopDepth = savedLoop;
+            switchDepth = savedSwitch;
+            labelStack.clear();
+            labelStack.addAll(savedLabels);
+            switchExprFrames.pop();
+        }
+        if (frame.types.isEmpty()) {
+            reporter.error(e.location(), "switch expression does not have any result expressions");
+            return ErrorType.INSTANCE;
+        }
+        JType result = unifyArmTypes(frame.types);
+        if (result == null) {
+            reporter.error(e.location(),
+                    "incompatible types in switch expression: " + frame.types);
+            return ErrorType.INSTANCE;
+        }
+        return result;
+    }
+
+    /** Common type of the arms of a switch expression, or null when they do not agree. */
+    private JType unifyArmTypes(List<JType> types) {
+        for (JType t : types) {
+            if (t instanceof ErrorType) {
+                return ErrorType.INSTANCE;
+            }
+        }
+        boolean allSame = true;
+        for (JType t : types) {
+            if (!t.equals(types.getFirst())) {
+                allSame = false;
+                break;
+            }
+        }
+        if (allSame && !(types.getFirst() instanceof NullType)) {
+            return types.getFirst();
+        }
+        boolean allNumeric = true;
+        for (JType t : types) {
+            if (!(t instanceof PrimitiveType p) || p == PrimitiveType.BOOLEAN) {
+                allNumeric = false;
+            }
+        }
+        if (allNumeric) {
+            for (PrimitiveType wide : List.of(PrimitiveType.DOUBLE, PrimitiveType.FLOAT, PrimitiveType.LONG)) {
+                if (types.contains(wide)) {
+                    return wide;
+                }
+            }
+            return PrimitiveType.INT;
+        }
+        for (JType candidate : types) {
+            if (candidate instanceof NullType) {
+                continue;
+            }
+            boolean fits = true;
+            for (JType t : types) {
+                if (!(t instanceof NullType) && !assignableWithBoxing(candidate, t)) {
+                    fits = false;
+                    break;
+                }
+            }
+            if (fits) {
+                return candidate;
+            }
+        }
+        for (JType candidate : List.of(objectClass.asType())) {
+            boolean fits = true;
+            for (JType t : types) {
+                if (!assignableWithBoxing(candidate, t)) {
+                    fits = false;
+                    break;
+                }
+            }
+            if (fits) {
+                return candidate;
+            }
+        }
+        return null;
+    }
+
     private void analyzeSwitch(SwitchStatement s) {
-        JType selectorType = analyzeExpression(s.selector());
+        analyzeSwitchCore(s.selector(), s.sections(), null, s.location());
+    }
+
+    private void analyzeSwitchCore(
+            Expression selector, List<SwitchSection> sections, SwitchExprFrame exprFrame,
+            SourceLocation switchLoc
+    ) {
+        JType selectorType = analyzeExpression(selector);
         boolean enumSwitch = false;
+        boolean stringSwitch = false;
         ClassSymbol enumSym = null;
         if (selectorType instanceof ClassType ct && ct.classSymbol().isEnum()) {
             enumSwitch = true;
             enumSym = ct.classSymbol();
+        } else if (selectorType instanceof ClassType sct && sct.classSymbol() == stringClass) {
+            stringSwitch = true;
         } else if (selectorType == PrimitiveType.BYTE
                 || selectorType == PrimitiveType.SHORT
                 || selectorType == PrimitiveType.CHAR
@@ -2545,22 +2773,26 @@ public final class SemanticAnalyzer {
         } else if (selectorType instanceof ErrorType) {
             // already reported
         } else {
-            reporter.error(s.selector().location(),
-                    "switch selector must be byte, short, char, int, or an enum type; found "
+            reporter.error(selector.location(),
+                    "switch selector must be byte, short, char, int, String, or an enum type; found "
                             + selectorType);
         }
 
         Set<Integer> intLabels = new HashSet<>();
         Set<String> enumLabels = new HashSet<>();
+        Set<String> stringLabels = new HashSet<>();
+        List<DaEnv> arrowFalls = new ArrayList<>();
         boolean sawDefault = false;
         DaEnv beforeSwitch = daEnv.copy();
-        breakDaExits.push(new ArrayList<>());
-        switchDepth++;
+        if (exprFrame == null) {
+            breakDaExits.push(new ArrayList<>());
+            switchDepth++;
+        }
         Scope previous = current;
         current = new Scope(previous);
         blockDaLocals.push(new ArrayList<>());
         try {
-            for (SwitchSection section : s.sections()) {
+            for (SwitchSection section : sections) {
                 for (SwitchLabel label : section.labels()) {
                     switch (label) {
                         case DefaultLabel d -> {
@@ -2582,6 +2814,18 @@ public final class SemanticAnalyzer {
                                 } else if (!enumLabels.add(constName)) {
                                     reporter.error(c.location(),
                                             "duplicate case label '" + constName + "'");
+                                }
+                            } else if (stringSwitch) {
+                                if (c.constant() instanceof LiteralExpression lit
+                                        && lit.kind() == LiteralExpression.Kind.STRING) {
+                                    if (!stringLabels.add((String) lit.value())) {
+                                        reporter.error(c.location(),
+                                                "duplicate case label \"" + lit.value() + "\"");
+                                    }
+                                    expressionTypes.put(c.constant(), stringClass.asType());
+                                } else {
+                                    reporter.error(c.location(),
+                                            "case label of a String switch must be a string literal");
                                 }
                             } else {
                                 Integer value = evalSwitchIntConstant(c.constant());
@@ -2610,13 +2854,37 @@ public final class SemanticAnalyzer {
                 for (Statement st : section.statements()) {
                     analyzeStatement(st);
                 }
+                if (section.arrow() && daReachable) {
+                    // arrow arms never fall through to the next arm
+                    if (exprFrame != null) {
+                        reporter.error(section.location(),
+                                "switch rule completes without providing a value"
+                                        + " (use 'yield' or throw an exception)");
+                    } else {
+                        arrowFalls.add(daEnv.copy());
+                    }
+                    daReachable = false;
+                }
             }
-            List<DaEnv> exits = breakDaExits.pop();
-            if (daReachable) {
-                exits.add(daEnv.copy());
-            }
-            if (!sawDefault) {
-                exits.add(beforeSwitch.copy());
+            List<DaEnv> exits;
+            if (exprFrame != null) {
+                exits = exprFrame.envs;
+                boolean exhaustive = sawDefault
+                        || (enumSwitch && enumSym != null
+                        && enumLabels.size() == enumSym.enumConstants().size());
+                if (!exhaustive && !(selectorType instanceof ErrorType)) {
+                    reporter.error(switchLoc,
+                            "the switch expression does not cover all possible input values");
+                }
+            } else {
+                exits = breakDaExits.pop();
+                exits.addAll(arrowFalls);
+                if (daReachable) {
+                    exits.add(daEnv.copy());
+                }
+                if (!sawDefault) {
+                    exits.add(beforeSwitch.copy());
+                }
             }
             if (exits.isEmpty()) {
                 daReachable = false;
@@ -2629,7 +2897,9 @@ public final class SemanticAnalyzer {
                 daEnv.remove(vs);
             }
             current = previous;
-            switchDepth--;
+            if (exprFrame == null) {
+                switchDepth--;
+            }
         }
     }
 
@@ -2796,13 +3066,17 @@ public final class SemanticAnalyzer {
                 analyzeStatement(f.body());
                 loopDepth--;
                 loopDeclaredLocals.pop();
-                if (f.update() != null && daReachable) {
-                    analyzeExpression(f.update());
+                if (daReachable) {
+                    for (Expression u : f.allUpdates()) {
+                        analyzeExpression(u);
+                    }
                 } else if (f.update() != null) {
                     // Still type-check update on a side path
                     boolean r = daReachable;
                     daReachable = true;
-                    analyzeExpression(f.update());
+                    for (Expression u : f.allUpdates()) {
+                        analyzeExpression(u);
+                    }
                     daReachable = r;
                 }
                 List<DaEnv> exits = breakDaExits.pop();
@@ -2823,7 +3097,18 @@ public final class SemanticAnalyzer {
             case EnhancedForStatement ef -> analyzeEnhancedFor(ef);
             case SwitchStatement s -> analyzeSwitch(s);
             case BreakStatement b -> {
-                if (loopDepth + switchDepth <= 0) {
+                if (b.label() != null) {
+                    LabelInfo target = findLabel(b.label());
+                    if (target == null) {
+                        reporter.error(b.location(), "undefined label: " + b.label());
+                    } else if (finallyNesting > target.finallyNesting) {
+                        reporter.error(b.location(),
+                                "labeled break out of a try statement with finally/resources is not supported");
+                    } else if (daReachable) {
+                        target.breakEnvs.add(daEnv.copy());
+                        daReachable = false;
+                    }
+                } else if (loopDepth + switchDepth <= 0) {
                     reporter.error(b.location(),
                             "[JN1001] break outside loop or switch");
                 } else if (daReachable) {
@@ -2834,13 +3119,28 @@ public final class SemanticAnalyzer {
                 }
             }
             case ContinueStatement c -> {
-                if (loopDepth <= 0) {
+                if (c.label() != null) {
+                    LabelInfo target = findLabel(c.label());
+                    if (target == null) {
+                        reporter.error(c.location(), "undefined label: " + c.label());
+                    } else if (!target.isLoop) {
+                        reporter.error(c.location(),
+                                "not a loop label: " + c.label());
+                    } else if (finallyNesting > target.finallyNesting) {
+                        reporter.error(c.location(),
+                                "labeled continue out of a try statement with finally/resources is not supported");
+                    } else if (daReachable) {
+                        daReachable = false;
+                    }
+                } else if (loopDepth <= 0) {
                     reporter.error(c.location(),
                             "[JN1002] continue outside loop");
                 } else if (daReachable) {
                     daReachable = false;
                 }
             }
+            case LabeledStatement l -> analyzeLabeled(l);
+            case YieldStatement y -> analyzeYield(y);
             case ReturnStatement r -> {
                 analyzeReturn(r);
                 if (daReachable) {
@@ -2867,8 +3167,37 @@ public final class SemanticAnalyzer {
         }
     }
 
+    /** {@code var x = init;}: the variable takes the static type of its initializer. */
+    private JType inferVarType(VariableDeclaration v) {
+        if (v.initializer() == null) {
+            reporter.error(v.location(), "cannot infer type for local variable '" + v.name()
+                    + "' (cannot use 'var' on a variable without an initializer)");
+            return ErrorType.INSTANCE;
+        }
+        if (v.initializer() instanceof LambdaExpression || v.initializer() instanceof MethodReferenceExpression) {
+            reporter.error(v.location(), "cannot infer type for local variable '" + v.name()
+                    + "' (the initializer needs an explicit target type)");
+            return ErrorType.INSTANCE;
+        }
+        JType t = analyzeExpression(v.initializer());
+        if (t instanceof NullType) {
+            reporter.error(v.location(), "cannot infer type for local variable '" + v.name()
+                    + "' (variable initializer is 'null')");
+            return ErrorType.INSTANCE;
+        }
+        if (t instanceof VoidType) {
+            reporter.error(v.location(), "cannot infer type for local variable '" + v.name()
+                    + "' (variable initializer is 'void')");
+            return ErrorType.INSTANCE;
+        }
+        return t;
+    }
+
     private void analyzeEnhancedFor(EnhancedForStatement ef) {
-        JType elemType = resolveTypeName(ef.elementType(), ef.elementIsArray(), ef.location());
+        boolean inferred = isVarType(ef.elementType(), ef.elementIsArray());
+        JType elemType = inferred
+                ? ErrorType.INSTANCE
+                : resolveTypeName(ef.elementType(), ef.elementIsArray(), ef.location());
         if (elemType instanceof VoidType) {
             reporter.error(ef.location(), "cannot declare variable of type void");
             elemType = ErrorType.INSTANCE;
@@ -2884,6 +3213,10 @@ public final class SemanticAnalyzer {
                 reporter.error(ef.array().location(),
                         "enhanced for requires an array or Iterable; found " + iterableType);
             }
+        }
+        if (inferred) {
+            elemType = sourceElem != null ? sourceElem : ErrorType.INSTANCE;
+            expressionTypes.put(inferredLocalKey(ef.variableName(), ef.location()), elemType);
         }
         if (sourceElem != null && !(elemType instanceof ErrorType)
                 && !assignableWithBoxing(elemType, sourceElem)) {
@@ -3066,7 +3399,24 @@ public final class SemanticAnalyzer {
         }
     }
 
+    /** Number of enclosing try statements that have a finally block or resources. */
+    private int finallyNesting;
+
     private void analyzeTry(TryStatement t) {
+        boolean cleanup = t.finallyBlock() != null || !t.resources().isEmpty();
+        if (cleanup) {
+            finallyNesting++;
+        }
+        try {
+            analyzeTryBody(t);
+        } finally {
+            if (cleanup) {
+                finallyNesting--;
+            }
+        }
+    }
+
+    private void analyzeTryBody(TryStatement t) {
         Scope outer = current;
         current = new Scope(outer);
         List<MethodCallExpression> closes = new ArrayList<>();
@@ -3180,8 +3530,26 @@ public final class SemanticAnalyzer {
                 "resource type must be AutoCloseable or declare void close()");
     }
 
+    /** True for the {@code var} type of a local variable (when no type named {@code var} exists). */
+    /** Key under which the inferred type of a {@code var} local / loop variable is recorded. */
+    public static Expression inferredLocalKey(String name, SourceLocation location) {
+        return new VariableExpression("$var$" + name, location);
+    }
+
+    private boolean isVarType(TypeName t, boolean isArray) {
+        return !isArray && t.kind() == TypeName.Kind.CLASS && "var".equals(t.name())
+                && t.typeArguments().isEmpty() && !classes.containsKey("var")
+                && !interfaces.containsKey("var");
+    }
+
     private void analyzeVariableDeclaration(VariableDeclaration v) {
-        JType type = resolveTypeName(v.type(), v.isArray(), v.location());
+        JType type;
+        if (isVarType(v.type(), v.isArray())) {
+            type = inferVarType(v);
+            expressionTypes.put(inferredLocalKey(v.name(), v.location()), type);
+        } else {
+            type = resolveTypeName(v.type(), v.isArray(), v.location());
+        }
         if (type instanceof VoidType) {
             reporter.error(v.location(), "cannot declare variable of type void");
             type = ErrorType.INSTANCE;
@@ -3195,7 +3563,7 @@ public final class SemanticAnalyzer {
                     "native struct requires explicit storage: @Stack or NativeMemory");
         }
 
-        if (v.initializer() != null) {
+        if (v.initializer() != null && !isVarType(v.type(), v.isArray())) {
             boolean prev = allowingStackNativeNew;
             allowingStackNativeNew = v.stackAllocated() && type instanceof NativeStructType;
             try {
@@ -3259,6 +3627,9 @@ public final class SemanticAnalyzer {
     }
 
     private void analyzeReturn(ReturnStatement r) {
+        if (!switchExprFrames.isEmpty() && lambdaStack.isEmpty()) {
+            reporter.error(r.location(), "cannot return out of a switch expression");
+        }
         if (currentConstructor != null) {
             if (r.value() != null) {
                 reporter.error(r.location(), "constructors cannot return a value");
@@ -3326,6 +3697,7 @@ public final class SemanticAnalyzer {
                 case LiteralExpression l -> typeOfLiteral(l);
                 case NullLiteralExpression ignored -> NullType.INSTANCE;
                 case ThisExpression t -> typeOfThis(t);
+                case SuperExpression s -> typeOfSuper(s);
                 case VariableExpression v -> typeOfVariable(v);
                 case AssignmentExpression a -> typeOfAssignment(a);
                 case BinaryExpression b -> typeOfBinary(b);
@@ -3337,6 +3709,7 @@ public final class SemanticAnalyzer {
                 case FieldAccessExpression f -> typeOfFieldAccess(f);
                 case NewArrayExpression n -> typeOfNewArray(n);
                 case ArrayInitExpression n -> typeOfArrayInit(n);
+                case SwitchExpression n -> typeOfSwitchExpression(n);
                 case ArrayAccessExpression a -> typeOfArrayAccess(a);
                 case InstanceOfExpression i -> typeOfInstanceOf(i);
                 case CastExpression c -> typeOfCast(c);
@@ -3367,6 +3740,23 @@ public final class SemanticAnalyzer {
             case STRING -> stringClass.asType();
             case CHAR -> PrimitiveType.CHAR;
         };
+    }
+
+    /** {@code super} as a method-call receiver: the superclass view of {@code this}. */
+    private JType typeOfSuper(SuperExpression s) {
+        boolean instanceCtx = currentConstructor != null || inInstanceInitializer
+                || (currentMethod != null && !currentMethod.isStatic());
+        if (!instanceCtx || currentClass == null) {
+            reporter.error(s.location(), "'super' is not available in a static context");
+            return ErrorType.INSTANCE;
+        }
+        captureEnclosingThis(s.location());
+        Optional<ClassSymbol> sup = currentClass.superClass();
+        if (sup.isEmpty()) {
+            reporter.error(s.location(), "class '" + currentClass.name() + "' has no superclass");
+            return ErrorType.INSTANCE;
+        }
+        return sup.get().asType();
     }
 
     private JType typeOfThis(ThisExpression t) {
@@ -3411,6 +3801,22 @@ public final class SemanticAnalyzer {
                         provenances.put(v, PointerProvenance.UNKNOWN);
                     }
                     return fs.type();
+                }
+            }
+        }
+        // Unqualified static field of a lexically enclosing class (nested/anonymous classes).
+        if (currentClass != null) {
+            String owner = currentClass.name();
+            for (int dot = owner.lastIndexOf('.'); dot > 0; dot = owner.lastIndexOf('.')) {
+                owner = owner.substring(0, dot);
+                ClassSymbol outer = classes.get(owner);
+                if (outer == null) {
+                    continue;
+                }
+                Optional<FieldSymbol> of = outer.findField(v.name());
+                if (of.isPresent() && of.get().isStatic()) {
+                    resolvedSymbols.put(v, of.get());
+                    return of.get().type();
                 }
             }
         }
@@ -3961,6 +4367,10 @@ public final class SemanticAnalyzer {
                 reporter.error(m.location(),
                         "static method '" + m.name() + "' should be called without an instance");
             }
+            if (m.receiver() instanceof SuperExpression && ms.isAbstract()) {
+                reporter.error(m.location(),
+                        "abstract method '" + m.name() + "' cannot be called through 'super'");
+            }
             MethodSymbol callTarget = ms;
             if (recvSub != null) {
                 callTarget = substituteMethod(ms, recvSub);
@@ -4066,6 +4476,12 @@ public final class SemanticAnalyzer {
         }
         if (arityOk.isEmpty()) {
             arityOk.addAll(usable);
+        } else {
+            for (MethodSymbol ms : usable) {
+                if (ms.isVarargs() && !arityOk.contains(ms)) {
+                    arityOk.add(ms);
+                }
+            }
         }
         MethodSymbol hint = arityOk.size() == 1 ? arityOk.get(0) : null;
         MethodSymbol hintSam = hint;
@@ -4087,10 +4503,18 @@ public final class SemanticAnalyzer {
             if (receiverSub != null) {
                 pts = substituteMethod(ms, receiverSub).parameterTypes();
             }
-            list.add(new CallableResolver.Candidate(pts, ms));
+            list.add(new CallableResolver.Candidate(pts, ms, ms.isVarargs()));
         }
         Object resolved = CallableResolver.resolve(list, argTypes);
         if (resolved instanceof MethodSymbol ms) {
+            if (ms.isVarargs()) {
+                for (CallableResolver.Candidate c : list) {
+                    if (c.symbol() == ms) {
+                        packVarargs(m.arguments(), c.parameterTypes(), argTypes, m.location());
+                        break;
+                    }
+                }
+            }
             return ms;
         }
         if (list.size() == 1) {
@@ -4104,6 +4528,31 @@ public final class SemanticAnalyzer {
                             + " argument(s); " + list.size() + " overloads apply");
         }
         return null;
+    }
+
+    /**
+     * Rewrites a variable-arity call so that its argument list matches the parameter list: the
+     * trailing arguments are replaced by one array initializer typed with the varargs element type.
+     * (The argument list is the parser's mutable list, so every later phase sees the packed form.)
+     */
+    private void packVarargs(List<Expression> args, List<JType> params, List<JType> argTypes,
+                             SourceLocation loc) {
+        if (params.isEmpty() || !(params.getLast() instanceof ArrayType at)
+                || !CallableResolver.needsVarargsPacking(params, argTypes)) {
+            return;
+        }
+        int fixed = params.size() - 1;
+        List<Expression> tail = new ArrayList<>(args.subList(fixed, args.size()));
+        ArrayInitExpression init = new ArrayInitExpression(
+                TypeName.ofClass("Object", loc), tail, at.elementType(), loc);
+        try {
+            args.subList(fixed, args.size()).clear();
+            args.add(init);
+        } catch (UnsupportedOperationException e) {
+            reporter.error(loc, "variable-arity call cannot be rewritten here");
+            return;
+        }
+        analyzeExpression(init, at);
     }
 
     /** Type parameters declared by generic methods (as opposed to classes). */
@@ -4421,10 +4870,7 @@ public final class SemanticAnalyzer {
         }
         String invokeRuntime = invokeRuntimeForFunctionType(expected);
         if (invokeRuntime == null) {
-            reporter.error(lambda.location(),
-                    "unsupported functional interface signature for lambda: " + expected
-                            + " (no callable invoke runtime)");
-            return ErrorType.INSTANCE;
+            invokeRuntime = "jnative_invoke_generic"; // see createInterfaceAdapter
         }
 
         Scope outer = current;
@@ -4947,7 +5393,7 @@ public final class SemanticAnalyzer {
                 instantiated = new ParameterizedType(symbol, typeArgs);
             }
         }
-        if (symbol.isEnum()) {
+        if (symbol.isEnum() && !enumConstantInits.contains(n)) {
             reporter.error(n.location(), "cannot instantiate enum type '" + n.className() + "' with new");
             return ErrorType.INSTANCE;
         }
@@ -5024,7 +5470,7 @@ public final class SemanticAnalyzer {
                 }
                 params = substituted;
             }
-            candidates.add(new CallableResolver.Candidate(params, c));
+            candidates.add(new CallableResolver.Candidate(params, c, c.isVarargs()));
         }
         Object resolved = CallableResolver.resolve(candidates, argTypes);
         if (!(resolved instanceof ConstructorSymbol ctor)) {
@@ -5032,6 +5478,14 @@ public final class SemanticAnalyzer {
                     "no matching constructor for " + n.className()
                             + "(" + NameMangler.describeSignature(argTypes) + ")");
             return ErrorType.INSTANCE;
+        }
+        if (ctor.isVarargs()) {
+            for (CallableResolver.Candidate c : candidates) {
+                if (c.symbol() == ctor) {
+                    packVarargs(n.arguments(), c.parameterTypes(), argTypes, n.location());
+                    break;
+                }
+            }
         }
         resolvedSymbols.put(n, ctor);
         if (instantiated != null) {
@@ -5060,13 +5514,25 @@ public final class SemanticAnalyzer {
         if (!lenType.isInteger() && !(lenType instanceof ErrorType)) {
             reporter.error(n.length().location(), "array length must be int-compatible");
         }
+        JType nested = element;
+        for (Expression inner : n.innerLengths()) {
+            JType innerType = analyzeExpression(inner);
+            if (!innerType.isInteger() && !(innerType instanceof ErrorType)) {
+                reporter.error(inner.location(), "array length must be int-compatible");
+            }
+            if (nested instanceof ArrayType nat) {
+                nested = nat.elementType();
+            }
+        }
         ClassMetadata meta = arrayMetadataFor(element);
         resolvedSymbols.put(n, meta);
         return new ArrayType(element);
     }
 
     private JType typeOfArrayInit(ArrayInitExpression n) {
-        JType element = resolveTypeName(n.elementType(), false, n.location());
+        JType element = n.presetElementType() instanceof JType preset
+                ? preset
+                : resolveTypeName(n.elementType(), false, n.location());
         if (element instanceof VoidType || element instanceof ErrorType) {
             reporter.error(n.location(), "invalid array element type");
             for (Expression e : n.elements()) {
@@ -5109,16 +5575,14 @@ public final class SemanticAnalyzer {
         // Dotted FQN type or static field: walk AST names without analyzing package prefixes.
         String recvFqn = flattenQualifiedName(f.receiver());
         if (recvFqn != null) {
-            ClassSymbol typeRecv = recvFqn.contains(".")
-                    ? classes.get(recvFqn)
-                    : resolveClassBySourceName(recvFqn);
-            String asTypeFqn = recvFqn + "." + f.fieldName();
-            if (classes.containsKey(asTypeFqn)) {
+            ClassSymbol typeRecv = resolveClassBySourceName(recvFqn);
+            String asTypeFqn = resolveTypeReferenceNameQuiet(recvFqn + "." + f.fieldName());
+            if (asTypeFqn != null && classes.containsKey(asTypeFqn)) {
                 ClassSymbol t = classes.get(asTypeFqn);
                 resolvedSymbols.put(f, t);
                 return t.asType();
             }
-            if (interfaces.containsKey(asTypeFqn)) {
+            if (asTypeFqn != null && interfaces.containsKey(asTypeFqn)) {
                 InterfaceSymbol t = interfaces.get(asTypeFqn);
                 resolvedSymbols.put(f, t);
                 return t.asType();
@@ -5212,7 +5676,43 @@ public final class SemanticAnalyzer {
         return fieldType;
     }
 
+    /** Pattern-binding locals ({@code x instanceof T name}); these may be re-declared by a later pattern. */
+    private final java.util.Set<VariableSymbol> patternBindings = java.util.Collections.newSetFromMap(new java.util.IdentityHashMap<>());
+
+    private void declarePatternBinding(InstanceOfExpression i, JType type) {
+        JType scrutinee = expressionTypes.get(i.expression());
+        if (scrutinee != null && scrutinee.isPrimitive()) {
+            reporter.error(i.location(), "instanceof requires a reference type operand");
+        }
+        expressionTypes.put(inferredLocalKey(i.binding(), i.location()), type);
+        VariableSymbol vs = new VariableSymbol(
+                i.binding(), type, VariableSymbol.Kind.LOCAL, i.location(), false, false);
+        java.util.Optional<Symbol> existing = current.resolveLocal(i.binding());
+        if (existing.isPresent()) {
+            boolean reusable = existing.get() instanceof Symbol.VariableBinding vb
+                    && patternBindings.contains(vb.variable());
+            if (!reusable) {
+                reporter.error(i.location(), "duplicate variable '" + i.binding() + "'");
+                return;
+            }
+            current.redeclare(new Symbol.VariableBinding(vs));
+        } else {
+            current.declare(new Symbol.VariableBinding(vs));
+        }
+        patternBindings.add(vs);
+        daEnv.declare(vs, true);
+        noteLocalForDa(vs);
+    }
+
     private JType typeOfInstanceOf(InstanceOfExpression i) {
+        JType result = typeOfInstanceOfTest(i);
+        if (i.binding() != null && !(result instanceof ErrorType)) {
+            declarePatternBinding(i, resolveTypeName(i.type(), false, i.location()));
+        }
+        return result;
+    }
+
+    private JType typeOfInstanceOfTest(InstanceOfExpression i) {
         analyzeExpression(i.expression());
         boolean prev = instanceofContext;
         instanceofContext = true;
@@ -5495,7 +5995,7 @@ public final class SemanticAnalyzer {
         if (fqn == null || !fqn.contains(".")) {
             return null;
         }
-        return classes.get(fqn);
+        return resolveClassBySourceName(fqn);
     }
 
     /** {@code a.b.c} as Variable/FieldAccess chain → {@code "a.b.c"}; otherwise null. */
@@ -5603,10 +6103,19 @@ public final class SemanticAnalyzer {
             return null;
         }
         if (raw.contains(".")) {
-            if (classes.containsKey(raw) || interfaces.containsKey(raw) || nativeStructs.containsKey(raw)) {
+            if (typeExists(raw)) {
                 return raw;
             }
-            return null;
+            // Nested type relative to the current package or an enclosing type: Outer.Inner
+            String pkgDotted = currentPackageName();
+            if (!pkgDotted.isEmpty() && typeExists(pkgDotted + "." + raw)) {
+                return pkgDotted + "." + raw;
+            }
+            return resolveInEnclosingScopes(raw);
+        }
+        String enclosing = resolveInEnclosingScopes(raw);
+        if (enclosing != null) {
+            return enclosing;
         }
         List<String> imports = currentImportTypes();
         String fromImport = null;
@@ -5644,13 +6153,53 @@ public final class SemanticAnalyzer {
         return null;
     }
 
+    private boolean typeExists(String fqn) {
+        return classes.containsKey(fqn) || interfaces.containsKey(fqn) || nativeStructs.containsKey(fqn);
+    }
+
+    /** FQN of the type whose members are being resolved/analyzed ("" outside any type). */
+    private String currentOwnerFqn() {
+        if (currentClass != null) {
+            return currentClass.name();
+        }
+        return resolveOwnerFqn == null ? "" : resolveOwnerFqn;
+    }
+
+    /**
+     * Member types of the current type and of every enclosing type ({@code Inner} inside {@code Outer}
+     * resolves to {@code Outer.Inner}). Stops before the package level.
+     */
+    private String resolveInEnclosingScopes(String raw) {
+        String pkg = currentPackageName();
+        String prefix = currentOwnerFqn();
+        while (!prefix.isEmpty()) {
+            if (!pkg.isEmpty() && !prefix.startsWith(pkg + ".")) {
+                break;
+            }
+            String candidate = prefix + "." + raw;
+            if (typeExists(candidate)) {
+                return candidate;
+            }
+            int dot = prefix.lastIndexOf('.');
+            if (dot < 0) {
+                break;
+            }
+            prefix = prefix.substring(0, dot);
+        }
+        return null;
+    }
+
+    private String resolveOwnerFqn = "";
+
     private void beginResolve(ClassDeclaration cls) {
+        resolveOwnerFqn = cls.qualifiedName();
         resolvePackage = cls.packageName() == null ? "" : cls.packageName();
         resolveImports = cls.imports().stream().map(ImportDeclaration::qualifiedType).toList();
         currentClass = cls.isInterface() || cls.nativeStruct() ? null : classOf(cls);
     }
 
     private void endResolve() {
+        resolveOwnerFqn = "";
         resolvePackage = "";
         resolveImports = List.of();
         currentClass = null;

@@ -1,0 +1,62 @@
+interface Op { int apply(int a, int b); }
+
+enum Hue { RED, GREEN, BLUE }
+
+enum Planet implements Op {
+    MERCURY(3.3, 2.4),
+    EARTH(5.97, 6.37);
+
+    private final double mass;
+    private final double radius;
+    static int count = 0;
+
+    Planet(double mass, double radius) {
+        this.mass = mass;
+        this.radius = radius;
+    }
+
+    double gravity() { return mass / (radius * radius); }
+
+    public int apply(int a, int b) { return a * b + ordinal(); }
+
+    @Override
+    public String toString() { return "Planet:" + name().toLowerCase(); }
+}
+
+enum Level {
+    LOW(1), MID(5), HIGH(10);
+    final int w;
+    Level(int w) { this.w = w; }
+    static Level of(int x) {
+        for (Level l : values()) { if (l.w >= x) return l; }
+        return HIGH;
+    }
+    boolean atLeast(Level o) { return compareTo(o) >= 0; }
+}
+
+public class Main {
+    public static void main(String[] args) {
+        Hue c = Hue.GREEN;
+        System.out.println(c);
+        System.out.println("c=" + c + " " + c.name() + " " + c.ordinal());
+        for (Hue x : Hue.values()) { System.out.println(x); }
+        System.out.println(Hue.valueOf("BLUE"));
+        switch (c) {
+            case RED: System.out.println("r"); break;
+            case GREEN: System.out.println("g"); break;
+            default: System.out.println("?");
+        }
+        System.out.println(Planet.EARTH);
+        System.out.println(Planet.MERCURY.apply(3, 4));
+        System.out.println(Planet.EARTH.apply(3, 4));
+        System.out.println(Planet.EARTH.gravity() > Planet.MERCURY.gravity());
+        System.out.println(Level.of(4));
+        System.out.println(Level.HIGH.atLeast(Level.MID));
+        System.out.println(Level.LOW.atLeast(Level.MID));
+        Op o = Planet.EARTH;
+        System.out.println(o.apply(2, 2));
+        System.out.println(Level.MID.w + Level.HIGH.w);
+        System.out.println(c == Hue.GREEN);
+        System.out.println(c.equals(Hue.RED));
+    }
+}

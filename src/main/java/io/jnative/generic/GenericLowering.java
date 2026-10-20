@@ -414,9 +414,14 @@ public final class GenericLowering {
                 collectNewObjectsInExpression(f.condition(), sub, classes, out);
             }
             collectNewObjectsInStatement(f.body(), sub, classes, out);
-            if (f.update() != null) {
-                collectNewObjectsInExpression(f.update(), sub, classes, out);
+            for (Expression u : f.allUpdates()) {
+                collectNewObjectsInExpression(u, sub, classes, out);
             }
+        }
+        else if (stmt instanceof io.jnative.ast.LabeledStatement l) {
+            collectNewObjectsInStatement(l.body(), sub, classes, out);
+        } else if (stmt instanceof io.jnative.ast.YieldStatement y) {
+            collectNewObjectsInExpression(y.value(), sub, classes, out);
         }
         // BreakStatement / ContinueStatement: no expressions
     }

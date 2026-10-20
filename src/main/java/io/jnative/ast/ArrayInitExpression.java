@@ -19,6 +19,10 @@ import java.util.List;
 public record ArrayInitExpression(
         TypeName elementType,
         List<Expression> elements,
+        Object presetElementType,
         SourceLocation location
 ) implements Expression {
+    public ArrayInitExpression(TypeName elementType, List<Expression> elements, SourceLocation location) {
+        this(elementType, elements, null, location);
+    }
 }

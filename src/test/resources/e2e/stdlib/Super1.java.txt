@@ -1,0 +1,56 @@
+class Animal {
+    protected int legs = 4;
+    String name() { return "animal"; }
+    int sum(int a, int b) { return a + b; }
+    String describe() { return name() + "/" + legs; }
+    public String toString() { return "Animal"; }
+}
+
+class Dog extends Animal {
+    String name() { return "dog>" + super.name(); }
+    int sum(int a, int b) { return super.sum(a, b) * 2; }
+    public String toString() { return "Dog:" + super.toString(); }
+}
+
+class Puppy extends Dog {
+    String name() { return "puppy>" + super.name(); }
+    int sum(int a, int b) { return super.sum(a + 1, b) + 100; }
+    String describe() { return super.describe() + "!"; }
+}
+
+abstract class Shape {
+    abstract double area();
+    String label() { return "shape"; }
+}
+
+class Sq extends Shape {
+    double s = 3.0;
+    double area() { return s * s; }
+    String label() { return "sq-" + super.label(); }
+}
+
+class Counter {
+    int n;
+    void inc() { n = n + 1; }
+}
+
+class Twice extends Counter {
+    void inc() { super.inc(); super.inc(); }
+}
+
+public class Main {
+    public static void main(String[] args) {
+        Animal a = new Puppy();
+        System.out.println(a.name());
+        System.out.println(a.sum(1, 2));
+        System.out.println(a.describe());
+        System.out.println(a);
+        System.out.println(new Dog().name());
+        Shape s = new Sq();
+        System.out.println(s.label() + " " + s.area());
+        Counter c = new Twice();
+        c.inc();
+        c.inc();
+        System.out.println(c.n);
+    }
+}

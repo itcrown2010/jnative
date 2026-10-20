@@ -13,6 +13,7 @@ import io.jnative.lexer.TokenType;
 import io.jnative.semantic.Visibility;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -29,6 +30,12 @@ public final class Parser {
     private final DiagnosticReporter reporter;
     private int current;
     private final Set<String> knownClassNames = new HashSet<>();
+    /** Simple names of the types enclosing the declaration being parsed (outermost first). */
+    private final java.util.ArrayDeque<String> typeNesting = new java.util.ArrayDeque<>();
+    /** Nested types discovered while parsing a body; flattened into the compilation unit. */
+    private final List<ClassDeclaration> nestedTypes = new ArrayList<>();
+    /** Dotted full name ({@code Outer.Inner}) of the type whose members are being parsed. */
+    private String currentTypeFullName = "";
     /** Types declared in other compilation units (stdlib, deps, siblings). */
     private final Set<String> programTypeNames;
     private final Map<String, List<MarkerAnnotation>> typeAnnotations = new LinkedHashMap<>();
@@ -38,6 +45,50 @@ public final class Parser {
     private String currentPackage = "";
     private final List<ImportDeclaration> currentImports = new ArrayList<>();
     private boolean packageDeclaredInScope;
+
+    /** A local variable visible at a point of the body being parsed (type is null when not syntactically known). */
+    private record LocalInfo(TypeName type, boolean isArray) {
+    }
+
+    /** Lexical scopes of locals/parameters (innermost first); used to find what an anonymous class captures. */
+    private final java.util.ArrayDeque<Map<String, LocalInfo>> localScopes = new java.util.ArrayDeque<>();
+    private int anonymousCounter;
+    /** Built-in closure classes that user classes cannot extend (see SemanticAnalyzer.installSam). */
+    private static final Set<String> BUILTIN_SAM_CLASSES = Set.of(
+            "Runnable", "IntUnaryFunction", "IntFunction", "IntBinaryFunction", "IntCompare", "HttpHandler");
+
+    private void pushLocalScope() {
+        localScopes.push(new HashMap<>());
+    }
+
+    private void popLocalScope() {
+        localScopes.pop();
+    }
+
+    private void declareLocal(String name, TypeName type, boolean isArray) {
+        if (!localScopes.isEmpty()) {
+            localScopes.peek().put(name, new LocalInfo(type, isArray));
+        }
+    }
+
+    /** {@code var x = init;}: only {@code new T(..)} and simple literals have a syntactically known type. */
+    private TypeName inferLocalType(Expression init) {
+        if (init instanceof NewObjectExpression n && !n.diamond()) {
+            return TypeName.ofClass(n.className(), n.typeArguments(), n.location());
+        }
+        if (init instanceof LiteralExpression l) {
+            return switch (l.kind()) {
+                case INT -> TypeName.ofInt(l.location());
+                case LONG -> TypeName.ofLong(l.location());
+                case FLOAT -> TypeName.ofFloat(l.location());
+                case DOUBLE -> TypeName.ofDouble(l.location());
+                case BOOLEAN -> TypeName.ofBoolean(l.location());
+                case CHAR -> TypeName.ofChar(l.location());
+                case STRING -> TypeName.ofClass("String", l.location());
+            };
+        }
+        return null;
+    }
 
     public Parser(List<Token> tokens, DiagnosticReporter reporter) {
         this(tokens, reporter, Set.of());
@@ -73,6 +124,8 @@ public final class Parser {
                     continue;
                 }
                 classes.add(parseTypeDeclaration());
+                classes.addAll(nestedTypes);
+                nestedTypes.clear();
             }
         } catch (ParseException e) {
             reporter.error(e.location(), e.getMessage());
@@ -191,6 +244,7 @@ public final class Parser {
     private void collectClassNames() {
         knownClassNames.clear();
         knownClassNames.add("String");
+        knownClassNames.add("var"); // local variable type inference
         knownClassNames.add("Object");
         knownClassNames.add("Throwable");
         knownClassNames.add("Exception");
@@ -296,6 +350,8 @@ public final class Parser {
                 typeEffects = typeEffects.merge(ann.effectContract());
             } else if (ann.marker() != null) {
                 pendingTypeAnns.add(ann.marker());
+            } else if (isIgnoredAnnotation(ann)) {
+                // accepted for source compatibility
             } else {
                 reporter.error(ann.location(),
                         "@" + ann.name() + " is not allowed on type declarations");
@@ -304,11 +360,15 @@ public final class Parser {
         Visibility typeVis = parseVisibilityModifier();
         boolean isAbstract = false;
         boolean isFinal = false;
+        boolean nestedStatic = false;
         for (int i = 0; i < 4; i++) {
             if (!isAbstract && match(TokenType.ABSTRACT)) {
                 isAbstract = true;
             } else if (!isFinal && match(TokenType.FINAL)) {
                 isFinal = true;
+            } else if (!nestedStatic && !typeNesting.isEmpty() && match(TokenType.STATIC)) {
+                // nested types are always flattened (no enclosing instance), so 'static' is implied
+                nestedStatic = true;
             } else {
                 break;
             }
@@ -343,21 +403,23 @@ public final class Parser {
             consume(TokenType.CLASS, "expected 'class', 'interface', or 'enum'");
         }
         Token name = consume(TokenType.IDENTIFIER, "expected type name");
-        if (typeVis == Visibility.PRIVATE || typeVis == Visibility.PROTECTED) {
+        String fullName = typeNesting.isEmpty()
+                ? name.lexeme() : String.join(".", typeNesting) + "." + name.lexeme();
+        if (typeNesting.isEmpty() && (typeVis == Visibility.PRIVATE || typeVis == Visibility.PROTECTED)) {
             reporter.error(name.location(),
                     "top-level type cannot be " + typeVis.name().toLowerCase()
                             + "; use public or package-private");
             typeVis = Visibility.PACKAGE;
         }
         if (!pendingTypeAnns.isEmpty()) {
-            typeAnnotations.put(name.lexeme(), List.copyOf(pendingTypeAnns));
+            typeAnnotations.put(fullName, List.copyOf(pendingTypeAnns));
         }
         knownClassNames.add(name.lexeme());
         String pkg = currentPackage == null ? "" : currentPackage;
         List<ImportDeclaration> importsSnapshot = List.copyOf(currentImports);
 
         if (isEnum) {
-            return parseEnumBody(name, pkg, importsSnapshot, typeVis);
+            return parseEnumBody(name, fullName, pkg, importsSnapshot, typeVis);
         }
 
         List<TypeParameterDeclaration> typeParams = parseTypeParameterList();
@@ -398,58 +460,91 @@ public final class Parser {
 
         List<FieldDeclaration> fields = new ArrayList<>();
         List<MethodDeclaration> methods = new ArrayList<>();
-        while (!check(TokenType.RBRACE) && !isAtEnd()) {
-            parseClassMember(name.lexeme(), fields, methods, nativeStruct, isInterface, isAbstract, typeEffects);
+        String savedFull = currentTypeFullName;
+        currentTypeFullName = fullName;
+        typeNesting.addLast(name.lexeme());
+        try {
+            while (!check(TokenType.RBRACE) && !isAtEnd()) {
+                parseClassMember(name.lexeme(), fields, methods, nativeStruct, isInterface, isAbstract,
+                        typeEffects);
+            }
+        } finally {
+            typeNesting.removeLast();
+            currentTypeFullName = savedFull;
         }
         consume(TokenType.RBRACE, "expected '}'");
         return new ClassDeclaration(
-                name.lexeme(), pkg, importsSnapshot, typeVis, typeParams, superClassName, superClassTypeArgs,
+                fullName, pkg, importsSnapshot, typeVis, typeParams, superClassName, superClassTypeArgs,
                 implementedInterfaces, fields, methods,
                 nativeStruct, isInterface, isAbstract, isFinal, name.location());
     }
 
     /**
-     * Basic enum: {@code enum Name { A, B, C }}. Rejects bodies, constructors, and members.
+     * Enum declaration: {@code enum Name [implements I, J] { A, B(1, "x"); fields; Name(..) {..}; methods }}.
+     * Each constant becomes a {@code public static} field of the enum type initialised with
+     * {@code new Name(args)}; the semantic and IR phases then fill in the name and ordinal.
+     * Constant-specific class bodies are not supported.
      */
     private ClassDeclaration parseEnumBody(
-            Token name, String pkg, List<ImportDeclaration> imports, Visibility typeVis) {
+            Token name, String fullName, String pkg, List<ImportDeclaration> imports, Visibility typeVis) {
         if (match(TokenType.LT)) {
             throw error(previous(), "enum type parameters are not supported");
         }
-        if (match(TokenType.EXTENDS) || match(TokenType.IMPLEMENTS)) {
-            throw error(previous(), "basic enum cannot extend or implement types");
+        if (match(TokenType.EXTENDS)) {
+            throw error(previous(), "an enum cannot extend a class");
+        }
+        List<TypeName> implementedInterfaces = new ArrayList<>();
+        if (match(TokenType.IMPLEMENTS)) {
+            implementedInterfaces.addAll(parseTypeNameList("expected interface name"));
         }
         consume(TokenType.LBRACE, "expected '{' after enum name");
         List<String> constants = new ArrayList<>();
-        if (!check(TokenType.RBRACE)) {
-            do {
-                if (check(TokenType.SEMICOLON) || check(TokenType.RBRACE)) {
-                    break;
-                }
-                Token c = consume(TokenType.IDENTIFIER, "expected enum constant name");
-                if (match(TokenType.LPAREN)) {
-                    throw error(previous(),
-                            "enum constant arguments are not supported in this language profile");
-                }
-                if (match(TokenType.LBRACE)) {
-                    throw error(previous(),
-                            "enum constant class bodies are not supported in this language profile");
-                }
-                constants.add(c.lexeme());
-            } while (match(TokenType.COMMA));
-        }
-        if (match(TokenType.SEMICOLON)) {
+        List<FieldDeclaration> fields = new ArrayList<>();
+        List<MethodDeclaration> methods = new ArrayList<>();
+        String savedFull = currentTypeFullName;
+        currentTypeFullName = fullName;
+        typeNesting.addLast(name.lexeme());
+        try {
             if (!check(TokenType.RBRACE)) {
-                throw error(peek(),
-                        "enum members, constructors, and methods are not supported in this language profile");
+                do {
+                    if (check(TokenType.SEMICOLON) || check(TokenType.RBRACE)) {
+                        break;
+                    }
+                    Token c = consume(TokenType.IDENTIFIER, "expected enum constant name");
+                    List<Expression> args = List.of();
+                    if (match(TokenType.LPAREN)) {
+                        args = parseArgumentList();
+                        consume(TokenType.RPAREN, "expected ')' after enum constant arguments");
+                    }
+                    if (match(TokenType.LBRACE)) {
+                        throw error(previous(),
+                                "enum constant class bodies are not supported in this language profile");
+                    }
+                    constants.add(c.lexeme());
+                    fields.add(new FieldDeclaration(
+                            TypeName.ofClass(fullName, c.location()), false, c.lexeme(),
+                            Visibility.PUBLIC, true, false,
+                            new NewObjectExpression(fullName, args, c.location()), c.location()));
+                } while (match(TokenType.COMMA));
             }
+            if (match(TokenType.SEMICOLON)) {
+                while (!check(TokenType.RBRACE) && !isAtEnd()) {
+                    parseClassMember(name.lexeme(), fields, methods, false, false, false,
+                            EffectContract.empty(name.location()));
+                }
+            }
+        } finally {
+            typeNesting.removeLast();
+            currentTypeFullName = savedFull;
         }
-        consume(TokenType.RBRACE, "expected '}' after enum constants");
+        consume(TokenType.RBRACE, "expected '}' after enum body");
         if (constants.isEmpty()) {
             reporter.error(name.location(), "enum must declare at least one constant");
         }
-        return ClassDeclaration.enumType(
-                name.lexeme(), pkg, imports, typeVis, constants, name.location());
+        return new ClassDeclaration(
+                fullName, pkg, imports, typeVis, List.of(), null, List.of(), implementedInterfaces,
+                fields, methods, false, false, false, true, true,
+                List.copyOf(constants), name.location());
     }
 
     private Visibility parseVisibilityModifier() {
@@ -525,6 +620,25 @@ public final class Parser {
                                   boolean isInterface,
                                   boolean classIsAbstract,
                                   EffectContract typeEffects) {
+        pushLocalScope(); // method parameters live here
+        try {
+            parseClassMemberInner(className, fields, methods, nativeStruct, isInterface, classIsAbstract, typeEffects);
+        } finally {
+            popLocalScope();
+        }
+    }
+
+    private void parseClassMemberInner(String className,
+                                  List<FieldDeclaration> fields,
+                                  List<MethodDeclaration> methods,
+                                  boolean nativeStruct,
+                                  boolean isInterface,
+                                  boolean classIsAbstract,
+                                  EffectContract typeEffects) {
+        if (isNestedTypeAhead()) {
+            nestedTypes.add(parseTypeDeclaration());
+            return;
+        }
         NativeAnnotation nativeAnnotation = null;
         EffectContract effectContract = typeEffects.merge(EffectContract.empty(peek().location()));
         List<MarkerAnnotation> pendingMemberAnns = new ArrayList<>();
@@ -539,6 +653,8 @@ public final class Parser {
                 effectContract = effectContract.merge(ann.effectContract());
             } else if (ann.marker() != null) {
                 pendingMemberAnns.add(ann.marker());
+            } else if (isIgnoredAnnotation(ann)) {
+                // accepted for source compatibility
             } else {
                 reporter.error(ann.location(),
                         "@" + ann.name() + " is not allowed on class members");
@@ -618,16 +734,11 @@ public final class Parser {
         }
 
         TypeName type = parseType();
-        boolean isArray = false;
-        if (match(TokenType.LBRACKET)) {
-            consume(TokenType.RBRACKET, "expected ']'");
-            isArray = true;
-        }
+        int arrayDims = consumeArrayDims();
         Token name = consume(TokenType.IDENTIFIER, "expected member name");
-        if (!isArray && match(TokenType.LBRACKET)) {
-            consume(TokenType.RBRACKET, "expected ']'");
-            isArray = true;
-        }
+        arrayDims += consumeArrayDims();
+        boolean isArray = arrayDims > 0;
+        type = wrapArrayDims(type, arrayDims - 1);
 
         if (check(TokenType.LPAREN)) {
             if (nativeStruct) {
@@ -681,18 +792,13 @@ public final class Parser {
                     methodTypeParams, type, isArray,
                     name.lexeme(), params, body, nativeAnnotation, effectContract, memberVis, name.location()));
             if (!pendingMemberAnns.isEmpty()) {
-                methodAnnotations.put(className + "." + name.lexeme(), List.copyOf(pendingMemberAnns));
+                methodAnnotations.put(currentTypeFullName + "." + name.lexeme(), List.copyOf(pendingMemberAnns));
             }
             return;
         }
 
         // field
-        // static final constants are accepted (final is a source-level marker; IR treats
-        // them as ordinary static fields). Instance final fields remain unsupported.
-        if (isFinal && !isStatic) {
-            reporter.error(name.location(),
-                    "instance final fields are not supported in this language profile yet");
-        }
+        // 'final' on fields is a source-level marker; IR treats them as ordinary fields.
         if (isInterface) {
             reporter.error(name.location(),
                     "interface instance fields are not supported (constants deferred)");
@@ -711,12 +817,27 @@ public final class Parser {
                 initializer = parseExpression();
             }
         }
-        consume(TokenType.SEMICOLON, "expected ';' after field declaration");
         fields.add(new FieldDeclaration(
                 type, isArray, name.lexeme(), memberVis, isStatic, isVolatile, initializer, name.location()));
         if (!pendingMemberAnns.isEmpty()) {
-            fieldAnnotations.put(className + "." + name.lexeme(), List.copyOf(pendingMemberAnns));
+            fieldAnnotations.put(currentTypeFullName + "." + name.lexeme(), List.copyOf(pendingMemberAnns));
         }
+        while (match(TokenType.COMMA)) {
+            Token n2 = consume(TokenType.IDENTIFIER, "expected field name");
+            int dims2 = consumeArrayDims();
+            boolean isArray2 = dims2 > 0;
+            Expression init2 = null;
+            if (match(TokenType.ASSIGN)) {
+                if (isArray2 && check(TokenType.LBRACE)) {
+                    init2 = parseArrayInitializer(type);
+                } else {
+                    init2 = parseExpression();
+                }
+            }
+            fields.add(new FieldDeclaration(
+                    type, isArray || isArray2, n2.lexeme(), memberVis, isStatic, isVolatile, init2, n2.location()));
+        }
+        consume(TokenType.SEMICOLON, "expected ';' after field declaration");
     }
 
     /**
@@ -790,10 +911,32 @@ public final class Parser {
                 || annName.equals("Retention");
     }
 
+    /** Java annotations that carry no meaning for JNative; they are parsed and dropped. */
+    private static final java.util.Set<String> IGNORED_ANNOTATIONS = java.util.Set.of(
+            "Override", "Deprecated", "SuppressWarnings", "FunctionalInterface", "SafeVarargs");
+
+    private static boolean isIgnoredAnnotation(ParsedAnnotation ann) {
+        return IGNORED_ANNOTATIONS.contains(ann.name());
+    }
+
     private ParsedAnnotation parseAnnotation() {
         Token at = consume(TokenType.AT, "expected '@'");
         Token name = consume(TokenType.IDENTIFIER, "expected annotation name");
         String annName = name.lexeme();
+        if (IGNORED_ANNOTATIONS.contains(annName)) {
+            if (match(TokenType.LPAREN)) {
+                int depth = 1;
+                while (depth > 0 && !isAtEnd()) {
+                    if (check(TokenType.LPAREN)) {
+                        depth++;
+                    } else if (check(TokenType.RPAREN)) {
+                        depth--;
+                    }
+                    advance();
+                }
+            }
+            return new ParsedAnnotation(annName, null, null, null, at.location());
+        }
         if (annName.equals("Native")) {
             java.util.Optional<String> symbol = java.util.Optional.empty();
             java.util.Optional<String> library = java.util.Optional.empty();
@@ -929,6 +1072,44 @@ public final class Parser {
                 at.location());
     }
 
+    /** True when the next member is a nested {@code class}/{@code interface}/{@code enum} declaration. */
+    private boolean isNestedTypeAhead() {
+        int i = 0;
+        while (true) {
+            Token t = peekAt(i);
+            if (t == null) {
+                return false;
+            }
+            switch (t.type()) {
+                case PUBLIC, PRIVATE, PROTECTED, STATIC, ABSTRACT, FINAL -> i++;
+                case AT -> {
+                    i++;
+                    if (peekAt(i) != null && peekAt(i).type() == TokenType.IDENTIFIER) {
+                        i++;
+                    }
+                    if (peekAt(i) != null && peekAt(i).type() == TokenType.LPAREN) {
+                        int depth = 0;
+                        while (peekAt(i) != null) {
+                            TokenType tt = peekAt(i).type();
+                            i++;
+                            if (tt == TokenType.LPAREN) {
+                                depth++;
+                            } else if (tt == TokenType.RPAREN && --depth == 0) {
+                                break;
+                            }
+                        }
+                    }
+                }
+                case CLASS, INTERFACE, ENUM -> {
+                    return peekAt(i + 1) != null && peekAt(i + 1).type() == TokenType.IDENTIFIER;
+                }
+                default -> {
+                    return false;
+                }
+            }
+        }
+    }
+
     private boolean isConstructorStart(String className) {
         return check(TokenType.IDENTIFIER)
                 && peek().lexeme().equals(className)
@@ -944,26 +1125,54 @@ public final class Parser {
             } while (match(TokenType.COMMA));
         }
         consume(TokenType.RPAREN, "expected ')'");
+        for (Parameter prm : params) {
+            declareLocal(prm.name(), prm.type(), prm.isArray());
+        }
+        for (int i = 0; i + 1 < params.size(); i++) {
+            if (params.get(i).isVarargs()) {
+                reporter.error(params.get(i).location(), "a varargs parameter must be the last parameter");
+            }
+        }
         return params;
     }
 
     private Parameter parseParameter() {
         boolean isFinal = match(TokenType.FINAL);
         TypeName type = parseType();
-        boolean isArray = false;
-        if (match(TokenType.LBRACKET)) {
-            consume(TokenType.RBRACKET, "expected ']'");
-            isArray = true;
+        int arrayDims = consumeArrayDims();
+        boolean varargs = match(TokenType.ELLIPSIS);
+        if (varargs) {
+            arrayDims++;
         }
         Token name = consume(TokenType.IDENTIFIER, "expected parameter name");
-        if (!isArray && match(TokenType.LBRACKET)) {
-            consume(TokenType.RBRACKET, "expected ']'");
-            isArray = true;
+        arrayDims += consumeArrayDims();
+        boolean isArray = arrayDims > 0;
+        type = wrapArrayDims(type, arrayDims - 1);
+        return new Parameter(type, name.lexeme(), isArray, isFinal, varargs, name.location());
+    }
+
+    /** Consumes {@code [] [] ...} pairs and returns how many were read. */
+    private int consumeArrayDims() {
+        int n = 0;
+        while (check(TokenType.LBRACKET) && peekAt(1) != null && peekAt(1).type() == TokenType.RBRACKET) {
+            advance();
+            advance();
+            n++;
         }
-        return new Parameter(type, name.lexeme(), isArray, isFinal, name.location());
+        return n;
+    }
+
+    /** Wraps {@code type} in {@code count} array layers ({@code count <= 0} returns it unchanged). */
+    private static TypeName wrapArrayDims(TypeName type, int count) {
+        TypeName t = type;
+        for (int i = 0; i < count; i++) {
+            t = TypeName.ofArray(t, type.location());
+        }
+        return t;
     }
 
     private TypeName parseType() {
+        skipPackageQualifier();
         Token t = peek();
         if (match(TokenType.VOID)) {
             return TypeName.ofVoid(t.location());
@@ -1166,11 +1375,25 @@ public final class Parser {
     private BlockStatement parseBlock() {
         Token lbrace = consume(TokenType.LBRACE, "expected '{'");
         List<Statement> statements = new ArrayList<>();
-        while (!check(TokenType.RBRACE) && !isAtEnd()) {
-            statements.add(parseStatement());
+        pushLocalScope();
+        try {
+            while (!check(TokenType.RBRACE) && !isAtEnd()) {
+                statements.add(parseStatement());
+                drainPendingDecls(statements);
+            }
+        } finally {
+            popLocalScope();
         }
         consume(TokenType.RBRACE, "expected '}'");
         return new BlockStatement(statements, lbrace.location());
+    }
+
+    /** Extra declarators of {@code int a = 1, b = 2;} beyond the first; spliced into the enclosing list. */
+    private final List<Statement> pendingDecls = new ArrayList<>();
+
+    private void drainPendingDecls(List<Statement> into) {
+        into.addAll(pendingDecls);
+        pendingDecls.clear();
     }
 
     private Statement parseStatement() {
@@ -1211,6 +1434,19 @@ public final class Parser {
             if (match(TokenType.SEMICOLON)) {
                 return new EmptyStatement(previous().location());
             }
+            if (check(TokenType.IDENTIFIER) && checkNext(TokenType.COLON)) {
+                Token label = advance();
+                advance(); // ':'
+                return new LabeledStatement(label.lexeme(), parseStatement(), label.location());
+            }
+            if (switchExprDepth > 0 && check(TokenType.IDENTIFIER) && peek().lexeme().equals("yield")
+                    && !checkNext(TokenType.ASSIGN) && !checkNext(TokenType.DOT)
+                    && !checkNext(TokenType.PLUS_PLUS) && !checkNext(TokenType.MINUS_MINUS)) {
+                Token y = advance();
+                Expression value = parseExpression();
+                consume(TokenType.SEMICOLON, "expected ';' after yield");
+                return new YieldStatement(value, y.location());
+            }
             if (check(TokenType.SUPER) && checkNext(TokenType.LPAREN)) {
                 return parseConstructorDelegation(true);
             }
@@ -1231,17 +1467,33 @@ public final class Parser {
     private TryStatement parseTry() {
         Token start = previous();
         List<VariableDeclaration> resources = List.of();
-        if (match(TokenType.LPAREN)) {
-            resources = parseTryResources();
+        BlockStatement tryBlock;
+        pushLocalScope();
+        try {
+            if (match(TokenType.LPAREN)) {
+                resources = parseTryResources();
+                for (VariableDeclaration r : resources) {
+                    declareLocal(r.name(), r.type(), r.isArray());
+                }
+            }
+            tryBlock = parseBlock();
+        } finally {
+            popLocalScope();
         }
-        BlockStatement tryBlock = parseBlock();
         List<CatchClause> catches = new ArrayList<>();
         while (match(TokenType.CATCH)) {
             consume(TokenType.LPAREN, "expected '(' after 'catch'");
             TypeName catchType = parseType();
             Token varName = consume(TokenType.IDENTIFIER, "expected catch variable name");
             consume(TokenType.RPAREN, "expected ')' after catch parameter");
-            BlockStatement catchBody = parseBlock();
+            BlockStatement catchBody;
+            pushLocalScope();
+            try {
+                declareLocal(varName.lexeme(), catchType, false);
+                catchBody = parseBlock();
+            } finally {
+                popLocalScope();
+            }
             catches.add(new CatchClause(catchType, varName.lexeme(), catchBody, start.location()));
         }
         BlockStatement finallyBlock = null;
@@ -1264,16 +1516,11 @@ public final class Parser {
         }
         while (true) {
             TypeName type = parseType();
-            boolean isArray = false;
-            if (match(TokenType.LBRACKET)) {
-                consume(TokenType.RBRACKET, "expected ']'");
-                isArray = true;
-            }
+            int arrayDims = consumeArrayDims();
             Token name = consume(TokenType.IDENTIFIER, "expected resource variable name");
-            if (!isArray && match(TokenType.LBRACKET)) {
-                consume(TokenType.RBRACKET, "expected ']'");
-                isArray = true;
-            }
+            arrayDims += consumeArrayDims();
+            boolean isArray = arrayDims > 0;
+            type = wrapArrayDims(type, arrayDims - 1);
             consume(TokenType.ASSIGN, "try-with-resources variable must be initialized");
             Expression init = parseExpression();
             // TWR resources are implicitly final (Java §14.20.3).
@@ -1351,10 +1598,13 @@ public final class Parser {
                 return true;
             }
             if (next != null && next.type() == TokenType.LBRACKET) {
-                Token close = peekAt(afterType + 1);
-                Token name = peekAt(afterType + 2);
-                return close != null && close.type() == TokenType.RBRACKET
-                        && name != null && name.type() == TokenType.IDENTIFIER;
+                int k = afterType;
+                while (peekAt(k) != null && peekAt(k).type() == TokenType.LBRACKET
+                        && peekAt(k + 1) != null && peekAt(k + 1).type() == TokenType.RBRACKET) {
+                    k += 2;
+                }
+                Token name = peekAt(k);
+                return k > afterType && name != null && name.type() == TokenType.IDENTIFIER;
             }
         }
         return false;
@@ -1411,10 +1661,13 @@ public final class Parser {
             return true;
         }
         if (next.type() == TokenType.LBRACKET) {
-            Token close = peekAt(i + 1);
-            Token name = peekAt(i + 2);
-            return close != null && close.type() == TokenType.RBRACKET
-                    && name != null && name.type() == TokenType.IDENTIFIER;
+            int k = i;
+            while (peekAt(k) != null && peekAt(k).type() == TokenType.LBRACKET
+                    && peekAt(k + 1) != null && peekAt(k + 1).type() == TokenType.RBRACKET) {
+                k += 2;
+            }
+            Token name = peekAt(k);
+            return k > i && name != null && name.type() == TokenType.IDENTIFIER;
         }
         return false;
     }
@@ -1426,6 +1679,10 @@ public final class Parser {
         };
     }
 
+    private static boolean isVarKeyword(TypeName t) {
+        return t != null && t.kind() == TypeName.Kind.CLASS && "var".equals(t.name());
+    }
+
     private VariableDeclaration parseVariableDeclaration() {
         boolean isFinal = match(TokenType.FINAL);
         boolean stackAllocated = false;
@@ -1433,22 +1690,21 @@ public final class Parser {
             ParsedAnnotation ann = parseAnnotation();
             if ("Stack".equals(ann.name())) {
                 stackAllocated = true;
+            } else if (isIgnoredAnnotation(ann)) {
+                // accepted for source compatibility
             } else {
                 reporter.error(ann.location(),
                         "@" + ann.name() + " is not allowed on local variables");
             }
         }
         TypeName type = parseType();
-        boolean isArray = false;
-        if (match(TokenType.LBRACKET)) {
-            consume(TokenType.RBRACKET, "expected ']'");
-            isArray = true;
-        }
+        TypeName baseType = type;
+        int baseDims = consumeArrayDims();
+        int arrayDims = baseDims;
         Token name = consume(TokenType.IDENTIFIER, "expected variable name");
-        if (!isArray && match(TokenType.LBRACKET)) {
-            consume(TokenType.RBRACKET, "expected ']'");
-            isArray = true;
-        }
+        arrayDims += consumeArrayDims();
+        boolean isArray = arrayDims > 0;
+        type = wrapArrayDims(type, arrayDims - 1);
         Expression init = null;
         if (match(TokenType.ASSIGN)) {
             if (isArray && check(TokenType.LBRACE)) {
@@ -1457,9 +1713,28 @@ public final class Parser {
                 init = parseExpression();
             }
         }
-        consume(TokenType.SEMICOLON, "expected ';' after variable declaration");
-        return new VariableDeclaration(
+        VariableDeclaration first = new VariableDeclaration(
                 type, isArray, name.lexeme(), init, stackAllocated, isFinal, name.location());
+        declareLocal(name.lexeme(), isVarKeyword(type) ? inferLocalType(init) : type, isVarKeyword(type) ? false : isArray);
+        while (match(TokenType.COMMA)) {
+            Token n2 = consume(TokenType.IDENTIFIER, "expected variable name");
+            int dims2 = baseDims + consumeArrayDims();
+            boolean isArray2 = dims2 > 0;
+            TypeName t2 = wrapArrayDims(baseType, dims2 - 1);
+            Expression init2 = null;
+            if (match(TokenType.ASSIGN)) {
+                if (isArray2 && check(TokenType.LBRACE)) {
+                    init2 = parseArrayInitializer(t2);
+                } else {
+                    init2 = parseExpression();
+                }
+            }
+            pendingDecls.add(new VariableDeclaration(
+                    t2, isArray2, n2.lexeme(), init2, stackAllocated, isFinal, n2.location()));
+            declareLocal(n2.lexeme(), t2, isArray2);
+        }
+        consume(TokenType.SEMICOLON, "expected ';' after variable declaration");
+        return first;
     }
 
     private IfStatement parseIf() {
@@ -1495,66 +1770,139 @@ public final class Parser {
         return new DoWhileStatement(body, condition, doTok.location());
     }
 
-    /**
-     * Classic switch statement. Arrow / switch-expression syntax is rejected.
-     */
+    /** Nesting depth of switch expressions being parsed ({@code yield} is a statement only inside). */
+    private int switchExprDepth;
+    /** While parsing a case label, {@code NAME ->} is the label arrow, not a lambda. */
+    private boolean inCaseLabel;
+
+    /** {@code switch (x) { ... }} as a statement: classic ({@code case X:}) or arrow form. */
     private SwitchStatement parseSwitch() {
         Token sw = previous();
+        Expression selector = parseSwitchSelector();
+        List<SwitchSection> sections = parseSwitchBody(false);
+        return new SwitchStatement(selector, sections, sw.location());
+    }
+
+    /** {@code switch (x) { case A -> v; ... }} as an expression. */
+    private SwitchExpression parseSwitchExpression() {
+        Token sw = previous();
+        Expression selector = parseSwitchSelector();
+        switchExprDepth++;
+        List<SwitchSection> sections;
+        try {
+            sections = parseSwitchBody(true);
+        } finally {
+            switchExprDepth--;
+        }
+        return new SwitchExpression(selector, sections, sw.location());
+    }
+
+    private Expression parseSwitchSelector() {
         consume(TokenType.LPAREN, "expected '(' after 'switch'");
         Expression selector = parseExpression();
         consume(TokenType.RPAREN, "expected ')' after switch selector");
+        return selector;
+    }
+
+    private List<SwitchSection> parseSwitchBody(boolean asExpression) {
         consume(TokenType.LBRACE, "expected '{' after switch selector");
+        pushLocalScope();
+        try {
+            return parseSwitchSections(asExpression);
+        } finally {
+            popLocalScope();
+        }
+    }
+
+    private List<SwitchSection> parseSwitchSections(boolean asExpression) {
         List<SwitchSection> sections = new ArrayList<>();
+        Boolean arrowForm = null;
         while (!check(TokenType.RBRACE) && !isAtEnd()) {
             if (!check(TokenType.CASE) && !check(TokenType.DEFAULT)) {
                 throw error(peek(), "expected 'case' or 'default' in switch");
             }
             List<SwitchLabel> labels = new ArrayList<>();
             SourceLocation sectionLoc = peek().location();
+            boolean arrow = false;
             while (check(TokenType.CASE) || check(TokenType.DEFAULT)) {
                 if (match(TokenType.CASE)) {
                     Token caseTok = previous();
-                    if (check(TokenType.ARROW)) {
-                        throw error(peek(),
-                                "switch arrow syntax is not supported; use 'case X:' with statements");
-                    }
-                    Expression constant = parseExpression();
-                    consume(TokenType.COLON, "expected ':' after case label");
-                    labels.add(new CaseLabel(constant, caseTok.location()));
+                    do {
+                        boolean saved = inCaseLabel;
+                        inCaseLabel = true;
+                        Expression constant;
+                        try {
+                            constant = parseTernary();
+                        } finally {
+                            inCaseLabel = saved;
+                        }
+                        labels.add(new CaseLabel(constant, caseTok.location()));
+                    } while (match(TokenType.COMMA));
                 } else {
                     Token defTok = consume(TokenType.DEFAULT, "expected 'default'");
-                    if (check(TokenType.ARROW)) {
-                        throw error(peek(),
-                                "switch arrow syntax is not supported; use 'default:' with statements");
-                    }
-                    consume(TokenType.COLON, "expected ':' after default");
                     labels.add(new DefaultLabel(defTok.location()));
                 }
+                if (match(TokenType.ARROW)) {
+                    arrow = true;
+                    break;
+                }
+                consume(TokenType.COLON, "expected ':' or '->' after case label");
             }
+            if (arrowForm != null && arrowForm != arrow) {
+                throw error(previous(), "cannot mix 'case X:' and 'case X ->' in one switch");
+            }
+            arrowForm = arrow;
             List<Statement> stmts = new ArrayList<>();
-            while (!check(TokenType.CASE) && !check(TokenType.DEFAULT)
-                    && !check(TokenType.RBRACE) && !isAtEnd()) {
-                stmts.add(parseStatement());
+            if (arrow) {
+                if (check(TokenType.LBRACE)) {
+                    stmts.add(parseBlock());
+                } else if (check(TokenType.THROW)) {
+                    advance();
+                    stmts.add(parseThrow());
+                } else {
+                    Expression value = parseExpression();
+                    consume(TokenType.SEMICOLON, "expected ';' after switch arm");
+                    stmts.add(asExpression
+                            ? new YieldStatement(value, value.location())
+                            : new ExpressionStatement(stripPostfix(value), value.location()));
+                }
+            } else {
+                while (!check(TokenType.CASE) && !check(TokenType.DEFAULT)
+                        && !check(TokenType.RBRACE) && !isAtEnd()) {
+                    stmts.add(parseStatement());
+                    drainPendingDecls(stmts);
+                }
             }
-            sections.add(new SwitchSection(labels, stmts, sectionLoc));
+            sections.add(new SwitchSection(labels, stmts, arrow, sectionLoc));
         }
         consume(TokenType.RBRACE, "expected '}' after switch body");
-        return new SwitchStatement(selector, sections, sw.location());
+        return sections;
     }
 
     private BreakStatement parseBreak() {
         Token tok = previous();
+        String label = check(TokenType.IDENTIFIER) ? advance().lexeme() : null;
         consume(TokenType.SEMICOLON, "expected ';' after break");
-        return new BreakStatement(tok.location());
+        return new BreakStatement(label, tok.location());
     }
 
     private ContinueStatement parseContinue() {
         Token tok = previous();
+        String label = check(TokenType.IDENTIFIER) ? advance().lexeme() : null;
         consume(TokenType.SEMICOLON, "expected ';' after continue");
-        return new ContinueStatement(tok.location());
+        return new ContinueStatement(label, tok.location());
     }
 
     private Statement parseFor() {
+        pushLocalScope();
+        try {
+            return parseForInner();
+        } finally {
+            popLocalScope();
+        }
+    }
+
+    private Statement parseForInner() {
         Token forTok = previous();
         consume(TokenType.LPAREN, "expected '(' after for");
 
@@ -1563,14 +1911,20 @@ public final class Parser {
         }
 
         Statement initializer;
+        List<Statement> prelude = new ArrayList<>();
         if (match(TokenType.SEMICOLON)) {
             initializer = null;
         } else if (isVariableDeclarationStart()) {
             initializer = parseVariableDeclaration();
+            drainPendingDecls(prelude);
         } else {
             Expression expr = parseExpression();
+            initializer = new ExpressionStatement(stripPostfix(expr), expr.location());
+            while (match(TokenType.COMMA)) {
+                Expression more = parseExpression();
+                prelude.add(new ExpressionStatement(stripPostfix(more), more.location()));
+            }
             consume(TokenType.SEMICOLON, "expected ';' after for initializer");
-            initializer = new ExpressionStatement(expr, expr.location());
         }
 
         Expression condition = null;
@@ -1580,12 +1934,27 @@ public final class Parser {
         consume(TokenType.SEMICOLON, "expected ';' after for condition");
 
         Expression update = null;
+        List<Expression> moreUpdates = new ArrayList<>();
         if (!check(TokenType.RPAREN)) {
-            update = parseExpression();
+            update = stripPostfix(parseExpression());
+            while (match(TokenType.COMMA)) {
+                moreUpdates.add(stripPostfix(parseExpression()));
+            }
         }
         consume(TokenType.RPAREN, "expected ')' after for clauses");
         Statement body = parseStatement();
-        return new ForStatement(initializer, condition, update, body, forTok.location());
+        ForStatement loop = new ForStatement(initializer, condition, update, body, forTok.location(), moreUpdates);
+        if (prelude.isEmpty()) {
+            return loop;
+        }
+        // for (int i = 0, j = 1; ...) -> { int i = 0; int j = 1; for (; ...) }  (same scoping)
+        List<Statement> stmts = new ArrayList<>();
+        if (initializer != null) {
+            stmts.add(initializer);
+        }
+        stmts.addAll(prelude);
+        stmts.add(new ForStatement(null, condition, update, body, forTok.location(), moreUpdates));
+        return new BlockStatement(stmts, forTok.location());
     }
 
     /**
@@ -1620,7 +1989,7 @@ public final class Parser {
         } else {
             return false;
         }
-        if (peekAt(afterType) != null && peekAt(afterType).type() == TokenType.LBRACKET
+        while (peekAt(afterType) != null && peekAt(afterType).type() == TokenType.LBRACKET
                 && peekAt(afterType + 1) != null && peekAt(afterType + 1).type() == TokenType.RBRACKET) {
             afterType += 2;
         }
@@ -1635,18 +2004,14 @@ public final class Parser {
     private EnhancedForStatement parseEnhancedFor(Token forTok) {
         boolean isFinal = match(TokenType.FINAL);
         TypeName type = parseType();
-        boolean isArray = false;
-        if (match(TokenType.LBRACKET)) {
-            consume(TokenType.RBRACKET, "expected ']'");
-            isArray = true;
-        }
+        int arrayDims = consumeArrayDims();
         Token name = consume(TokenType.IDENTIFIER, "expected loop variable name");
-        if (!isArray && match(TokenType.LBRACKET)) {
-            consume(TokenType.RBRACKET, "expected ']'");
-            isArray = true;
-        }
+        arrayDims += consumeArrayDims();
+        boolean isArray = arrayDims > 0;
+        type = wrapArrayDims(type, arrayDims - 1);
         consume(TokenType.COLON, "expected ':' in enhanced for");
         Expression array = parseExpression();
+        declareLocal(name.lexeme(), isVarKeyword(type) ? null : type, isVarKeyword(type) ? false : isArray);
         consume(TokenType.RPAREN, "expected ')' after enhanced for");
         Statement body = parseStatement();
         return new EnhancedForStatement(
@@ -1663,10 +2028,15 @@ public final class Parser {
         return new ReturnStatement(value, ret.location());
     }
 
+    /** A postfix increment whose value is discarded needs no old-value result. */
+    private static Expression stripPostfix(Expression expr) {
+        return expr instanceof AssignmentExpression a ? a.asStatement() : expr;
+    }
+
     private ExpressionStatement parseExpressionStatement() {
         Expression expr = parseExpression();
         consume(TokenType.SEMICOLON, "expected ';' after expression");
-        return new ExpressionStatement(expr, expr.location());
+        return new ExpressionStatement(stripPostfix(expr), expr.location());
     }
 
     private Expression parseExpression() {
@@ -1819,8 +2189,13 @@ public final class Parser {
         while (true) {
             if (match(TokenType.INSTANCEOF)) {
                 Token op = previous();
+                match(TokenType.FINAL);
                 TypeName type = parseType();
-                expr = new InstanceOfExpression(expr, type, op.location());
+                String binding = check(TokenType.IDENTIFIER) ? advance().lexeme() : null;
+                if (binding != null) {
+                    declareLocal(binding, type, false);
+                }
+                expr = new InstanceOfExpression(expr, type, op.location(), binding);
                 continue;
             }
             if (match(TokenType.LT, TokenType.LE, TokenType.GT, TokenType.GE)) {
@@ -1899,7 +2274,31 @@ public final class Parser {
         return expr;
     }
 
+    /**
+     * {@code x++ / x-- / ++x / --x}  ==>  {@code x = (T)(x +/- 1)} (T = type of x, resolved semantically).
+     * The target is evaluated more than once, so it must be free of side effects.
+     */
+    private Expression incrementOf(Expression target, Token op, boolean postfix) {
+        if (!isAssignable(target)) {
+            throw error(op, "invalid increment/decrement target");
+        }
+        if (!isSideEffectFree(target)) {
+            throw error(op, "increment/decrement target must not contain calls, assignments or "
+                    + "increments (the target would be evaluated twice)");
+        }
+        BinaryOp bop = op.type() == TokenType.PLUS_PLUS ? BinaryOp.ADD : BinaryOp.SUB;
+        Expression one = LiteralExpression.ofInt(1, op.location());
+        Expression combined = new BinaryExpression(target, bop, one, op.location());
+        Expression narrowed = new CastExpression(
+                TypeName.ofClass(COMPOUND_CAST_MARKER, op.location()), combined, op.location());
+        return new AssignmentExpression(target, narrowed, postfix, op.location());
+    }
+
     private Expression parseUnary() {
+        if (match(TokenType.PLUS_PLUS) || match(TokenType.MINUS_MINUS)) {
+            Token op = previous();
+            return incrementOf(parseUnary(), op, false);
+        }
         if (match(TokenType.NOT)) {
             Token op = previous();
             return new UnaryExpression(UnaryOp.NOT, parseUnary(), op.location());
@@ -1944,6 +2343,10 @@ public final class Parser {
                 if (match(TokenType.LPAREN)) {
                     List<Expression> args = parseArgumentList();
                     consume(TokenType.RPAREN, "expected ')' after arguments");
+                    if (expr instanceof VariableExpression sv && sv.name().equals("String")
+                            && name.lexeme().equals("format")) {
+                        expr = new VariableExpression("JnFormat", sv.location());
+                    }
                     expr = new MethodCallExpression(
                             expr, name.lexeme(), args, typeArgs, name.location());
                 } else if (!typeArgs.isEmpty()) {
@@ -1965,14 +2368,7 @@ public final class Parser {
                 continue;
             }
             if (match(TokenType.PLUS_PLUS) || match(TokenType.MINUS_MINUS)) {
-                Token op = previous();
-                if (!isAssignable(expr)) {
-                    throw error(op, "invalid increment/decrement target");
-                }
-                BinaryOp bop = op.type() == TokenType.PLUS_PLUS ? BinaryOp.ADD : BinaryOp.SUB;
-                Expression one = LiteralExpression.ofInt(1, op.location());
-                Expression rhs = new BinaryExpression(expr, bop, one, op.location());
-                expr = new AssignmentExpression(expr, rhs, op.location());
+                expr = incrementOf(expr, previous(), true);
                 continue;
             }
             if (match(TokenType.COLON_COLON)) {
@@ -1997,7 +2393,34 @@ public final class Parser {
         return expr;
     }
 
+    /** Skips a leading {@code java.util.} style package qualifier in an expression such as {@code java.util.Arrays.sort(a)}. */
+    private void skipPackageQualifier() {
+        if (!check(TokenType.IDENTIFIER)) {
+            return;
+        }
+        String first = peek().lexeme();
+        if (!first.equals("java") && !first.equals("javax")) {
+            return;
+        }
+        int k = 0;
+        while (peekAt(k) != null && peekAt(k).type() == TokenType.IDENTIFIER
+                && peekAt(k + 1) != null && peekAt(k + 1).type() == TokenType.DOT) {
+            String seg = peekAt(k).lexeme();
+            if (Character.isUpperCase(seg.charAt(0))) {
+                break;
+            }
+            k += 2;
+        }
+        Token cls = peekAt(k);
+        if (k >= 4 && cls != null && cls.type() == TokenType.IDENTIFIER && Character.isUpperCase(cls.lexeme().charAt(0))) {
+            for (int i = 0; i < k; i++) {
+                advance();
+            }
+        }
+    }
+
     private Expression parsePrimary() {
+        skipPackageQualifier();
         if (match(TokenType.TRUE)) {
             return LiteralExpression.ofBoolean(true, previous().location());
         }
@@ -2010,8 +2433,16 @@ public final class Parser {
         if (match(TokenType.THIS)) {
             return new ThisExpression(previous().location());
         }
+        if (match(TokenType.SWITCH)) {
+            return parseSwitchExpression();
+        }
         if (check(TokenType.SUPER)) {
-            throw error(peek(), "'super' is only supported as a constructor delegation 'super(...)'");
+            Token superTok = advance();
+            if (!check(TokenType.DOT)) {
+                throw error(superTok,
+                        "'super' is only supported as 'super(...)' or 'super.method(...)'");
+            }
+            return new SuperExpression(superTok.location());
         }
         if (match(TokenType.INT_LITERAL)) {
             Token t = previous();
@@ -2112,9 +2543,13 @@ public final class Parser {
                     break; // trailing comma
                 }
                 if (check(TokenType.LBRACE)) {
-                    throw error(peek(), "nested array initializers are not supported (multi-dimensional arrays)");
+                    if (elementType.kind() != TypeName.Kind.ARRAY) {
+                        throw error(peek(), "nested array initializers are not supported for a non-array element type");
+                    }
+                    elements.add(parseArrayInitializer(elementType.typeArgument()));
+                } else {
+                    elements.add(parseExpression());
                 }
-                elements.add(parseExpression());
             } while (match(TokenType.COMMA));
         }
         consume(TokenType.RBRACE, "expected '}' after array initializer");
@@ -2122,6 +2557,7 @@ public final class Parser {
     }
 
     private Expression parseNew(Token newTok) {
+        skipPackageQualifier();
         boolean diamond = false;
         TypeName type;
         if (isPrimitiveTypeToken(peek())) {
@@ -2156,7 +2592,9 @@ public final class Parser {
                 throw error(newTok, "cannot create an array of 'void'");
             }
             if (match(TokenType.RBRACKET)) {
-                // new T[] { a, b, c }
+                // new T[] { a, b, c }   /   new T[][] { {..}, {..} }
+                int extraDims = consumeArrayDims();
+                type = wrapArrayDims(type, extraDims);
                 if (!check(TokenType.LBRACE)) {
                     throw error(peek(), "array dimension missing: expected an array length or '{' initializer");
                 }
@@ -2164,7 +2602,20 @@ public final class Parser {
             }
             Expression length = parseExpression();
             consume(TokenType.RBRACKET, "expected ']' after array length");
-            return new NewArrayExpression(type, length, newTok.location());
+            // new T[a][b][]: further sized dimensions, then optional unsized ones
+            List<Expression> innerLengths = new ArrayList<>();
+            int unsized = 0;
+            while (check(TokenType.LBRACKET)) {
+                if (peekAt(1) != null && peekAt(1).type() == TokenType.RBRACKET) {
+                    unsized = consumeArrayDims();
+                    break;
+                }
+                advance();
+                innerLengths.add(parseExpression());
+                consume(TokenType.RBRACKET, "expected ']' after array length");
+            }
+            TypeName elementType = wrapArrayDims(type, innerLengths.size() + unsized);
+            return new NewArrayExpression(elementType, length, List.copyOf(innerLengths), newTok.location());
         }
         if (type.kind() != TypeName.Kind.CLASS) {
             throw error(newTok, "expected '[' after primitive type in 'new'");
@@ -2172,6 +2623,9 @@ public final class Parser {
         consume(TokenType.LPAREN, "expected '(' after class name");
         List<Expression> args = parseArgumentList();
         consume(TokenType.RPAREN, "expected ')' after arguments");
+        if (check(TokenType.LBRACE)) {
+            return parseAnonymousClass(newTok, type, args);
+        }
         List<TypeName> typeArgs = type.hasTypeArguments() ? type.typeArguments() : List.of();
         String className = type.name();
         String linkedBase = linkedHashAlias(className);
@@ -2186,6 +2640,124 @@ public final class Parser {
             className = linkedBase;
         }
         return new NewObjectExpression(className, typeArgs, diamond, args, newTok.location());
+    }
+
+    /**
+     * {@code new T() { members }}: hoisted into a nested class {@code Outer.Anon_N} that extends or implements
+     * {@code T}. Captured locals (identifiers in the body that name a visible local/parameter) become
+     * fields of the same name, initialised by a synthesized constructor, so the body needs no rewriting.
+     * Not supported: constructor arguments for the base class, access to enclosing-instance members.
+     */
+    private Expression parseAnonymousClass(Token newTok, TypeName base, List<Expression> ctorArgs) {
+        if (!ctorArgs.isEmpty()) {
+            throw error(newTok, "anonymous class constructor arguments are not supported");
+        }
+        Token open = consume(TokenType.LBRACE, "expected '{'");
+        int bodyStart = current;
+        Map<String, LocalInfo> visible = new HashMap<>();
+        // iterate outermost -> innermost so inner declarations win
+        java.util.Iterator<Map<String, LocalInfo>> it = localScopes.descendingIterator();
+        while (it.hasNext()) {
+            visible.putAll(it.next());
+        }
+        String simple = "Anon_" + (++anonymousCounter);
+        String full = typeNesting.isEmpty() ? simple : String.join(".", typeNesting) + "." + simple;
+        List<FieldDeclaration> fields = new ArrayList<>();
+        List<MethodDeclaration> methods = new ArrayList<>();
+        String savedFull = currentTypeFullName;
+        currentTypeFullName = full;
+        typeNesting.addLast(simple);
+        try {
+            while (!check(TokenType.RBRACE) && !isAtEnd()) {
+                parseClassMember(simple, fields, methods, false, false, false, EffectContract.empty(open.location()));
+            }
+        } finally {
+            typeNesting.removeLast();
+            currentTypeFullName = savedFull;
+        }
+        int bodyEnd = current;
+        consume(TokenType.RBRACE, "expected '}' after anonymous class body");
+
+        if (BUILTIN_SAM_CLASSES.contains(base.name())) {
+            // Built-in closure types (Runnable, ...) are not subclassable: a single-method body is a lambda.
+            if (!fields.isEmpty() || methods.size() != 1 || methods.get(0).isStatic()
+                    || methods.get(0).isConstructor() || methods.get(0).body() == null) {
+                throw error(newTok, "an anonymous " + base.name()
+                        + " must declare exactly one method and no fields (or use a lambda)");
+            }
+            MethodDeclaration only = methods.get(0);
+            List<LambdaParameter> lps = new ArrayList<>();
+            for (Parameter prm : only.parameters()) {
+                lps.add(new LambdaParameter(prm.type(), prm.isArray(), prm.name(), prm.location()));
+            }
+            return new LambdaExpression(lps, null, only.body(), newTok.location());
+        }
+
+        java.util.Set<String> declared = new HashSet<>();
+        for (FieldDeclaration f : fields) {
+            declared.add(f.name());
+        }
+        java.util.LinkedHashSet<String> captured = new java.util.LinkedHashSet<>();
+        for (int i = bodyStart; i < bodyEnd; i++) {
+            Token t = tokens.get(i);
+            if (t.type() != TokenType.IDENTIFIER || !visible.containsKey(t.lexeme()) || declared.contains(t.lexeme())) {
+                continue;
+            }
+            Token prev = i > 0 ? tokens.get(i - 1) : null;
+            Token next = i + 1 < tokens.size() ? tokens.get(i + 1) : null;
+            if (prev != null && prev.type() == TokenType.DOT) {
+                continue;
+            }
+            if (next != null && next.type() == TokenType.LPAREN) {
+                continue;
+            }
+            captured.add(t.lexeme());
+        }
+
+        SourceLocation loc = newTok.location();
+        List<Parameter> ctorParams = new ArrayList<>();
+        List<Statement> ctorBody = new ArrayList<>();
+        List<Expression> creationArgs = new ArrayList<>();
+        List<FieldDeclaration> allFields = new ArrayList<>();
+        for (String name : captured) {
+            LocalInfo info = visible.get(name);
+            if (info.type() == null) {
+                throw error(newTok, "anonymous class cannot capture local variable '" + name
+                        + "' whose type is not written explicitly; declare its type");
+            }
+            allFields.add(new FieldDeclaration(info.type(), info.isArray(), name, Visibility.PRIVATE,
+                    false, false, null, loc));
+            ctorParams.add(new Parameter(info.type(), name, info.isArray(), loc));
+            ctorBody.add(new ExpressionStatement(new AssignmentExpression(
+                    new FieldAccessExpression(new ThisExpression(loc), name, loc),
+                    new VariableExpression(name, loc), loc), loc));
+            creationArgs.add(new VariableExpression(name, loc));
+        }
+        for (FieldDeclaration f : fields) {
+            if (!captured.isEmpty() && f.initializer() != null && !f.isStatic()
+                    && !(f.initializer() instanceof ArrayInitExpression)) {
+                // Field initializers may read captured values: run them after the captures are stored.
+                ctorBody.add(new ExpressionStatement(new AssignmentExpression(
+                        new FieldAccessExpression(new ThisExpression(loc), f.name(), loc),
+                        f.initializer(), loc), loc));
+                allFields.add(new FieldDeclaration(f.type(), f.isArray(), f.name(), f.visibility(), false,
+                        f.isVolatile(), null, f.location()));
+            } else {
+                allFields.add(f);
+            }
+        }
+        if (!captured.isEmpty()) {
+            methods.add(new MethodDeclaration(
+                    true, false, false, true, false, false, false, List.of(),
+                    TypeName.ofVoid(loc), false, simple, ctorParams, new BlockStatement(ctorBody, loc),
+                    null, EffectContract.empty(loc), Visibility.PUBLIC, loc));
+        }
+        String pkg = currentPackage == null ? "" : currentPackage;
+        nestedTypes.add(new ClassDeclaration(
+                full, pkg, List.copyOf(currentImports), Visibility.PACKAGE, List.of(), base.name(),
+                base.hasTypeArguments() ? base.typeArguments() : List.of(), List.of(),
+                allFields, methods, false, false, false, true, loc));
+        return new NewObjectExpression(full, creationArgs, loc);
     }
 
     /**
@@ -2265,6 +2837,9 @@ public final class Parser {
      * Lookahead for {@code id -> ...} or {@code (a, b) -> ...} without consuming tokens.
      */
     private boolean isLambdaAhead() {
+        if (inCaseLabel) {
+            return false;
+        }
         int saved = current;
         try {
             if (check(TokenType.IDENTIFIER)) {
@@ -2329,16 +2904,20 @@ public final class Parser {
                         } else if (isPrimitiveTypeToken(peek())
                                 || (check(TokenType.IDENTIFIER) && knownClassNames.contains(peek().lexeme()))) {
                             type = parseType();
-                            if (match(TokenType.LBRACKET)) {
-                                consume(TokenType.RBRACKET, "expected ']'");
+                            int lambdaDims = consumeArrayDims();
+                            if (lambdaDims > 0) {
                                 isArray = true;
+                                type = wrapArrayDims(type, lambdaDims - 1);
                             }
                         }
                     }
                     Token name = consume(TokenType.IDENTIFIER, "expected lambda parameter name");
-                    if (!isArray && match(TokenType.LBRACKET)) {
-                        consume(TokenType.RBRACKET, "expected ']'");
-                        isArray = true;
+                    if (!isArray) {
+                        int lambdaDims2 = consumeArrayDims();
+                        if (lambdaDims2 > 0 && type != null) {
+                            isArray = true;
+                            type = wrapArrayDims(type, lambdaDims2 - 1);
+                        }
                     }
                     params.add(new LambdaParameter(type, isArray, name.lexeme(), name.location()));
                 } while (match(TokenType.COMMA));
@@ -2348,10 +2927,18 @@ public final class Parser {
         consume(TokenType.ARROW, "expected '->' in lambda");
         Expression expressionBody = null;
         BlockStatement blockBody = null;
-        if (check(TokenType.LBRACE)) {
-            blockBody = parseBlock();
-        } else {
-            expressionBody = parseExpression();
+        pushLocalScope();
+        try {
+            for (LambdaParameter lp : params) {
+                declareLocal(lp.name(), lp.type(), lp.isArray());
+            }
+            if (check(TokenType.LBRACE)) {
+                blockBody = parseBlock();
+            } else {
+                expressionBody = parseExpression();
+            }
+        } finally {
+            popLocalScope();
         }
         return new LambdaExpression(params, expressionBody, blockBody, start.location());
     }
@@ -2438,20 +3025,34 @@ public final class Parser {
         consume(TokenType.DOT, "expected '.' after System." + member);
         Token method = consume(TokenType.IDENTIFIER, "expected 'println' or 'print'");
         boolean newline;
+        boolean formatted = false;
         if (method.lexeme().equals("println")) {
             newline = true;
         } else if (method.lexeme().equals("print")) {
             newline = false;
+        } else if (method.lexeme().equals("printf") || method.lexeme().equals("format")) {
+            newline = false;
+            formatted = true;
         } else {
-            throw error(method, "only System." + member + ".println / print are supported"
-                    + " (printf/format need varargs and are not supported yet)");
+            throw error(method, "only System." + member + ".println / print / printf are supported");
         }
         consume(TokenType.LPAREN, "expected '(' after " + method.lexeme());
         Expression arg = null;
-        if (!check(TokenType.RPAREN)) {
-            arg = parseExpression();
+        if (formatted) {
+            List<Expression> fargs = parseArgumentList();
+            consume(TokenType.RPAREN, "expected ')' after " + method.lexeme() + " arguments");
+            if (fargs.isEmpty()) {
+                throw error(method, "System." + member + "." + method.lexeme() + " requires a format string");
+            }
+            arg = new MethodCallExpression(
+                    new VariableExpression("JnFormat", systemTok.location()),
+                    "format", fargs, systemTok.location());
+        } else {
+            if (!check(TokenType.RPAREN)) {
+                arg = parseExpression();
+            }
+            consume(TokenType.RPAREN, "expected ')' after " + method.lexeme() + " argument");
         }
-        consume(TokenType.RPAREN, "expected ')' after " + method.lexeme() + " argument");
         if (arg == null) {
             if (!newline) {
                 throw error(method, "System." + member + ".print requires an argument");

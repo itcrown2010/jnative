@@ -57,7 +57,16 @@ public final class Lexer {
             case ']' -> addToken(TokenType.RBRACKET);
             case ';' -> addToken(TokenType.SEMICOLON);
             case ',' -> addToken(TokenType.COMMA);
-            case '.' -> addToken(TokenType.DOT);
+            case '.' -> {
+                if (current + 1 < source.length() && source.charAt(current) == '.'
+                        && source.charAt(current + 1) == '.') {
+                    advance();
+                    advance();
+                    addToken(TokenType.ELLIPSIS);
+                } else {
+                    addToken(TokenType.DOT);
+                }
+            }
             case '@' -> addToken(TokenType.AT);
             case '+' -> {
                 if (match('+')) {
@@ -180,7 +189,148 @@ public final class Lexer {
         errorToken("unterminated block comment");
     }
 
+    /** Java text block: {@code """ <newline> ... """} with incidental-indentation stripping. */
+    private void textBlock() {
+        advance(); // second "
+        advance(); // third "
+        while (!isAtEnd() && (peek() == ' ' || peek() == '\t' || peek() == '\r')) {
+            advance();
+        }
+        if (isAtEnd() || peek() != '\n') {
+            errorToken("illegal text block open delimiter sequence, missing line terminator");
+            return;
+        }
+        advance(); // newline
+        StringBuilder raw = new StringBuilder();
+        boolean closed = false;
+        while (!isAtEnd()) {
+            char c = peek();
+            if (c == '"' && peekNext() == '"' && peekAt2() == '"') {
+                advance();
+                advance();
+                advance();
+                closed = true;
+                break;
+            }
+            if (c == '\\') {
+                raw.append(advance());
+                if (!isAtEnd()) {
+                    raw.append(advance());
+                }
+                continue;
+            }
+            if (c == '\r') {
+                advance();
+                continue;
+            }
+            raw.append(advance());
+        }
+        if (!closed) {
+            errorToken("unterminated text block");
+            return;
+        }
+        String[] lines = raw.toString().split("\n", -1);
+        int indent = Integer.MAX_VALUE;
+        for (int i = 0; i < lines.length; i++) {
+            String ln = lines[i];
+            boolean blank = ln.isBlank();
+            if (blank && i != lines.length - 1) {
+                continue;
+            }
+            int k = 0;
+            while (k < ln.length() && (ln.charAt(k) == ' ' || ln.charAt(k) == '\t')) {
+                k++;
+            }
+            indent = Math.min(indent, blank ? ln.length() : k);
+        }
+        if (indent == Integer.MAX_VALUE) {
+            indent = 0;
+        }
+        StringBuilder joined = new StringBuilder();
+        for (int i = 0; i < lines.length; i++) {
+            String ln = lines[i];
+            String stripped = ln.isBlank() ? "" : ln.substring(Math.min(indent, ln.length()));
+            int end = stripped.length();
+            while (end > 0 && (stripped.charAt(end - 1) == ' ' || stripped.charAt(end - 1) == '\t')) {
+                end--;
+            }
+            if (i > 0) {
+                joined.append('\n');
+            }
+            joined.append(stripped, 0, end);
+        }
+        String value = unescapeTextBlock(joined.toString());
+        if (value == null) {
+            errorToken("illegal escape character in text block");
+            return;
+        }
+        tokens.add(new Token(TokenType.STRING_LITERAL, value, startLine, startColumn, file));
+    }
+
+    private char peekAt2() {
+        return current + 2 < source.length() ? source.charAt(current + 2) : '\0';
+    }
+
+    private static String unescapeTextBlock(String s) {
+        StringBuilder out = new StringBuilder();
+        for (int i = 0; i < s.length(); i++) {
+            char c = s.charAt(i);
+            if (c != '\\') {
+                out.append(c);
+                continue;
+            }
+            if (++i >= s.length()) {
+                return null;
+            }
+            char e = s.charAt(i);
+            switch (e) {
+                case 'n' -> out.append('\n');
+                case 't' -> out.append('\t');
+                case 'r' -> out.append('\r');
+                case 'b' -> out.append('\b');
+                case 'f' -> out.append('\f');
+                case 's' -> out.append(' ');
+                case '"' -> out.append('"');
+                case '\'' -> out.append('\'');
+                case '\\' -> out.append('\\');
+                case '\n' -> { /* line continuation */ }
+                case 'u' -> {
+                    int j = i + 1;
+                    while (j < s.length() && s.charAt(j) == 'u') {
+                        j++;
+                    }
+                    if (j + 4 > s.length()) {
+                        return null;
+                    }
+                    try {
+                        out.append((char) Integer.parseInt(s.substring(j, j + 4), 16));
+                    } catch (NumberFormatException ex) {
+                        return null;
+                    }
+                    i = j + 3;
+                }
+                default -> {
+                    if (e >= '0' && e <= '7') {
+                        int v = e - '0';
+                        int max = e <= '3' ? 2 : 1;
+                        while (max-- > 0 && i + 1 < s.length() && s.charAt(i + 1) >= '0' && s.charAt(i + 1) <= '7') {
+                            v = v * 8 + (s.charAt(++i) - '0');
+                        }
+                        out.append((char) v);
+                    } else {
+                        return null;
+                    }
+                }
+            }
+        }
+        return out.toString();
+    }
+
     private void stringLiteral() {
+        if (peek() == '"' && peekNext() == '"') {
+            textBlock();
+            return;
+        }
         StringBuilder sb = new StringBuilder();
         while (peek() != '"' && !isAtEnd()) {
             char c = peek();

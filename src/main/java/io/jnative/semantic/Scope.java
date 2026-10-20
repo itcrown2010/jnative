@@ -28,6 +28,11 @@ public final class Scope {
         return true;
     }
 
+    /** Replaces any existing symbol of the same name in this scope (pattern-binding reuse). */
+    public void redeclare(Symbol symbol) {
+        symbols.put(symbol.name(), symbol);
+    }
+
     public Optional<Symbol> resolve(String name) {
         Symbol local = symbols.get(name);
         if (local != null) {

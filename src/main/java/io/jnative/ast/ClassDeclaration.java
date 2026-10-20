@@ -154,6 +154,13 @@ public record ClassDeclaration(
                 List.copyOf(constants), location);
     }
 
+    /** True for classes synthesized from {@code new T() { ... }} (named {@code ...Anon_N}). */
+    public boolean isAnonymous() {
+        int dot = name.lastIndexOf('.');
+        String simple = dot < 0 ? name : name.substring(dot + 1);
+        return simple.startsWith("Anon_") && simple.length() > 5 && simple.substring(5).chars().allMatch(Character::isDigit);
+    }
+
     public String qualifiedName() {
         if (packageName == null || packageName.isEmpty()) {
             return name;

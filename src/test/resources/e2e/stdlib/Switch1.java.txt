@@ -1,0 +1,155 @@
+public class Main {
+    enum Hue { RED, GREEN, BLUE }
+
+    static int old(int x) {
+        switch (x) {
+            case 1:
+            case 2:
+                return 10;
+            case 3:
+                x += 5;
+            default:
+                x += 1;
+        }
+        return x;
+    }
+
+    static String name(int day) {
+        return switch (day) {
+            case 1, 7 -> "weekend";
+            case 2, 3, 4, 5, 6 -> {
+                String t = "week";
+                yield t + "day";
+            }
+            default -> "?";
+        };
+    }
+
+    static int hueCode(Hue h) {
+        return switch (h) {
+            case RED -> 1;
+            case GREEN -> 2;
+            case BLUE -> 3;
+        };
+    }
+
+    static double mix(Hue h) {
+        double base = 0.5;
+        return base + switch (h) {
+            case RED -> 1;
+            case GREEN -> 2.5;
+            default -> 0;
+        };
+    }
+
+    static int str(String s) {
+        switch (s) {
+            case "one": return 1;
+            case "two":
+            case "deux": return 2;
+            default: return -1;
+        }
+    }
+
+    static String strArrow(String s) {
+        return switch (s) {
+            case "a", "b" -> "ab";
+            case "c" -> "c";
+            default -> s + "!";
+        };
+    }
+
+    static int oldYield(int x) {
+        return switch (x) {
+            case 0:
+                yield 100;
+            case 1:
+                int y = x * 7;
+                yield y;
+            default:
+                yield -1;
+        };
+    }
+
+    static void arrowStmt(int x) {
+        switch (x) {
+            case 1 -> System.out.println("one");
+            case 2, 3 -> {
+                System.out.println("two-three");
+            }
+            default -> System.out.println("other " + x);
+        }
+    }
+
+    static int nested(int a, int b) {
+        return switch (a) {
+            case 0 -> switch (b) {
+                case 0 -> 0;
+                default -> 1;
+            };
+            default -> {
+                int acc = 0;
+                for (int i = 0; i < b; i++) {
+                    if (i == 3) break;
+                    acc += i;
+                }
+                yield acc + 10;
+            }
+        };
+    }
+
+    static int loopYield(int n) {
+        int total = 0;
+        for (int i = 0; i < n; i++) {
+            total += switch (i % 3) {
+                case 0 -> 1;
+                case 1 -> {
+                    if (i > 4) yield 100;
+                    yield 10;
+                }
+                default -> 0;
+            };
+        }
+        return total;
+    }
+
+    static String tryYield(int x) {
+        return switch (x) {
+            case 1 -> {
+                try {
+                    yield "one";
+                } finally {
+                    System.out.println("fin");
+                }
+            }
+            default -> "d";
+        };
+    }
+
+    static boolean flag(int x) {
+        return switch (x) { case 1 -> true; default -> false; };
+    }
+
+    public static void main(String[] args) {
+        System.out.println(old(1) + " " + old(3) + " " + old(9));
+        System.out.println(name(1) + " " + name(4) + " " + name(9));
+        System.out.println(hueCode(Hue.RED) + hueCode(Hue.GREEN) * 10 + hueCode(Hue.BLUE) * 100);
+        System.out.println(mix(Hue.GREEN) + " " + mix(Hue.BLUE));
+        System.out.println(str("one") + " " + str("deux") + " " + str("zzz"));
+        System.out.println(strArrow("a") + strArrow("c") + strArrow("q"));
+        System.out.println(oldYield(0) + " " + oldYield(1) + " " + oldYield(5));
+        arrowStmt(1);
+        arrowStmt(3);
+        arrowStmt(8);
+        System.out.println(nested(0, 0) + " " + nested(0, 4) + " " + nested(2, 5));
+        System.out.println(loopYield(8));
+        System.out.println(tryYield(1) + tryYield(2));
+        System.out.println(flag(1) + " " + flag(2));
+        String s = null;
+        try {
+            switch (s) { case "x": break; default: break; }
+        } catch (NullPointerException e) {
+            System.out.println("npe");
+        }
+    }
+}
