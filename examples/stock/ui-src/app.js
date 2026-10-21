@@ -714,7 +714,8 @@ function renderScan() {
     '<label class="muted" title="去掉“前一天已涨≥5%”的股票：这类股票的规律最强也最难买到，排除后看模型是否还有预测力"><input type="checkbox" id="scExcl"> 排除前一日涨幅≥5%的股票</label>' +
     '<label class="muted"><input type="checkbox" id="scSort"> 按概率排序</label></div>' +
     '<div class="note">买入价按“信号日（收盘后扫描）的下一个交易日开盘价”计算（你只能 T+1 买入），最早再下一个交易日才能卖出（T+1 规则）。统计的是买入后 H 个交易日里任意一天的最高<b>收盘价</b>，你不可能每次都卖在最高点，所以请同时看下面的“持有到第 H 天收盘的平均收益”。H=1 即超短线：买入后第一个可卖日（次日）收盘价是否达到目标。已排除北交所 920、科创板 688 和 ST/*ST 股票；信号日收在涨停、或买入日开盘就在涨停（买不进）的样本不计入训练、检验和结果。</div>' +
-    '<div id="scProg"></div></div>' +
+    '<div id="scProg"></div>' +
+    '<div class="toolbar" style="margin-top:8px"><label title="服务开着时，每个交易日 15:10 之后自动用上面的参数扫描一次，结束后把前 5 只推送到“自选与提醒”里配置的机器人；结果同样记入历史战绩"><input type="checkbox" id="scAuto"> 每个交易日收盘后（15:10）自动扫描并推送</label><span id="scAutoSt" class="muted"></span></div></div>' +
     '<div class="card"><h3>扫描结果 <span id="scCount" class="muted" style="font-weight:400"></span></h3><div id="scRes"><div class="muted">点击“开始扫描”。发现一只就显示一只，不必等扫描结束。</div></div></div>' +
     '<div class="card"><h3>这些概率靠不靠谱？（模型在没参与训练的最近约 250 个交易日上的检验）</h3><div id="scVal"><div class="muted">首次扫描会先训练模型，之后显示。</div></div></div>' +
     '<div class="card"><h3>历史战绩：每次扫描的结果，隔天自动核对真实涨跌 <button class="small ghost" id="trRef">刷新</button></h3><div id="scTrack"><div class="loading">加载中…</div></div></div>' +
@@ -731,9 +732,25 @@ function renderScan() {
     post('/api/scan/start?theta=' + $('scTheta').value + '&h=' + $('scH').value + '&pmin=' + (pm / 100) + ($('scExcl').checked ? '&excl=1' : '')).then(function (d) { SC.runId = d.runId; pollScan(); }).catch(function (e) { toast(e.message); });
   };
   $('trRef').onclick = loadTrack; loadTrack();
+  var saveAuto = function () {
+    var pm = parseFloat($('scP').value); if (isNaN(pm) || pm < 2 || pm > 95) { toast('概率阈值请填 2–95 之间的数字'); $('scAuto').checked = false; return; }
+    post('/api/scan/auto/set?on=' + ($('scAuto').checked ? 1 : 0) + '&theta=' + $('scTheta').value + '&h=' + $('scH').value + '&pmin=' + (pm / 100) + ($('scExcl').checked ? '&excl=1' : '')).then(drawAuto).catch(function (e) { toast(e.message); });
+  };
+  $('scAuto').onchange = saveAuto;
+  ['scH', 'scTheta', 'scP', 'scExcl'].forEach(function (id) { $(id).addEventListener('change', function () { if ($('scAuto').checked) saveAuto(); }); });
+  api('/api/scan/auto').then(function (d) {
+    $('scAuto').checked = !!d.on;
+    if (d.on) { $('scH').value = d.hold; $('scTheta').value = d.theta.toFixed(2); $('scP').value = Math.round(d.pmin * 100); $('scExcl').checked = !!d.excl; }
+    drawAuto(d);
+  }).catch(function () {});
   $('scStop').onclick = function () { post('/api/scan/stop').then(function (d) { drawScanStatus(d); }); };
   SC.since = 0; SC.hits = [];
   pollScan();
+}
+function drawAuto(d) {
+  var el = $('scAutoSt'); if (!el) return;
+  if (!d.on) { el.textContent = ''; return; }
+  el.textContent = '已开启：买入后 ' + d.hold + ' 日内 ≥' + Math.round(d.theta * 100) + '%、概率 ≥' + Math.round(d.pmin * 100) + '%；' + (d.lastDay ? '上次自动扫描 ' + fdate(d.lastDay) + '；' : '尚未自动扫描过；') + (d.push ? '结果会推送到你配置的机器人' : '还没配置推送机器人（在“自选与提醒”里设置），结果只记入历史战绩') + (d.running ? '；正在扫描中…' : '');
 }
 function pollScan() {
   clearTimeout(SC.timer);
@@ -769,15 +786,19 @@ function loadTrack() {
     var el = $('scTrack'); if (!el) return;
     if (!t.total) { el.innerHTML = '<div class="muted">还没有记录。每次扫描发现的股票都会自动记下来，等 T+1 买入后的这几天行情出来，系统自动核对它们真实涨了多少。这里累计的才是模型的“实盘战绩”，比上面的历史检验更可信。</div>'; return; }
     var runs = t.runs.map(function (r) {
-      return '<tr><td>' + fdate(r.asOf) + '</td><td>' + r.hold + ' 日内 ≥' + pct(r.theta, 0) + (r.excl ? ' <span class="muted">(排除前日大涨)</span>' : '') + '</td><td>' + r.n + '</td><td>' + r.verified + '</td><td>' + r.hit + '</td><td>' + (r.verified ? pct(r.hit / r.verified, 1) : '-') + '</td><td>' + pct(r.base, 1) + '</td><td class="' + sgn(r.avgMax) + '">' + (r.avgMax == null ? '-' : pct(r.avgMax, 2)) + '</td><td class="' + sgn(r.avgEnd) + '">' + (r.avgEnd == null ? '-' : pct(r.avgEnd, 2)) + '</td></tr>';
+      return '<tr><td>' + fdate(r.asOf) + '</td><td>' + r.hold + ' 日内 ≥' + pct(r.theta, 0) + (r.excl ? ' <span class="muted">(排除前日大涨)</span>' : '') + '</td><td>' + r.n + '</td><td>' + r.verified + '</td><td>' + r.hit + '</td><td>' + (r.verified ? pct(r.hit / r.verified, 1) : '-') + '</td><td>' + pct(r.base, 1) + '</td><td class="' + sgn(r.avgMax) + '">' + (r.avgMax == null ? '-' : pct(r.avgMax, 2)) + '</td><td class="' + sgn(r.avgEnd) + '">' + (r.avgEnd == null ? '-' : pct(r.avgEnd, 2)) + '</td><td class="' + sgn(r.avgEnd == null ? 0 : r.avgEnd - t.cost) + '">' + (r.avgEnd == null ? '-' : pct(r.avgEnd - t.cost, 2)) + '</td><td class="' + sgn(r.topEnd == null ? 0 : r.topEnd - t.cost) + '">' + (r.topEnd == null ? '-' : pct(r.topEnd - t.cost, 2) + ' <span class="muted">(' + r.topV + '只)</span>') + '</td></tr>';
     }).join('');
+    var sim = t.runs.filter(function (r) { return r.topEnd != null; }).slice().reverse();
+    var eq = 1, wins = 0, sumNet = 0;
+    sim.forEach(function (r) { var x = r.topEnd - t.cost; eq *= 1 + x; sumNet += x; if (x > 0) wins++; });
+    var simHtml = sim.length ? '<div class="kv" style="margin-top:10px"><div><span>模拟盘：每批买概率最高的前 ' + t.topN + ' 只，等权</span><b>' + sim.length + ' 批已核对</b></div><div><span>每批平均净收益（已扣 ' + pct(t.cost, 2) + ' 成本）</span><b class="' + sgn(sumNet) + '">' + pct(sumNet / sim.length, 2) + '</b></div><div><span>净收益为正的批次</span><b>' + wins + ' / ' + sim.length + '</b></div><div><span>各批复利累计净值</span><b class="' + sgn(eq - 1) + '">' + eq.toFixed(4) + '</b></div></div><div class="note">模拟盘净值是把每批当作独立的一笔买入，忽略批次之间资金占用重叠，仅作参考；批次少于 20 个时波动主要来自运气。</div>' : '<div class="note">模拟盘（每批买概率最高的前 ' + t.topN + ' 只、扣除 ' + pct(t.cost, 2) + ' 往返成本）要等至少一批走完买入后的持有期才会出现。</div>';
     var items = t.items.map(function (i) {
       var res = i.status === 1 ? '最高 <span class="' + sgn(i.maxRet) + '">' + pct(i.maxRet, 2) + '</span>　第' + i.hold + '日收盘 <span class="' + sgn(i.endRet) + '">' + pct(i.endRet, 2) + '</span>' + (i.maxRet >= i.theta ? ' <b class="up">✓ 达标</b>' : '') + ' <span class="muted">买入 ' + fdate(i.entryDate).slice(5) + '</span>' : (i.status === 2 ? '<span class="muted">无法核对</span>' : '<span class="muted">等待买入后 ' + i.hold + ' 个交易日走完</span>');
       return '<tr><td>' + fdate(i.asOf) + '</td><td>' + esc(i.code) + '</td><td>' + esc(i.name) + '</td><td>' + pct(i.p, 1) + '</td><td style="text-align:left">' + res + '</td></tr>';
     }).join('');
     el.innerHTML = '<div class="kv"><div><span>已记录</span><b>' + t.total + ' 只次</b></div><div><span>已核对</span><b>' + t.verified + '</b></div><div><span>待核对</span><b>' + t.pending + '</b></div>' +
       '<div><span>实际达标</span><b>' + t.hit + '</b></div><div><span>实盘命中率</span><b>' + (t.precision == null ? '-' : pct(t.precision, 1)) + '</b></div><div><span>持有期内最高涨幅均值</span><b class="' + sgn(t.avgMax) + '">' + (t.avgMax == null ? '-' : pct(t.avgMax, 2)) + '</b></div><div><span>持有到期平均收益</span><b class="' + sgn(t.avgEnd) + '">' + (t.avgEnd == null ? '-' : pct(t.avgEnd, 2)) + '</b></div></div>' +
-      '<table style="margin-top:10px"><tr><th>数据日期</th><th>目标</th><th>入选</th><th>已核对</th><th>达标</th><th>命中率</th><th>检验期基准</th><th>期内最高涨幅均值</th><th>持有到期平均收益</th></tr>' + runs + '</table>' +
+      simHtml + '<table style="margin-top:10px"><tr><th>数据日期</th><th>目标</th><th>入选</th><th>已核对</th><th>达标</th><th>命中率</th><th>检验期基准</th><th>期内最高涨幅均值</th><th>持有到期平均收益</th><th>全部入选净收益</th><th>前 ' + t.topN + ' 只净收益</th></tr>' + runs + '</table>' +
       '<details style="margin-top:8px"><summary class="muted" style="cursor:pointer">逐只明细（最近 80 条）</summary><table><tr><th>数据日期</th><th>代码</th><th>名称</th><th>预测概率</th><th style="text-align:left">结果</th></tr>' + items + '</table></details>' +
       '<div class="note">买入价 = 信号日下一个交易日的开盘价；涨幅用未复权价格计算，遇到除权除息会偏低。样本少于几十只时，命中率只是噪声，请持续累计。</div>';
   }).catch(function () {});

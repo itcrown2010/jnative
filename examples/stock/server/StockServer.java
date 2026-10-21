@@ -57,6 +57,8 @@ public class StockServer {
         app.post("/api/scan/stop", new StockRoute(26));
         app.get("/api/scan/status", new StockRoute(27));
         app.get("/api/scan/track", new StockRoute(28));
+        app.get("/api/scan/auto", new StockRoute(29));
+        app.post("/api/scan/auto/set", new StockRoute(30));
         app.get("/api/quote", new StockRoute(16));
         app.get("/api/intraday", new StockRoute(17));
         app.get("/api/quotes", new StockRoute(18));
@@ -88,6 +90,7 @@ class StockHttp {
                 ws.serveConnection(conn);
             }
             StockNotify.tick();
+            StockAuto.tick();
             long scanT0 = System.currentTimeMillis();
             while (StockScan.running() == 1 && System.currentTimeMillis() - scanT0 < 400L) {
                 StockScan.step();
@@ -178,6 +181,30 @@ class StockRoute implements WebHandler {
                 return;
             }
             ctx.jsonString(StockScan.statusJson(0));
+            return;
+        }
+        if (kind == 29) {
+            ctx.jsonString(StockAuto.json());
+            return;
+        }
+        if (kind == 30) {
+            double ath = StockUtil.parseDouble(ctx.query("theta"), 0.03);
+            double apm = StockUtil.parseDouble(ctx.query("pmin"), 0.3);
+            int ahd = StockUtil.parseInt(ctx.query("h"), 1);
+            if (ath < 0.02 || ath > 0.2 || apm < 0.02 || apm > 0.95 || (ahd != 1 && ahd != 3 && ahd != 5 && ahd != 10)) {
+                reply(ctx, StockUtil.err("BAD_SCAN", "invalid auto-scan settings"));
+                return;
+            }
+            int aon = 0;
+            if (StockUtil.parseInt(ctx.query("on"), 0) == 1) {
+                aon = 1;
+            }
+            int aex = 0;
+            if (StockUtil.parseInt(ctx.query("excl"), 0) == 1) {
+                aex = 1;
+            }
+            StockAuto.set(aon, ath, apm, aex, ahd);
+            ctx.jsonString(StockAuto.json());
             return;
         }
         if (kind == 28) {

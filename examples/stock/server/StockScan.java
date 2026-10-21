@@ -926,6 +926,45 @@ class StockScan {
         }
     }
 
+    /** Plain-text summary of a finished scan for push messages: the n most probable picks and how reliable that band was. */
+    static String summaryText(int n) {
+        StringBuilder sb = new StringBuilder();
+        String asOf = "";
+        int cnt = hits.size();
+        if (cnt > 0) {
+            asOf = "" + (int) numField(hits.get(0), "asOf");
+        }
+        sb.append("【JNative 收盘扫描】数据日期 " + asOf + "\n");
+        sb.append("目标：T+1 开盘买入后 " + hold + " 个交易日内，任一天收盘较买入价涨幅 >= " + StockUtil.num(theta * 100.0, 0) + "%\n");
+        sb.append("检验期基准命中率 " + StockUtil.num(lastBaseTest * 100.0, 1) + "%，入选 " + cnt + " 只（概率 >= " + StockUtil.num(pMin * 100.0, 0) + "%）\n");
+        int[] used = new int[cnt];
+        int shown = 0;
+        while (shown < n && shown < cnt) {
+            int bi = -1;
+            int z = 0;
+            while (z < cnt) {
+                if (used[z] == 0 && (bi < 0 || numField(hits.get(z), "p") > numField(hits.get(bi), "p"))) {
+                    bi = z;
+                }
+                z = z + 1;
+            }
+            if (bi < 0) {
+                shown = n;
+                continue;
+            }
+            used[bi] = 1;
+            String o = hits.get(bi);
+            String bandTxt = "无足够检验样本";
+            if (o.indexOf("\"band\":null") < 0) {
+                bandTxt = "同档检验命中率 " + StockUtil.num(numField(o, "band") * 100.0, 1) + "%";
+            }
+            sb.append((shown + 1) + ". " + StockFeed.field(o, "code") + " " + StockFeed.field(o, "name") + " 概率 " + StockUtil.num(numField(o, "p") * 100.0, 1) + "%，" + bandTxt + "\n");
+            shown = shown + 1;
+        }
+        sb.append("仅为研究工具的统计输出，不构成投资建议；回测不等于实盘，请先看页面里的历史战绩。");
+        return sb.toString();
+    }
+
     // ---------- status ----------
     static String statusJson(int since) {
         ensureInit();

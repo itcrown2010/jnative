@@ -157,6 +157,10 @@ class StockTrack {
         }
     }
 
+    /** Round-trip trading cost assumed in net figures: commission both ways, stamp duty on the sell and slippage. */
+    static double COST = 0.003;
+    static int TOPN = 5;
+
     static String trackJson() {
         if (recs == null) {
             init();
@@ -197,7 +201,7 @@ class StockTrack {
             }
         }
         StringBuilder sb = new StringBuilder();
-        sb.append("{\"total\":" + total + ",\"verified\":" + verified + ",\"pending\":" + pending + ",\"hit\":" + hit);
+        sb.append("{\"cost\":" + StockUtil.num(COST, 4) + ",\"topN\":" + TOPN + ",\"total\":" + total + ",\"verified\":" + verified + ",\"pending\":" + pending + ",\"hit\":" + hit);
         if (verified > 0) {
             sb.append(",\"precision\":" + StockUtil.num((double) hit / (double) verified, 4) + ",\"avgMax\":" + StockUtil.num(sumRet / (double) verified, 5) + ",\"avgEnd\":" + StockUtil.num(sumEnd / (double) verified, 5));
         } else {
@@ -219,6 +223,10 @@ class StockTrack {
             String asOf = "";
             String th = "";
             String ex = "";
+            double[] rp = new double[total];
+            double[] re = new double[total];
+            int[] rv = new int[total];
+            int rn = 0;
             int j = 0;
             while (j < total) {
                 ArrayList<String> f = StockNotify.splitTabs(recs.get(j));
@@ -230,7 +238,11 @@ class StockTrack {
                     th = f.get(4);
                     ex = f.get(5);
                     base = StockUtil.parseDouble(f.get(6), 0.0);
+                    rp[rn] = StockUtil.parseDouble(f.get(3), 0.0);
+                    re[rn] = StockUtil.parseDouble(f.get(12), 0.0);
+                    rv[rn] = 0;
                     if (f.get(7).equals("1")) {
+                        rv[rn] = 1;
                         v = v + 1;
                         double r = StockUtil.parseDouble(f.get(9), 0.0);
                         sr = sr + r;
@@ -239,12 +251,41 @@ class StockTrack {
                             h = h + 1;
                         }
                     }
+                    rn = rn + 1;
                 }
+            }
+            /* the five most probable picks of the run: what a person with limited capital would actually have bought */
+            int topV = 0;
+            double topSum = 0.0;
+            int tk = 0;
+            while (tk < TOPN && tk < rn) {
+                int bi = -1;
+                int z = 0;
+                while (z < rn) {
+                    if (rp[z] >= 0.0 && (bi < 0 || rp[z] > rp[bi])) {
+                        bi = z;
+                    }
+                    z = z + 1;
+                }
+                if (bi < 0) {
+                    tk = TOPN;
+                } else {
+                    if (rv[bi] == 1) {
+                        topV = topV + 1;
+                        topSum = topSum + re[bi];
+                    }
+                    rp[bi] = -1.0;
+                    tk = tk + 1;
+                }
+            }
+            String topTxt = "null";
+            if (topV > 0) {
+                topTxt = StockUtil.num(topSum / (double) topV, 5);
             }
             if (kc > 0) {
                 sb.append(",");
             }
-            sb.append("{\"asOf\":" + asOf + ",\"hold\":" + hs + ",\"theta\":" + th + ",\"excl\":" + ex + ",\"n\":" + n + ",\"verified\":" + v + ",\"hit\":" + h + ",\"base\":" + StockUtil.num(base, 5));
+            sb.append("{\"topV\":" + topV + ",\"topEnd\":" + topTxt + ",\"asOf\":" + asOf + ",\"hold\":" + hs + ",\"theta\":" + th + ",\"excl\":" + ex + ",\"n\":" + n + ",\"verified\":" + v + ",\"hit\":" + h + ",\"base\":" + StockUtil.num(base, 5));
             if (v > 0) {
                 sb.append(",\"avgMax\":" + StockUtil.num(sr / (double) v, 5) + ",\"avgEnd\":" + StockUtil.num(se2 / (double) v, 5));
             } else {
