@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>JNative &#x80a1;&#x7968;&#x7814;&#x7a76;&#x5ba4;</title>
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+<header>
+  <div class="brand">JNative <b>&#x80a1;&#x7968;&#x7814;&#x7a76;&#x5ba4;</b><span class="tag">A&#x80a1;&#x65e5;&#x7ebf; &#xb7; &#x6982;&#x7387;&#x9884;&#x6d4b; &#xb7; &#x6eda;&#x52a8;&#x9a8c;&#x8bc1;</span></div>
+  <nav id="tabs">
+    <button data-tab="chart" class="on">&#x884c;&#x60c5;</button>
+    <button data-tab="predict">&#x9884;&#x6d4b;&#x4e0e;&#x9a8c;&#x8bc1;</button>
+    <button data-tab="backtest">&#x7b56;&#x7565;&#x56de;&#x6d4b;</button>
+    <button data-tab="scan">&#x5168;&#x5e02;&#x573a;&#x626b;&#x63cf;</button>
+    <button data-tab="watch">&#x81ea;&#x9009;&#x4e0e;&#x63d0;&#x9192;<span id="alertBadge" class="badge" hidden></span></button>
+  </nav>
+  <div class="spacer"></div>
+  <button id="btnRefresh" class="ghost" title="&#x91cd;&#x65b0;&#x62c9;&#x53d6;&#x6240;&#x6709;&#x771f;&#x5b9e;&#x884c;&#x60c5;&#x7684;&#x6700;&#x65b0;&#x65e5;&#x7ebf;">&#x66f4;&#x65b0;&#x884c;&#x60c5;</button>
+  <button id="btnFeed">&#xff0b; &#x6dfb;&#x52a0;A&#x80a1;</button>
+  <button id="btnImport" class="ghost">&#x5bfc;&#x5165; CSV</button>
+</header>
+<div class="layout">
+  <aside>
+    <input id="search" placeholder="&#x641c;&#x7d22;&#x4ee3;&#x7801; / &#x540d;&#x79f0;" autocomplete="off">
+    <div id="symList"></div>
+  </aside>
+  <main>
+    <div id="titleBar"></div>
+    <section id="tab-chart"></section>
+    <section id="tab-predict" hidden></section>
+    <section id="tab-backtest" hidden></section>
+    <section id="tab-watch" hidden></section>
+    <section id="tab-scan" hidden></section>
+    <footer class="disclaimer">
+      &#x672c;&#x7cfb;&#x7edf;&#x4e3a;&#x7814;&#x7a76;&#x4e0e;&#x6559;&#x5b66;&#x5de5;&#x5177;&#xff0c;&#x4e0d;&#x6784;&#x6210;&#x4efb;&#x4f55;&#x6295;&#x8d44;&#x5efa;&#x8bae;&#x3002;&#x5386;&#x53f2;&#x89c4;&#x5f8b;&#x4e0d;&#x4fdd;&#x8bc1;&#x672a;&#x6765;&#x91cd;&#x73b0;&#xff1b;&#x9884;&#x6d4b;&#x8f93;&#x51fa;&#x4e3a;&#x7ecf;&#x8fc7;&#x6eda;&#x52a8;&#x9a8c;&#x8bc1;&#x6821;&#x51c6;&#x7684;&#x6982;&#x7387;&#xff0c;&#x800c;&#x975e;&#x786e;&#x5b9a;&#x7ed3;&#x679c;&#x3002;
+      &#x5185;&#x7f6e;&#x201c;&#x6a21;&#x62df;&#x201d;&#x6807;&#x7684;&#x7531;&#x5df2;&#x77e5;&#x89c4;&#x5f8b;&#x7684;&#x968f;&#x673a;&#x8fc7;&#x7a0b;&#x751f;&#x6210;&#xff0c;&#x7528;&#x4e8e;&#x68c0;&#x9a8c;&#x6a21;&#x578b;&#x662f;&#x5426;&#x4f1a;&#x5728;&#x566a;&#x58f0;&#x4e2d;&#x201c;&#x53d1;&#x73b0;&#x201d;&#x5e76;&#x4e0d;&#x5b58;&#x5728;&#x7684;&#x89c4;&#x5f8b;&#x3002;&#x771f;&#x5b9e;&#x884c;&#x60c5;&#x6765;&#x81ea;&#x65b0;&#x6d6a;/&#x817e;&#x8baf;&#x516c;&#x5f00;&#x63a5;&#x53e3;&#xff08;&#x4ec5;&#x4f9b;&#x4e2a;&#x4eba;&#x7814;&#x7a76;&#xff0c;&#x8bf7;&#x9075;&#x5b88;&#x5176;&#x4f7f;&#x7528;&#x6761;&#x6b3e;&#xff09;&#xff0c;&#x65e5;&#x7ebf;&#x4e3a;&#x524d;&#x590d;&#x6743;&#x4ef7;&#x4e14;&#x4e0d;&#x542b;&#x76d8;&#x4e2d;&#x672a;&#x6536;&#x76d8;&#x7684;&#x5f53;&#x65e5;&#x6570;&#x636e;&#x3002;
+    </footer>
+  </main>
+</div>
+<div id="feedModal" class="modal" hidden>
+  <div class="dialog">
+    <h3>&#x6dfb;&#x52a0;A&#x80a1;&#x771f;&#x5b9e;&#x884c;&#x60c5;</h3>
+    <p class="muted">&#x8f93;&#x5165;&#x4ee3;&#x7801;&#x6216;&#x540d;&#x79f0;&#x641c;&#x7d22;&#xff08;&#x5982; 600519&#x3001;&#x8305;&#x53f0;&#x3001;sh000001&#xff09;&#x3002;&#x6570;&#x636e;&#x4e3a;&#x65b0;&#x6d6a;&#x65e5;&#x7ebf;&#xff0c;&#x6309;&#x9664;&#x6743;&#x9664;&#x606f;&#x56e0;&#x5b50;&#x505a;&#x524d;&#x590d;&#x6743;&#xff0c;&#x5b58;&#x5165;&#x672c;&#x5730;&#x540e;&#x53ef;&#x79bb;&#x7ebf;&#x4f7f;&#x7528;&#x3002;</p>
+    <div class="row" style="margin-top:0"><input id="feedQ" placeholder="&#x4ee3;&#x7801; / &#x540d;&#x79f0; / &#x62fc;&#x97f3;" style="flex:1" autocomplete="off"><button id="feedGo">&#x641c;&#x7d22;</button></div>
+    <div class="chips" id="feedChips"></div>
+    <div id="feedRes" class="feedres"></div>
+    <div id="feedMsg" class="muted"></div>
+    <div class="row"><button id="feedClose" class="ghost">&#x5173;&#x95ed;</button></div>
+  </div>
+</div>
+<div id="modal" class="modal" hidden>
+  <div class="dialog">
+    <h3>&#x5bfc;&#x5165;&#x65e5;&#x7ebf; CSV</h3>
+    <p class="muted">&#x8868;&#x5934;&#x9700;&#x5305;&#x542b;&#x65e5;&#x671f;&#x3001;&#x5f00;&#x76d8;&#x3001;&#x6700;&#x9ad8;&#x3001;&#x6700;&#x4f4e;&#x3001;&#x6536;&#x76d8;&#x3001;&#x6210;&#x4ea4;&#x91cf;&#xff08;&#x4e2d;&#x82f1;&#x6587;&#x8868;&#x5934;&#x5747;&#x53ef;&#xff0c;&#x5982; date,open,high,low,close,volume&#xff09;&#x3002;&#x540c;&#x4ee3;&#x7801;&#x5c06;&#x88ab;&#x8986;&#x76d6;&#x3002;</p>
+    <label>&#x4ee3;&#x7801; <input id="impCode" placeholder="&#x5982; 600519 &#x6216; sh600519" maxlength="16"></label>
+    <label>&#x540d;&#x79f0; <input id="impName" placeholder="&#x53ef;&#x9009;"></label>
+    <label>&#x7f16;&#x7801;
+      <select id="impEnc"><option value="utf-8">UTF-8</option><option value="gbk">GBK&#xff08;&#x56fd;&#x5185;&#x884c;&#x60c5;&#x8f6f;&#x4ef6;&#x5bfc;&#x51fa;&#xff09;</option></select>
+    </label>
+    <label>&#x6587;&#x4ef6; <input id="impFile" type="file" accept=".csv,.txt"></label>
+    <div id="impMsg" class="muted"></div>
+    <div class="row">
+      <button id="impGo">&#x5bfc;&#x5165;</button>
+      <button id="impCancel" class="ghost">&#x53d6;&#x6d88;</button>
+    </div>
+  </div>
+</div>
+<script src="/app.js"></script>
+</body>
+</html>

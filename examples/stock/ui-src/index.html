@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>JNative 股票研究室</title>
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+<header>
+  <div class="brand">JNative <b>股票研究室</b><span class="tag">A股日线 · 概率预测 · 滚动验证</span></div>
+  <nav id="tabs">
+    <button data-tab="chart" class="on">行情</button>
+    <button data-tab="predict">预测与验证</button>
+    <button data-tab="backtest">策略回测</button>
+    <button data-tab="scan">全市场扫描</button>
+    <button data-tab="watch">自选与提醒<span id="alertBadge" class="badge" hidden></span></button>
+  </nav>
+  <div class="spacer"></div>
+  <button id="btnRefresh" class="ghost" title="重新拉取所有真实行情的最新日线">更新行情</button>
+  <button id="btnFeed">＋ 添加A股</button>
+  <button id="btnImport" class="ghost">导入 CSV</button>
+</header>
+<div class="layout">
+  <aside>
+    <input id="search" placeholder="搜索代码 / 名称" autocomplete="off">
+    <div id="symList"></div>
+  </aside>
+  <main>
+    <div id="titleBar"></div>
+    <section id="tab-chart"></section>
+    <section id="tab-predict" hidden></section>
+    <section id="tab-backtest" hidden></section>
+    <section id="tab-watch" hidden></section>
+    <section id="tab-scan" hidden></section>
+    <footer class="disclaimer">
+      本系统为研究与教学工具，不构成任何投资建议。历史规律不保证未来重现；预测输出为经过滚动验证校准的概率，而非确定结果。
+      内置“模拟”标的由已知规律的随机过程生成，用于检验模型是否会在噪声中“发现”并不存在的规律。真实行情来自新浪/腾讯公开接口（仅供个人研究，请遵守其使用条款），日线为前复权价且不含盘中未收盘的当日数据。
+    </footer>
+  </main>
+</div>
+<div id="feedModal" class="modal" hidden>
+  <div class="dialog">
+    <h3>添加A股真实行情</h3>
+    <p class="muted">输入代码或名称搜索（如 600519、茅台、sh000001）。数据为新浪日线，按除权除息因子做前复权，存入本地后可离线使用。</p>
+    <div class="row" style="margin-top:0"><input id="feedQ" placeholder="代码 / 名称 / 拼音" style="flex:1" autocomplete="off"><button id="feedGo">搜索</button></div>
+    <div class="chips" id="feedChips"></div>
+    <div id="feedRes" class="feedres"></div>
+    <div id="feedMsg" class="muted"></div>
+    <div class="row"><button id="feedClose" class="ghost">关闭</button></div>
+  </div>
+</div>
+<div id="modal" class="modal" hidden>
+  <div class="dialog">
+    <h3>导入日线 CSV</h3>
+    <p class="muted">表头需包含日期、开盘、最高、最低、收盘、成交量（中英文表头均可，如 date,open,high,low,close,volume）。同代码将被覆盖。</p>
+    <label>代码 <input id="impCode" placeholder="如 600519 或 sh600519" maxlength="16"></label>
+    <label>名称 <input id="impName" placeholder="可选"></label>
+    <label>编码
+      <select id="impEnc"><option value="utf-8">UTF-8</option><option value="gbk">GBK（国内行情软件导出）</option></select>
+    </label>
+    <label>文件 <input id="impFile" type="file" accept=".csv,.txt"></label>
+    <div id="impMsg" class="muted"></div>
+    <div class="row">
+      <button id="impGo">导入</button>
+      <button id="impCancel" class="ghost">取消</button>
+    </div>
+  </div>
+</div>
+<script src="/app.js"></script>
+</body>
+</html>
