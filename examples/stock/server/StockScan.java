@@ -355,7 +355,52 @@ class StockScan {
                     StockUtil.parseDouble(StockFeed.field(o, "close"), 0.0), StockUtil.parseDouble(StockFeed.field(o, "volume"), 0.0));
         }
         FeedBars fb = StockFeed.finish(new FeedBars(), s, n, "");
+        adjustExRights(fb.series, sym);
         return fb.series;
+    }
+
+    /**
+     * The scanner works on raw (unadjusted) bars, so a dividend/bonus-share ex-rights day looks like a crash. A one-day fall
+     * beyond the board's daily limit is impossible for a normal move, so it is treated as ex-rights: every earlier bar is scaled
+     * so that the previous close meets the new close (assumes a flat true return that day; the error is bounded by the limit).
+     */
+    static void adjustExRights(StockSeries s, String sym) {
+        int n = s.n;
+        if (n < 3) {
+            return;
+        }
+        double[] fac = new double[n];
+        double cum = 1.0;
+        int changed = 0;
+        int t = n - 1;
+        while (t >= 1) {
+            fac[t] = cum;
+            double lim = limitOf(sym);
+            if (lim < 0.15 && s.date[t] < 20200824 && (sym.startsWith("sz300") || sym.startsWith("sz301"))) {
+                lim = 0.1;
+            }
+            if (s.c[t - 1] > 0.0 && s.c[t] > 0.0) {
+                double r = s.c[t] / s.c[t - 1];
+                if (r < 1.0 - lim - 0.004) {
+                    cum = cum * r;
+                    changed = 1;
+                }
+            }
+            t = t - 1;
+        }
+        fac[0] = cum;
+        if (changed == 0) {
+            return;
+        }
+        t = 0;
+        while (t < n) {
+            double fv = fac[t];
+            s.o[t] = s.o[t] * fv;
+            s.h[t] = s.h[t] * fv;
+            s.l[t] = s.l[t] * fv;
+            s.c[t] = s.c[t] * fv;
+            t = t + 1;
+        }
     }
 
     /** Writes the 13 features of bar t into out[off..]; returns 0 when any is unusable. */
@@ -400,6 +445,9 @@ class StockScan {
     static double limitOf(String sym) {
         if (sym.startsWith("sz300") || sym.startsWith("sz301")) {
             return 0.2;
+        }
+        if (sym.startsWith("bj")) {
+            return 0.3;
         }
         return 0.1;
     }
