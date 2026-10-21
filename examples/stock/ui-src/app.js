@@ -708,12 +708,12 @@ var PHASE_TXT = ['空闲', '获取股票列表', '训练模型', '扫描中', '�
 function renderScan() {
   var root = $('tab-scan');
   root.innerHTML = '<div class="card"><h3>全市场扫描：找出“T+1 开盘买入后、未来几天可能大涨”的 A 股</h3>' +
-    '<div class="toolbar"><span class="muted">买入后</span><select id="scH"><option value="3">3</option><option value="5" selected>5</option><option value="10">10</option></select><span class="muted">个交易日内，任一天收盘价较买入价涨幅 ≥</span><select id="scTheta"><option value="0.05">5%</option><option value="0.08" selected>8%</option><option value="0.10">10%</option><option value="0.15">15%</option></select>' +
+    '<div class="toolbar"><span class="muted">买入后</span><select id="scH"><option value="1">1</option><option value="3">3</option><option value="5" selected>5</option><option value="10">10</option></select><span class="muted">个交易日内，任一天收盘价较买入价涨幅 ≥</span><select id="scTheta"><option value="0.03">3%</option><option value="0.05">5%</option><option value="0.08" selected>8%</option><option value="0.10">10%</option><option value="0.15">15%</option></select>' +
     '<span class="muted">只显示预测概率 ≥</span><input id="scP" size="4" value="30"><span class="muted">%</span>' +
     '<button id="scGo">开始扫描</button><button id="scStop" class="ghost" hidden>停止</button>' +
     '<label class="muted" title="去掉“前一天已涨≥5%”的股票：这类股票的规律最强也最难买到，排除后看模型是否还有预测力"><input type="checkbox" id="scExcl"> 排除前一日涨幅≥5%的股票</label>' +
     '<label class="muted"><input type="checkbox" id="scSort"> 按概率排序</label></div>' +
-    '<div class="note">买入价按“信号日（收盘后扫描）的下一个交易日开盘价”计算（你只能 T+1 买入），最早再下一个交易日才能卖出（T+1 规则）。统计的是买入后 H 个交易日里任意一天的最高<b>收盘价</b>，你不可能每次都卖在最高点，所以请同时看下面的“持有到第 H 天收盘的平均收益”。已排除北交所 920、科创板 688 和 ST/*ST 股票；信号日收在涨停、或买入日开盘就在涨停（买不进）的样本不计入训练、检验和结果。</div>' +
+    '<div class="note">买入价按“信号日（收盘后扫描）的下一个交易日开盘价”计算（你只能 T+1 买入），最早再下一个交易日才能卖出（T+1 规则）。统计的是买入后 H 个交易日里任意一天的最高<b>收盘价</b>，你不可能每次都卖在最高点，所以请同时看下面的“持有到第 H 天收盘的平均收益”。H=1 即超短线：买入后第一个可卖日（次日）收盘价是否达到目标。已排除北交所 920、科创板 688 和 ST/*ST 股票；信号日收在涨停、或买入日开盘就在涨停（买不进）的样本不计入训练、检验和结果。</div>' +
     '<div id="scProg"></div></div>' +
     '<div class="card"><h3>扫描结果 <span id="scCount" class="muted" style="font-weight:400"></span></h3><div id="scRes"><div class="muted">点击“开始扫描”。发现一只就显示一只，不必等扫描结束。</div></div></div>' +
     '<div class="card"><h3>这些概率靠不靠谱？（模型在没参与训练的最近约 250 个交易日上的检验）</h3><div id="scVal"><div class="muted">首次扫描会先训练模型，之后显示。</div></div></div>' +

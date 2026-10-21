@@ -63,7 +63,7 @@ class StockScan {
     static double[] binTs;
     static double baseTp = 0.0;
     static double baseTs = 0.0;
-    static int tIdx = 1;
+    static int tIdx = 2;
     static double[] ss;
     static int[] binLoss;
     static double baseEnd = 0.0;
@@ -112,12 +112,15 @@ class StockScan {
     /** The four take-profit levels for which strategy returns are stored per sample. */
     static double thOf(int i) {
         if (i == 0) {
-            return 0.05;
+            return 0.03;
         }
         if (i == 1) {
-            return 0.08;
+            return 0.05;
         }
         if (i == 2) {
+            return 0.08;
+        }
+        if (i == 3) {
             return 0.10;
         }
         return 0.15;
@@ -132,7 +135,7 @@ class StockScan {
         tIdx = 0;
         double bestD = 9.0;
         int q0 = 0;
-        while (q0 < 4) {
+        while (q0 < 5) {
             double dd = th - thOf(q0);
             if (dd < 0.0) {
                 dd = -dd;
@@ -148,12 +151,15 @@ class StockScan {
         pMin = pm;
         excl = ex;
         hold = hd;
-        hIdx = 1;
-        if (hd == 3) {
+        hIdx = 2;
+        if (hd == 1) {
             hIdx = 0;
         }
+        if (hd == 3) {
+            hIdx = 1;
+        }
         if (hd == 10) {
-            hIdx = 2;
+            hIdx = 3;
         }
         runId = runId + 1;
         stopFlag = 0;
@@ -314,10 +320,10 @@ class StockScan {
             return;
         }
         sx = new double[CAP * NF2];
-        sr = new double[3 * CAP];
-        se = new double[3 * CAP];
-        ss = new double[24 * CAP];
-        sl = new int[3 * CAP];
+        sr = new double[4 * CAP];
+        se = new double[4 * CAP];
+        ss = new double[40 * CAP];
+        sl = new int[4 * CAP];
         sd = new int[CAP];
         sn = 0;
         trainTried = 0;
@@ -416,12 +422,15 @@ class StockScan {
             if (buyable == 1 && entry > 0.0 && vec(f, t, sx, sn * NF2) == 1) {
                 int hi = 0;
                 int ok = 1;
-                while (hi < 3) {
-                    int hh = 3;
+                while (hi < 4) {
+                    int hh = 1;
                     if (hi == 1) {
-                        hh = 5;
+                        hh = 3;
                     }
                     if (hi == 2) {
+                        hh = 5;
+                    }
+                    if (hi == 3) {
                         hh = 10;
                     }
                     double mx = -1.0;
@@ -438,7 +447,7 @@ class StockScan {
                         ok = 0;
                     }
                     int ti = 0;
-                    while (ti < 4) {
+                    while (ti < 5) {
                         double thr = thOf(ti);
                         double tp = end;
                         double ts = end;
@@ -462,8 +471,8 @@ class StockScan {
                             }
                             k2 = k2 + 1;
                         }
-                        ss[(hi * 4 + ti) * CAP + sn] = tp;
-                        ss[((3 + hi) * 4 + ti) * CAP + sn] = ts;
+                        ss[(hi * 5 + ti) * CAP + sn] = tp;
+                        ss[((4 + hi) * 5 + ti) * CAP + sn] = ts;
                         ti = ti + 1;
                     }
                     sr[hi * CAP + sn] = mx;
@@ -670,8 +679,8 @@ class StockScan {
         double sumEnd = 0.0;
         double sumTp = 0.0;
         double sumTs = 0.0;
-        int offTp = (hIdx * 4 + tIdx) * CAP;
-        int offTs = ((3 + hIdx) * 4 + tIdx) * CAP;
+        int offTp = (hIdx * 5 + tIdx) * CAP;
+        int offTs = ((4 + hIdx) * 5 + tIdx) * CAP;
         while (b < 7) {
             binN[b] = 0;
             binPrec[b] = 0.0;

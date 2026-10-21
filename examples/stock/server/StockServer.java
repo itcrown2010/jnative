@@ -168,8 +168,8 @@ class StockRoute implements WebHandler {
                 ex = 1;
             }
             int hd = StockUtil.parseInt(ctx.query("h"), 5);
-            if (hd != 3 && hd != 5 && hd != 10) {
-                reply(ctx, StockUtil.err("BAD_SCAN", "h must be 3, 5 or 10"));
+            if (hd != 1 && hd != 3 && hd != 5 && hd != 10) {
+                reply(ctx, StockUtil.err("BAD_SCAN", "h must be 1, 3, 5 or 10"));
                 return;
             }
             String er = StockScan.start(th, pm, ex, hd);
