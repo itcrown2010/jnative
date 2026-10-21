@@ -265,6 +265,9 @@ class ByteBuf {
             return;
         }
         int nlen = data.length * 2;
+        if (nlen < 64) {
+            nlen = 64;
+        }
         while (nlen < need) {
             nlen = nlen * 2;
         }
@@ -456,6 +459,8 @@ class HttpRequest {
     byte[] body;
     /** Development-only: skip TLS certificate verify when non-zero. */
     int insecureSkipVerify;
+    /** When non-zero, only offer HTTP/1.1 via ALPN (no h2). */
+    int http1Only;
 
     static HttpRequest create(String method, String url) {
         HttpRequest r = new HttpRequest();
@@ -464,6 +469,7 @@ class HttpRequest {
         r.headers = new HttpHeaders();
         r.body = new byte[0];
         r.insecureSkipVerify = 0;
+        r.http1Only = 0;
         return r;
     }
 
@@ -794,6 +800,7 @@ class HttpClient {
                 }
                 HttpRequest next = HttpRequest.create(method, nextUrl);
                 next.insecureSkipVerify = request.insecureSkipVerify;
+                next.http1Only = request.http1Only;
                 HttpClient.copyRedirectHeaders(request, next, request.url, nextUrl);
                 next.bodyBytes(body);
                 return HttpClient.sendRedirects(next, redirectCount + 1);
@@ -814,7 +821,7 @@ class HttpClient {
     static HttpResponse sendHttpsRedirects(HttpRequest request, int redirectCount) {
         HttpUrl url = HttpUrl.parse(request.url);
         String alpnList = "h2,http/1.1";
-        if (request.insecureSkipVerify != 0) {
+        if (request.insecureSkipVerify != 0 || request.http1Only != 0) {
             /* Dev/test path: prefer HTTP/1.1 to avoid h2 preface edge cases with skip-verify. */
             alpnList = "http/1.1";
         }
@@ -850,6 +857,7 @@ class HttpClient {
                         String nextUrl = HttpClient.resolveRedirect(request.url, loc);
                         HttpRequest next = HttpRequest.create(request.method, nextUrl);
                         next.insecureSkipVerify = request.insecureSkipVerify;
+                next.http1Only = request.http1Only;
                         HttpClient.copyRedirectHeaders(request, next, request.url, nextUrl);
                         next.bodyBytes(request.body);
                         return HttpClient.sendRedirects(next, redirectCount + 1);
@@ -881,6 +889,7 @@ class HttpClient {
                 String nextUrl = HttpClient.resolveRedirect(request.url, loc);
                 HttpRequest next = HttpRequest.create(request.method, nextUrl);
                 next.insecureSkipVerify = request.insecureSkipVerify;
+                next.http1Only = request.http1Only;
                 HttpClient.copyRedirectHeaders(request, next, request.url, nextUrl);
                 next.bodyBytes(request.body);
                 return HttpClient.sendRedirects(next, redirectCount + 1);
@@ -927,7 +936,72 @@ class HttpClient {
         return response;
     }
 
+    static int endsWithChunkTerminator(ByteBuf raw) {
+        int n = raw.size;
+        if (n < 5) {
+            return 0;
+        }
+        if (raw.data[n - 5] == 48 && raw.data[n - 4] == 13 && raw.data[n - 3] == 10 && raw.data[n - 2] == 13 && raw.data[n - 1] == 10) {
+            if (n == 5 || raw.data[n - 6] == 10) {
+                return 1;
+            }
+        }
+        return 0;
+    }
+
+    /** Chunked transfer-encoding over TLS: collect the framed stream, then decode it in one linear pass. */
+    static byte[] readChunkedTls(TlsConnection tls, byte[] prelude) {
+        ByteBuf raw = new ByteBuf();
+        raw.appendBytes(prelude);
+        int reading = 1;
+        while (reading != 0 && HttpClient.endsWithChunkTerminator(raw) == 0) {
+            if (raw.size > HttpClient.maxBodySize() * 2) {
+                throw new HttpProtocolException("body too large");
+            }
+            byte[] chunk = new byte[16384];
+            int n = tls.read(chunk);
+            if (n <= 0) {
+                reading = 0;
+            } else {
+                raw.appendBytes(Bytes.slice(chunk, 0, n));
+            }
+        }
+        ByteBuf out = new ByteBuf();
+        int pos = 0;
+        int done = 0;
+        while (done == 0 && pos < raw.size) {
+            int idx = raw.indexOfCrlf(pos);
+            if (idx < 0 || idx > raw.size) {
+                throw new HttpProtocolException("bad chunk framing");
+            }
+            String sizeLine = Bytes.toString(Bytes.slice(raw.data, pos, idx));
+            int semi = sizeLine.indexOf(";");
+            if (semi >= 0) {
+                sizeLine = sizeLine.substring(0, semi);
+            }
+            int size = HttpUtil.parseHexInt(sizeLine.trim());
+            pos = idx + 2;
+            if (size == 0) {
+                done = 1;
+            } else {
+                if (pos + size > raw.size) {
+                    throw new HttpProtocolException("truncated chunk");
+                }
+                if (out.size + size > HttpClient.maxBodySize()) {
+                    throw new HttpProtocolException("body too large");
+                }
+                out.appendBytes(Bytes.slice(raw.data, pos, pos + size));
+                pos = pos + size + 2;
+            }
+        }
+        return out.toArray();
+    }
+
     static byte[] readBodyTls(TlsConnection tls, HttpHeaders headers, byte[] prelude) {
+        String te = headers.getOrEmpty("Transfer-Encoding").toLowerCase();
+        if (te.indexOf("chunked") >= 0) {
+            return HttpClient.readChunkedTls(tls, prelude);
+        }
         String cl = headers.get("Content-Length");
         if (cl != null) {
             int len = HttpUtil.parsePositiveInt(cl);

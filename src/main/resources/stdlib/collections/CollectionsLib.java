@@ -2923,12 +2923,21 @@ class StringBuilder {
         if (n == 1) {
             return this.parts.get(0);
         }
-        String out = "";
-        int i = 0;
-        while (i < n) {
-            out = out + this.parts.get(i);
-            i = i + 1;
+        // Pairwise merge: O(total * log(parts)) instead of the O(total * parts) of a left fold.
+        ArrayList<String> cur = this.parts;
+        while (cur.size() > 1) {
+            ArrayList<String> nxt = new ArrayList<String>();
+            int i = 0;
+            while (i + 1 < cur.size()) {
+                nxt.add(cur.get(i) + cur.get(i + 1));
+                i = i + 2;
+            }
+            if (i < cur.size()) {
+                nxt.add(cur.get(i));
+            }
+            cur = nxt;
         }
+        String out = cur.get(0);
         // Collapse so repeated toString()/charAt() stay linear.
         this.parts.clear();
         this.parts.add(out);

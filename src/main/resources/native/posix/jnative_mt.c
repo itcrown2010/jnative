@@ -38,6 +38,7 @@ struct JNThreadState {
     int64_t ex_return_value;
     int exec_state;
     int safepoint_parked; /* 1 if waiting inside safepoint poll */
+    int gc_restore_managed; /* collector thread was MANAGED before jn_gc_collect_lock */
     int no_gc_depth;
     void *thread_obj;
     pthread_t pthread;
@@ -362,6 +363,10 @@ void jn_leave_native(void) {
     }
     pthread_mutex_lock(&gc_mu);
     if (st->exec_state == JN_EXEC_NATIVE) {
+        /* Do not resume managed execution while the world is stopped. */
+        while (gc_requested) {
+            pthread_cond_wait(&gc_cv, &gc_mu);
+        }
         st->exec_state = JN_EXEC_MANAGED;
         pthread_mutex_unlock(&gc_mu);
         jn_safepoint_poll();
@@ -404,6 +409,7 @@ void jn_gc_collect_lock(void) {
     pthread_mutex_lock(&gc_mu);
     if (self && self->exec_state == JN_EXEC_MANAGED) {
         self->exec_state = JN_EXEC_SAFEPOINT;
+        self->gc_restore_managed = 1;
         pthread_cond_broadcast(&gc_cv);
     }
     pthread_mutex_unlock(&gc_mu);
@@ -411,6 +417,19 @@ void jn_gc_collect_lock(void) {
 }
 
 void jn_gc_collect_unlock(void) {
+    /* The collector itself is never "parked", so jn_gc_stw_end does not resume it. Without this
+       it would stay SAFEPOINT forever and later stop-the-world collections would treat a running
+       mutator as stopped (heap corruption with more than one thread). Restore it while still
+       holding collect_mu so no new STW can observe the half-state. */
+    JNThreadState *self = jn_thread_current();
+    pthread_mutex_lock(&gc_mu);
+    if (self && self->gc_restore_managed) {
+        self->gc_restore_managed = 0;
+        if (self->exec_state == JN_EXEC_SAFEPOINT) {
+            self->exec_state = JN_EXEC_MANAGED;
+        }
+    }
+    pthread_mutex_unlock(&gc_mu);
     pthread_mutex_unlock(&collect_mu);
 }
 
@@ -541,7 +560,14 @@ static void *thread_trampoline(void *arg) {
     /* sa may be freed by jn_thread_start after the ready handshake. */
 
     st->thread_obj = thread_obj;
+    /* A new mutator must not become MANAGED while a stop-the-world collection is walking the
+       shadow stacks: wait for the collection to finish before entering managed code. */
+    pthread_mutex_lock(&gc_mu);
+    while (gc_requested) {
+        pthread_cond_wait(&gc_cv, &gc_mu);
+    }
     st->exec_state = JN_EXEC_MANAGED;
+    pthread_mutex_unlock(&gc_mu);
 
     entry(thread_obj);
 

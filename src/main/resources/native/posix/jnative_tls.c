@@ -16,6 +16,8 @@
 #else
 #include <fcntl.h>
 #include <unistd.h>
+#include <sys/socket.h>
+#include <sys/time.h>
 #endif
 
 #include <openssl/ssl.h>
@@ -267,6 +269,22 @@ static int64_t wrap_common(JnTlsCtx *ctx, int64_t fd, const char *server_name, i
         set_ssl_err(errbuf, errbuf_len, "SSL_new failed");
         return 0;
     }
+#if !defined(_WIN32)
+    if (!server) {
+        /* Client sockets must never block forever on a stalled peer. */
+        long ms = 20000;
+        const char *envms = getenv("JNATIVE_TLS_RECV_TIMEOUT_MS");
+        if (envms != NULL && envms[0] != '\0') {
+            long v = atol(envms);
+            if (v > 0) ms = v;
+        }
+        struct timeval tv;
+        tv.tv_sec = ms / 1000;
+        tv.tv_usec = (ms % 1000) * 1000;
+        setsockopt((int)fd, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
+        setsockopt((int)fd, SOL_SOCKET, SO_SNDTIMEO, &tv, sizeof(tv));
+    }
+#endif
     if (SSL_set_fd(ssl, (int)fd) != 1) {
         set_ssl_err(errbuf, errbuf_len, "SSL_set_fd failed");
         SSL_free(ssl);

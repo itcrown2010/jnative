@@ -21,6 +21,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/socket.h>
+#include <sys/time.h>
 #include <sys/types.h>
 #include <unistd.h>
 
@@ -326,6 +327,24 @@ int jnative_plat_tcp_accept(
     }
     int fd = (int)listen_handle;
     int client = -1;
+    {
+        /* Optional accept timeout so a single-threaded server can run periodic background work. */
+        const char *at = getenv("JNATIVE_ACCEPT_TIMEOUT_MS");
+        if (at != NULL && *at != 0) {
+            long ams = atol(at);
+            if (ams > 0) {
+                struct pollfd apfd;
+                apfd.fd = fd;
+                apfd.events = POLLIN;
+                apfd.revents = 0;
+                int apr = poll(&apfd, 1, (int)ams);
+                if (apr == 0 || (apr < 0 && errno == EINTR)) {
+                    set_err(errbuf, errbuf_len, "accept timed out");
+                    return JN_NET_ERR_TIMEOUT;
+                }
+            }
+        }
+    }
     do {
         client = accept(fd, NULL, NULL);
     } while (client < 0 && errno == EINTR);
@@ -338,6 +357,22 @@ int jnative_plat_tcp_accept(
         return JN_NET_ERR_SOCKET;
     }
     suppress_sigpipe(client);
+    {
+        /* Server-side sockets get a receive timeout so an idle browser pre-connection cannot park
+           a worker (or a single-threaded accept loop) forever in recv(). */
+        struct timeval tv;
+        tv.tv_sec = 15;
+        tv.tv_usec = 0;
+        const char *e = getenv("JNATIVE_TCP_RECV_TIMEOUT_MS");
+        if (e != NULL && *e != 0) {
+            long ms = atol(e);
+            if (ms > 0) {
+                tv.tv_sec = ms / 1000;
+                tv.tv_usec = (ms % 1000) * 1000;
+            }
+        }
+        setsockopt(client, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
+    }
     *out_handle = (int64_t)client;
     return JN_NET_OK;
 }
