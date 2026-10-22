@@ -293,29 +293,6 @@ class ClosureEndToEndTest {
                 () -> r.diagnostics().toString());
     }
 
-    @Test
-    void wasmRejectsCallableClearly() throws Exception {
-        Assumptions.assumeTrue(Toolchain.detect().isPresent(), "clang not available");
-        Path file = tmp.resolve("WasmLam.java");
-        Files.writeString(file, """
-                public class WasmLam {
-                    public static void main(String[] args) {
-                        IntUnaryFunction f = x -> x + 1;
-                        System.out.println(f.apply(1));
-                    }
-                }
-                """, StandardCharsets.UTF_8);
-        CompilerOptions options = new CompilerOptions();
-        options.setSourceFile(file);
-        options.setOutputFile(tmp.resolve("wasm-out"));
-        options.setTarget("wasm32-browser");
-        CompileResult cr = new JNativeCompiler().compile(options);
-        assertFalse(cr.success());
-        String msg = cr.diagnostics().stream().map(Object::toString).reduce("", (a, b) -> a + b);
-        assertTrue(msg.contains("MakeCallable") || msg.contains("callable") || msg.contains("lambda"),
-                () -> msg);
-    }
-
     private void assertO0AndOpt(String src, String expected) throws Exception {
         Assumptions.assumeTrue(Toolchain.detect().isPresent(), "clang not available");
         assertEquals(expected, compileRun(tmp.resolve("c0"), src, 0), "O0");

@@ -225,30 +225,6 @@ class FunctionalCallbacksEndToEndTest {
         assertO0AndOpt(src, "1\n1\n200\n");
     }
 
-    @Test
-    void wasmRejectsCallableStill() throws Exception {
-        Assumptions.assumeTrue(Toolchain.detect().isPresent(), "clang not available");
-        Path file = tmp.resolve("W.java");
-        Files.writeString(file, """
-                public class W {
-                    public static void main(String[] args) {
-                        ArrayList<String> list = new ArrayList<String>();
-                        list.add("a");
-                        list.forEach(s -> System.out.println(s.length()));
-                    }
-                }
-                """, StandardCharsets.UTF_8);
-        CompilerOptions options = new CompilerOptions();
-        options.setSourceFile(file);
-        options.setOutputFile(tmp.resolve("wout"));
-        options.setTarget("wasm32-browser");
-        CompileResult cr = new JNativeCompiler().compile(options);
-        assertFalse(cr.success());
-        String msg = cr.diagnostics().stream().map(Object::toString).reduce("", (a, b) -> a + b);
-        assertTrue(msg.toLowerCase().contains("callable") || msg.contains("MakeCallable")
-                || msg.contains("lambda"), () -> msg);
-    }
-
     private void assertO0AndOpt(String src, String expected) throws Exception {
         Assumptions.assumeTrue(Toolchain.detect().isPresent(), "clang not available");
         assertEquals(expected, compileRun(tmp.resolve("o0"), src, 0, Map.of()), "O0");

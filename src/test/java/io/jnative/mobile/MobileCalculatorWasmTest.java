@@ -58,12 +58,7 @@ public class MobileCalculatorWasmTest {
         String script = """
                 import { readFileSync } from 'fs';
                 const wasmBytes = readFileSync(%s);
-                const imports = { jnative: {
-                  console_log() {}, document_get_element_by_id(){return 0}, element_set_text(){},
-                  document_create_element(){return 0}, element_append_child(){}, create_text(){return 0},
-                  query_selector(){return 0}, apply_dom_patches(){}, schedule_microtask(){},
-                  delegate_event(){}, init_delegation(){}, register_callback(id){return id}, set_count_label(){},
-                }};
+                const imports = { jnative: __IMPORTS__ };
                 const { instance } = await WebAssembly.instantiate(wasmBytes, imports);
                 const e = instance.exports;
                 const mem = e.memory;
@@ -78,7 +73,8 @@ public class MobileCalculatorWasmTest {
                 compute(w('nope'), w('1'));
                 if ((getErr()|0) !== 2) throw new Error('invalid err '+getErr());
                 console.log('OK');
-                """.formatted(jsonString(wasm.toAbsolutePath().toString()));
+                """.formatted(jsonString(wasm.toAbsolutePath().toString()))
+                .replace("__IMPORTS__", io.jnative.backend.wasm.WasmHostImportContract.nodeJnativeImportsObjectLiteral());
 
         Path js = tempDir.resolve("check.mjs");
         Files.writeString(js, script, StandardCharsets.UTF_8);
@@ -112,12 +108,7 @@ public class MobileCalculatorWasmTest {
         String script = """
                 import { readFileSync } from 'fs';
                 const wasmBytes = readFileSync(%s);
-                const imports = { jnative: {
-                  console_log() {}, document_get_element_by_id(){return 0}, element_set_text(){},
-                  document_create_element(){return 0}, element_append_child(){}, create_text(){return 0},
-                  query_selector(){return 0}, apply_dom_patches(){}, schedule_microtask(){},
-                  delegate_event(){}, init_delegation(){}, register_callback(id){return id}, set_count_label(){},
-                }};
+                const imports = { jnative: __IMPORTS__ };
                 const { instance } = await WebAssembly.instantiate(wasmBytes, imports);
                 const e = instance.exports;
                 const mem = e.memory;
@@ -126,7 +117,8 @@ public class MobileCalculatorWasmTest {
                 const r = find('CalculatorApp_compute_CString_CString')(w('12'), w('30'));
                 if (r !== 43) throw new Error('expected mutated 43, got '+r);
                 console.log('OK');
-                """.formatted(jsonString(out.resolve("app.wasm").toAbsolutePath().toString()));
+                """.formatted(jsonString(out.resolve("app.wasm").toAbsolutePath().toString()))
+                .replace("__IMPORTS__", io.jnative.backend.wasm.WasmHostImportContract.nodeJnativeImportsObjectLiteral());
         Path js = tempDir.resolve("mut.mjs");
         Files.writeString(js, script, StandardCharsets.UTF_8);
         assertTrue(run(new String[]{"node", js.toAbsolutePath().toString()}, 60).contains("OK"));
