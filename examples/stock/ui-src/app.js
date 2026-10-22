@@ -177,6 +177,29 @@ function renderChart() {
   cv.onmouseleave = function () { K.mx = -1; K.drag = null; drawChart(); };
   cv.onmousedown = function () { if (K.per !== 'T' && curBars()) K.drag = { x: K.mx, end: K.end || curBars().close.length }; };
   cv.onmouseup = function () { K.drag = null; };
+  /* touch: one finger pans (and shows the crosshair), two fingers pinch to zoom; vertical swipes still scroll the page */
+  var tdist = function (e) { var a = e.touches[0], b = e.touches[1]; return Math.sqrt((a.clientX - b.clientX) * (a.clientX - b.clientX) + (a.clientY - b.clientY) * (a.clientY - b.clientY)); };
+  cv.addEventListener('touchstart', function (e) {
+    var r = cv.getBoundingClientRect();
+    if (e.touches.length === 2) { K.pinch = { d: tdist(e), count: K.count }; K.drag = null; return; }
+    K.mx = e.touches[0].clientX - r.left;
+    if (K.per !== 'T' && curBars()) K.drag = { x: K.mx, end: K.end || curBars().close.length };
+    drawChart();
+  }, { passive: true });
+  cv.addEventListener('touchmove', function (e) {
+    if (K.per === 'T' || !curBars()) { var r0 = cv.getBoundingClientRect(); K.mx = e.touches[0].clientX - r0.left; drawChart(); return; }
+    var N = curBars().close.length;
+    if (e.touches.length === 2 && K.pinch) {
+      K.count = Math.max(30, Math.min(N, Math.round(K.pinch.count * K.pinch.d / tdist(e)))); K.end = Math.min(N, K.end || N); drawChart(); return;
+    }
+    var r = cv.getBoundingClientRect(); K.mx = e.touches[0].clientX - r.left;
+    if (K.drag) {
+      var step = (r.width - 64) / K.count, dx = Math.round((K.mx - K.drag.x) / step);
+      K.end = Math.max(K.count, Math.min(N, K.drag.end - dx));
+    }
+    drawChart();
+  }, { passive: true });
+  cv.addEventListener('touchend', function () { K.drag = null; K.pinch = null; }, { passive: true });
   cv.onwheel = function (e) {
     if (K.per === 'T' || !curBars()) return;
     e.preventDefault(); var N = curBars().close.length;

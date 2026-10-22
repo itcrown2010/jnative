@@ -27,6 +27,10 @@ def esc_html(text):
 
 
 for name in sorted(os.listdir(src)):
+    if name.endswith(".png"):
+        open(os.path.join(dst, name), "wb").write(open(os.path.join(src, name), "rb").read())
+        print("copied", name)
+        continue
     text = open(os.path.join(src, name), encoding="utf-8").read()
     if name.endswith(".js"):
         text = esc_js(text)
