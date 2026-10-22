@@ -22,6 +22,7 @@
 #include <string.h>
 #include <sys/socket.h>
 #include <sys/time.h>
+#include <time.h>
 #include <sys/types.h>
 #include <unistd.h>
 
@@ -310,6 +311,106 @@ int jnative_plat_tcp_listen(
     return JN_NET_ERR_SOCKET;
 }
 
+#define JN_PEND_MAX 64
+static int g_pend_fd[JN_PEND_MAX];
+static long long g_pend_ms[JN_PEND_MAX];
+static int g_pend_n = 0;
+
+static long long jn_now_ms(void) {
+    struct timespec ts;
+    clock_gettime(CLOCK_MONOTONIC, &ts);
+    return (long long)ts.tv_sec * 1000ll + (long long)(ts.tv_nsec / 1000000);
+}
+
+static void jn_client_setup(int client) {
+    struct timeval tv;
+    tv.tv_sec = 15;
+    tv.tv_usec = 0;
+    const char *e = getenv("JNATIVE_TCP_RECV_TIMEOUT_MS");
+    if (e != NULL && *e != 0) {
+        long ms = atol(e);
+        if (ms > 0) {
+            tv.tv_sec = ms / 1000;
+            tv.tv_usec = (ms % 1000) * 1000;
+        }
+    }
+    setsockopt(client, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
+}
+
+/* Multiplexed accept for single-threaded servers (JNATIVE_ACCEPT_FIRST_BYTE_MS = how long an idle connection may wait).
+ * Browsers and phones open speculative connections that never send anything; serving connections strictly in accept order
+ * would block on each of them for the whole receive timeout. Here new connections are parked and only one that has
+ * actually sent data (or closed) is handed to the server, so idle ones cost nothing. */
+static int jn_accept_ready(int fd, long life_ms, long wait_ms, int64_t *out_handle, char *errbuf, size_t errbuf_len) {
+    long long start = jn_now_ms();
+    for (;;) {
+        long long now = jn_now_ms();
+        int k = 0;
+        while (k < g_pend_n) {
+            if (now - g_pend_ms[k] > life_ms) {
+                close(g_pend_fd[k]);
+                g_pend_n--;
+                g_pend_fd[k] = g_pend_fd[g_pend_n];
+                g_pend_ms[k] = g_pend_ms[g_pend_n];
+            } else {
+                k++;
+            }
+        }
+        long long left = wait_ms - (now - start);
+        if (left < 0) {
+            left = 0;
+        }
+        struct pollfd pf[JN_PEND_MAX + 1];
+        pf[0].fd = fd;
+        pf[0].events = POLLIN;
+        pf[0].revents = 0;
+        for (k = 0; k < g_pend_n; k++) {
+            pf[k + 1].fd = g_pend_fd[k];
+            pf[k + 1].events = POLLIN;
+            pf[k + 1].revents = 0;
+        }
+        int pr = poll(pf, (nfds_t)(g_pend_n + 1), (int)left);
+        if (pr < 0 && errno != EINTR) {
+            set_err_fmt(errbuf, errbuf_len, "accept failed: %s", strerror(errno));
+            return JN_NET_ERR_SOCKET;
+        }
+        if (pr <= 0) {
+            set_err(errbuf, errbuf_len, "accept timed out");
+            return JN_NET_ERR_TIMEOUT;
+        }
+        for (k = 0; k < g_pend_n; k++) {
+            if (pf[k + 1].revents != 0) {
+                int c = g_pend_fd[k];
+                g_pend_n--;
+                g_pend_fd[k] = g_pend_fd[g_pend_n];
+                g_pend_ms[k] = g_pend_ms[g_pend_n];
+                suppress_sigpipe(c);
+                jn_client_setup(c);
+                *out_handle = (int64_t)c;
+                return JN_NET_OK;
+            }
+        }
+        if (pf[0].revents & POLLIN) {
+            int c;
+            do {
+                c = accept(fd, NULL, NULL);
+            } while (c < 0 && errno == EINTR);
+            if (c >= 0) {
+                if (g_pend_n < JN_PEND_MAX) {
+                    g_pend_fd[g_pend_n] = c;
+                    g_pend_ms[g_pend_n] = jn_now_ms();
+                    g_pend_n++;
+                } else {
+                    close(c);
+                }
+            } else if (errno != EAGAIN && errno != EWOULDBLOCK && errno != ETIMEDOUT) {
+                set_err_fmt(errbuf, errbuf_len, "accept failed: %s", strerror(errno));
+                return JN_NET_ERR_SOCKET;
+            }
+        }
+    }
+}
+
 int jnative_plat_tcp_accept(
         int64_t listen_handle,
         int64_t *out_handle,
@@ -327,6 +428,17 @@ int jnative_plat_tcp_accept(
     }
     int fd = (int)listen_handle;
     int client = -1;
+    {
+        const char *fbe = getenv("JNATIVE_ACCEPT_FIRST_BYTE_MS");
+        if (fbe != NULL && *fbe != 0 && atol(fbe) > 0) {
+            long wait = 200;
+            const char *at0 = getenv("JNATIVE_ACCEPT_TIMEOUT_MS");
+            if (at0 != NULL && *at0 != 0 && atol(at0) > 0) {
+                wait = atol(at0);
+            }
+            return jn_accept_ready(fd, atol(fbe), wait, out_handle, errbuf, errbuf_len);
+        }
+    }
     {
         /* Optional accept timeout so a single-threaded server can run periodic background work. */
         const char *at = getenv("JNATIVE_ACCEPT_TIMEOUT_MS");

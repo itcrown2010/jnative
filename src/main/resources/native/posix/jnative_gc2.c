@@ -79,6 +79,12 @@ static uint8_t *g_to_scan = NULL;
 static GcHeader *g_old_head = NULL;
 static GcHeader *g_large_head = NULL;
 
+/* Old + large generation accounting. Without it nothing ever triggered a major collection (only a failed malloc did), so a
+ * long-running server kept every promoted object forever and its memory grew without bound. */
+static uint64_t g_old_bytes = 0;         /* bytes currently held by old and large objects (live + not yet swept) */
+static uint64_t g_major_trigger = 0;     /* collect when g_old_bytes reaches this */
+static uint64_t g_major_min = 64ull * 1024ull * 1024ull;
+
 #define REMSET_CAP 65536
 static void **g_remset = NULL;
 static size_t g_remset_len = 0;
@@ -278,6 +284,8 @@ void jn_gc2_init(void) {
     g_tlab_size = env_size("JNATIVE_TLAB_SIZE", 32u * 1024u);
     g_large_threshold = env_size("JNATIVE_LARGE_THRESHOLD", 32u * 1024u);
     g_promotion_age = (uint32_t)env_size("JNATIVE_PROMOTION_AGE", 2);
+    g_major_min = (uint64_t)env_size("JNATIVE_MAJOR_MIN_MB", 64) * 1024ull * 1024ull;
+    g_major_trigger = g_major_min;
     g_verify = getenv("JNATIVE_GC_VERIFY") != NULL;
     g_log = getenv("JNATIVE_GC_LOG") != NULL;
     g_stats = getenv("JNATIVE_GC_STATS") != NULL;
@@ -395,6 +403,7 @@ static void *alloc_old_or_large(uint64_t payload, uint32_t gen) {
     memset(h, 0, (size_t)total);
     init_header(h, total, gen);
     jn_heap_lock();
+    g_old_bytes += total;
     if (gen == GEN_LARGE) {
         h->link = g_large_head;
         g_large_head = h;
@@ -733,6 +742,11 @@ static void sweep_list(GcHeader **head) {
             }
             st_old_freed++;
             st_freed_objects++;
+            if (g_old_bytes >= cur->size) {
+                g_old_bytes -= cur->size;
+            } else {
+                g_old_bytes = 0;
+            }
             free(cur);
         } else {
             cur->mark = 0;
@@ -778,6 +792,11 @@ static void major_gc_body(void) {
     sweep_list(&g_large_head);
     jn_heap_unlock();
 
+    /* next major collection once the old generation has doubled (but not before the minimum headroom) */
+    g_major_trigger = g_old_bytes * 2ull;
+    if (g_major_trigger < g_old_bytes + g_major_min) {
+        g_major_trigger = g_old_bytes + g_major_min;
+    }
     st_major++;
     uint64_t dt = now_ns() - t0;
     st_major_ns += dt;
@@ -943,6 +962,10 @@ void *jn_gc2_alloc(uint64_t payload) {
         if (used * 2 > g_young_size) {
             jn_gc2_minor();
         }
+    }
+
+    if (g_old_bytes >= g_major_trigger && g_major_trigger > 0) {
+        jn_gc2_collect();
     }
 
     if (payload >= g_large_threshold) {
