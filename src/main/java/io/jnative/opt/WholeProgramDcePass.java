@@ -27,6 +27,14 @@ public final class WholeProgramDcePass implements OptimizationPass {
     public void run(OptimizationContext ctx) {
         Set<String> reachable = new HashSet<>(ctx.protectedFunctionNames());
         reachable.addAll(allVtableImplementations(ctx));
+        // Bridges (boxing adapters for erased generic interface slots) are only referenced from itables.
+        for (var itable : ctx.module().itables().values()) {
+            for (var e : itable.entries()) {
+                if (e.bridge() != null) {
+                    reachable.add(e.bridge());
+                }
+            }
+        }
         for (IrFunction f : ctx.module().functions()) {
             String n = f.name();
             if (n.contains("_lambda_") || n.contains("_thunk_")

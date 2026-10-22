@@ -120,6 +120,33 @@ class GenericsEndToEndTest {
     }
 
     @Test
+    void genericInterfacePrimitiveParamAndDoubleResult() throws Exception {
+        assertEquals("2.5\n7\n", run("""
+                interface Fn<A, B> {
+                    B apply(A a);
+                }
+                class Half implements Fn<int, double> {
+                    double apply(int x) {
+                        return x / 2.0;
+                    }
+                }
+                class Inc implements Fn<Integer, int> {
+                    int apply(Integer x) {
+                        return x + 1;
+                    }
+                }
+                public class Main {
+                    public static void main(String[] args) {
+                        Fn<int, double> h = new Half();
+                        System.out.println(h.apply(5));
+                        Fn<Integer, int> i = new Inc();
+                        System.out.println(i.apply(6));
+                    }
+                }
+                """, "GenIface2", Map.of(), 0));
+    }
+
+    @Test
     void nestedGenericAndPair() throws Exception {
         assertEquals("ok\n", run("""
                 class Box<T> {

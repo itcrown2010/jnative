@@ -10,8 +10,13 @@ import io.jnative.semantic.MethodSymbol;
 /**
  * @author 张晓达
  */
-public record ITableEntry(int slot, MethodSymbol implementation) {
+public record ITableEntry(int slot, MethodSymbol implementation, String bridge) {
+    public ITableEntry(int slot, MethodSymbol implementation) {
+        this(slot, implementation, null);
+    }
+
+    /** Symbol stored in the itable: a bridge (boxing adapter for erased generic slots) when present. */
     public String mangledImplementation() {
-        return implementation.mangledName();
+        return bridge != null ? bridge : implementation.mangledName();
     }
 }

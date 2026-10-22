@@ -1071,7 +1071,8 @@ class Async {
         if (poolInit != 0) {
             return;
         }
-        sharedPool = ThreadPoolExecutor.createDefault();
+        /* daemon workers: the blocking-adapter pool must not keep the process alive after main() returns */
+        sharedPool = new ThreadPoolExecutor(4, 1);
         poolInit = 1;
     }
 

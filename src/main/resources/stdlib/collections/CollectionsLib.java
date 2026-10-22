@@ -4677,9 +4677,33 @@ class ThreadPoolExecutor implements Executor {
     int workerCount;
     int running;
     int shutdownFlag;
+    int daemon;
     Thread[] workers;
 
     ThreadPoolExecutor(int workers) {
+        this.daemon = 0;
+        queue = new ArrayDeque<PoolTask>();
+        lock = new Mutex();
+        notEmpty = new Condition();
+        workerCount = workers;
+        if (workerCount < 1) {
+            workerCount = 1;
+        }
+        running = 0;
+        shutdownFlag = 0;
+        this.workers = new Thread[workerCount];
+        int i = 0;
+        while (i < workerCount) {
+            ThreadPoolWorker w = new ThreadPoolWorker();
+            w.pool = this;
+            this.workers[i] = w;
+            w.start();
+            i = i + 1;
+        }
+    }
+
+    ThreadPoolExecutor(int workers, int daemonFlag) {
+        this.daemon = daemonFlag;
         queue = new ArrayDeque<PoolTask>();
         lock = new Mutex();
         notEmpty = new Condition();
@@ -4754,11 +4778,19 @@ class ThreadPoolExecutor implements Executor {
     }
 }
 
+class ThreadPoolNative {
+    @Native(symbol = "jnative_thread_set_daemon")
+    static native void setDaemon();
+}
+
 class ThreadPoolWorker extends Thread {
     ThreadPoolExecutor pool;
 
     public void run() {
         int alive = 1;
+        if (pool.daemon != 0) {
+            ThreadPoolNative.setDaemon();
+        }
         while (alive != 0) {
             PoolTask t = pool.takeTask();
             if (t == null) {

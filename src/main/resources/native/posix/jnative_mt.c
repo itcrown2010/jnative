@@ -45,6 +45,7 @@ struct JNThreadState {
     int registered;
     int joined;
     int self_started;
+    int daemon; /* daemon threads are not joined at process exit */
     int foreign_attached;
     /* GC2 TLAB */
     uint8_t *tlab_top;
@@ -774,13 +775,21 @@ int64_t jn_os_thread_count(void) {
     return n;
 }
 
+/* Marks the calling thread as a daemon: main() returning does not wait for it. */
+void jnative_thread_set_daemon(void) {
+    JNThreadState *self = jn_thread_current();
+    if (self) {
+        self->daemon = 1;
+    }
+}
+
 void jn_thread_join_remaining(void) {
     for (;;) {
         int64_t id = -1;
         JNThreadState *self = jn_thread_current();
         pthread_mutex_lock(&registry_mu);
         for (JNThreadState *t = registry_head; t; t = t->next) {
-            if (t->self_started && !t->joined && t != self) {
+            if (t->self_started && !t->joined && !t->daemon && t != self) {
                 id = t->id;
                 break;
             }

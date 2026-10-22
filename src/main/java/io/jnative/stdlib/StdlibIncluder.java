@@ -294,10 +294,17 @@ public final class StdlibIncluder {
         return src != null && RANDOM_USE.matcher(src).find() && !declaresType(src, "Random");
     }
 
+    private static final java.util.regex.Pattern PRIMITIVE_TYPE_ARG = java.util.regex.Pattern.compile(
+            "<[^<>;(){}=]*\\b(int|long|double|float|boolean|char|short|byte)\\b[^<>;(){}=]*>");
+
     /** Boxed primitives and types that typically imply autobox. */
     public static boolean needsBoxing(String sourceText) {
         if (sourceText == null) {
             return false;
+        }
+        // A primitive type argument such as Mapper<String, int> dispatches through erased slots that box via wrappers.
+        if (PRIMITIVE_TYPE_ARG.matcher(sourceText).find()) {
+            return true;
         }
         return sourceText.contains("Integer")
                 // primitives box into Object ({@code Object o = 5}) via the wrapper classes

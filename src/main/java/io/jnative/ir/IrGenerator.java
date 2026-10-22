@@ -293,6 +293,7 @@ public final class IrGenerator {
         currentMethod = null;
         currentConstructor = null;
         lowerCallableFunctions(module, typed);
+        lowerInterfaceBridges(module);
         lowerThreadBuiltins(module, typed);
         lowerStaticClinit(module, typed);
 
@@ -3617,6 +3618,113 @@ public final class IrGenerator {
                 yield builder.call("jnative_native_alloc", IrType.NATIVE_PTR, List.of(size), false);
             }
         };
+    }
+
+    /**
+     * Generic interface slots are erased ({@code T}/{@code R} are managed pointers), but an implementation may use a
+     * primitive instead ({@code class L implements Mapper<String, int> { int map(String s) }}). The ITable entry then
+     * points at a bridge that unboxes erased arguments, calls the implementation and boxes the result.
+     */
+    private void lowerInterfaceBridges(IrModule module) {
+        for (ClassSymbol cls : typed.classes().values()) {
+            if (cls.isBuiltin() || cls.isAbstract()) {
+                continue;
+            }
+            List<io.jnative.vtable.ITable> updated = new ArrayList<>();
+            boolean anyChanged = false;
+            for (var itable : cls.itables()) {
+                List<io.jnative.vtable.ITableEntry> entries = new ArrayList<>();
+                boolean changed = false;
+                for (var entry : itable.entries()) {
+                    io.jnative.vtable.ITableEntry out = entry;
+                    MethodSymbol slotMethod = null;
+                    for (var slot : itable.interfaceSymbol().slots()) {
+                        if (slot.slot() == entry.slot()) {
+                            slotMethod = slot.method();
+                            break;
+                        }
+                    }
+                    if (slotMethod != null && needsBridge(slotMethod, entry.implementation())
+                            && functionsByMangled.containsKey(entry.implementation().mangledName())) {
+                        String name = "bridge_" + (cls.name() + "_" + itable.interfaceSymbol().name() + "_" + entry.slot())
+                                .replaceAll("[^A-Za-z0-9_]", "_");
+                        if (!functionsByMangled.containsKey(name)) {
+                            emitBridge(module, name, slotMethod, entry.implementation());
+                        }
+                        out = new io.jnative.vtable.ITableEntry(entry.slot(), entry.implementation(), name);
+                        changed = true;
+                    }
+                    entries.add(out);
+                }
+                if (changed) {
+                    io.jnative.vtable.ITable bridged = new io.jnative.vtable.ITable(cls.name(), itable.interfaceSymbol(), entries);
+                    module.addITable(bridged);
+                    updated.add(bridged);
+                    anyChanged = true;
+                } else {
+                    updated.add(itable);
+                }
+            }
+            if (anyChanged) {
+                // keep the class view (used by devirtualization) in sync so direct calls use the bridge too
+                cls.setItables(updated);
+            }
+        }
+    }
+
+    private boolean needsBridge(MethodSymbol slot, MethodSymbol impl) {
+        if (slot.parameterTypes().size() != impl.parameterTypes().size()) {
+            return false;
+        }
+        for (int i = 0; i < slot.parameterTypes().size(); i++) {
+            if (IrType.from(slot.parameterTypes().get(i)) == IrType.PTR
+                    && impl.parameterTypes().get(i) instanceof PrimitiveType) {
+                return true;
+            }
+        }
+        return IrType.from(slot.returnType()) == IrType.PTR && impl.returnType() instanceof PrimitiveType;
+    }
+
+    private void emitBridge(IrModule module, String name, MethodSymbol slot, MethodSymbol impl) {
+        List<IrValue.Param> params = new ArrayList<>();
+        params.add(new IrValue.Param("this", IrType.PTR));
+        for (int i = 0; i < slot.parameterTypes().size(); i++) {
+            params.add(new IrValue.Param("a" + i, IrType.from(slot.parameterTypes().get(i))));
+        }
+        IrType slotRet = IrType.from(slot.returnType());
+        IrFunction function = new IrFunction(name, slotRet, params, false);
+        module.addFunction(function);
+        functionsByMangled.put(name, function);
+        currentClass = null;
+        currentMethod = null;
+        currentConstructor = null;
+        builder.beginFunction(function);
+        List<IrValue> args = new ArrayList<>();
+        IrValue.Local thisLocal = builder.alloca("this", IrType.PTR);
+        builder.store(params.get(0), thisLocal);
+        args.add(builder.load(thisLocal));
+        for (int i = 0; i < slot.parameterTypes().size(); i++) {
+            IrValue.Param p = params.get(i + 1);
+            IrValue.Local local = builder.alloca("a" + i, p.type());
+            builder.store(p, local);
+            IrValue v = builder.load(local);
+            JType implParam = impl.parameterTypes().get(i);
+            if (p.type() == IrType.PTR && implParam instanceof PrimitiveType prim) {
+                v = unboxFromErasedSlot(v, prim);
+            }
+            args.add(v);
+        }
+        IrType implRet = IrType.from(impl.returnType());
+        if (implRet == IrType.VOID) {
+            builder.call(impl.mangledName(), IrType.VOID, args);
+            builder.retVoid();
+            return;
+        }
+        IrValue result = builder.call(impl.mangledName(), implRet, args);
+        if (slotRet == IrType.PTR && impl.returnType() instanceof PrimitiveType prim) {
+            result = boxForErasedSlot(result, prim);
+        }
+        builder.ret(result);
     }
 
     private void lowerSamInvokeThunk(IrFunction function, MethodSymbol ms) {

@@ -100,7 +100,7 @@ class NativeDataModelEndToEndTest {
                         System.out.println(result);
                     }
                 }
-                """, "31\n"); // printf %g
+                """, "31.0\n"); // double prints Java-style
     }
 
     @Test

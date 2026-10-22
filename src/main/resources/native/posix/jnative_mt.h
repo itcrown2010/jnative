@@ -119,6 +119,7 @@ int64_t jn_os_thread_count(void); /* registered managed threads */
 
 /** Online CPU / logical processor count (sysconf / equivalent). */
 int32_t jnative_cpu_count(void);
+void jnative_thread_set_daemon(void);
 int64_t jnative_web_mono_millis(void);
 /** Wall-clock epoch milliseconds (UTC). Not monotonic. */
 int64_t jnative_wall_millis(void);
