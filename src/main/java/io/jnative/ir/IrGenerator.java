@@ -3036,6 +3036,11 @@ public final class IrGenerator {
      * class so field/method access uses the specialised layout and ABI.
      */
     private ClassSymbol specializedOwnerFor(Expression receiver, ClassSymbol owner) {
+        if (receiver == null && owner != null && owner.isGeneric() && !owner.isSpecialized()
+                && currentClass != null && currentClass.isSpecialized() && currentClass.genericOrigin() == owner) {
+            // Implicit-this call inside a primitive-specialized body: use the specialized method (T -> int).
+            return currentClass;
+        }
         if (receiver == null || owner == null || !owner.isGeneric() || owner.isSpecialized()
                 || currentClass == null || !currentClass.isSpecialized()) {
             return null;

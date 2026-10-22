@@ -735,7 +735,8 @@ function renderScan() {
     '<span class="muted">\u53ea\u663e\u793a\u9884\u6d4b\u6982\u7387 \u2265</span><input id="scP" size="4" value="30"><span class="muted">%</span>' +
     '<button id="scGo">\u5f00\u59cb\u626b\u63cf</button><button id="scStop" class="ghost" hidden>\u505c\u6b62</button>' +
     '<label class="muted" title="\u53bb\u6389\u201c\u524d\u4e00\u5929\u5df2\u6da8\u22655%\u201d\u7684\u80a1\u7968\uff1a\u8fd9\u7c7b\u80a1\u7968\u7684\u89c4\u5f8b\u6700\u5f3a\u4e5f\u6700\u96be\u4e70\u5230\uff0c\u6392\u9664\u540e\u770b\u6a21\u578b\u662f\u5426\u8fd8\u6709\u9884\u6d4b\u529b"><input type="checkbox" id="scExcl"> \u6392\u9664\u524d\u4e00\u65e5\u6da8\u5e45\u22655%\u7684\u80a1\u7968</label>' +
-    '<label class="muted"><input type="checkbox" id="scSort"> \u6309\u6982\u7387\u6392\u5e8f</label></div>' +
+    '<label class="muted" title="\u4e0a\u8bc1\u6307\u6570\u6536\u572820\u65e5\u5747\u7ebf\u4e0b\u65b9\u3001\u4e14\u8fd15\u65e5\u4e0b\u8dcc\uff08\u201c\u5f31\u52bf\u201d\uff09\u65f6\uff0c\u4e0d\u8f93\u51fa\u4efb\u4f55\u63a8\u8350\uff1a\u5927\u76d8\u5f31\u7684\u65f6\u5019\u4e2a\u80a1\u666e\u904d\u8ddf\u7740\u8dcc"><input type="checkbox" id="scGate"> \u5927\u76d8\u5f31\u52bf\u65f6\u4e0d\u63a8\u8350</label>' +
+    '<label class="muted"><input type="checkbox" id="scSort"> \u6309\u6982\u7387\u6392\u5e8f</label></div><div id="scMkt"></div>' +
     '<div class="note">\u4e70\u5165\u4ef7\u6309\u201c\u4fe1\u53f7\u65e5\uff08\u6536\u76d8\u540e\u626b\u63cf\uff09\u7684\u4e0b\u4e00\u4e2a\u4ea4\u6613\u65e5\u5f00\u76d8\u4ef7\u201d\u8ba1\u7b97\uff08\u4f60\u53ea\u80fd T+1 \u4e70\u5165\uff09\uff0c\u6700\u65e9\u518d\u4e0b\u4e00\u4e2a\u4ea4\u6613\u65e5\u624d\u80fd\u5356\u51fa\uff08T+1 \u89c4\u5219\uff09\u3002\u7edf\u8ba1\u7684\u662f\u4e70\u5165\u540e H \u4e2a\u4ea4\u6613\u65e5\u91cc\u4efb\u610f\u4e00\u5929\u7684\u6700\u9ad8<b>\u6536\u76d8\u4ef7</b>\uff0c\u4f60\u4e0d\u53ef\u80fd\u6bcf\u6b21\u90fd\u5356\u5728\u6700\u9ad8\u70b9\uff0c\u6240\u4ee5\u8bf7\u540c\u65f6\u770b\u4e0b\u9762\u7684\u201c\u6301\u6709\u5230\u7b2c H \u5929\u6536\u76d8\u7684\u5e73\u5747\u6536\u76ca\u201d\u3002H=1 \u5373\u8d85\u77ed\u7ebf\uff1a\u4e70\u5165\u540e\u7b2c\u4e00\u4e2a\u53ef\u5356\u65e5\uff08\u6b21\u65e5\uff09\u6536\u76d8\u4ef7\u662f\u5426\u8fbe\u5230\u76ee\u6807\u3002\u5df2\u6392\u9664\u5317\u4ea4\u6240 920\u3001\u79d1\u521b\u677f 688 \u548c ST/*ST \u80a1\u7968\uff1b\u4fe1\u53f7\u65e5\u6536\u5728\u6da8\u505c\u3001\u6216\u4e70\u5165\u65e5\u5f00\u76d8\u5c31\u5728\u6da8\u505c\uff08\u4e70\u4e0d\u8fdb\uff09\u7684\u6837\u672c\u4e0d\u8ba1\u5165\u8bad\u7ec3\u3001\u68c0\u9a8c\u548c\u7ed3\u679c\u3002</div>' +
     '<div id="scProg"></div>' +
     '<div class="toolbar" style="margin-top:8px"><label title="\u670d\u52a1\u5f00\u7740\u65f6\uff0c\u6bcf\u4e2a\u4ea4\u6613\u65e5 15:10 \u4e4b\u540e\u81ea\u52a8\u7528\u4e0a\u9762\u7684\u53c2\u6570\u626b\u63cf\u4e00\u6b21\uff0c\u7ed3\u675f\u540e\u628a\u524d 5 \u53ea\u63a8\u9001\u5230\u201c\u81ea\u9009\u4e0e\u63d0\u9192\u201d\u91cc\u914d\u7f6e\u7684\u673a\u5668\u4eba\uff1b\u7ed3\u679c\u540c\u6837\u8bb0\u5165\u5386\u53f2\u6218\u7ee9"><input type="checkbox" id="scAuto"> \u6bcf\u4e2a\u4ea4\u6613\u65e5\u6536\u76d8\u540e\uff0815:10\uff09\u81ea\u52a8\u626b\u63cf\u5e76\u63a8\u9001</label><span id="scAutoSt" class="muted"></span></div></div>' +
@@ -752,18 +753,18 @@ function renderScan() {
   $('scGo').onclick = function () {
     var pm = parseFloat($('scP').value); if (isNaN(pm) || pm < 2 || pm > 95) { toast('\u6982\u7387\u9608\u503c\u8bf7\u586b 2\u201395 \u4e4b\u95f4\u7684\u6570\u5b57'); return; }
     SC.since = 0; SC.hits = []; SC.fresh = {}; drawScanRows();
-    post('/api/scan/start?theta=' + $('scTheta').value + '&h=' + $('scH').value + '&pmin=' + (pm / 100) + ($('scExcl').checked ? '&excl=1' : '')).then(function (d) { SC.runId = d.runId; pollScan(); }).catch(function (e) { toast(e.message); });
+    post('/api/scan/start?theta=' + $('scTheta').value + '&h=' + $('scH').value + '&pmin=' + (pm / 100) + ($('scExcl').checked ? '&excl=1' : '') + ($('scGate').checked ? '&mg=1' : '')).then(function (d) { SC.runId = d.runId; pollScan(); }).catch(function (e) { toast(e.message); });
   };
   $('trRef').onclick = loadTrack; loadTrack();
   var saveAuto = function () {
     var pm = parseFloat($('scP').value); if (isNaN(pm) || pm < 2 || pm > 95) { toast('\u6982\u7387\u9608\u503c\u8bf7\u586b 2\u201395 \u4e4b\u95f4\u7684\u6570\u5b57'); $('scAuto').checked = false; return; }
-    post('/api/scan/auto/set?on=' + ($('scAuto').checked ? 1 : 0) + '&theta=' + $('scTheta').value + '&h=' + $('scH').value + '&pmin=' + (pm / 100) + ($('scExcl').checked ? '&excl=1' : '')).then(drawAuto).catch(function (e) { toast(e.message); });
+    post('/api/scan/auto/set?on=' + ($('scAuto').checked ? 1 : 0) + '&theta=' + $('scTheta').value + '&h=' + $('scH').value + '&pmin=' + (pm / 100) + ($('scExcl').checked ? '&excl=1' : '') + ($('scGate').checked ? '&mg=1' : '')).then(drawAuto).catch(function (e) { toast(e.message); });
   };
   $('scAuto').onchange = saveAuto;
-  ['scH', 'scTheta', 'scP', 'scExcl'].forEach(function (id) { $(id).addEventListener('change', function () { if ($('scAuto').checked) saveAuto(); }); });
+  ['scH', 'scTheta', 'scP', 'scExcl', 'scGate'].forEach(function (id) { $(id).addEventListener('change', function () { if ($('scAuto').checked) saveAuto(); }); });
   api('/api/scan/auto').then(function (d) {
     $('scAuto').checked = !!d.on;
-    if (d.on) { $('scH').value = d.hold; $('scTheta').value = d.theta.toFixed(2); $('scP').value = Math.round(d.pmin * 100); $('scExcl').checked = !!d.excl; }
+    if (d.on) { $('scH').value = d.hold; $('scTheta').value = d.theta.toFixed(2); $('scP').value = Math.round(d.pmin * 100); $('scExcl').checked = !!d.excl; $('scGate').checked = !!d.mg; }
     drawAuto(d);
   }).catch(function () {});
   $('scStop').onclick = function () { post('/api/scan/stop').then(function (d) { drawScanStatus(d); }); };
@@ -786,6 +787,18 @@ function pollScan() {
     else if (d.hitsTotal > SC.since) SC.timer = setTimeout(pollScan, 200);
   }).catch(function (e) { if ($('scProg')) $('scProg').innerHTML = '<span class="err">' + esc(e.message) + '</span>'; SC.timer = setTimeout(pollScan, 3000); });
 }
+var MK_NAME = ['\u5f3a\u52bf', '\u56de\u8c03', '\u53cd\u5f39', '\u5f31\u52bf'];
+var MK_DESC = ['\u6307\u6570\u572820\u65e5\u7ebf\u4e0a\u65b9\u4e14\u8fd15\u65e5\u4e0a\u6da8', '\u6307\u6570\u572820\u65e5\u7ebf\u4e0a\u65b9\u4f46\u8fd15\u65e5\u4e0b\u8dcc', '\u6307\u6570\u572820\u65e5\u7ebf\u4e0b\u65b9\u4f46\u8fd15\u65e5\u4e0a\u6da8', '\u6307\u6570\u572820\u65e5\u7ebf\u4e0b\u65b9\u4e14\u8fd15\u65e5\u4e0b\u8dcc'];
+function drawMarket(d) {
+  var el = $('scMkt'); if (!el) return;
+  var m = d.market; if (!m) { el.innerHTML = ''; return; }
+  var cls = m.state === 0 ? 'up' : (m.state === 3 ? 'down' : '');
+  var tail = '';
+  if (d.gate && m.state === 3) tail = '\u3000<b class="warn">\u5df2\u6309\u8bbe\u7f6e\u6682\u505c\u63a8\u8350' + (d.gated ? '\uff08\u62e6\u4e0b ' + d.gated + ' \u53ea\u8fbe\u6807\u80a1\u7968\uff09' : '') + '</b>';
+  else if (m.state === 3) tail = '\u3000<span class="warn">\u5927\u76d8\u504f\u5f31\uff0c\u4e2a\u80a1\u666e\u904d\u8ddf\u7740\u8dcc\uff0c\u4e0b\u9762\u7684\u63a8\u8350\u8bf7\u683c\u5916\u8c28\u614e\uff0c\u6216\u76f4\u63a5\u89c2\u671b\u3002</span>';
+  else if (m.state === 1 || m.state === 2) tail = '\u3000<span class="muted">\u5927\u76d8\u4e0d\u660e\u6717\uff0c\u4ed3\u4f4d\u5b9c\u8f7b\u3002</span>';
+  el.innerHTML = '<div class="note" style="margin-top:8px">\u5927\u76d8\uff08\u4e0a\u8bc1\u6307\u6570 ' + fdate(m.date) + '\uff09\uff1a<b class="' + cls + '">' + MK_NAME[m.state] + '</b>\uff08' + MK_DESC[m.state] + '\uff09\uff1b\u5f53\u65e5 <span class="' + sgn(m.r1) + '">' + pct(m.r1, 2) + '</span>\uff0c5\u65e5 <span class="' + sgn(m.r5) + '">' + pct(m.r5, 2) + '</span>\uff0c\u8ddd20\u65e5\u7ebf <span class="' + sgn(m.dist) + '">' + pct(m.dist, 2) + '</span>' + tail + '</div>';
+}
 function drawScanStatus(d) {
   var run = d.phase >= 1 && d.phase <= 3, pctDone = 0, line = '';
   if (d.phase === 2) pctDone = d.trainLoaded / d.trainTotal; else if (d.phase >= 3) pctDone = d.universe ? d.pos / d.universe : 0;
@@ -800,7 +813,8 @@ function drawScanStatus(d) {
   $('scProg').innerHTML = '<div class="meter" style="height:10px;background:#2a3441;margin:6px 0"><span style="display:block;height:10px;border-radius:5px;background:' + ACC + ';width:' + (pctDone * 100).toFixed(1) + '%"></span></div><div style="font-size:13px">' + line + '</div>' +
     (d.marketOpen && d.phase >= 1 ? '<div class="warn" style="margin-top:4px">\u5f53\u524d\u5904\u4e8e\u4ea4\u6613\u65f6\u6bb5\uff1a\u672a\u6536\u76d8\u7684\u5f53\u65e5K\u7ebf\u5df2\u88ab\u5ffd\u7565\uff0c\u9884\u6d4b\u7684\u662f\u201c\u4eca\u5929\u201d\u800c\u4e0d\u662f\u201c\u660e\u5929\u201d\u3002\u5efa\u8bae\u6536\u76d8\u540e\uff0815:10 \u4ee5\u540e\uff09\u626b\u63cf\u3002</div>' : '');
   $('scGo').hidden = run; $('scStop').hidden = !run; $('scGo').textContent = d.phase === 0 ? '\u5f00\u59cb\u626b\u63cf' : '\u91cd\u65b0\u626b\u63cf';
-  $('scTheta').disabled = run; $('scH').disabled = run; $('scP').disabled = run; $('scExcl').disabled = run;
+  $('scTheta').disabled = run; $('scH').disabled = run; $('scP').disabled = run; $('scExcl').disabled = run; $('scGate').disabled = run;
+  drawMarket(d);
   if (d.phase === 4 && SC.trackedRun !== d.runId) { SC.trackedRun = d.runId; loadTrack(); }
   if (d.validation) drawScanVal(d.validation);
 }
@@ -837,6 +851,9 @@ function drawScanVal(v) {
     '<div><span>\u68c0\u9a8c\u671f\u57fa\u51c6\u53d1\u751f\u7387</span><b>' + pct(v.baseTest, 1) + '</b></div><div><span>\u57fa\u51c6\uff1a\u6301\u6709 ' + v.hold + ' \u65e5\u5e73\u5747\u6536\u76ca</span><b class="' + sgn(v.baseEnd) + '">' + pct(v.baseEnd, 2) + '</b></div><div><span>\u57fa\u51c6\uff1a\u6b62\u76c8\u7b56\u7565 / \u52a0\u6b62\u635f</span><b><span class="' + sgn(v.baseTp) + '">' + pct(v.baseTp, 2) + '</span> / <span class="' + sgn(v.baseTs) + '">' + pct(v.baseTs, 2) + '</span></b></div><div><span>Brier \u6280\u80fd\u5206</span><b class="' + (v.brierSkill > 0 ? 'up' : '') + '">' + fx(v.brierSkill * 100, 1) + '%</b></div></div>' +
     '<table style="margin-top:10px"><tr><th>\u9884\u6d4b\u6982\u7387</th><th>\u68c0\u9a8c\u6837\u672c\u6570</th><th>\u5b9e\u9645\u8fbe\u6807\u6b21\u6570</th><th>\u5b9e\u9645\u547d\u4e2d\u7387</th><th>\u76f8\u5bf9\u57fa\u51c6</th><th>\u6301\u6709 ' + v.hold + ' \u65e5\u540e\u5e73\u5747\u6536\u76ca</th><th>\u6da8\u5230 +' + pct(v.theta, 0) + ' \u5c31\u5356\uff0c\u5426\u5219\u6301\u6709\u5230\u671f</th><th>\u540c\u4e0a\uff0c\u518d\u52a0 \u22125% \u6b62\u635f</th><th>\u6301\u6709\u671f\u672b\u4e8f\u635f \u22655% \u5360\u6bd4</th><th></th></tr>' + rows + '</table>' +
     '<div class="note">\u6bcf\u4e00\u884c\u90fd\u662f\u201c\u6a21\u578b\u7ed9\u51fa\u8be5\u6863\u4ee5\u4e0a\u6982\u7387\u201d\u7684\u68c0\u9a8c\u671f\u6837\u672c\uff08\u4e0d\u5728\u8bad\u7ec3\u96c6\u5185\uff09\u3002\u201c\u76f8\u5bf9\u57fa\u51c6\u201d\u63a5\u8fd1 1 \u500d\u8bf4\u660e\u6ca1\u6709\u533a\u5206\u80fd\u529b\uff1b\u201c\u6301\u6709 ' + v.hold + ' \u65e5\u540e\u5e73\u5747\u6536\u76ca\u201d\u624d\u662f\u6309\u671f\u6301\u6709\u7684\u771f\u5b9e\u7ed3\u679c\uff0c\u201c\u4e8f\u635f\u5360\u6bd4\u201d\u63d0\u793a\u4e0b\u884c\u98ce\u9669\u3002\u201c\u6b62\u76c8\u7b56\u7565\u201d\u5047\u8bbe\u6536\u76d8\u4ef7\u89e6\u53ca\u76ee\u6807\u7684\u90a3\u5929\u6309\u76ee\u6807\u4ef7\u5356\u51fa\uff08\u7b49\u4ef7\u4e8e\u63d0\u524d\u6302\u597d\u7684\u9650\u4ef7\u5356\u5355\uff09\uff0c\u201c\u6b62\u635f\u201d\u6309\u6536\u76d8\u4ef7\u89e6\u53ca \u22125% \u5f53\u5929\u7684\u6536\u76d8\u4ef7\u5356\u51fa\uff0c\u90fd\u6ca1\u6709\u6263\u624b\u7eed\u8d39\u548c\u5370\u82b1\u7a0e\u3002\u540c\u4e00\u53ea\u80a1\u7968\u76f8\u90bb\u51e0\u5929\u7684\u6837\u672c\u9ad8\u5ea6\u91cd\u53e0\uff0c\u771f\u6b63\u72ec\u7acb\u7684\u6837\u672c\u6bd4\u8868\u91cc\u7684\u6570\u5b57\u5c11\u5f97\u591a\uff0c\u6837\u672c\u91cf\u5c0f\u7684\u884c\u8bf7\u5f53\u4f5c\u566a\u58f0\u3002' + (b3 ? '' : ' \u6ce8\u610f\uff1a\u6ca1\u6709\u4efb\u4f55\u4e00\u6863\u5728\u68c0\u9a8c\u671f\u91cc\u6709\u8db3\u591f\u6837\u672c\uff0c\u6700\u4f4e\u6982\u7387\u9608\u503c\u53ef\u80fd\u8bbe\u5f97\u8fc7\u9ad8\u3002') + '</div>';
+  if (v.regimes) el.innerHTML += '<h4 style="margin:14px 0 6px">\u5206\u5927\u76d8\u72b6\u6001\u770b\uff08\u68c0\u9a8c\u671f\uff1b\u201c\u9ad8\u6982\u7387\u6863\u201d\u5373\u9884\u6d4b\u6982\u7387 \u2265 \u4f60\u8bbe\u7684\u9608\u503c\uff09</h4><table><tr><th>\u5927\u76d8\u72b6\u6001</th><th>\u6837\u672c\u6570</th><th>\u5168\u4f53\u57fa\u51c6\u547d\u4e2d\u7387</th><th>\u5168\u4f53\u6301\u6709 ' + v.hold + ' \u65e5\u5e73\u5747\u6536\u76ca</th><th>\u9ad8\u6982\u7387\u6863\u6837\u672c\u6570</th><th>\u9ad8\u6982\u7387\u6863\u547d\u4e2d\u7387</th><th>\u9ad8\u6982\u7387\u6863\u6301\u6709 ' + v.hold + ' \u65e5\u5e73\u5747\u6536\u76ca</th></tr>' + v.regimes.map(function (r) {
+    return '<tr><td>' + MK_NAME[r.s] + ' <span class="muted">' + MK_DESC[r.s] + '</span></td><td>' + r.n + '</td><td>' + pct(r.base, 1) + '</td><td class="' + sgn(r.end) + '">' + pct(r.end, 2) + '</td><td>' + r.hiN + '</td><td>' + (r.hiN ? pct(r.hiPrec, 1) : '-') + '</td><td class="' + sgn(r.hiEnd) + '">' + (r.hiN ? pct(r.hiEnd, 2) : '-') + '</td></tr>';
+  }).join('') + '</table><div class="note">\u201c\u5927\u76d8\u72b6\u6001\u201d\u6309\u4fe1\u53f7\u65e5\u6536\u76d8\u65f6\u7684\u4e0a\u8bc1\u6307\u6570\u5224\u5b9a\u3002\u82e5\u201c\u5f31\u52bf\u201d\u884c\u7684\u6536\u76ca\u660e\u663e\u66f4\u5dee\uff0c\u8bf4\u660e\u5927\u76d8\u4e0d\u597d\u65f6\u4e0d\u8be5\u51fa\u624b\uff1b\u82e5\u5404\u884c\u5dee\u4e0d\u591a\uff0c\u5219\u8bf4\u660e\u8fd9\u4e2a\u7b80\u5355\u7684\u5927\u76d8\u5224\u65ad\u6ca1\u6709\u5e2e\u52a9\u3002\u6ce8\u610f\uff1a\u8fd9\u53ea\u662f\u7528\u8fc7\u53bb\u6570\u636e\u62c6\u5206\uff0c\u5e76\u4e0d\u80fd\u9884\u6d4b\u660e\u5929\u5927\u76d8\u3002</div>';
 }
 function drawScanRows() {
   var el = $('scRes'); if (!el) return;

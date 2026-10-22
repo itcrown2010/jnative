@@ -10,6 +10,7 @@ class StockAuto {
     static double theta = 0.03;
     static double pMin = 0.3;
     static int excl = 0;
+    static int mg = 0;
     static long lastDay = 0L;
     static int loaded = 0;
     static int watchRun = 0;
@@ -32,6 +33,9 @@ class StockAuto {
                 pMin = StockUtil.parseDouble(f.get(3), 0.3);
                 excl = StockUtil.parseInt(f.get(4), 0);
                 lastDay = StockUtil.parseLong(f.get(5), 0L);
+                if (f.size() >= 7) {
+                    mg = StockUtil.parseInt(f.get(6), 0);
+                }
             }
         } catch (Exception ex) {
             System.out.println("STOCK_AUTO_LOAD_WARN");
@@ -43,13 +47,13 @@ class StockAuto {
             if (!Files.exists(FsPath.of(StockStore.dataDir))) {
                 Files.createDirectories(FsPath.of(StockStore.dataDir));
             }
-            File.writeString(StockStore.dataDir + "/_auto.txt", on + "\t" + hold + "\t" + StockUtil.num(theta, 4) + "\t" + StockUtil.num(pMin, 4) + "\t" + excl + "\t" + lastDay + "\n");
+            File.writeString(StockStore.dataDir + "/_auto.txt", on + "\t" + hold + "\t" + StockUtil.num(theta, 4) + "\t" + StockUtil.num(pMin, 4) + "\t" + excl + "\t" + lastDay + "\t" + mg + "\n");
         } catch (Exception ex) {
             System.out.println("STOCK_AUTO_SAVE_WARN");
         }
     }
 
-    static String set(int o, double th, double pm, int ex, int hd) {
+    static String set(int o, double th, double pm, int ex, int hd, int gate) {
         if (loaded == 0) {
             init();
         }
@@ -58,6 +62,7 @@ class StockAuto {
         pMin = pm;
         excl = ex;
         hold = hd;
+        mg = gate;
         save();
         return "";
     }
@@ -66,7 +71,7 @@ class StockAuto {
         if (loaded == 0) {
             init();
         }
-        return "{\"on\":" + on + ",\"hold\":" + hold + ",\"theta\":" + StockUtil.num(theta, 4) + ",\"pmin\":" + StockUtil.num(pMin, 4) + ",\"excl\":" + excl
+        return "{\"on\":" + on + ",\"hold\":" + hold + ",\"theta\":" + StockUtil.num(theta, 4) + ",\"pmin\":" + StockUtil.num(pMin, 4) + ",\"excl\":" + excl + ",\"mg\":" + mg
                 + ",\"lastDay\":" + lastDay + ",\"running\":" + watchRun + ",\"msg\":" + StockUtil.js(lastMsg) + ",\"push\":" + pushable() + "}";
     }
 
@@ -100,6 +105,7 @@ class StockAuto {
         if (StockFeed.nowDow() >= 5 || hm < 1510L || lastDay == today) {
             return;
         }
+        StockScan.mGate = mg;
         String er = StockScan.start(theta, pMin, excl, hold);
         if (er.length() == 0) {
             watchRun = StockScan.runId;

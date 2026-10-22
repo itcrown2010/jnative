@@ -26,7 +26,8 @@ class TlsAbstraction031Test {
 
     @Test
     void mainVersionIs031() {
-        assertEquals("0.31", Main.VERSION);
+        // 0.31 introduced the TLS abstraction; later versions must keep it.
+        assertTrue(Double.parseDouble(Main.VERSION) >= 0.31, Main.VERSION);
     }
 
     @Test

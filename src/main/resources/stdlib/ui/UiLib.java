@@ -5461,6 +5461,14 @@ class Point {
         x = px;
         y = py;
     }
+
+    int getX() {
+        return x;
+    }
+
+    int getY() {
+        return y;
+    }
 }
 
 class Size {
@@ -5470,6 +5478,14 @@ class Size {
     Size(int w, int h) {
         width = w;
         height = h;
+    }
+
+    int getWidth() {
+        return width;
+    }
+
+    int getHeight() {
+        return height;
     }
 }
 

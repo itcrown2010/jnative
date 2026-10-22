@@ -213,7 +213,7 @@ class PgMd5 {
         T[48] = -198630844; T[49] = 1126891415; T[50] = -1416354905; T[51] = -57434055;
         T[52] = 1700485571; T[53] = -1894986606; T[54] = -1051523; T[55] = -2054922799;
         T[56] = 1873313359; T[57] = -30611744; T[58] = -1560198380; T[59] = 1309151649;
-        T[60] = -145523070; T[61] = -1120210379; T[62] = 717897087; T[63] = -343485551;
+        T[60] = -145523070; T[61] = -1120210379; T[62] = 718787259; T[63] = -343485551;
     }
 
     static String hashBytes(byte[] msg) {
@@ -224,7 +224,7 @@ class PgMd5 {
         state[2] = INIT[2];
         state[3] = INIT[3];
         int bitLen = msg.length * 8;
-        int padLen = 56 - ((msg.length + 1) % 64);
+        int padLen = 56 - (msg.length % 64);
         if (padLen <= 0) {
             padLen = padLen + 64;
         }
@@ -241,12 +241,13 @@ class PgMd5 {
             int j = 0;
             while (j < 16) {
                 int p = off + j * 4;
+                /* MD5 words are little-endian */
                 x[j] = BitOps.or(
                         BitOps.or(BitOps.or(
-                                BitOps.shl(DbByteUtil.unsignedByte(padded[p]), 24),
-                                BitOps.shl(DbByteUtil.unsignedByte(padded[p + 1]), 16)),
-                                BitOps.shl(DbByteUtil.unsignedByte(padded[p + 2]), 8)),
-                        DbByteUtil.unsignedByte(padded[p + 3]));
+                                BitOps.shl(DbByteUtil.unsignedByte(padded[p + 3]), 24),
+                                BitOps.shl(DbByteUtil.unsignedByte(padded[p + 2]), 16)),
+                                BitOps.shl(DbByteUtil.unsignedByte(padded[p + 1]), 8)),
+                        DbByteUtil.unsignedByte(padded[p]));
                 j = j + 1;
             }
             md5Block(state, x);
@@ -329,8 +330,8 @@ class PgMd5 {
         k[24] = 9; k[25] = 14; k[26] = 3; k[27] = 8; k[28] = 13; k[29] = 2; k[30] = 7; k[31] = 12;
         k[32] = 5; k[33] = 8; k[34] = 11; k[35] = 14; k[36] = 1; k[37] = 4; k[38] = 7; k[39] = 10;
         k[40] = 13; k[41] = 0; k[42] = 3; k[43] = 6; k[44] = 9; k[45] = 12; k[46] = 15; k[47] = 2;
-        k[48] = 0; k[49] = 7; k[50] = 14; k[51] = 9; k[52] = 4; k[53] = 11; k[54] = 2; k[55] = 13;
-        k[56] = 6; k[57] = 15; k[58] = 8; k[59] = 1; k[60] = 10; k[61] = 3; k[62] = 12; k[63] = 6;
+        k[48] = 0; k[49] = 7; k[50] = 14; k[51] = 5; k[52] = 12; k[53] = 3; k[54] = 10; k[55] = 1;
+        k[56] = 8; k[57] = 15; k[58] = 6; k[59] = 13; k[60] = 4; k[61] = 11; k[62] = 2; k[63] = 9;
         return k;
     }
 
@@ -364,6 +365,39 @@ class PgMd5 {
 }
 
 class PgWire {
+    /** Number of '?' placeholders outside string literals, quoted identifiers and comments. */
+    static int countPlaceholders(String sql) {
+        int n = 0;
+        int i = 0;
+        int len = sql.length();
+        while (i < len) {
+            char c = sql.charAt(i);
+            if (c == '\'' || c == '"') {
+                i = i + 1;
+                while (i < len && sql.charAt(i) != c) {
+                    i = i + 1;
+                }
+                i = i + 1;
+            } else if (c == '-' && i + 1 < len && sql.charAt(i + 1) == '-') {
+                while (i < len && sql.charAt(i) != '\n') {
+                    i = i + 1;
+                }
+            } else if (c == '/' && i + 1 < len && sql.charAt(i + 1) == '*') {
+                i = i + 2;
+                while (i + 1 < len && !(sql.charAt(i) == '*' && sql.charAt(i + 1) == '/')) {
+                    i = i + 1;
+                }
+                i = i + 2;
+            } else {
+                if (c == '?') {
+                    n = n + 1;
+                }
+                i = i + 1;
+            }
+        }
+        return n;
+    }
+
     static byte[] startup(String user, String database) {
         DbByteBuffer b = new DbByteBuffer(128);
         int start = b.getLimit();
@@ -612,6 +646,11 @@ class PostgreSQLDriver implements DatabaseDriver {
             loop = Async.defaultLoop();
         }
         DatabaseUrl parsed = DatabaseUrl.parse(config.url);
+        if (parsed.requiresTls() == 1) {
+            /* TLS for PostgreSQL is not implemented yet: refuse instead of silently falling back to plaintext. */
+            return JnFuture.failed(loop, new ConnectionException(
+                    "sslmode=" + parsed.sslMode + " requires TLS, which the PostgreSQL driver does not support yet; refusing plaintext connection"));
+        }
         PgConnectSupplier sup = new PgConnectSupplier();
         sup.loop = loop;
         sup.parsed = parsed;

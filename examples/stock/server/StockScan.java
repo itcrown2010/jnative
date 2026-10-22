@@ -14,7 +14,7 @@ import jnative.http.*;
  * @author 张晓达
  */
 class StockScan {
-    static int NF2 = 13;
+    static int NF2 = 16;
     static int TRAIN_STOCKS = 300;
     static int CAP = 300000;
     static int PHASE_IDLE = 0;
@@ -58,6 +58,26 @@ class StockScan {
     static int[] sl;
     static int hold = 5;
     static int hIdx = 1;
+    /* market context: Shanghai Composite series and the regime of every sample */
+    static int idxN = 0;
+    static int[] idxD;
+    static double[] idxR1;
+    static double[] idxR5;
+    static double[] idxDist;
+    static int[] sm;
+    static int mDate = 0;
+    static int mState = -1;
+    static double mR1 = 0.0;
+    static double mR5 = 0.0;
+    static double mDist = 0.0;
+    static int mGate = 0;
+    static int gated = 0;
+    static double[] regN;
+    static double[] regHit;
+    static double[] regEnd;
+    static double[] regHiN;
+    static double[] regHiHit;
+    static double[] regHiEnd;
     static double[] binEnd;
     static double[] binTp;
     static double[] binTs;
@@ -168,6 +188,7 @@ class StockScan {
         scanned = 0;
         failed = 0;
         skipped = 0;
+        gated = 0;
         consecFail = 0;
         startedMs = System.currentTimeMillis();
         finishedMs = 0L;
@@ -315,6 +336,14 @@ class StockScan {
 
     // ---------- phase 2: training ----------
     static void beginTrain() {
+        try {
+            fetchIndex();
+        } catch (Exception ex) {
+            phase = PHASE_ERROR;
+            msg = "无法获取大盘（上证指数）数据，已中止";
+            finishedMs = System.currentTimeMillis();
+            return;
+        }
         if (sn > 0 && standardized == 1) {
             fitAndValidate();
             return;
@@ -325,6 +354,7 @@ class StockScan {
         ss = new double[40 * CAP];
         sl = new int[4 * CAP];
         sd = new int[CAP];
+        sm = new int[CAP];
         sn = 0;
         trainTried = 0;
         trainLoaded = 0;
@@ -403,7 +433,97 @@ class StockScan {
         }
     }
 
-    /** Writes the 13 features of bar t into out[off..]; returns 0 when any is unusable. */
+    static String stateName(int st) {
+        if (st == 0) {
+            return "强势";
+        }
+        if (st == 1) {
+            return "回调";
+        }
+        if (st == 2) {
+            return "反弹";
+        }
+        return "弱势";
+    }
+
+    /** Loads the Shanghai Composite daily series: 1-day and 5-day return and distance to the 20-day average on every day. */
+    static void fetchIndex() {
+        StockSeries s = fetchDaily("sh000001", 1000);
+        if (s == null || s.n < 60) {
+            throw new RuntimeException("index series unavailable");
+        }
+        int n = s.n;
+        idxN = n;
+        idxD = new int[n];
+        idxR1 = new double[n];
+        idxR5 = new double[n];
+        idxDist = new double[n];
+        int i = 0;
+        while (i < n) {
+            idxD[i] = s.date[i];
+            idxR1[i] = 0.0;
+            idxR5[i] = 0.0;
+            idxDist[i] = 0.0;
+            if (i >= 20 && s.c[i - 1] > 0.0 && s.c[i - 5] > 0.0) {
+                double sum = 0.0;
+                int k = 0;
+                while (k < 20) {
+                    sum = sum + s.c[i - k];
+                    k = k + 1;
+                }
+                idxR1[i] = s.c[i] / s.c[i - 1] - 1.0;
+                idxR5[i] = s.c[i] / s.c[i - 5] - 1.0;
+                idxDist[i] = s.c[i] / (sum / 20.0) - 1.0;
+            }
+            i = i + 1;
+        }
+        int last = n - 1;
+        mDate = idxD[last];
+        mR1 = idxR1[last];
+        mR5 = idxR5[last];
+        mDist = idxDist[last];
+        mState = regimeOf(mR5, mDist);
+    }
+
+    static int regimeOf(double r5, double dist) {
+        if (dist >= 0.0 && r5 >= 0.0) {
+            return 0;
+        }
+        if (dist >= 0.0) {
+            return 1;
+        }
+        if (r5 >= 0.0) {
+            return 2;
+        }
+        return 3;
+    }
+
+    /** Writes the 3 market features of the given date into out[off..] and returns the regime (0..3), or -1 when unknown. */
+    static int marketAt(int date, double[] out, int off) {
+        int lo = 0;
+        int hi = idxN - 1;
+        int at = -1;
+        while (lo <= hi) {
+            int mid = (lo + hi) / 2;
+            if (idxD[mid] == date) {
+                at = mid;
+                lo = hi + 1;
+            } else if (idxD[mid] < date) {
+                lo = mid + 1;
+            } else {
+                hi = mid - 1;
+            }
+        }
+        if (at < 20) {
+            return -1;
+        }
+        out[off] = StockUtil.clamp(idxR1[at], -0.07, 0.07);
+        out[off + 1] = StockUtil.clamp(idxR5[at], -0.15, 0.15);
+        out[off + 2] = StockUtil.clamp(idxDist[at], -0.15, 0.15);
+        return regimeOf(idxR5[at], idxDist[at]);
+    }
+
+    /** Writes the 13 stock features of bar t into out[off..]; returns 0 when any is unusable. */
     static int vec(StockFeatures f, int t, double[] out, int off) {
         int b = t * StockFeatures.NF;
         int k = 0;
@@ -467,7 +587,11 @@ class StockScan {
             if (s.c[t] > 0.0 && entry >= s.c[t] * (1.0 + lim)) {
                 buyable = 0;
             }
+            int st = -1;
             if (buyable == 1 && entry > 0.0 && vec(f, t, sx, sn * NF2) == 1) {
+                st = marketAt(s.date[t], sx, sn * NF2 + 13);
+            }
+            if (st >= 0) {
                 int hi = 0;
                 int ok = 1;
                 while (hi < 4) {
@@ -530,6 +654,7 @@ class StockScan {
                 }
                 if (ok == 1) {
                     sd[sn] = s.date[t];
+                    sm[sn] = st;
                     sn = sn + 1;
                 }
             }
@@ -739,6 +864,12 @@ class StockScan {
             b = b + 1;
         }
         int[] binHit = new int[7];
+        regN = new double[4];
+        regHit = new double[4];
+        regEnd = new double[4];
+        regHiN = new double[4];
+        regHiHit = new double[4];
+        regHiEnd = new double[4];
         i = 0;
         while (i < sn) {
             if (sd[i] >= cutDate && inclRow(i) == 1) {
@@ -762,6 +893,15 @@ class StockScan {
                 sumTp = sumTp + rTp;
                 sumTs = sumTs + rTs;
                 brier = brier + (p - y) * (p - y);
+                int rg = sm[i];
+                regN[rg] = regN[rg] + 1.0;
+                regHit[rg] = regHit[rg] + y;
+                regEnd[rg] = regEnd[rg] + endR;
+                if (p >= pMin) {
+                    regHiN[rg] = regHiN[rg] + 1.0;
+                    regHiHit[rg] = regHiHit[rg] + y;
+                    regHiEnd[rg] = regHiEnd[rg] + endR;
+                }
                 nte = nte + 1;
                 b = 0;
                 while (b < 7) {
@@ -814,6 +954,30 @@ class StockScan {
             }
             sb.append("{\"p\":" + StockUtil.num(binCut[b], 2) + ",\"n\":" + binN[b] + ",\"hit\":" + binHit[b] + ",\"precision\":" + StockUtil.num(binPrec[b], 4) + ",\"avgEnd\":" + StockUtil.num(avgEndOf(b), 5) + ",\"tp\":" + StockUtil.num(avgOf(binTp, b), 5) + ",\"tpsl\":" + StockUtil.num(avgOf(binTs, b), 5) + ",\"loss\":" + StockUtil.num(lossOf(b), 4) + "}");
             b = b + 1;
+        }
+        sb.append("],\"regimes\":[");
+        int rg2 = 0;
+        while (rg2 < 4) {
+            if (rg2 > 0) {
+                sb.append(",");
+            }
+            double rn = regN[rg2];
+            double hn = regHiN[rg2];
+            double baseR = 0.0;
+            double endRg = 0.0;
+            double hiPrec = 0.0;
+            double hiEndAvg = 0.0;
+            if (rn > 0.0) {
+                baseR = regHit[rg2] / rn;
+                endRg = regEnd[rg2] / rn;
+            }
+            if (hn > 0.0) {
+                hiPrec = regHiHit[rg2] / hn;
+                hiEndAvg = regHiEnd[rg2] / hn;
+            }
+            sb.append("{\"s\":" + rg2 + ",\"n\":" + (int) rn + ",\"base\":" + StockUtil.num(baseR, 4) + ",\"end\":" + StockUtil.num(endRg, 5) + ",\"hiN\":" + (int) hn
+                    + ",\"hiPrec\":" + StockUtil.num(hiPrec, 4) + ",\"hiEnd\":" + StockUtil.num(hiEndAvg, 5) + "}");
+            rg2 = rg2 + 1;
         }
         sb.append("]}");
         validation = sb.toString();
@@ -880,7 +1044,7 @@ class StockScan {
         double[] x = new double[NF2];
         int t = s.n - 1;
         scanned = scanned + 1;
-        if (vec(f, t, x, 0) == 0) {
+        if (vec(f, t, x, 0) == 0 || marketAt(s.date[t], x, 13) < 0) {
             skipped = skipped + 1;
             return;
         }
@@ -899,6 +1063,10 @@ class StockScan {
             return;
         }
         double p = score(x, 0);
+        if (p >= pMin && mGate == 1 && mState == 3) {
+            gated = gated + 1;
+            return;
+        }
         if (p >= pMin) {
             StockTrack.add(s.date[t], uSym.get(idx), uName.get(idx), p, theta, excl, lastBaseTest, hold);
             double band = -1.0;
@@ -936,6 +1104,9 @@ class StockScan {
         }
         sb.append("【JNative 收盘扫描】数据日期 " + asOf + "\n");
         sb.append("目标：T+1 开盘买入后 " + hold + " 个交易日内，任一天收盘较买入价涨幅 >= " + StockUtil.num(theta * 100.0, 0) + "%\n");
+        if (mState >= 0) {
+            sb.append("大盘（上证）" + mDate + "：" + stateName(mState) + "，当日 " + StockUtil.num(mR1 * 100.0, 2) + "%，5 日 " + StockUtil.num(mR5 * 100.0, 2) + "%，距 20 日线 " + StockUtil.num(mDist * 100.0, 2) + "%\n");
+        }
         sb.append("检验期基准命中率 " + StockUtil.num(lastBaseTest * 100.0, 1) + "%，入选 " + cnt + " 只（概率 >= " + StockUtil.num(pMin * 100.0, 0) + "%）\n");
         int[] used = new int[cnt];
         int shown = 0;
@@ -966,6 +1137,13 @@ class StockScan {
     }
 
     // ---------- status ----------
+    static String marketJson() {
+        if (mState < 0) {
+            return "null";
+        }
+        return "{\"date\":" + mDate + ",\"state\":" + mState + ",\"r1\":" + StockUtil.num(mR1, 4) + ",\"r5\":" + StockUtil.num(mR5, 4) + ",\"dist\":" + StockUtil.num(mDist, 4) + "}";
+    }
+
     static String statusJson(int since) {
         ensureInit();
         long now = System.currentTimeMillis();
@@ -982,7 +1160,7 @@ class StockScan {
         sb.append("{\"phase\":" + phase + ",\"msg\":" + StockUtil.js(msg) + ",\"runId\":" + runId + ",\"universe\":" + total + ",\"pos\":" + pos
                 + ",\"scanned\":" + scanned + ",\"failed\":" + failed + ",\"skipped\":" + skipped + ",\"theta\":" + StockUtil.num(theta, 4) + ",\"hold\":" + hold
                 + ",\"pMin\":" + StockUtil.num(pMin, 3) + ",\"elapsed\":" + el + ",\"trainLoaded\":" + trainLoaded + ",\"trainTotal\":" + TRAIN_STOCKS
-                + ",\"validation\":" + validation + ",\"hitsTotal\":" + hits.size() + ",\"marketOpen\":" + StockNotify.tradingNow() + ",\"hits\":[");
+                + ",\"market\":" + marketJson() + ",\"gate\":" + mGate + ",\"gated\":" + gated + ",\"validation\":" + validation + ",\"hitsTotal\":" + hits.size() + ",\"marketOpen\":" + StockNotify.tradingNow() + ",\"hits\":[");
         int i = since;
         if (i < 0) {
             i = 0;

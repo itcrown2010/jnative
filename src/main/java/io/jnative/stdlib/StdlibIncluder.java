@@ -791,6 +791,7 @@ public final class StdlibIncluder {
         boolean wantDatabase = needsDatabase(userSource);
         boolean wantCrypto = needsCrypto(userSource) || wantWeb || needsHttp(userSource) || needsHttp2(userSource)
                 || needsTls(userSource)
+                || wantDatabase /* PgDriverLib uses BitOps/hex helpers from CryptoLib */
                 || (userSource != null && userSource.contains("BitOps."))
                 || needsDecimal(userSource);
         boolean wantRpc = needsRpc(userSource);

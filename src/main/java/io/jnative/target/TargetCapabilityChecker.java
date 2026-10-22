@@ -55,6 +55,8 @@ public final class TargetCapabilityChecker {
             new ApiCapabilityRule("Browser\\.", TargetCapability.BROWSER_DOM, "browser API (Browser)")
     );
 
+    private static final Pattern ASYNC_METHOD = Pattern.compile("(?<![A-Za-z0-9_$])async\\s+[A-Za-z_][\\w<>\\[\\],.? ]*\\s+[A-Za-z_]\\w*\\s*\\(");
+
     private TargetCapabilityChecker() {
     }
 
@@ -98,12 +100,13 @@ public final class TargetCapabilityChecker {
         // Mobile uses wasm compile surface — never claim native-mobile capabilities.
         Set<TargetCapability> provided = TargetProfiles.profile(id).packageFlags();
         String path = file == null || file.isBlank() ? "<source>" : file;
+        String masked = maskCommentsAndStrings(source);
         for (ApiCapabilityRule rule : RULES) {
             if (provided.contains(rule.required())) {
                 continue;
             }
-            Pattern p = Pattern.compile(rule.pattern());
-            Matcher m = p.matcher(source);
+            Pattern p = Pattern.compile("(?<![A-Za-z0-9_$])" + rule.pattern());
+            Matcher m = p.matcher(masked);
             if (m.find()) {
                 int[] lc = lineColumn(source, m.start());
                 out.add(Diagnostic.error(
@@ -114,6 +117,18 @@ public final class TargetCapabilityChecker {
                         "Use a native target, or replace this API with a "
                                 + id.compileTriple() + "-supported alternative. "
                                 + "Do not expect silent stubs or default return values."));
+            }
+        }
+        if (id.isBrowserCompile()) {
+            Matcher am = ASYNC_METHOD.matcher(masked);
+            if (am.find()) {
+                int[] lc = lineColumn(source, am.start());
+                out.add(Diagnostic.error(
+                        DiagnosticCodes.BACKEND_UNSUPPORTED,
+                        new SourceLocation(path, lc[0], lc[1]),
+                        "async methods are not supported on " + id.compileTriple() + " yet",
+                        "Use a native target, or restructure with callbacks; the browser backend does not lower "
+                                + "async/await and will not silently stub it."));
             }
         }
         if (id.isBrowserCompile() && containsBlockingAsyncAdapterClaim(source)) {
@@ -127,6 +142,75 @@ public final class TargetCapabilityChecker {
                             + "as non-blocking capability."));
         }
         return out;
+    }
+
+    /**
+     * Blanks out comments and string/char/text-block literals (keeping length and every newline) so that API patterns
+     * only match real code and reported line/column numbers stay valid.
+     */
+    public static String maskCommentsAndStrings(String src) {
+        if (src == null) {
+            return "";
+        }
+        char[] c = src.toCharArray();
+        int n = c.length;
+        int i = 0;
+        while (i < n) {
+            char ch = c[i];
+            if (ch == '/' && i + 1 < n && c[i + 1] == '/') {
+                while (i < n && c[i] != '\n') {
+                    c[i] = ' ';
+                    i++;
+                }
+            } else if (ch == '/' && i + 1 < n && c[i + 1] == '*') {
+                c[i] = ' ';
+                c[i + 1] = ' ';
+                i += 2;
+                while (i < n && !(c[i] == '*' && i + 1 < n && c[i + 1] == '/')) {
+                    if (c[i] != '\n') {
+                        c[i] = ' ';
+                    }
+                    i++;
+                }
+                if (i < n) {
+                    c[i] = ' ';
+                    i++;
+                }
+                if (i < n) {
+                    c[i] = ' ';
+                    i++;
+                }
+            } else if (ch == '"' && i + 2 < n && c[i + 1] == '"' && c[i + 2] == '"') {
+                i += 3;
+                while (i < n && !(c[i] == '"' && i + 2 < n && c[i + 1] == '"' && c[i + 2] == '"')) {
+                    if (c[i] == '\\' && i + 1 < n) {
+                        c[i] = ' ';
+                        i++;
+                    }
+                    if (c[i] != '\n') {
+                        c[i] = ' ';
+                    }
+                    i++;
+                }
+                i += 3;
+            } else if (ch == '"' || ch == '\'') {
+                i++;
+                while (i < n && c[i] != ch && c[i] != '\n') {
+                    if (c[i] == '\\' && i + 1 < n && c[i + 1] != '\n') {
+                        c[i] = ' ';
+                        i++;
+                    }
+                    c[i] = ' ';
+                    i++;
+                }
+                if (i < n && c[i] == ch) {
+                    i++;
+                }
+            } else {
+                i++;
+            }
+        }
+        return new String(c);
     }
 
     public static List<Diagnostic> checkSources(

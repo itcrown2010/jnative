@@ -79,17 +79,8 @@ class DbByteUtil {
     }
 
     static int byteAt(int v, int byteIndex) {
-        int divisor = 1;
-        int i = 0;
-        while (i < byteIndex) {
-            divisor = divisor * 256;
-            i = i + 1;
-        }
-        int q = v / divisor;
-        if (q < 0) {
-            q = -q;
-        }
-        return q % 256;
+        /* two's-complement byte: correct for negative values too */
+        return BitOps.and(BitOps.ushr(v, byteIndex * 8), 255);
     }
 
     static int byteAtLong(long v, int byteIndex) {
@@ -342,6 +333,7 @@ class DatabaseUrl {
     String user;
     String password;
     String sqlitePath;
+    String sslMode;
 
     DatabaseUrl() {
         scheme = "";
@@ -351,6 +343,15 @@ class DatabaseUrl {
         user = "";
         password = "";
         sqlitePath = "";
+        sslMode = "";
+    }
+
+    /** 1 when the url demands an encrypted connection (sslmode=require, verify-ca or verify-full). */
+    int requiresTls() {
+        if (sslMode.equals("require") || sslMode.equals("verify-ca") || sslMode.equals("verify-full")) {
+            return 1;
+        }
+        return 0;
     }
 
     static DatabaseUrl parse(String url) {
@@ -399,7 +400,17 @@ class DatabaseUrl {
             u.database = rest.substringFrom(slash + 1);
             int q = u.database.indexOf("?");
             if (q >= 0) {
+                String query = u.database.substringFrom(q + 1);
                 u.database = u.database.substring(0, q);
+                int sm = query.indexOf("sslmode=");
+                if (sm >= 0) {
+                    String val = query.substringFrom(sm + 8);
+                    int amp = val.indexOf("&");
+                    if (amp >= 0) {
+                        val = val.substring(0, amp);
+                    }
+                    u.sslMode = val.toLowerCase();
+                }
             }
         } else {
             u.database = "";
@@ -1137,7 +1148,19 @@ class ConnectionPool {
         JnFuture created = driver.connect(config);
         PoolConnectDone done = new PoolConnectDone();
         done.pool = this;
-        return created.then(done);
+        PoolConnectFailed failed = new PoolConnectFailed();
+        failed.pool = this;
+        /* A failed connect must hand its permit back, otherwise maxPool=1 deadlocks after one failure. */
+        return created.recover(failed).then(done);
+    }
+}
+
+class PoolConnectFailed implements RecoverFunction {
+    ConnectionPool pool;
+
+    public Object apply(Exception error) {
+        pool.semaphore.release();
+        throw new ConnectionException(error.getMessage());
     }
 }
 

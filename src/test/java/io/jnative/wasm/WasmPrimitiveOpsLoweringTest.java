@@ -63,7 +63,7 @@ class WasmPrimitiveOpsLoweringTest {
     }
 
     @Test
-    void browserTargetRejectsPrintlnClearly(@TempDir Path dir) throws Exception {
+    void browserTargetCompilesPrintln(@TempDir Path dir) throws Exception {
         Path src = dir.resolve("Main.jn");
         Files.writeString(src, """
                 public class Main {
@@ -78,8 +78,8 @@ class WasmPrimitiveOpsLoweringTest {
         options.setOutputFile(dir.resolve("out"));
         options.setTarget("wasm32-browser");
         CompileResult cr = new JNativeCompiler().compile(options);
-        assertFalse(cr.success());
+        // println lowers to the host console import on wasm32-browser now.
         String msg = cr.diagnostics().stream().map(Object::toString).reduce("", (a, b) -> a + "\n" + b);
-        assertTrue(msg.toLowerCase().contains("wasm") || msg.toLowerCase().contains("println"), msg);
+        assertTrue(cr.success(), msg);
     }
 }

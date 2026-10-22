@@ -49,9 +49,8 @@ class FloatEndToEndTest {
                     static double x = 1_000.0;
                 }
                 """);
-        assertTrue(sep.hasErrors());
-        assertTrue(messages(sep).toLowerCase().contains("separator")
-                || messages(sep).toLowerCase().contains("digit"), messages(sep));
+        // Digit separators are part of the language since 0.12 (d93a916); hex floats stay rejected.
+        assertFalse(sep.hasErrors(), messages(sep));
     }
 
     @Test

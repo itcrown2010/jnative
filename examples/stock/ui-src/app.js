@@ -735,7 +735,8 @@ function renderScan() {
     '<span class="muted">只显示预测概率 ≥</span><input id="scP" size="4" value="30"><span class="muted">%</span>' +
     '<button id="scGo">开始扫描</button><button id="scStop" class="ghost" hidden>停止</button>' +
     '<label class="muted" title="去掉“前一天已涨≥5%”的股票：这类股票的规律最强也最难买到，排除后看模型是否还有预测力"><input type="checkbox" id="scExcl"> 排除前一日涨幅≥5%的股票</label>' +
-    '<label class="muted"><input type="checkbox" id="scSort"> 按概率排序</label></div>' +
+    '<label class="muted" title="上证指数收在20日均线下方、且近5日下跌（“弱势”）时，不输出任何推荐：大盘弱的时候个股普遍跟着跌"><input type="checkbox" id="scGate"> 大盘弱势时不推荐</label>' +
+    '<label class="muted"><input type="checkbox" id="scSort"> 按概率排序</label></div><div id="scMkt"></div>' +
     '<div class="note">买入价按“信号日（收盘后扫描）的下一个交易日开盘价”计算（你只能 T+1 买入），最早再下一个交易日才能卖出（T+1 规则）。统计的是买入后 H 个交易日里任意一天的最高<b>收盘价</b>，你不可能每次都卖在最高点，所以请同时看下面的“持有到第 H 天收盘的平均收益”。H=1 即超短线：买入后第一个可卖日（次日）收盘价是否达到目标。已排除北交所 920、科创板 688 和 ST/*ST 股票；信号日收在涨停、或买入日开盘就在涨停（买不进）的样本不计入训练、检验和结果。</div>' +
     '<div id="scProg"></div>' +
     '<div class="toolbar" style="margin-top:8px"><label title="服务开着时，每个交易日 15:10 之后自动用上面的参数扫描一次，结束后把前 5 只推送到“自选与提醒”里配置的机器人；结果同样记入历史战绩"><input type="checkbox" id="scAuto"> 每个交易日收盘后（15:10）自动扫描并推送</label><span id="scAutoSt" class="muted"></span></div></div>' +
@@ -752,18 +753,18 @@ function renderScan() {
   $('scGo').onclick = function () {
     var pm = parseFloat($('scP').value); if (isNaN(pm) || pm < 2 || pm > 95) { toast('概率阈值请填 2–95 之间的数字'); return; }
     SC.since = 0; SC.hits = []; SC.fresh = {}; drawScanRows();
-    post('/api/scan/start?theta=' + $('scTheta').value + '&h=' + $('scH').value + '&pmin=' + (pm / 100) + ($('scExcl').checked ? '&excl=1' : '')).then(function (d) { SC.runId = d.runId; pollScan(); }).catch(function (e) { toast(e.message); });
+    post('/api/scan/start?theta=' + $('scTheta').value + '&h=' + $('scH').value + '&pmin=' + (pm / 100) + ($('scExcl').checked ? '&excl=1' : '') + ($('scGate').checked ? '&mg=1' : '')).then(function (d) { SC.runId = d.runId; pollScan(); }).catch(function (e) { toast(e.message); });
   };
   $('trRef').onclick = loadTrack; loadTrack();
   var saveAuto = function () {
     var pm = parseFloat($('scP').value); if (isNaN(pm) || pm < 2 || pm > 95) { toast('概率阈值请填 2–95 之间的数字'); $('scAuto').checked = false; return; }
-    post('/api/scan/auto/set?on=' + ($('scAuto').checked ? 1 : 0) + '&theta=' + $('scTheta').value + '&h=' + $('scH').value + '&pmin=' + (pm / 100) + ($('scExcl').checked ? '&excl=1' : '')).then(drawAuto).catch(function (e) { toast(e.message); });
+    post('/api/scan/auto/set?on=' + ($('scAuto').checked ? 1 : 0) + '&theta=' + $('scTheta').value + '&h=' + $('scH').value + '&pmin=' + (pm / 100) + ($('scExcl').checked ? '&excl=1' : '') + ($('scGate').checked ? '&mg=1' : '')).then(drawAuto).catch(function (e) { toast(e.message); });
   };
   $('scAuto').onchange = saveAuto;
-  ['scH', 'scTheta', 'scP', 'scExcl'].forEach(function (id) { $(id).addEventListener('change', function () { if ($('scAuto').checked) saveAuto(); }); });
+  ['scH', 'scTheta', 'scP', 'scExcl', 'scGate'].forEach(function (id) { $(id).addEventListener('change', function () { if ($('scAuto').checked) saveAuto(); }); });
   api('/api/scan/auto').then(function (d) {
     $('scAuto').checked = !!d.on;
-    if (d.on) { $('scH').value = d.hold; $('scTheta').value = d.theta.toFixed(2); $('scP').value = Math.round(d.pmin * 100); $('scExcl').checked = !!d.excl; }
+    if (d.on) { $('scH').value = d.hold; $('scTheta').value = d.theta.toFixed(2); $('scP').value = Math.round(d.pmin * 100); $('scExcl').checked = !!d.excl; $('scGate').checked = !!d.mg; }
     drawAuto(d);
   }).catch(function () {});
   $('scStop').onclick = function () { post('/api/scan/stop').then(function (d) { drawScanStatus(d); }); };
@@ -786,6 +787,18 @@ function pollScan() {
     else if (d.hitsTotal > SC.since) SC.timer = setTimeout(pollScan, 200);
   }).catch(function (e) { if ($('scProg')) $('scProg').innerHTML = '<span class="err">' + esc(e.message) + '</span>'; SC.timer = setTimeout(pollScan, 3000); });
 }
+var MK_NAME = ['强势', '回调', '反弹', '弱势'];
+var MK_DESC = ['指数在20日线上方且近5日上涨', '指数在20日线上方但近5日下跌', '指数在20日线下方但近5日上涨', '指数在20日线下方且近5日下跌'];
+function drawMarket(d) {
+  var el = $('scMkt'); if (!el) return;
+  var m = d.market; if (!m) { el.innerHTML = ''; return; }
+  var cls = m.state === 0 ? 'up' : (m.state === 3 ? 'down' : '');
+  var tail = '';
+  if (d.gate && m.state === 3) tail = '　<b class="warn">已按设置暂停推荐' + (d.gated ? '（拦下 ' + d.gated + ' 只达标股票）' : '') + '</b>';
+  else if (m.state === 3) tail = '　<span class="warn">大盘偏弱，个股普遍跟着跌，下面的推荐请格外谨慎，或直接观望。</span>';
+  else if (m.state === 1 || m.state === 2) tail = '　<span class="muted">大盘不明朗，仓位宜轻。</span>';
+  el.innerHTML = '<div class="note" style="margin-top:8px">大盘（上证指数 ' + fdate(m.date) + '）：<b class="' + cls + '">' + MK_NAME[m.state] + '</b>（' + MK_DESC[m.state] + '）；当日 <span class="' + sgn(m.r1) + '">' + pct(m.r1, 2) + '</span>，5日 <span class="' + sgn(m.r5) + '">' + pct(m.r5, 2) + '</span>，距20日线 <span class="' + sgn(m.dist) + '">' + pct(m.dist, 2) + '</span>' + tail + '</div>';
+}
 function drawScanStatus(d) {
   var run = d.phase >= 1 && d.phase <= 3, pctDone = 0, line = '';
   if (d.phase === 2) pctDone = d.trainLoaded / d.trainTotal; else if (d.phase >= 3) pctDone = d.universe ? d.pos / d.universe : 0;
@@ -800,7 +813,8 @@ function drawScanStatus(d) {
   $('scProg').innerHTML = '<div class="meter" style="height:10px;background:#2a3441;margin:6px 0"><span style="display:block;height:10px;border-radius:5px;background:' + ACC + ';width:' + (pctDone * 100).toFixed(1) + '%"></span></div><div style="font-size:13px">' + line + '</div>' +
     (d.marketOpen && d.phase >= 1 ? '<div class="warn" style="margin-top:4px">当前处于交易时段：未收盘的当日K线已被忽略，预测的是“今天”而不是“明天”。建议收盘后（15:10 以后）扫描。</div>' : '');
   $('scGo').hidden = run; $('scStop').hidden = !run; $('scGo').textContent = d.phase === 0 ? '开始扫描' : '重新扫描';
-  $('scTheta').disabled = run; $('scH').disabled = run; $('scP').disabled = run; $('scExcl').disabled = run;
+  $('scTheta').disabled = run; $('scH').disabled = run; $('scP').disabled = run; $('scExcl').disabled = run; $('scGate').disabled = run;
+  drawMarket(d);
   if (d.phase === 4 && SC.trackedRun !== d.runId) { SC.trackedRun = d.runId; loadTrack(); }
   if (d.validation) drawScanVal(d.validation);
 }
@@ -837,6 +851,9 @@ function drawScanVal(v) {
     '<div><span>检验期基准发生率</span><b>' + pct(v.baseTest, 1) + '</b></div><div><span>基准：持有 ' + v.hold + ' 日平均收益</span><b class="' + sgn(v.baseEnd) + '">' + pct(v.baseEnd, 2) + '</b></div><div><span>基准：止盈策略 / 加止损</span><b><span class="' + sgn(v.baseTp) + '">' + pct(v.baseTp, 2) + '</span> / <span class="' + sgn(v.baseTs) + '">' + pct(v.baseTs, 2) + '</span></b></div><div><span>Brier 技能分</span><b class="' + (v.brierSkill > 0 ? 'up' : '') + '">' + fx(v.brierSkill * 100, 1) + '%</b></div></div>' +
     '<table style="margin-top:10px"><tr><th>预测概率</th><th>检验样本数</th><th>实际达标次数</th><th>实际命中率</th><th>相对基准</th><th>持有 ' + v.hold + ' 日后平均收益</th><th>涨到 +' + pct(v.theta, 0) + ' 就卖，否则持有到期</th><th>同上，再加 −5% 止损</th><th>持有期末亏损 ≥5% 占比</th><th></th></tr>' + rows + '</table>' +
     '<div class="note">每一行都是“模型给出该档以上概率”的检验期样本（不在训练集内）。“相对基准”接近 1 倍说明没有区分能力；“持有 ' + v.hold + ' 日后平均收益”才是按期持有的真实结果，“亏损占比”提示下行风险。“止盈策略”假设收盘价触及目标的那天按目标价卖出（等价于提前挂好的限价卖单），“止损”按收盘价触及 −5% 当天的收盘价卖出，都没有扣手续费和印花税。同一只股票相邻几天的样本高度重叠，真正独立的样本比表里的数字少得多，样本量小的行请当作噪声。' + (b3 ? '' : ' 注意：没有任何一档在检验期里有足够样本，最低概率阈值可能设得过高。') + '</div>';
+  if (v.regimes) el.innerHTML += '<h4 style="margin:14px 0 6px">分大盘状态看（检验期；“高概率档”即预测概率 ≥ 你设的阈值）</h4><table><tr><th>大盘状态</th><th>样本数</th><th>全体基准命中率</th><th>全体持有 ' + v.hold + ' 日平均收益</th><th>高概率档样本数</th><th>高概率档命中率</th><th>高概率档持有 ' + v.hold + ' 日平均收益</th></tr>' + v.regimes.map(function (r) {
+    return '<tr><td>' + MK_NAME[r.s] + ' <span class="muted">' + MK_DESC[r.s] + '</span></td><td>' + r.n + '</td><td>' + pct(r.base, 1) + '</td><td class="' + sgn(r.end) + '">' + pct(r.end, 2) + '</td><td>' + r.hiN + '</td><td>' + (r.hiN ? pct(r.hiPrec, 1) : '-') + '</td><td class="' + sgn(r.hiEnd) + '">' + (r.hiN ? pct(r.hiEnd, 2) : '-') + '</td></tr>';
+  }).join('') + '</table><div class="note">“大盘状态”按信号日收盘时的上证指数判定。若“弱势”行的收益明显更差，说明大盘不好时不该出手；若各行差不多，则说明这个简单的大盘判断没有帮助。注意：这只是用过去数据拆分，并不能预测明天大盘。</div>';
 }
 function drawScanRows() {
   var el = $('scRes'); if (!el) return;

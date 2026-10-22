@@ -263,55 +263,7 @@ class Color {
     static Color TRANSPARENT = new Color(0, 0, 0, 0);
 }
 
-class Point {
-    double x;
-    double y;
-
-    Point(double px, double py) {
-        x = px;
-        y = py;
-    }
-
-    double getX() {
-        return x;
-    }
-
-    double getY() {
-        return y;
-    }
-}
-
-class Size {
-    double width;
-    double height;
-
-    Size(double w, double h) {
-        width = w;
-        height = h;
-    }
-
-    double getWidth() {
-        return width;
-    }
-
-    double getHeight() {
-        return height;
-    }
-}
-
-class Rect {
-    double x;
-    double y;
-    double width;
-    double height;
-
-    Rect(double rx, double ry, double rw, double rh) {
-        x = rx;
-        y = ry;
-        width = rw;
-        height = rh;
-    }
-}
+/* Integer geometry types Point, Size and Rect live in the UI module; floating-point variants are PointF, SizeF, RectF. */
 
 class Stroke {
     double width;
