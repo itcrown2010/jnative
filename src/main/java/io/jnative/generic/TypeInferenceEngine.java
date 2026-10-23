@@ -184,8 +184,10 @@ public final class TypeInferenceEngine {
                 bound.put(p, unconstrainedDefault);
                 defaulted = true;
             }
-            for (JType b : p.bounds()) {
+            for (JType declared : p.bounds()) {
                 JType arg = bound.get(p);
+                // F-bounded (T extends Comparable<T>): compare against the bound with T := arg.
+                JType b = new TypeSubstitution(bound).apply(declared);
                 if (!b.isAssignableFrom(arg)) {
                     return InferenceResult.fail(
                             "type argument " + arg + " does not satisfy bound " + b);

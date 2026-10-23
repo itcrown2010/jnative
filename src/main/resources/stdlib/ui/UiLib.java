@@ -1376,6 +1376,7 @@ class Component {
     Runnable clickListener;
     ArrayList<EventHandler<ActionEvent>> actionHandlers;
     ArrayList<EventHandler<KeyEvent>> keyHandlers;
+    ArrayList<EventHandler<KeyEvent>> keyUpHandlers;
     ArrayList<EventHandler<MouseEvent>> mouseHandlers;
     ArrayList<EventHandler<FocusEvent>> focusHandlers;
     ArrayList<EventHandler<UiEvent>> changeHandlers;
@@ -1434,6 +1435,7 @@ class Component {
         textAlign = -1;
         actionHandlers = new ArrayList<EventHandler<ActionEvent>>();
         keyHandlers = new ArrayList<EventHandler<KeyEvent>>();
+        keyUpHandlers = new ArrayList<EventHandler<KeyEvent>>();
         mouseHandlers = new ArrayList<EventHandler<MouseEvent>>();
         focusHandlers = new ArrayList<EventHandler<FocusEvent>>();
         changeHandlers = new ArrayList<EventHandler<UiEvent>>();
@@ -1814,6 +1816,14 @@ class Component {
         }
     }
 
+    /** Key release notifications ({@link KeyEvent#down} is 0); needed by games that track held keys. */
+    void onKeyUp(EventHandler<KeyEvent> handler) {
+        ensureAlive("Component.onKeyUp");
+        if (handler != null) {
+            keyUpHandlers.add(handler);
+        }
+    }
+
     void onMouse(EventHandler<MouseEvent> handler) {
         ensureAlive("Component.onMouse");
         if (handler != null) {
@@ -1933,8 +1943,14 @@ class Component {
         if (disposed != 0) {
             return;
         }
-        /* onKeyDown handlers only — ignore key-up (downType != 1). */
+        /* Key-up goes to onKeyUp handlers only; onKeyDown handlers never see it. */
         if (downType != 1) {
+            int m = keyUpHandlers.size();
+            int j = 0;
+            while (j < m) {
+                keyUpHandlers.get(j).handle(new KeyEvent(this, keyCode, mods, 0));
+                j = j + 1;
+            }
             return;
         }
         KeyEvent ev = new KeyEvent(this, keyCode, mods, 1);
@@ -2030,6 +2046,7 @@ class Component {
         clickListener = null;
         actionHandlers.clear();
         keyHandlers.clear();
+        keyUpHandlers.clear();
         mouseHandlers.clear();
         focusHandlers.clear();
         changeHandlers.clear();
@@ -5300,6 +5317,7 @@ class Window extends Component {
         }
         closeListener = null;
         keyHandlers.clear();
+        keyUpHandlers.clear();
         actionHandlers.clear();
         focusHandlers.clear();
         int id = nativeId;

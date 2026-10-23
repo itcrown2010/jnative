@@ -23,6 +23,17 @@ class NumberFormatException extends IllegalArgumentException {
     }
 }
 
+/** Java-compatible checked-style exception type (JNative does not enforce {@code throws}). */
+class InterruptedException extends Exception {
+    InterruptedException() {
+        super("interrupted");
+    }
+
+    InterruptedException(String message) {
+        super(message);
+    }
+}
+
 class UnsupportedOperationException extends RuntimeException {
     UnsupportedOperationException(String message) {
         super(message);

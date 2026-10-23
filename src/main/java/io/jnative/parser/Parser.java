@@ -722,6 +722,7 @@ public final class Parser {
             }
             Token name = advance();
             List<Parameter> params = parseParameterList();
+            skipThrowsClause();
             BlockStatement body = parseBlock();
             if (isFinal) {
                 reporter.error(name.location(), "constructors cannot be final");
@@ -746,6 +747,7 @@ public final class Parser {
                         "@NativeStruct cannot declare methods");
             }
             List<Parameter> params = parseParameterList();
+            skipThrowsClause();
             BlockStatement body = null;
             boolean methodAbstract = isAbstract || isInterface;
             if (isInterface && isStatic) {
@@ -1370,6 +1372,22 @@ public final class Parser {
             };
         }
         throw error(t, "expected NativePtr type argument");
+    }
+
+    /**
+     * Accept a Java {@code throws A, B.C} clause and ignore it. JNative exceptions are
+     * unchecked at compile time, so the clause is documentation only (Java source compatibility).
+     */
+    private void skipThrowsClause() {
+        if (!match(TokenType.THROWS)) {
+            return;
+        }
+        do {
+            consume(TokenType.IDENTIFIER, "expected exception type after 'throws'");
+            while (match(TokenType.DOT)) {
+                consume(TokenType.IDENTIFIER, "expected identifier after '.' in throws clause");
+            }
+        } while (match(TokenType.COMMA));
     }
 
     private BlockStatement parseBlock() {

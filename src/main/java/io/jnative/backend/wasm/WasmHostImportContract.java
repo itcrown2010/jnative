@@ -39,8 +39,62 @@ public final class WasmHostImportContract {
             "input_value",
             "input_set_value",
             "memory_grew",
-            "report_uncaught"
+            "report_uncaught",
+            "f64_to_chars"
     );
+
+    /**
+     * Host implementation of Java's {@code Double.toString} / {@code Float.toString} layout
+     * (shortest round-trip digits, {@code 1.0E10} style outside [1e-3, 1e7)). Shared by
+     * {@link JsGlueGenerator} and the Node test harness.
+     */
+    public static final String JAVA_FP_TO_STRING_JS = """
+            function javaFpToString(v, isFloat) {
+              if (Number.isNaN(v)) return 'NaN';
+              if (v === Infinity) return 'Infinity';
+              if (v === -Infinity) return '-Infinity';
+              if (v === 0) return Object.is(v, -0) ? '-0.0' : '0.0';
+              const neg = v < 0;
+              const a = Math.abs(v);
+              let s;
+              if (isFloat) {
+                for (let p = 1; p <= 9; p++) {
+                  s = a.toExponential(p - 1);
+                  if (Math.fround(parseFloat(s)) === a) break;
+                }
+              } else {
+                s = a.toExponential();
+              }
+              const ei = s.indexOf('e');
+              const mant = s.slice(0, ei).replace('.', '');
+              const exp = parseInt(s.slice(ei + 1), 10);
+              let digits = mant.replace(/0+$/, '');
+              if (digits === '') digits = '0';
+              let out;
+              if (a >= 1e-3 && a < 1e7) {
+                if (exp >= 0) {
+                  if (digits.length > exp + 1) {
+                    out = digits.slice(0, exp + 1) + '.' + digits.slice(exp + 1);
+                  } else {
+                    out = digits.padEnd(exp + 1, '0') + '.0';
+                  }
+                } else {
+                  out = '0.' + '0'.repeat(-exp - 1) + digits;
+                }
+              } else {
+                out = digits[0] + '.' + (digits.length > 1 ? digits.slice(1) : '0') + 'E' + exp;
+              }
+              return (neg ? '-' : '') + out;
+            }
+            """;
+
+    /** JS body of the {@code f64_to_chars(v, isFloat, ptr)} import; {@code memory} must be in scope. */
+    public static final String F64_TO_CHARS_JS_BODY = """
+            const text = javaFpToString(v, isFloat !== 0);
+            const view = new Uint8Array(memory.buffer, (ptr >>> 0) + 4, text.length);
+            for (let i = 0; i < text.length; i++) view[i] = text.charCodeAt(i) & 0x7f;
+            return text.length;
+            """;
 
     private WasmHostImportContract() {
     }
@@ -48,15 +102,21 @@ public final class WasmHostImportContract {
     /**
      * Minimal Node ESM stub object body for {@code imports.jnative}, suitable for
      * {@code WebAssembly.instantiate}. Callables return 0 / no-op; {@code register_callback}
-     * echoes the id.
+     * echoes the id. {@code f64_to_chars} is functional but needs the script to set
+     * {@code globalThis.__jnMemory = instance.exports.memory} after instantiation.
      */
     public static String nodeJnativeImportsObjectLiteral() {
         StringBuilder sb = new StringBuilder();
-        sb.append("{\n");
+        sb.append("(() => {\n");
+        sb.append(JAVA_FP_TO_STRING_JS);
+        sb.append("return {\n");
         for (String name : JNATIVE_IMPORTS) {
             sb.append("  ").append(name).append(": ");
             switch (name) {
                 case "register_callback" -> sb.append("(id) => id");
+                case "f64_to_chars" -> sb.append("(v, isFloat, ptr) => { ")
+                        .append(F64_TO_CHARS_JS_BODY.replace("memory.buffer", "globalThis.__jnMemory.buffer"))
+                        .append(" }");
                 case "console_log", "console_warn", "console_error", "report_uncaught" ->
                         sb.append("() => {}");
                 default -> {
@@ -71,7 +131,7 @@ public final class WasmHostImportContract {
             }
             sb.append(",\n");
         }
-        sb.append("}");
+        sb.append("};\n})()");
         return sb.toString();
     }
 }

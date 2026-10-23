@@ -321,6 +321,8 @@ public final class StdlibIncluder {
                 || sourceText.contains("(Long)")
                 || sourceText.contains("new Long")
                 || sourceText.contains("NumberFormatException")
+                || sourceText.contains("InterruptedException")
+                || sourceText.contains("Comparable")
                 // A user-defined class Character (e.g. a game entity) must keep working.
                 || (sourceText.contains("Character") && !sourceText.contains("class Character"));
     }

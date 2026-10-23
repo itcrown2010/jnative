@@ -270,6 +270,7 @@ public final class BrowserWatEmitter {
         wat.append("  (import \"jnative\" \"input_set_value\" (func $js_input_set_value (param i32 i32 i32)))\n");
         wat.append("  (import \"jnative\" \"memory_grew\" (func $js_memory_grew))\n");
         wat.append("  (import \"jnative\" \"report_uncaught\" (func $js_report_uncaught (param i32 i32)))\n");
+        wat.append("  (import \"jnative\" \"f64_to_chars\" (func $js_f64_to_chars (param f64 i32 i32) (result i32)))\n");
     }
 
     private void emitData(StringBuilder wat) {
@@ -691,6 +692,202 @@ public final class BrowserWatEmitter {
                       local.set $n
                       local.get $i
                       br_if $dig
+                    )
+                    local.get $p
+                  )
+                  ;; String text for println / string concat of non-int values.
+                  (func $jn_string_or_null (param $s i32) (result i32)
+                    (local $p i32)
+                    local.get $s
+                    if (result i32)
+                      local.get $s
+                    else
+                      i32.const 8
+                      call $jn_alloc_opaque
+                      local.set $p
+                      local.get $p
+                      i32.const 4
+                      i32.store
+                      local.get $p
+                      i32.const 4
+                      i32.add
+                      i32.const 1819047278
+                      i32.store
+                      local.get $p
+                    end
+                  )
+                  (func $jn_string_value_of_bool (param $v i32) (result i32)
+                    (local $p i32)
+                    local.get $v
+                    if (result i32)
+                      i32.const 8
+                      call $jn_alloc_opaque
+                      local.set $p
+                      local.get $p
+                      i32.const 4
+                      i32.store
+                      local.get $p
+                      i32.const 4
+                      i32.add
+                      i32.const 1702195828
+                      i32.store
+                      local.get $p
+                    else
+                      i32.const 9
+                      call $jn_alloc_opaque
+                      local.set $p
+                      local.get $p
+                      i32.const 5
+                      i32.store
+                      local.get $p
+                      i32.const 4
+                      i32.add
+                      i32.const 1936482662
+                      i32.store
+                      local.get $p
+                      i32.const 8
+                      i32.add
+                      i32.const 101
+                      i32.store8
+                      local.get $p
+                    end
+                  )
+                  (func $jn_string_value_of_char (param $c i32) (result i32)
+                    (local $p i32)
+                    i32.const 5
+                    call $jn_alloc_opaque
+                    local.set $p
+                    local.get $p
+                    i32.const 1
+                    i32.store
+                    local.get $p
+                    i32.const 4
+                    i32.add
+                    local.get $c
+                    i32.const 65535
+                    i32.and
+                    local.tee $c
+                    i32.const 128
+                    i32.lt_u
+                    if (result i32)
+                      local.get $c
+                    else
+                      i32.const 63
+                    end
+                    i32.store8
+                    local.get $p
+                  )
+                  ;; Double/Float.toString via host (shortest round-trip, Java layout). $f: 1 = float.
+                  (func $jn_string_value_of_fp (param $v f64) (param $f i32) (result i32)
+                    (local $p i32)
+                    i32.const 40
+                    call $jn_alloc_opaque
+                    local.set $p
+                    local.get $p
+                    local.get $v
+                    local.get $f
+                    local.get $p
+                    call $js_f64_to_chars
+                    i32.store
+                    local.get $p
+                  )
+                  (func $jn_string_value_of_f64 (param $v f64) (result i32)
+                    local.get $v
+                    i32.const 0
+                    call $jn_string_value_of_fp
+                  )
+                  (func $jn_string_value_of_f32 (param $v f32) (result i32)
+                    local.get $v
+                    f64.promote_f32
+                    i32.const 1
+                    call $jn_string_value_of_fp
+                  )
+                  (func $jn_string_value_of_i64 (param $v i64) (result i32)
+                    (local $neg i32) (local $n i64) (local $tmp i64) (local $len i32) (local $p i32) (local $i i32)
+                    local.get $v
+                    i64.const 0
+                    i64.lt_s
+                    local.set $neg
+                    local.get $neg
+                    if (result i64)
+                      i64.const 0
+                      local.get $v
+                      i64.sub
+                    else
+                      local.get $v
+                    end
+                    local.set $n
+                    i32.const 1
+                    local.set $len
+                    local.get $n
+                    local.set $tmp
+                    (block $cdone
+                      (loop $cnt
+                        local.get $tmp
+                        i64.const 10
+                        i64.div_u
+                        local.set $tmp
+                        local.get $tmp
+                        i64.eqz
+                        br_if $cdone
+                        local.get $len
+                        i32.const 1
+                        i32.add
+                        local.set $len
+                        br $cnt
+                      )
+                    )
+                    local.get $len
+                    local.get $neg
+                    i32.add
+                    i32.const 4
+                    i32.add
+                    call $jn_alloc_opaque
+                    local.set $p
+                    local.get $p
+                    local.get $len
+                    local.get $neg
+                    i32.add
+                    i32.store
+                    local.get $neg
+                    if
+                      local.get $p
+                      i32.const 4
+                      i32.add
+                      i32.const 45
+                      i32.store8
+                    end
+                    local.get $len
+                    local.set $i
+                    (block $ddone
+                      (loop $dig
+                        local.get $i
+                        i32.eqz
+                        br_if $ddone
+                        local.get $i
+                        i32.const 1
+                        i32.sub
+                        local.set $i
+                        local.get $p
+                        i32.const 4
+                        i32.add
+                        local.get $neg
+                        i32.add
+                        local.get $i
+                        i32.add
+                        local.get $n
+                        i64.const 10
+                        i64.rem_u
+                        i32.wrap_i64
+                        i32.const 48
+                        i32.add
+                        i32.store8
+                        local.get $n
+                        i64.const 10
+                        i64.div_u
+                        local.set $n
+                        br $dig
+                      )
                     )
                     local.get $p
                   )

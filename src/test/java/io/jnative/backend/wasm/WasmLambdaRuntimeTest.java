@@ -60,6 +60,61 @@ public class WasmLambdaRuntimeTest {
                 """, "WasmEach", "WasmEach_run", 5));
     }
 
+    @Test
+    void printlnFormatsPrimitivesAndNullOnBrowserTarget() throws Exception {
+        Assumptions.assumeTrue(nodeAvailable(), "node not available");
+        Path dir = tmp.resolve("WasmPrint");
+        Files.createDirectories(dir);
+        Path file = dir.resolve("WasmPrint.java");
+        Files.writeString(file, """
+                public class WasmPrint {
+                    public static void main(String[] args) {
+                        System.out.println(2);
+                        System.out.println(-12345);
+                        System.out.println("hi");
+                        System.out.println(true);
+                        System.out.println('x');
+                        long big = -9000000000L;
+                        System.out.println(big);
+                        String n = null;
+                        System.out.println(n);
+                        System.out.println("a" + 5);
+                        double a = 0.1;
+                        double b = 0.2;
+                        System.out.println(a + b);
+                        System.out.println(100.0);
+                        System.out.println(1.5e10);
+                        System.out.println(0.00001);
+                        System.out.println(0.001);
+                        System.out.println(9999999.0);
+                        System.out.println(10000000.0);
+                        System.out.println(-0.5);
+                        double zero = 0.0;
+                        System.out.println(zero / zero);
+                        System.out.println(1.0 / zero);
+                        float f = 0.1f;
+                        System.out.println(f);
+                        float g = 16777216.0f;
+                        System.out.println(g);
+                        System.out.println("v=" + 2.5);
+                    }
+                }
+                """, StandardCharsets.UTF_8);
+        CompilerOptions options = new CompilerOptions();
+        options.setSourceFile(file);
+        options.setOutputFile(dir.resolve("out"));
+        options.setTarget("wasm32-browser");
+        CompileResult cr = new JNativeCompiler().compile(options);
+        assertTrue(cr.success(), () -> cr.diagnostics().toString());
+        Path wasm = dir.resolve("out").resolve("app.wasm");
+        if (!Files.exists(wasm)) {
+            wasm = dir.resolve("app.wasm");
+        }
+        assertEquals("2\n-12345\nhi\ntrue\nx\n-9000000000\nnull\na5\n"
+                + "0.30000000000000004\n100.0\n1.5E10\n1.0E-5\n0.001\n9999999.0\n1.0E7\n-0.5\nNaN\nInfinity\n"
+                + "0.1\n1.6777216E7\nv=2.5", WasmNodeHarness.runMain(wasm, 30));
+    }
+
     private int runExport(String source, String cls, String export, int arg) throws Exception {
         Assumptions.assumeTrue(nodeAvailable(), "node not available");
         Path dir = tmp.resolve(cls);

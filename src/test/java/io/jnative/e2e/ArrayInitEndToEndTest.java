@@ -37,6 +37,12 @@ class ArrayInitEndToEndTest {
     }
 
     @Test
+    void charShortByteArrayIndicesMatchJava(@TempDir Path dir) throws Exception {
+        Assumptions.assumeTrue(Toolchain.detect().isPresent(), "clang not available");
+        compareWithJava(dir, "/e2e/stdlib/CharIndex1.java.txt", "");
+    }
+
+    @Test
     void instanceFieldInitializersMatchJava(@TempDir Path dir) throws Exception {
         Assumptions.assumeTrue(Toolchain.detect().isPresent(), "clang not available");
         compareWithJava(dir, "/e2e/stdlib/FieldInit1.java.txt", "import java.util.ArrayList;\n");

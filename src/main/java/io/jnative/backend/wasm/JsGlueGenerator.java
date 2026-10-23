@@ -150,6 +150,8 @@ public final class JsGlueGenerator {
                   }
                 }
 
+                __JAVA_FP_TO_STRING__
+
                 /** Last uncaught JNative exception reported to the host (not a WASM trap). */
                 let lastUncaught = null;
 
@@ -210,6 +212,9 @@ public final class JsGlueGenerator {
 
                 const imports = {
                   jnative: {
+                    f64_to_chars(v, isFloat, ptr) {
+                      __F64_TO_CHARS_BODY__
+                    },
                     console_log(ptr, len) { console.log(readUtf8(ptr, len)); },
                     console_warn(ptr, len) { console.warn(readUtf8(ptr, len)); },
                     console_error(ptr, len) { console.error(readUtf8(ptr, len)); },
@@ -417,6 +422,8 @@ public final class JsGlueGenerator {
                   writeWasmString, writeWasmStringRooted, findExport, readWasmString,
                   retainManaged, releaseManaged, getManaged, gcStats, gcCollect
                 };
-                """;
+                """
+                .replace("__JAVA_FP_TO_STRING__", WasmHostImportContract.JAVA_FP_TO_STRING_JS)
+                .replace("__F64_TO_CHARS_BODY__", WasmHostImportContract.F64_TO_CHARS_JS_BODY);
     }
 }

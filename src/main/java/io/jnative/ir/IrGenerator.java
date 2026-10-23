@@ -3255,7 +3255,7 @@ public final class IrGenerator {
         }
         if (target instanceof ArrayAccessExpression aexpr) {
             IrValue array = lowerExpression(aexpr.array());
-            IrValue index = lowerExpression(aexpr.index());
+            IrValue index = lowerArrayIndex(aexpr.index());
             JType elemType = remapType(typed.expressionTypes().get(aexpr));
             IrValue casted = convertTo(value, fromJt, elemType);
             builder.storeElement(array, index, casted);
@@ -3465,9 +3465,19 @@ public final class IrGenerator {
 
     private IrValue lowerArrayLoad(ArrayAccessExpression a) {
         IrValue array = lowerExpression(a.array());
-        IrValue index = lowerExpression(a.index());
+        IrValue index = lowerArrayIndex(a.index());
         JType elemType = remapType(typed.expressionTypes().get(a));
         return builder.loadElement(array, index, IrType.from(elemType));
+    }
+
+    /** Array subscripts are int-typed in the runtime; widen char/short/byte indices (a[c] with char c). */
+    private IrValue lowerArrayIndex(Expression indexExpr) {
+        IrValue index = lowerExpression(indexExpr);
+        JType t = typed.expressionTypes().get(indexExpr);
+        if (t == PrimitiveType.CHAR || t == PrimitiveType.SHORT || t == PrimitiveType.BYTE) {
+            return castIfNeeded(index, IrType.I32);
+        }
+        return index;
     }
 
     private IrValue lowerInstanceOf(InstanceOfExpression i) {

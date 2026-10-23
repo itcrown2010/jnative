@@ -1065,6 +1065,19 @@ public final class WebUiIrToWat {
                 // Soft-map to browser console so WebUI/stdlib paths that still emit
                 // Println IR are usable; prefer Browser.console() in new code.
                 out.append("          ").append(emitValue(pl.value())).append("\n");
+                // Primitives arrive as raw numbers; console_log wants a JNative string.
+                String toText = switch (pl.value().type()) {
+                    case I1 -> "$jn_string_value_of_bool";
+                    case I16 -> "$jn_string_value_of_char";
+                    case I8, I32 -> "$jn_string_value_of_i32";
+                    case I64 -> "$jn_string_value_of_i64";
+                    case DOUBLE -> "$jn_string_value_of_f64";
+                    case FLOAT -> "$jn_string_value_of_f32";
+                    default -> null;
+                };
+                if (toText != null) {
+                    out.append("          call ").append(toText).append("\n");
+                }
                 out.append("          call $jn_console_log\n");
                 return false;
             }
@@ -1147,6 +1160,23 @@ public final class WebUiIrToWat {
         if (function.equals("jnative_string_value_of_i32")) {
             emitArgs(args, out);
             out.append("          call $jn_string_value_of_i32\n");
+            if (dest != null) {
+                out.append("          local.set $t").append(dest.id()).append("\n");
+            }
+            return;
+        }
+        String textHelper = switch (function) {
+            case "jnative_string_or_null" -> "$jn_string_or_null";
+            case "jnative_string_value_of_bool" -> "$jn_string_value_of_bool";
+            case "jnative_string_value_of_char" -> "$jn_string_value_of_char";
+            case "jnative_string_value_of_i64" -> "$jn_string_value_of_i64";
+            case "jnative_string_value_of_f64" -> "$jn_string_value_of_f64";
+            case "jnative_string_value_of_f32" -> "$jn_string_value_of_f32";
+            default -> null;
+        };
+        if (textHelper != null) {
+            emitArgs(args, out);
+            out.append("          call ").append(textHelper).append("\n");
             if (dest != null) {
                 out.append("          local.set $t").append(dest.id()).append("\n");
             }

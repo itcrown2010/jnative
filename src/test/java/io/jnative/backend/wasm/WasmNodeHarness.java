@@ -52,6 +52,7 @@ public final class WasmNodeHarness {
                 const { instance } = await WebAssembly.instantiate(wasmBytes, imports);
                 exports = instance.exports;
                 mem = instance.exports.memory;
+                globalThis.__jnMemory = mem;
                 if (typeof instance.exports.jnative_start === 'function') {
                   instance.exports.jnative_start();
                 } else if (typeof instance.exports.jn_main === 'function') {
@@ -97,6 +98,7 @@ public final class WasmNodeHarness {
                 const imports = { jnative: %s };
                 const { instance } = await WebAssembly.instantiate(readFileSync(%s), imports);
                 const e = instance.exports;
+                globalThis.__jnMemory = e.memory;
                 const key = Object.keys(e).find((k) => k.includes(%s));
                 if (!key) throw new Error('no export containing ' + %s);
                 process.stdout.write('__JN_RESULT__' + (e[key](%d) | 0) + '\\n');

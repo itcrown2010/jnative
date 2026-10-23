@@ -4294,6 +4294,12 @@ public final class SemanticAnalyzer {
             } else if (recvType instanceof TypeVariable tv) {
                 // Use upper bound for member lookup (class or interface); else Object.
                 JType bound = tv.symbol().erasure(objectClass);
+                // Keep type arguments of a parameterized bound (T extends Comparable<T>) so the
+                // callee's own type parameters are substituted instead of leaking through erased.
+                if (!tv.symbol().bounds().isEmpty()
+                        && tv.symbol().bounds().getFirst() instanceof ParameterizedType declared) {
+                    bound = declared;
+                }
                 if (bound instanceof ClassType ect) {
                     recvClass = ect.classSymbol();
                 } else if (bound instanceof ParameterizedType pt && pt.raw() instanceof ClassSymbol cs) {
@@ -6344,12 +6350,16 @@ public final class SemanticAnalyzer {
             SourceLocation loc
     ) {
         int n = Math.min(params.size(), args.size());
+        // F-bounded parameters (T extends Comparable<T>) mention themselves: check against the
+        // bound with the actual type arguments substituted.
+        TypeSubstitution boundSub = TypeSubstitution.zip(params.subList(0, n), args.subList(0, n));
         for (int i = 0; i < n; i++) {
             JType arg = args.get(i);
             if (arg instanceof WildcardType) {
                 continue;
             }
-            for (JType bound : params.get(i).bounds()) {
+            for (JType declaredBound : params.get(i).bounds()) {
+                JType bound = boundSub.apply(declaredBound);
                 if (!bound.isAssignableFrom(arg) && !(arg instanceof ErrorType)) {
                     reporter.error(loc,
                             "type argument " + arg + " does not satisfy bound " + bound);
