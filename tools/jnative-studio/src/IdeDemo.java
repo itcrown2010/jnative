@@ -28,11 +28,105 @@ public class IdeDemo {
         ide.window.snapshot("/tmp/ide-snap-" + step + ".png");
     }
 
+    static String logText = "";
+
+    static void tryComplete(String typed, String label) {
+        IdeDoc d = ide.activeDoc();
+        CodeEditor e = d.editor;
+        e.goTo(11, 0);
+        e.insertText(typed);
+        ide.completeDialog();
+        String s = label + " [" + typed.trim() + "]: ";
+        IdeCompletePopup p = IdeCompletePopup.last;
+        if (p != null && p.win != null && p.list.rows.size() > 0) {
+            s = s + p.list.rows.size() + " items:";
+            int i = 0;
+            while (i < p.list.rows.size() && i < 6) {
+                s = s + " " + p.list.rows.get(i).text;
+                i = i + 1;
+            }
+            p.win.snapshot("/tmp/ide-complete-" + label + ".png");
+        } else {
+            s = s + "no popup";
+        }
+        log(s + "\n");
+    }
+
+    static void completeStep() {
+        if (step == 1) {
+            ide.openFile(ide.project.dir + "/src/MainForm.java");
+        } else if (step == 2) {
+            tryComplete("        lblMessage.", "label");
+        } else if (step == 3) {
+            if (IdeCompletePopup.last != null) {
+                IdeCompletePopup.last.win.close();
+                IdeCompletePopup.last = null;
+            }
+            tryComplete("        txtName.getText().", "chain");
+        } else if (step == 4) {
+            if (IdeCompletePopup.last != null) {
+                IdeCompletePopup.last.win.close();
+                IdeCompletePopup.last = null;
+            }
+            tryComplete("        lblM", "word");
+        } else if (step == 5) {
+            IdeCompletePopup.last.acceptSelected();
+            log("after accept: " + ide.activeDoc().editor.getText().substring(0, 0) + "ok\n");
+            ide.activeDoc().editor.goTo(11, 0);
+            ide.window.snapshot("/tmp/ide-complete-final.png");
+        }
+    }
+
+    static void log(String s) {
+        logText = logText + s;
+        Files.writeString(FsPath.of("/tmp/ide-edit.log"), logText);
+    }
+
+    /** Find / goto / undo checks that need no mouse. */
+    static void editStep(IdeDoc d) {
+        if (d == null || d.kind != 0) {
+            return;
+        }
+        CodeEditor e = d.editor;
+        if (step == 2) {
+            ide.lastFind = "buildUi";
+            ide.findAgain();
+            TextPosition p = e.document.offsetToPosition(e.caret.offset);
+            log("find: line " + (p.line + 1) + " col " + p.column + "\n");
+        } else if (step == 3) {
+            int before = e.document.getLength();
+            e.insertText("// hello\n");
+            int mid = e.document.getLength();
+            ide.designerUndo();
+            int after = e.document.getLength();
+            ide.designerRedo();
+            int redone = e.document.getLength();
+            log("len before=" + before + " inserted=" + mid + " undone=" + after + " redone=" + redone + "\n");
+        } else if (step == 4) {
+            e.goTo(0, 0);
+            e.executeCommand(EditorCommand.SELECT_ALL);
+            log("selectAll sel=" + e.selection.toRange().length() + " of " + e.document.getLength() + "\n");
+            ide.window.snapshot("/tmp/ide-edit.png");
+        }
+    }
+
     static void tick() {
         dump();
         step = step + 1;
         IdeDoc d = ide.activeDoc();
         String mode = Env.get("IDE_DEMO");
+        if (mode != null && mode.equals("complete")) {
+            completeStep();
+            return;
+        }
+        if (mode != null && mode.equals("edit")) {
+            if (step == 1) {
+                ide.openFile(ide.project.dir + "/src/MainForm.java");
+                return;
+            }
+            editStep(ide.activeDoc());
+            return;
+        }
         if (mode != null && mode.equals("run")) {
             if (step == 1) {
                 ide.build(true);

@@ -130,6 +130,45 @@ static void jn_menu_item_refresh(int32_t itemId) {
     jnative_ui_emit_event_ex(self.jnHandleId, JN_UI_EVENT_RESIZE,
                              (int32_t)(sz.width + 0.5), (int32_t)(sz.height + 0.5), 0, 0);
 }
+/* Cmd+X/C/V/A/Z in native text inputs. Apps built here rarely have a standard Edit menu, and
+ * without one AppKit swallows these shortcuts, so route them to the focused text view ourselves.
+ * Canvas-based editors (not NSTextView) are untouched and still receive the key event. */
+- (BOOL)performKeyEquivalent:(NSEvent *)event {
+    NSResponder *fr = [self firstResponder];
+    NSEventModifierFlags f = event.modifierFlags & NSEventModifierFlagDeviceIndependentFlagsMask;
+    if ([fr isKindOfClass:[NSTextView class]] && event.type == NSEventTypeKeyDown) {
+        NSString *ch = [event charactersIgnoringModifiers];
+        BOOL cmd = (f & (NSEventModifierFlagCommand | NSEventModifierFlagControl |
+                         NSEventModifierFlagOption)) == NSEventModifierFlagCommand;
+        BOOL cmdShift = (f & (NSEventModifierFlagCommand | NSEventModifierFlagShift)) ==
+                        (NSEventModifierFlagCommand | NSEventModifierFlagShift);
+        if (ch.length == 1 && (cmd || cmdShift)) {
+            NSTextView *tv = (NSTextView *)fr;
+            unichar c = [[ch lowercaseString] characterAtIndex:0];
+            if (cmd && c == 'x') {
+                [tv cut:nil];
+                return YES;
+            } else if (cmd && c == 'c') {
+                [tv copy:nil];
+                return YES;
+            } else if (cmd && c == 'v') {
+                [tv paste:nil];
+                return YES;
+            } else if (cmd && c == 'a') {
+                [tv selectAll:nil];
+                return YES;
+            } else if (c == 'z') {
+                if (cmdShift) {
+                    [[tv undoManager] redo];
+                } else {
+                    [[tv undoManager] undo];
+                }
+                return YES;
+            }
+        }
+    }
+    return [super performKeyEquivalent:event];
+}
 - (void)keyDown:(NSEvent *)event {
     NSResponder *fr = [self firstResponder];
     /* Let text editing keep native Return/Tab/edit keys; still notify managed for Escape. */

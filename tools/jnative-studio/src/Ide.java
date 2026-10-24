@@ -227,6 +227,26 @@ public class Ide {
             rfill(g, 0x9AA7B8, x, y + 1, s, s - 2, 3);
             return;
         }
+        if (kind.equals("cm")) {
+            badge(g, x, y, s, 0x8E4EC6, "m");
+            return;
+        }
+        if (kind.equals("cf")) {
+            badge(g, x, y, s, 0x3A9DA8, "f");
+            return;
+        }
+        if (kind.equals("cc")) {
+            badge(g, x, y, s, 0x3A7BD5, "C");
+            return;
+        }
+        if (kind.equals("ck")) {
+            badge(g, x, y, s, 0xC77B2E, "k");
+            return;
+        }
+        if (kind.equals("cw")) {
+            badge(g, x, y, s, 0x9AA1AD, "w");
+            return;
+        }
         badge(g, x, y, s, 0x9AA1AD, "");
     }
 

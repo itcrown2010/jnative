@@ -306,9 +306,11 @@ public class IdeApp extends Panel {
         item(edit, "撤销", 90, 0, () -> designerUndo());
         item(edit, "重做", 90, 1, () -> designerRedo());
         edit.addSeparator();
-        edit.add(new MenuItem("剪切"));
-        edit.add(new MenuItem("复制"));
-        edit.add(new MenuItem("粘贴"));
+        item(edit, "查找…", 70, 0, () -> findDialog());
+        item(edit, "查找下一个", 71, 0, () -> findAgain());
+        item(edit, "转到行…", 76, 0, () -> gotoLineDialog());
+        edit.addSeparator();
+        item(edit, "代码补全", 75, 0, () -> completeDialog());
         bar.add(edit);
         Menu view = new Menu("视图");
         item(view, "设计器 / 代码 切换", 69, 0, () -> toggleDesignerCode());
@@ -960,6 +962,8 @@ public class IdeApp extends Panel {
         IdeDoc d = activeDoc();
         if (d != null && d.kind == 1) {
             d.designer.undo();
+        } else if (d != null && d.kind == 0) {
+            d.editor.executeCommand(EditorCommand.UNDO);
         }
     }
 
@@ -967,7 +971,80 @@ public class IdeApp extends Panel {
         IdeDoc d = activeDoc();
         if (d != null && d.kind == 1) {
             d.designer.redo();
+        } else if (d != null && d.kind == 0) {
+            d.editor.executeCommand(EditorCommand.REDO);
         }
+    }
+
+    String lastFind = "";
+
+    /** Code completion popup (⌘K): candidates for the caret, filtered by a live prefix box. */
+    void completeDialog() {
+        IdeDoc d = activeDoc();
+        if (d == null || d.kind != 0) {
+            return;
+        }
+        CodeEditor e = d.editor;
+        String[] pre = new String[1];
+        IdeComplete.projectDirs.clear();
+        if (project != null) {
+            int k = 0;
+            while (k < project.srcDirs.size()) {
+                IdeComplete.projectDirs.add(project.dir + "/" + project.srcDirs.get(k));
+                k = k + 1;
+            }
+        }
+        ArrayList<IdeItem> all = IdeComplete.candidates(e.getText(), e.caret.offset, pre);
+        if (all.size() == 0) {
+            setStatus("没有可用的补全");
+            return;
+        }
+        IdeCompletePopup.show(window, all, pre[0], e);
+    }
+
+    void findDialog() {
+        IdeDoc d = activeDoc();
+        if (d == null || d.kind != 0) {
+            return;
+        }
+        IdeDialog.input(window, "查找", "在当前文件中查找：", lastFind, q -> {
+            lastFind = q;
+            IdeDoc cur = activeDoc();
+            if (cur != null && cur.kind == 0) {
+                cur.editor.findNext(q);
+                cur.editor.requestFocus();
+            }
+        });
+    }
+
+    void findAgain() {
+        IdeDoc d = activeDoc();
+        if (d == null || d.kind != 0) {
+            return;
+        }
+        if (lastFind.length() == 0) {
+            findDialog();
+            return;
+        }
+        d.editor.findNext(lastFind);
+    }
+
+    void gotoLineDialog() {
+        IdeDoc d = activeDoc();
+        if (d == null || d.kind != 0) {
+            return;
+        }
+        IdeDialog.input(window, "转到行", "行号（1 - " + d.editor.document.getLineCount() + "）：", "", t -> {
+            IdeDoc cur = activeDoc();
+            if (cur == null || cur.kind != 0) {
+                return;
+            }
+            int n = DsUtil.parseInt(t, -1);
+            if (n >= 1) {
+                cur.editor.goTo(Math.min(n, cur.editor.document.getLineCount()) - 1, 0);
+                cur.editor.requestFocus();
+            }
+        });
     }
 
     void designerPreview() {

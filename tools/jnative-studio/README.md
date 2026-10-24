@@ -30,7 +30,7 @@ Studio 通过 JNative 编译器生成用户项目，编译器按以下顺序查�
 | 设备预览 | 桌面（窗体尺寸）/ 笔记本 / 平板 / 手机 / 小窗 预设尺寸；画布可滚动查看超出部分 |
 | 实时预览 | 单独窗口按**同一份构建器**显示运行时效果（启用/可见属性生效），随每次编辑即时刷新 |
 | 代码跳转 | 设计器 ⇄ 代码（⌘E）；事件 → 处理方法所在行；编译错误 → 问题列表 → 定位到文件行列 |
-| 代码编辑 | 多标签 CodeEditor（语法高亮、行号、诊断下划线、清晰的中英文等宽字体、Retina） |
+| 代码编辑 | 多标签 CodeEditor（语法高亮、行号、诊断下划线、清晰的中英文等宽字体、Retina）；⌘Z/⇧⌘Z 撤销重做，⌘F 查找、⌘G 查找下一个、⌘L 转到行；⌘K 代码补全（`obj.` 成员 / 链式调用 `a.b().` / 类名 / 文件内标识符，来源是标准库与项目源码的轻量索引，不依赖编译器）；文本框内 ⌘X/C/V/A/Z 可用 |
 | 生成与运行 | ⌘B 生成 / ⌘R 生成并运行 / 停止；输出面板实时流式显示编译器与程序输出，问题面板解析 `file:line:col: error:` |
 
 ## 设计器如何工作
@@ -51,7 +51,7 @@ Main.java            入口
 ```
 src/Ds*.java       设计器：DsMeta（组件目录）DsDoc（文档/撤销）DsNode DsGen（代码生成）DsBuild（运行时构建）
                    DsSurface（画布）DsPalette（组件库）DsProps（属性面板）DsDesigner（组合）DsPreview（实时预览）
-src/Ide*.java      IDE 外壳：IdeApp（主窗口）IdeProject IdeProc（子进程流式输出）IdeTree IdeTabs IdeDialog
+src/Ide*.java      IDE 外壳：IdeApp（主窗口）IdeProject IdeProc（子进程流式输出）IdeTree IdeTabs IdeDialog IdeComplete（补全索引）IdeCompletePopup
 src/Ide.java       主题、字体、矢量图标、绘制辅助
 studio.sh          启动脚本
 ```
