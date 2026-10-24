@@ -6,6 +6,7 @@
 #include "jnative_proc.h"
 
 #include <errno.h>
+#include <poll.h>
 #include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -159,6 +160,65 @@ char *jnative_proc_read_string(int32_t fd, int32_t max_bytes) {
     }
     buf[total] = '\0';
     return buf;
+}
+
+/* Non-blocking style read: waits up to timeout_ms for data.
+ * Returns "" when nothing arrived yet, NULL at EOF/error, otherwise the bytes read. */
+char *jnative_proc_read_nb(int32_t fd, int32_t max_bytes, int32_t timeout_ms) {
+    if (fd < 0 || max_bytes <= 0) {
+        return NULL;
+    }
+    if (max_bytes > 1024 * 1024) {
+        max_bytes = 1024 * 1024;
+    }
+    struct pollfd pf;
+    pf.fd = fd;
+    pf.events = POLLIN;
+    pf.revents = 0;
+    int r = poll(&pf, 1, timeout_ms < 0 ? 0 : timeout_ms);
+    if (r == 0 || (r < 0 && errno == EINTR)) {
+        char *e = (char *)malloc(1);
+        if (e != NULL) {
+            e[0] = '\0';
+        }
+        return e;
+    }
+    if (r < 0) {
+        return NULL;
+    }
+    char *buf = (char *)malloc((size_t)max_bytes + 1);
+    if (buf == NULL) {
+        return NULL;
+    }
+    ssize_t n = read(fd, buf, (size_t)max_bytes);
+    if (n <= 0) {
+        free(buf);
+        return NULL;
+    }
+    buf[n] = '\0';
+    return buf;
+}
+
+/* Returns the exit status once the child has finished, or -1000 while it is still running. */
+int32_t jnative_proc_try_wait(int32_t pid) {
+    if (pid <= 0) {
+        return -1;
+    }
+    int status = 0;
+    pid_t r = waitpid((pid_t)pid, &status, WNOHANG);
+    if (r == 0) {
+        return -1000;
+    }
+    if (r < 0) {
+        return -1;
+    }
+    if (WIFEXITED(status)) {
+        return WEXITSTATUS(status);
+    }
+    if (WIFSIGNALED(status)) {
+        return 128 + WTERMSIG(status);
+    }
+    return -1;
 }
 
 void jnative_proc_close_fd(int32_t fd) {

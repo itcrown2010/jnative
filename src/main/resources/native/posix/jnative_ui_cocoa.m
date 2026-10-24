@@ -1075,6 +1075,7 @@ static JnTableBridge *jn_bridge_for(int32_t peerId) {
 @property(nonatomic, assign) int32_t jnHandleId;
 @property(nonatomic, strong) NSBitmapImageRep *bitmap;
 @property(nonatomic, assign) int32_t dragging;
+@property(nonatomic, assign) int32_t transparent;
 @end
 
 /** Map macOS keyCode / characters to the VK-like codes CodeEditor expects. */
@@ -1125,6 +1126,38 @@ static int32_t jn_cocoa_key_mods(NSEvent *event) {
     return mods;
 }
 
+@interface JnPanelView : NSView
+@property(nonatomic) int32_t jnHandleId;
+@property(nonatomic) int32_t jnWheel;
+@end
+
+@implementation JnPanelView
+- (void)scrollWheel:(NSEvent *)event {
+    if (self.jnWheel == 0) {
+        [super scrollWheel:event];
+        return;
+    }
+    double dy = event.scrollingDeltaY;
+    int32_t d;
+    if (event.hasPreciseScrollingDeltas) {
+        d = (int32_t)(dy / 8.0);
+    } else {
+        d = (int32_t)(dy > 0 ? ceil(dy) : floor(dy));
+    }
+    if (d == 0) {
+        return;
+    }
+    if (d > 100) {
+        d = 100;
+    } else if (d < -100) {
+        d = -100;
+    }
+    NSPoint p = [self convertPoint:event.locationInWindow fromView:nil];
+    int32_t packed = ((jn_cocoa_key_mods(event) & 15) << 4) | ((d + 512) << 8);
+    jnative_ui_emit_event_ex(self.jnHandleId, JN_UI_EVENT_MOUSE, JN_UI_MOUSE_WHEEL, (int32_t)p.x, (int32_t)p.y, packed);
+}
+@end
+
 @implementation JnCanvasView
 - (BOOL)isFlipped {
     return YES;
@@ -1135,10 +1168,15 @@ static int32_t jn_cocoa_key_mods(NSEvent *event) {
 - (BOOL)canBecomeKeyView {
     return YES;
 }
+- (BOOL)isOpaque {
+    return self.transparent ? NO : YES;
+}
 - (void)drawRect:(NSRect)dirtyRect {
     (void)dirtyRect;
-    [[NSColor whiteColor] setFill];
-    NSRectFill(self.bounds);
+    if (!self.transparent) {
+        [[NSColor whiteColor] setFill];
+        NSRectFill(self.bounds);
+    }
     if (self.bitmap != nil) {
         [self.bitmap drawInRect:self.bounds
                        fromRect:NSZeroRect
@@ -1148,23 +1186,89 @@ static int32_t jn_cocoa_key_mods(NSEvent *event) {
                           hints:nil];
     }
 }
+- (void)viewDidMoveToWindow {
+    [super viewDidMoveToWindow];
+    if (self.window != nil) {
+        self.window.acceptsMouseMovedEvents = YES;
+    }
+}
+- (void)updateTrackingAreas {
+    [super updateTrackingAreas];
+    for (NSTrackingArea *a in [self.trackingAreas copy]) {
+        [self removeTrackingArea:a];
+    }
+    NSTrackingAreaOptions opts = NSTrackingMouseMoved | NSTrackingMouseEnteredAndExited |
+                                 NSTrackingActiveInKeyWindow | NSTrackingInVisibleRect;
+    NSTrackingArea *area = [[NSTrackingArea alloc] initWithRect:self.bounds
+                                                        options:opts
+                                                          owner:self
+                                                       userInfo:nil];
+    [self addTrackingArea:area];
+}
+/* arg3 packs: bits 0-3 button (1 left, 2 middle, 3 right, 0 none), bits 4-7 modifiers
+ * (1 shift, 2 ctrl, 4 alt, 8 meta), bits 8+ wheel delta + 512 (wheel events only). */
+- (void)jnEmitMouse:(NSEvent *)event sub:(int32_t)sub button:(int32_t)button delta:(int32_t)delta {
+    NSPoint p = [self convertPoint:event.locationInWindow fromView:nil];
+    int32_t packed = (button & 15) | ((jn_cocoa_key_mods(event) & 15) << 4) | ((delta + 512) << 8);
+    jnative_ui_emit_event_ex(self.jnHandleId, JN_UI_EVENT_MOUSE, sub, (int32_t)p.x, (int32_t)p.y, packed);
+}
 - (void)mouseDown:(NSEvent *)event {
     [[self window] makeFirstResponder:self];
-    NSPoint p = [self convertPoint:event.locationInWindow fromView:nil];
     self.dragging = 1;
-    jnative_ui_emit_event_ex(self.jnHandleId, JN_UI_EVENT_MOUSE, JN_UI_MOUSE_DOWN,
-                             (int32_t)p.x, (int32_t)p.y, 1);
+    [self jnEmitMouse:event sub:JN_UI_MOUSE_DOWN button:1 delta:0];
 }
 - (void)mouseDragged:(NSEvent *)event {
-    NSPoint p = [self convertPoint:event.locationInWindow fromView:nil];
-    jnative_ui_emit_event_ex(self.jnHandleId, JN_UI_EVENT_MOUSE, JN_UI_MOUSE_MOVE,
-                             (int32_t)p.x, (int32_t)p.y, 1);
+    [self jnEmitMouse:event sub:JN_UI_MOUSE_MOVE button:1 delta:0];
 }
 - (void)mouseUp:(NSEvent *)event {
-    NSPoint p = [self convertPoint:event.locationInWindow fromView:nil];
     self.dragging = 0;
-    jnative_ui_emit_event_ex(self.jnHandleId, JN_UI_EVENT_MOUSE, JN_UI_MOUSE_UP,
-                             (int32_t)p.x, (int32_t)p.y, 1);
+    [self jnEmitMouse:event sub:JN_UI_MOUSE_UP button:1 delta:0];
+}
+- (void)rightMouseDown:(NSEvent *)event {
+    [[self window] makeFirstResponder:self];
+    [self jnEmitMouse:event sub:JN_UI_MOUSE_DOWN button:3 delta:0];
+}
+- (void)rightMouseDragged:(NSEvent *)event {
+    [self jnEmitMouse:event sub:JN_UI_MOUSE_MOVE button:3 delta:0];
+}
+- (void)rightMouseUp:(NSEvent *)event {
+    [self jnEmitMouse:event sub:JN_UI_MOUSE_UP button:3 delta:0];
+}
+- (void)otherMouseDown:(NSEvent *)event {
+    [self jnEmitMouse:event sub:JN_UI_MOUSE_DOWN button:2 delta:0];
+}
+- (void)otherMouseDragged:(NSEvent *)event {
+    [self jnEmitMouse:event sub:JN_UI_MOUSE_MOVE button:2 delta:0];
+}
+- (void)otherMouseUp:(NSEvent *)event {
+    [self jnEmitMouse:event sub:JN_UI_MOUSE_UP button:2 delta:0];
+}
+- (void)mouseMoved:(NSEvent *)event {
+    [self jnEmitMouse:event sub:JN_UI_MOUSE_MOVE button:0 delta:0];
+}
+- (void)mouseEntered:(NSEvent *)event {
+    [self jnEmitMouse:event sub:JN_UI_MOUSE_ENTER button:0 delta:0];
+}
+- (void)mouseExited:(NSEvent *)event {
+    [self jnEmitMouse:event sub:JN_UI_MOUSE_EXIT button:0 delta:0];
+}
+- (void)scrollWheel:(NSEvent *)event {
+    double dy = event.scrollingDeltaY;
+    int32_t d;
+    if (event.hasPreciseScrollingDeltas) {
+        d = (int32_t)(dy / 8.0);
+    } else {
+        d = (int32_t)(dy > 0 ? ceil(dy) : floor(dy));
+    }
+    if (d == 0) {
+        return;
+    }
+    if (d > 100) {
+        d = 100;
+    } else if (d < -100) {
+        d = -100;
+    }
+    [self jnEmitMouse:event sub:JN_UI_MOUSE_WHEEL button:0 delta:d];
 }
 - (void)keyDown:(NSEvent *)event {
     int32_t code = jn_cocoa_key_code(event);
@@ -1400,7 +1504,14 @@ int32_t jnative_ui_platform_create_control(int32_t peerId, int32_t kind, int32_t
     }
     if (kind == JN_UI_KIND_PANEL || kind == JN_UI_KIND_SCROLL || kind == JN_UI_KIND_SPLIT
             || kind == JN_UI_KIND_TABPANE) {
-        NSView *view = [[NSView alloc] initWithFrame:NSMakeRect(0, 0, 400, 300)];
+        NSView *view = nil;
+        if (kind == JN_UI_KIND_PANEL) {
+            JnPanelView *pv = [[JnPanelView alloc] initWithFrame:NSMakeRect(0, 0, 400, 300)];
+            pv.jnHandleId = peerId;
+            view = pv;
+        } else {
+            view = [[NSView alloc] initWithFrame:NSMakeRect(0, 0, 400, 300)];
+        }
         if (parentView != nil) {
             [parentView addSubview:view];
         }
@@ -1994,6 +2105,75 @@ void jnative_ui_platform_canvas_present(int32_t peerId, const uint8_t *rgba, int
     }
 }
 
+/* 0 arrow, 1 hand, 2 resize left/right, 3 I-beam, 4 resize up/down, 5 move, 6 crosshair */
+void jnative_ui_platform_set_cursor(int32_t kind) {
+    NSCursor *c = [NSCursor arrowCursor];
+    switch (kind) {
+        case 1: c = [NSCursor pointingHandCursor]; break;
+        case 2: c = [NSCursor resizeLeftRightCursor]; break;
+        case 3: c = [NSCursor IBeamCursor]; break;
+        case 4: c = [NSCursor resizeUpDownCursor]; break;
+        case 5: c = [NSCursor openHandCursor]; break;
+        case 6: c = [NSCursor crosshairCursor]; break;
+        default: break;
+    }
+    [c set];
+}
+
+/* Renders the window's content view into a PNG file (works while the screen is locked). */
+int32_t jnative_ui_platform_window_snapshot(int32_t peerId, const char *path) {
+    if (!g_cocoa_active || peerId <= 0 || peerId >= JN_UI_MAX || path == NULL) {
+        return 0;
+    }
+    id obj = g_peers[peerId];
+    if (![obj isKindOfClass:[NSWindow class]]) {
+        return 0;
+    }
+    NSView *v = [(NSWindow *)obj contentView];
+    if (v == nil) {
+        return 0;
+    }
+    NSBitmapImageRep *rep = [v bitmapImageRepForCachingDisplayInRect:v.bounds];
+    if (rep == nil) {
+        return 0;
+    }
+    [v cacheDisplayInRect:v.bounds toBitmapImageRep:rep];
+    NSData *png = [rep representationUsingType:NSBitmapImageFileTypePNG properties:@{}];
+    if (png == nil) {
+        return 0;
+    }
+    return [png writeToFile:jn_nsstring(path) atomically:YES] ? 1 : 0;
+}
+
+/* flags: bit0 clip children to bounds, bit1 deliver mouse-wheel events to the panel handler. */
+void jnative_ui_platform_panel_configure(int32_t peerId, int32_t flags) {
+    if (!g_cocoa_active || peerId <= 0 || peerId >= JN_UI_MAX) {
+        return;
+    }
+    id obj = g_peers[peerId];
+    if ([obj isKindOfClass:[JnPanelView class]]) {
+        JnPanelView *pv = (JnPanelView *)obj;
+        pv.jnWheel = (flags & 2) != 0 ? 1 : 0;
+        if ((flags & 1) != 0) {
+            pv.wantsLayer = YES;
+            pv.layer.masksToBounds = YES;
+        } else if (pv.wantsLayer) {
+            pv.layer.masksToBounds = NO;
+        }
+    }
+}
+
+void jnative_ui_platform_canvas_set_transparent(int32_t peerId, int32_t on) {
+    if (!g_cocoa_active || peerId <= 0 || peerId >= JN_UI_MAX) {
+        return;
+    }
+    id obj = g_peers[peerId];
+    if ([obj isKindOfClass:[JnCanvasView class]]) {
+        ((JnCanvasView *)obj).transparent = on;
+        [(NSView *)obj setNeedsDisplay:YES];
+    }
+}
+
 void jnative_ui_platform_canvas_invalidate(int32_t peerId) {
     if (!g_cocoa_active || peerId <= 0 || peerId >= JN_UI_MAX) {
         return;
@@ -2011,7 +2191,7 @@ void jnative_ui_platform_timer_arm(int32_t timerId, int32_t intervalMs, int32_t 
         return;
     }
     if (g_cocoa_timers == nil) {
-        g_cocoa_timers = [NSMutableDictionary dictionary];
+        g_cocoa_timers = [[NSMutableDictionary alloc] init]; /* manual refcounting: must outlive autorelease pools */
     }
     NSNumber *key = @(timerId);
     NSTimer *old = g_cocoa_timers[key];
@@ -3062,5 +3242,159 @@ void jnative_ui_window_activate(int32_t winId) {
     if ([obj isKindOfClass:[NSWindow class]]) {
         [(NSWindow *)obj makeKeyAndOrderFront:nil];
         [NSApp activateIgnoringOtherApps:YES];
+    }
+}
+
+/* ------------------------------------------------------------------------------------------
+ * Native text for the software Graphics context (fonts whose family starts with "native:").
+ * Renders through CoreText into an 8-bit coverage mask which the C rasteriser blends.
+ * ------------------------------------------------------------------------------------------ */
+#import <CoreText/CoreText.h>
+
+@interface JnTextEntry : NSObject
+@property(nonatomic) int32_t w;
+@property(nonatomic) int32_t h;
+@property(nonatomic) int32_t ascent;
+@property(nonatomic) double advance;
+@property(nonatomic) double descent;
+@property(nonatomic) double line;
+@property(nonatomic, strong) NSData *mask;
+@end
+@implementation JnTextEntry
+@end
+
+static NSMutableDictionary<NSString *, JnTextEntry *> *g_text_cache;
+static NSMutableArray<NSString *> *g_text_cache_order;
+static NSMutableDictionary<NSString *, NSFont *> *g_font_cache;
+
+static NSFont *jn_native_font(const char *family, int32_t size, int32_t style) {
+    if (size < 1) {
+        size = 12;
+    }
+    NSString *fam = (family && family[0]) ? [NSString stringWithUTF8String:family] : @"system";
+    NSString *key = [NSString stringWithFormat:@"%@|%d|%d", fam, size, style];
+    if (g_font_cache == nil) {
+        g_font_cache = [[NSMutableDictionary alloc] init];
+    }
+    NSFont *f = g_font_cache[key];
+    if (f != nil) {
+        return f;
+    }
+    BOOL bold = (style & 1) != 0;
+    BOOL italic = (style & 2) != 0;
+    if ([fam isEqualToString:@"system"]) {
+        f = [NSFont systemFontOfSize:size weight:bold ? NSFontWeightSemibold : NSFontWeightRegular];
+    } else if ([fam isEqualToString:@"mono"]) {
+        f = [NSFont monospacedSystemFontOfSize:size weight:bold ? NSFontWeightSemibold : NSFontWeightRegular];
+    } else {
+        f = [NSFont fontWithName:fam size:size];
+        if (f == nil) {
+            f = [NSFont systemFontOfSize:size];
+        }
+        if (bold) {
+            f = [[NSFontManager sharedFontManager] convertFont:f toHaveTrait:NSBoldFontMask];
+        }
+    }
+    if (italic) {
+        f = [[NSFontManager sharedFontManager] convertFont:f toHaveTrait:NSItalicFontMask];
+    }
+    g_font_cache[key] = f;
+    return f;
+}
+
+static JnTextEntry *jn_text_entry(const char *utf8, const char *family, int32_t size, int32_t style, BOOL withMask) {
+    NSString *s = utf8 ? [NSString stringWithUTF8String:utf8] : @"";
+    if (s == nil) {
+        s = @"";
+    }
+    NSString *key = [NSString stringWithFormat:@"%d|%d|%s|%@", size, style, family ? family : "", s];
+    if (g_text_cache == nil) {
+        g_text_cache = [[NSMutableDictionary alloc] init];
+        g_text_cache_order = [[NSMutableArray alloc] init];
+    }
+    JnTextEntry *e = g_text_cache[key];
+    if (e != nil && (!withMask || e.mask != nil || e.w == 0)) {
+        return e;
+    }
+    NSFont *font = jn_native_font(family, size, style);
+    NSDictionary *attrs = @{NSFontAttributeName : font, NSForegroundColorAttributeName : [NSColor whiteColor]};
+    NSAttributedString *as = [[NSAttributedString alloc] initWithString:(s.length ? s : @" ") attributes:attrs];
+    CTLineRef line = CTLineCreateWithAttributedString((__bridge CFAttributedStringRef)as);
+    CGFloat asc = 0, desc = 0, lead = 0;
+    double adv = CTLineGetTypographicBounds(line, &asc, &desc, &lead);
+    if (s.length == 0) {
+        adv = 0;
+    }
+    e = [JnTextEntry new];
+    e.advance = adv;
+    e.descent = ceil(desc);
+    e.ascent = (int32_t)ceil(asc);
+    e.line = ceil(asc) + ceil(desc);
+    int32_t w = (int32_t)ceil(adv) + 2;
+    int32_t h = (int32_t)(ceil(asc) + ceil(desc)) + 1;
+    e.w = s.length ? w : 0;
+    e.h = h;
+    if (withMask && s.length > 0 && w > 0 && h > 0) {
+        NSMutableData *buf = [NSMutableData dataWithLength:(NSUInteger)w * (NSUInteger)h];
+        CGColorSpaceRef cs = CGColorSpaceCreateDeviceGray();
+        CGContextRef ctx = CGBitmapContextCreate(buf.mutableBytes, (size_t)w, (size_t)h, 8, (size_t)w, cs,
+                                                 (CGBitmapInfo)kCGImageAlphaNone);
+        CGColorSpaceRelease(cs);
+        if (ctx != NULL) {
+            CGContextSetGrayFillColor(ctx, 1.0, 1.0);
+            CGContextSetShouldAntialias(ctx, true);
+            CGContextSetShouldSmoothFonts(ctx, false);
+            CGContextSetTextPosition(ctx, 1.0, ceil(desc) + 0.5);
+            CTLineDraw(line, ctx);
+            CGContextRelease(ctx);
+        }
+        e.mask = buf;
+    }
+    CFRelease(line);
+    g_text_cache[key] = e;
+    [g_text_cache_order addObject:key];
+    if (g_text_cache_order.count > 2048) {
+        for (int i = 0; i < 512; i++) {
+            [g_text_cache removeObjectForKey:g_text_cache_order[0]];
+            [g_text_cache_order removeObjectAtIndex:0];
+        }
+    }
+    return e;
+}
+
+int32_t jnative_gfx_platform_text_mask(const char *utf8, const char *family, int32_t size, int32_t style,
+                                       int32_t *outW, int32_t *outH, int32_t *outAscent,
+                                       const uint8_t **outMask) {
+    @autoreleasepool {
+        JnTextEntry *e = jn_text_entry(utf8, family, size, style, YES);
+        if (e == nil || e.mask == nil) {
+            *outW = 0;
+            *outH = 0;
+            *outAscent = 0;
+            *outMask = NULL;
+            return 1;
+        }
+        *outW = e.w;
+        *outH = e.h;
+        *outAscent = e.ascent;
+        /* Entry (and its NSData) is retained by the cache until eviction on a later call. */
+        *outMask = (const uint8_t *)e.mask.bytes;
+        return 1;
+    }
+}
+
+int32_t jnative_gfx_platform_text_metrics(const char *utf8, const char *family, int32_t size, int32_t style,
+                                          double *outW, double *outAscent, double *outDescent,
+                                          double *outLine) {
+    @autoreleasepool {
+        JnTextEntry *e = jn_text_entry(utf8, family, size, style, NO);
+        if (e == nil) {
+            return 0;
+        }
+        *outW = e.advance;
+        *outAscent = e.ascent;
+        *outDescent = e.descent;
+        *outLine = e.line;
+        return 1;
     }
 }

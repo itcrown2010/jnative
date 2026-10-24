@@ -82,6 +82,9 @@ class GfxNative {
     @Native(symbol = "jnative_gfx_set_font")
     static native void setFont(int gfxId, String family, int size, int style);
 
+    @Native(symbol = "jnative_gfx_set_antialias")
+    static native void setAntialias(int gfxId, int on);
+
     @Native(symbol = "jnative_gfx_clear")
     static native void clear(int gfxId, int rgba);
 
@@ -305,6 +308,25 @@ class Font {
         return new Font("monospace", sz, FontStyle.NORMAL);
     }
 
+    /** Platform UI font rendered by the OS text engine (anti-aliased, full Unicode / CJK). */
+    static Font system(int sz) {
+        return new Font("native:system", sz, FontStyle.NORMAL);
+    }
+
+    static Font systemBold(int sz) {
+        return new Font("native:system", sz, FontStyle.BOLD);
+    }
+
+    /** Platform monospaced font (code). */
+    static Font mono(int sz) {
+        return new Font("native:mono", sz, FontStyle.NORMAL);
+    }
+
+    /** Named OS font family, e.g. "Menlo" or "PingFang SC". */
+    static Font named(String family, int sz, int style) {
+        return new Font("native:" + family, sz, style);
+    }
+
     String getFamily() {
         return family;
     }
@@ -523,6 +545,22 @@ class Graphics {
     void setFont(Font f) {
         ensureValid();
         GfxNative.setFont(gfxId, f.getFamily(), f.getSize(), f.getStyle());
+    }
+
+    /** Anti-aliased lines, round rects and ellipses (off by default to keep pixel-art exact). */
+    void setAntialias(boolean on) {
+        ensureValid();
+        GfxNative.setAntialias(gfxId, on ? 1 : 0);
+    }
+
+    void setLineWidth(double w) {
+        ensureValid();
+        GfxNative.setStrokeWidth(gfxId, w);
+    }
+
+    void setColorRgba(int r, int g, int b, int a) {
+        ensureValid();
+        GfxNative.setColorComponents(gfxId, r, g, b, a);
     }
 
     void clear(Color c) {
@@ -801,9 +839,12 @@ class Canvas extends Component {
     PaintHandler paintHandler;
     Image surface;
     int paintPending;
+    int transparent;
     FrameHandler frameHandler;
     int lastSurfaceW;
     int lastSurfaceH;
+    int hiDpi;
+    int surfaceScale = 1;
 
     Canvas() {
         nativeId = UiNative.createControl(19, 0, "");
@@ -823,6 +864,45 @@ class Canvas extends Component {
     void onPaint(PaintHandler handler) {
         ensureAlive("Canvas.onPaint");
         paintHandler = handler;
+    }
+
+    /** Transparent canvases do not paint a white background, so sibling controls beneath show through. */
+    void setTransparent(boolean on) {
+        ensureAlive("Canvas.setTransparent");
+        transparent = on ? 1 : 0;
+        if (nativeId > 0) {
+            UiNative.canvasSetTransparent(nativeId, transparent);
+        }
+        repaint();
+    }
+
+    /**
+     * Back the canvas with a device-resolution surface (2x on Retina). Drawing code keeps using
+     * logical coordinates; text and AA primitives become crisp.
+     */
+    void setHiDpi(boolean on) {
+        ensureAlive("Canvas.setHiDpi");
+        hiDpi = on ? 1 : 0;
+        repaint();
+    }
+
+    void refreshSurfaceScale() {
+        int sc = 1;
+        if (hiDpi != 0 && nativeId > 0) {
+            int pct = UiNative.getScalePercent(nativeId);
+            if (pct >= 150) {
+                sc = 2;
+            }
+        }
+        if (sc != surfaceScale) {
+            surfaceScale = sc;
+            if (surface != null) {
+                surface.dispose();
+                surface = null;
+            }
+            lastSurfaceW = 0;
+            lastSurfaceH = 0;
+        }
     }
 
     void onFrame(FrameHandler handler) {
@@ -864,7 +944,7 @@ class Canvas extends Component {
         if (nativeId > 0) {
             UiNative.setBounds(nativeId, x, y, width, height);
         }
-        if (nw != lastSurfaceW || nh != lastSurfaceH) {
+        if (nw * surfaceScale != lastSurfaceW || nh * surfaceScale != lastSurfaceH) {
             if (surface != null) {
                 surface.dispose();
                 surface = null;
@@ -879,8 +959,9 @@ class Canvas extends Component {
         if (disposed != 0) {
             return;
         }
-        int w = width;
-        int h = height;
+        refreshSurfaceScale();
+        int w = width * surfaceScale;
+        int h = height * surfaceScale;
         if (w < 1) {
             w = 1;
         }
@@ -896,7 +977,14 @@ class Canvas extends Component {
             lastSurfaceH = h;
         }
         Graphics g = surface.beginGraphics();
-        g.clear(Color.WHITE);
+        if (transparent != 0) {
+            g.clear(new Color(0, 0, 0, 0));
+        } else {
+            g.clear(Color.WHITE);
+        }
+        if (surfaceScale != 1) {
+            g.scale(surfaceScale, surfaceScale);
+        }
         if (paintHandler != null) {
             paintHandler.paint(g);
         }

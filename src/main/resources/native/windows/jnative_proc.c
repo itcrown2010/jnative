@@ -269,3 +269,19 @@ void jnative_proc_close_fd(int32_t fd) {
 void jnative_proc_free(char *p) {
     free(p);
 }
+
+
+/* Streaming helpers: simple fallbacks (blocking) until a Win32 overlapped implementation lands. */
+char *jnative_proc_read_nb(int32_t fd, int32_t max_bytes, int32_t timeout_ms) {
+    (void)timeout_ms;
+    char *s = jnative_proc_read_string(fd, max_bytes);
+    if (s != NULL && s[0] == '\0') {
+        free(s);
+        return NULL;
+    }
+    return s;
+}
+
+int32_t jnative_proc_try_wait(int32_t pid) {
+    return jnative_proc_wait(pid);
+}

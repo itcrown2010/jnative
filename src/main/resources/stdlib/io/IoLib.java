@@ -107,6 +107,12 @@ class ProcNative {
     @Native(symbol = "jnative_proc_read_string")
     static native NativePtr readString(int fd, int maxBytes);
 
+    @Native(symbol = "jnative_proc_read_nb")
+    static native NativePtr readNb(int fd, int maxBytes, int timeoutMs);
+
+    @Native(symbol = "jnative_proc_try_wait")
+    static native int tryWait(int pid);
+
     @Native(symbol = "jnative_proc_close_fd")
     static native void closeFd(int fd);
 
@@ -908,6 +914,45 @@ class Process {
             return "";
         }
         return s;
+    }
+
+    /**
+     * Wait up to timeoutMs for output. Returns "" when nothing arrived yet and null once the stream
+     * has ended (EOF).
+     */
+    String readStdoutNb(int maxBytes, int timeoutMs) {
+        return readNb(stdoutFd, maxBytes, timeoutMs);
+    }
+
+    String readStderrNb(int maxBytes, int timeoutMs) {
+        return readNb(stderrFd, maxBytes, timeoutMs);
+    }
+
+    static String readNb(int fd, int maxBytes, int timeoutMs) {
+        NativePtr p = ProcNative.readNb(fd, maxBytes, timeoutMs);
+        if (p == NativePtr.NULL) {
+            return null;
+        }
+        String s = NativeMemory.fromCString(p);
+        ProcNative.free(p);
+        if (s == null) {
+            return "";
+        }
+        return s;
+    }
+
+    /** Exit code when finished, -1000 while still running. Reaps the child on completion. */
+    int pollExit() {
+        if (alive == 0) {
+            return 0;
+        }
+        int code = ProcNative.tryWait(pid);
+        if (code != -1000) {
+            alive = 0;
+            ProcNative.closeFd(stdoutFd);
+            ProcNative.closeFd(stderrFd);
+        }
+        return code;
     }
 
     int waitFor() {

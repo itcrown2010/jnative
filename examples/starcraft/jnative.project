@@ -1,0 +1,18 @@
+{
+  "name": "starcraft",
+  "modules": {
+    "game": {
+      "kind": "app",
+      "src": "src"
+    }
+  },
+  "targets": [
+    {
+      "name": "game",
+      "triple": "native",
+      "module": "game",
+      "main": "ScMain",
+      "output": ".jnative/build/starcraft"
+    }
+  ]
+}

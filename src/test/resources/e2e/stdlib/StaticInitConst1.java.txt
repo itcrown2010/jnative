@@ -1,0 +1,10 @@
+public class Main {
+    static final int N = 4;
+    static int[][] grid = new int[N][N + 1];
+    static int[] flat = new int[N * 2];
+    static int total = N * 3;
+    public static void main(String[] args) {
+        grid[1][2] = 7;
+        System.out.println(grid.length + " " + grid[0].length + " " + flat.length + " " + total + " " + grid[1][2]);
+    }
+}

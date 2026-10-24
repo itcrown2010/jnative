@@ -43,6 +43,12 @@ class ArrayInitEndToEndTest {
     }
 
     @Test
+    void staticInitializersUsingConstantsInArrayDimensions(@TempDir Path dir) throws Exception {
+        Assumptions.assumeTrue(Toolchain.detect().isPresent(), "clang not available");
+        compareWithJava(dir, "/e2e/stdlib/StaticInitConst1.java.txt", "import java.util.ArrayList;\n");
+    }
+
+    @Test
     void instanceFieldInitializersMatchJava(@TempDir Path dir) throws Exception {
         Assumptions.assumeTrue(Toolchain.detect().isPresent(), "clang not available");
         compareWithJava(dir, "/e2e/stdlib/FieldInit1.java.txt", "import java.util.ArrayList;\n");

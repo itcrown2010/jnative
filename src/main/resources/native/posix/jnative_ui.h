@@ -335,6 +335,9 @@ void jnative_ui_headless_timer_fire(int32_t id);
 
 /* Canvas: present software surface pixels to native peer (double-buffered blit). */
 void jnative_ui_canvas_invalidate(int32_t id);
+void jnative_ui_canvas_set_transparent(int32_t id, int32_t on);
+void jnative_ui_panel_configure(int32_t id, int32_t flags);
+int32_t jnative_ui_window_snapshot(int32_t id, const char *path);
 void jnative_ui_canvas_present(int32_t id, int32_t surfaceId);
 
 /* UI timer (fires JN_UI_EVENT_TIMER on handleId; UI thread). */

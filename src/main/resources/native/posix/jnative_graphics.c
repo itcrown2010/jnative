@@ -22,6 +22,31 @@
 #define JN_GFX_STACK 32
 #endif
 
+
+#if defined(__GNUC__) || defined(__clang__)
+#define JN_WEAK __attribute__((weak))
+#else
+#define JN_WEAK
+#endif
+/* Optional platform text engine (implemented by the Cocoa UI layer). Fonts whose family starts with
+ * "native:" are rendered through it instead of the built-in 8x8 bitmap font. */
+JN_WEAK int32_t jnative_gfx_platform_text_mask(const char *utf8, const char *family, int32_t size, int32_t style,
+                                               int32_t *outW, int32_t *outH, int32_t *outAscent,
+                                               const uint8_t **outMask) {
+    (void)utf8; (void)family; (void)size; (void)style; (void)outW; (void)outH; (void)outAscent; (void)outMask;
+    return 0;
+}
+JN_WEAK int32_t jnative_gfx_platform_text_metrics(const char *utf8, const char *family, int32_t size, int32_t style,
+                                                  double *outW, double *outAscent, double *outDescent,
+                                                  double *outLine) {
+    (void)utf8; (void)family; (void)size; (void)style; (void)outW; (void)outAscent; (void)outDescent; (void)outLine;
+    return 0;
+}
+
+static int is_native_family(const char *fam) {
+    return fam && fam[0] == 'n' && strncmp(fam, "native:", 7) == 0;
+}
+
 typedef struct {
     int32_t live;
     int32_t w, h;
@@ -47,6 +72,7 @@ typedef struct {
     double stroke;
     int32_t fontSize;
     int32_t fontStyle;
+    int32_t aa;
     char family[64];
 } JnGState;
 
@@ -242,6 +268,100 @@ static void fill_rect_i(JnSurface *s, JnGfx *g, int x, int y, int w, int h, uint
             put_px(s, g, xx, yy, rgba);
 }
 
+
+/* ---- anti-aliased primitives (enabled per context via jnative_gfx_set_antialias) ---- */
+static double clamp01(double v) { return v < 0 ? 0 : (v > 1 ? 1 : v); }
+
+static void aa_px(JnSurface *s, JnGfx *g, int x, int y, uint32_t rgba, double cov) {
+    if (cov <= 0.0) return;
+    uint32_t a = (rgba >> 24) & 255;
+    a = (uint32_t)(a * clamp01(cov) + 0.5);
+    if (a == 0) return;
+    put_px(s, g, x, y, (rgba & 0x00FFFFFFu) | (a << 24));
+}
+
+static double sd_round_box(double px, double py, double hx, double hy, double r) {
+    double qx = fabs(px) - (hx - r), qy = fabs(py) - (hy - r);
+    double ox = qx > 0 ? qx : 0, oy = qy > 0 ? qy : 0;
+    double m = qx > qy ? qx : qy;
+    if (m > 0) m = 0;
+    return sqrt(ox * ox + oy * oy) + m - r;
+}
+
+/* mode 0 fill, 1 stroke (inside the box). */
+static void aa_round_rect(JnSurface *s, JnGfx *g, double x, double y, double w, double h, double r, int stroke) {
+    double x0, y0, x1, y1;
+    xform(g, x, y, &x0, &y0);
+    xform(g, x + w, y + h, &x1, &y1);
+    double lx = x0 < x1 ? x0 : x1, ty = y0 < y1 ? y0 : y1;
+    double bw = fabs(x1 - x0), bh = fabs(y1 - y0);
+    if (bw <= 0 || bh <= 0) return;
+    double rr = r * (fabs(g->st.sx) < fabs(g->st.sy) ? fabs(g->st.sx) : fabs(g->st.sy));
+    double maxr = (bw < bh ? bw : bh) * 0.5;
+    if (rr > maxr) rr = maxr;
+    if (rr < 0) rr = 0;
+    double tw = g->st.stroke * fabs(g->st.sx);
+    if (tw < 1.0) tw = 1.0;
+    double cx = lx + bw * 0.5, cy = ty + bh * 0.5;
+    int ix0 = (int)floor(lx) - 1, iy0 = (int)floor(ty) - 1;
+    int ix1 = (int)ceil(lx + bw) + 1, iy1 = (int)ceil(ty + bh) + 1;
+    for (int yy = iy0; yy < iy1; yy++) {
+        for (int xx = ix0; xx < ix1; xx++) {
+            double d = sd_round_box(xx + 0.5 - cx, yy + 0.5 - cy, bw * 0.5, bh * 0.5, rr);
+            double cov;
+            if (!stroke) {
+                cov = 0.5 - d;
+            } else {
+                cov = 0.5 - (fabs(d + tw * 0.5) - tw * 0.5);
+            }
+            aa_px(s, g, xx, yy, g->st.rgba, cov);
+        }
+    }
+}
+
+static void aa_ellipse(JnSurface *s, JnGfx *g, double x, double y, double w, double h, int stroke) {
+    double cx, cy;
+    xform(g, x + w * 0.5, y + h * 0.5, &cx, &cy);
+    double rx = fabs(w * 0.5 * g->st.sx), ry = fabs(h * 0.5 * g->st.sy);
+    if (rx <= 0 || ry <= 0) return;
+    double tw = g->st.stroke * fabs(g->st.sx);
+    if (tw < 1.0) tw = 1.0;
+    double mn = rx < ry ? rx : ry;
+    int ix0 = (int)floor(cx - rx) - 1, iy0 = (int)floor(cy - ry) - 1;
+    int ix1 = (int)ceil(cx + rx) + 1, iy1 = (int)ceil(cy + ry) + 1;
+    for (int yy = iy0; yy < iy1; yy++) {
+        for (int xx = ix0; xx < ix1; xx++) {
+            double nx = (xx + 0.5 - cx) / rx, ny = (yy + 0.5 - cy) / ry;
+            double d = (sqrt(nx * nx + ny * ny) - 1.0) * mn;
+            double cov = stroke ? 0.5 - (fabs(d + tw * 0.5) - tw * 0.5) : 0.5 - d;
+            aa_px(s, g, xx, yy, g->st.rgba, cov);
+        }
+    }
+}
+
+static void aa_line(JnSurface *s, JnGfx *g, double ax, double ay, double bx, double by) {
+    double tw = g->st.stroke * fabs(g->st.sx);
+    if (tw < 1.0) tw = 1.0;
+    double minx = (ax < bx ? ax : bx) - tw - 1, maxx = (ax > bx ? ax : bx) + tw + 1;
+    double miny = (ay < by ? ay : by) - tw - 1, maxy = (ay > by ? ay : by) + tw + 1;
+    double dx = bx - ax, dy = by - ay;
+    double len2 = dx * dx + dy * dy;
+    for (int yy = (int)floor(miny); yy < (int)ceil(maxy); yy++) {
+        for (int xx = (int)floor(minx); xx < (int)ceil(maxx); xx++) {
+            double px = xx + 0.5 - ax, py = yy + 0.5 - ay;
+            double t = len2 > 0 ? (px * dx + py * dy) / len2 : 0;
+            t = clamp01(t);
+            double qx = px - dx * t, qy = py - dy * t;
+            double d = sqrt(qx * qx + qy * qy);
+            aa_px(s, g, xx, yy, g->st.rgba, 0.5 - (d - tw * 0.5));
+        }
+    }
+}
+
+void jnative_gfx_set_antialias(int32_t gfxId, int32_t on) {
+    JnGfx *g = G(gfxId); if (!g || !g->valid) return; g->st.aa = on ? 1 : 0;
+}
+
 int32_t jnative_gfx_surface_create(int32_t width, int32_t height) {
     if (width <= 0 || height <= 0 || width > 8192 || height > 8192) return -1;
     int32_t id = alloc_slot_surf();
@@ -357,6 +477,7 @@ void jnative_gfx_draw_line(int32_t gfxId, double x1, double y1, double x2, doubl
     double ax, ay, bx, by;
     xform(g, x1, y1, &ax, &ay);
     xform(g, x2, y2, &bx, &by);
+    if (g->st.aa) { aa_line(s, g, ax, ay, bx, by); return; }
     int t = (int)(g->st.stroke + 0.5); if (t < 1) t = 1;
     draw_line_raw(s, g, (int)ax, (int)ay, (int)bx, (int)by, g->st.rgba, t);
 }
@@ -382,10 +503,14 @@ void jnative_gfx_fill_rect(int32_t gfxId, double x, double y, double w, double h
 }
 
 void jnative_gfx_draw_round_rect(int32_t gfxId, double x, double y, double w, double h, double r) {
-    (void)r; jnative_gfx_draw_rect(gfxId, x, y, w, h);
+    JnGfx *g = G(gfxId); JnSurface *s = g ? S(g->surfaceId) : NULL;
+    if (g && g->valid && s && g->st.aa) { aa_round_rect(s, g, x, y, w, h, r, 1); return; }
+    jnative_gfx_draw_rect(gfxId, x, y, w, h);
 }
 void jnative_gfx_fill_round_rect(int32_t gfxId, double x, double y, double w, double h, double r) {
-    (void)r; jnative_gfx_fill_rect(gfxId, x, y, w, h);
+    JnGfx *g = G(gfxId); JnSurface *s = g ? S(g->surfaceId) : NULL;
+    if (g && g->valid && s && g->st.aa) { aa_round_rect(s, g, x, y, w, h, r, 0); return; }
+    jnative_gfx_fill_rect(gfxId, x, y, w, h);
 }
 
 static void fill_ellipse_i(JnSurface *s, JnGfx *g, int cx, int cy, int rx, int ry, uint32_t rgba, int fill) {
@@ -407,12 +532,14 @@ static void fill_ellipse_i(JnSurface *s, JnGfx *g, int cx, int cy, int rx, int r
 void jnative_gfx_draw_ellipse(int32_t gfxId, double x, double y, double w, double h) {
     JnGfx *g = G(gfxId); JnSurface *s = g ? S(g->surfaceId) : NULL;
     if (!g || !g->valid || !s) return;
+    if (g->st.aa) { aa_ellipse(s, g, x, y, w, h, 1); return; }
     double cx, cy; xform(g, x + w * 0.5, y + h * 0.5, &cx, &cy);
     fill_ellipse_i(s, g, (int)cx, (int)cy, (int)(w * 0.5 * g->st.sx), (int)(h * 0.5 * g->st.sy), g->st.rgba, 0);
 }
 void jnative_gfx_fill_ellipse(int32_t gfxId, double x, double y, double w, double h) {
     JnGfx *g = G(gfxId); JnSurface *s = g ? S(g->surfaceId) : NULL;
     if (!g || !g->valid || !s) return;
+    if (g->st.aa) { aa_ellipse(s, g, x, y, w, h, 0); return; }
     double cx, cy; xform(g, x + w * 0.5, y + h * 0.5, &cx, &cy);
     fill_ellipse_i(s, g, (int)cx, (int)cy, (int)(w * 0.5 * g->st.sx), (int)(h * 0.5 * g->st.sy), g->st.rgba, 1);
 }
@@ -430,8 +557,28 @@ static int utf8_next(const char **p) {
 void jnative_gfx_draw_text(int32_t gfxId, const char *utf8, double x, double y) {
     JnGfx *g = G(gfxId); JnSurface *s = g ? S(g->surfaceId) : NULL;
     if (!g || !g->valid || !s || !utf8) return;
-    font_init();
     double ox, oy; xform(g, x, y, &ox, &oy);
+    if (is_native_family(g->st.family) && jnative_gfx_platform_text_mask) {
+        int32_t tw = 0, th = 0, asc = 0;
+        const uint8_t *mask = NULL;
+        double fs = g->st.fontSize * (fabs(g->st.sy) > 0 ? fabs(g->st.sy) : 1.0);
+        if (jnative_gfx_platform_text_mask(utf8, g->st.family + 7, (int32_t)(fs + 0.5), g->st.fontStyle,
+                                           &tw, &th, &asc, &mask) && mask) {
+            int px0 = (int)floor(ox), py0 = (int)floor(oy);
+            uint32_t base = g->st.rgba;
+            uint32_t ba = (base >> 24) & 255;
+            for (int yy = 0; yy < th; yy++) {
+                for (int xx = 0; xx < tw; xx++) {
+                    uint32_t m = mask[yy * tw + xx];
+                    if (!m) continue;
+                    uint32_t a = (ba * m + 127) / 255;
+                    if (a) put_px(s, g, px0 + xx, py0 + yy, (base & 0x00FFFFFFu) | (a << 24));
+                }
+            }
+            return;
+        }
+    }
+    font_init();
     int scale = g->st.fontSize / 8; if (scale < 1) scale = 1;
     int penx = (int)ox;
     int peny = (int)oy; /* top of cell (documented) */
@@ -458,6 +605,15 @@ void jnative_gfx_draw_text(int32_t gfxId, const char *utf8, double x, double y) 
 
 void jnative_gfx_measure_text(int32_t gfxId, const char *utf8, double *outW, double *outH) {
     JnGfx *g = G(gfxId);
+    if (g && g->valid && is_native_family(g->st.family) && jnative_gfx_platform_text_metrics) {
+        double w = 0, asc = 0, desc = 0, line = 0;
+        if (jnative_gfx_platform_text_metrics(utf8 ? utf8 : "", g->st.family + 7, g->st.fontSize, g->st.fontStyle,
+                                              &w, &asc, &desc, &line)) {
+            if (outW) *outW = w;
+            if (outH) *outH = line;
+            return;
+        }
+    }
     int size = g && g->valid ? g->st.fontSize : 16;
     int scale = size / 8; if (scale < 1) scale = 1;
     int n = 0;
@@ -475,13 +631,24 @@ int32_t jnative_gfx_measure_text_h(int32_t gfxId, const char *utf8) {
     double w = 0, h = 0; jnative_gfx_measure_text(gfxId, utf8, &w, &h); return (int32_t)h;
 }
 
+static int native_font_metrics(JnGfx *g, double *asc, double *desc, double *line) {
+    double w = 0;
+    if (g && g->valid && is_native_family(g->st.family) && jnative_gfx_platform_text_metrics) {
+        return jnative_gfx_platform_text_metrics("", g->st.family + 7, g->st.fontSize, g->st.fontStyle, &w, asc, desc, line);
+    }
+    return 0;
+}
+
 int32_t jnative_gfx_font_ascent(int32_t gfxId) {
+    { double a = 0, d = 0, l = 0; if (native_font_metrics(G(gfxId), &a, &d, &l)) return (int32_t)(a + 0.5); }
     JnGfx *g = G(gfxId); int size = g && g->valid ? g->st.fontSize : 16; return size * 3 / 4;
 }
 int32_t jnative_gfx_font_descent(int32_t gfxId) {
+    { double a = 0, d = 0, l = 0; if (native_font_metrics(G(gfxId), &a, &d, &l)) return (int32_t)(d + 0.5); }
     JnGfx *g = G(gfxId); int size = g && g->valid ? g->st.fontSize : 16; return size / 4;
 }
 int32_t jnative_gfx_font_line_height(int32_t gfxId) {
+    { double a = 0, d = 0, l = 0; if (native_font_metrics(G(gfxId), &a, &d, &l)) return (int32_t)(l + 0.5); }
     JnGfx *g = G(gfxId); return g && g->valid ? g->st.fontSize : 16;
 }
 

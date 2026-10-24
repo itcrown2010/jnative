@@ -44,4 +44,5 @@ examples/jnative-archive/third_party/build-linux/
 
 # Task Monitor local build and portable toolchains
 /build/
-/tools/
+/tools/*
+!/tools/jnative-studio/

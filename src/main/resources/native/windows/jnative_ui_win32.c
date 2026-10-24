@@ -1271,6 +1271,19 @@ int32_t jnative_ui_key_state(int32_t vk) { return (GetKeyState(vk) & 0x8000) != 
 int32_t jnative_ui_cursor_screen_x(void) { POINT p; GetCursorPos(&p); return p.x; }
 int32_t jnative_ui_cursor_screen_y(void) { POINT p; GetCursorPos(&p); return p.y; }
 
+int32_t jnative_ui_window_snapshot(int32_t id, const char *path) {
+    (void)id; (void)path;
+    return 0;
+}
+
+void jnative_ui_panel_configure(int32_t id, int32_t flags) {
+    (void)id; (void)flags;
+}
+
+void jnative_ui_canvas_set_transparent(int32_t id, int32_t on) {
+    (void)id; (void)on;
+}
+
 void jnative_ui_canvas_invalidate(int32_t id) {
     if (id > 0 && id < JN_UI_MAX && g_hwnds[id] != NULL) {
         InvalidateRect(g_hwnds[id], NULL, FALSE);

@@ -100,6 +100,16 @@ __attribute__((weak)) void jnative_ui_platform_canvas_present(
 __attribute__((weak)) void jnative_ui_platform_canvas_invalidate(int32_t id) {
     (void)id;
 }
+__attribute__((weak)) int32_t jnative_ui_platform_window_snapshot(int32_t id, const char *path) {
+    (void)id; (void)path;
+    return 0;
+}
+__attribute__((weak)) void jnative_ui_platform_panel_configure(int32_t id, int32_t flags) {
+    (void)id; (void)flags;
+}
+__attribute__((weak)) void jnative_ui_platform_canvas_set_transparent(int32_t id, int32_t on) {
+    (void)id; (void)on;
+}
 __attribute__((weak)) void jnative_ui_platform_timer_arm(
         int32_t timerId, int32_t intervalMs, int32_t handleId) {
     (void)timerId; (void)intervalMs; (void)handleId;
@@ -1158,6 +1168,28 @@ void jnative_ui_canvas_invalidate(int32_t id) {
     }
 }
 
+/* Saves the window content as a PNG (platform permitting); returns 1 on success. */
+int32_t jnative_ui_window_snapshot(int32_t id, const char *path) {
+    if (g_platform_active && !g_headless) {
+        return jnative_ui_platform_window_snapshot(id, path);
+    }
+    return 0;
+}
+
+/* Panel options: bit0 clip children to the panel bounds, bit1 deliver wheel events to the panel. */
+void jnative_ui_panel_configure(int32_t id, int32_t flags) {
+    if (g_platform_active && !g_headless) {
+        jnative_ui_platform_panel_configure(id, flags);
+    }
+}
+
+/* A transparent canvas lets the controls underneath show through (design-surface overlays). */
+void jnative_ui_canvas_set_transparent(int32_t id, int32_t on) {
+    if (g_platform_active && !g_headless) {
+        jnative_ui_platform_canvas_set_transparent(id, on);
+    }
+}
+
 void jnative_ui_canvas_present(int32_t id, int32_t surfaceId) {
     int32_t w = 0, h = 0;
     const uint8_t *px = jnative_gfx_surface_pixels(surfaceId, &w, &h);
@@ -1299,7 +1331,12 @@ void jnative_ui_cv_clip_push(int32_t x, int32_t y, int32_t w, int32_t h) {
     (void)x; (void)y; (void)w; (void)h;
 }
 void jnative_ui_cv_clip_pop(void) {}
-void jnative_ui_cv_set_cursor(int32_t k) { (void)k; }
+__attribute__((weak)) void jnative_ui_platform_set_cursor(int32_t k) { (void)k; }
+void jnative_ui_cv_set_cursor(int32_t k) {
+    if (g_platform_active && !g_headless) {
+        jnative_ui_platform_set_cursor(k);
+    }
+}
 void jnative_ui_cv_glyph(int32_t x, int32_t y, int32_t w, int32_t h, int32_t cp, int32_t a, int32_t f, int32_t fl) {
     (void)x; (void)y; (void)w; (void)h; (void)cp; (void)a; (void)f; (void)fl;
 }

@@ -520,6 +520,15 @@ class UiNative {
     @Native(symbol = "jnative_ui_canvas_invalidate")
     static native void canvasInvalidate(int id);
 
+    @Native(symbol = "jnative_ui_window_snapshot")
+    static native int windowSnapshot(int id, String path);
+
+    @Native(symbol = "jnative_ui_panel_configure")
+    static native void panelConfigure(int id, int flags);
+
+    @Native(symbol = "jnative_ui_canvas_set_transparent")
+    static native void canvasSetTransparent(int id, int on);
+
     @Native(symbol = "jnative_ui_canvas_present")
     static native void canvasPresent(int id, int surfaceId);
 
@@ -879,6 +888,9 @@ class MouseEvent extends UiEvent {
     int shiftDown;
     int ctrlDown;
     int altDown;
+    int metaDown;
+    /** Wheel movement in notches (positive = away from the user / up); only set for wheel events. */
+    int wheelDelta;
 
     MouseEvent(Component src, int type, int mx, int my, int btn) {
         super(src);
@@ -906,6 +918,10 @@ class MouseEvent extends UiEvent {
 
     int getEventType() {
         return eventType;
+    }
+
+    int getWheelDelta() {
+        return wheelDelta;
     }
 }
 
@@ -1400,6 +1416,9 @@ class Component {
     EventHandler<MouseEvent> mouseUpHandler;
     EventHandler<MouseEvent> mouseMoveHandler;
     EventHandler<MouseEvent> mouseDragHandler;
+    EventHandler<MouseEvent> mouseWheelHandler;
+    EventHandler<MouseEvent> mouseExitHandler;
+    EventHandler<MouseEvent> mouseEnterHandler;
     UiHook paintHook;
     UiHook timerHook;
 
@@ -1542,6 +1561,9 @@ class Component {
             } else if (this instanceof TabPane) {
                 TabPane tp = (TabPane) this;
                 tp.layout();
+            } else if (this instanceof Panel) {
+                Panel pn = (Panel) this;
+                pn.layout();
             }
         }
     }
@@ -1846,6 +1868,21 @@ class Component {
         mouseMoveHandler = handler;
     }
 
+    void onMouseExit(EventHandler<MouseEvent> handler) {
+        ensureAlive("Component.onMouseExit");
+        mouseExitHandler = handler;
+    }
+
+    void onMouseEnter(EventHandler<MouseEvent> handler) {
+        ensureAlive("Component.onMouseEnter");
+        mouseEnterHandler = handler;
+    }
+
+    void onMouseWheel(EventHandler<MouseEvent> handler) {
+        ensureAlive("Component.onMouseWheel");
+        mouseWheelHandler = handler;
+    }
+
     void onMouseDrag(EventHandler<MouseEvent> handler) {
         ensureAlive("Component.onMouseDrag");
         mouseDragHandler = handler;
@@ -1969,12 +2006,34 @@ class Component {
         }
     }
 
-    void fireMouse(int type, int mx, int my, int button) {
+    void fireMouse(int type, int mx, int my, int packed) {
         if (disposed != 0) {
             return;
         }
+        int button = packed % 16;
+        int mods = (packed / 16) % 16;
+        if (button == 0 && type != 5 && type != 8 && type != 6 && type != 7) {
+            button = 1;
+        }
         MouseEvent ev = new MouseEvent(this, type, mx, my, button);
-        if (type == 1) {
+        ev.shiftDown = mods % 2;
+        ev.ctrlDown = (mods / 2) % 2;
+        ev.altDown = (mods / 4) % 2;
+        ev.metaDown = (mods / 8) % 2;
+        if (type == 6) {
+            if (mouseEnterHandler != null) {
+                mouseEnterHandler.handle(ev);
+            }
+        } else if (type == 7) {
+            if (mouseExitHandler != null) {
+                mouseExitHandler.handle(ev);
+            }
+        } else if (type == 8) {
+            ev.wheelDelta = packed / 256 - 512;
+            if (mouseWheelHandler != null) {
+                mouseWheelHandler.handle(ev);
+            }
+        } else if (type == 1) {
             mousePressedFlag = 1;
             if (mouseDownHandler != null) {
                 mouseDownHandler.handle(ev);
@@ -1988,7 +2047,7 @@ class Component {
             if (mouseMoveHandler != null) {
                 mouseMoveHandler.handle(ev);
             }
-            if (mousePressedFlag != 0 && mouseDragHandler != null) {
+            if (mousePressedFlag != 0 && button != 0 && mouseDragHandler != null) {
                 mouseDragHandler.handle(ev);
             }
         }
@@ -2232,6 +2291,35 @@ class Panel extends Container {
     Panel() {
         nativeId = UiNative.createPanel(0);
         UiHandleRegistry.put(nativeId, this);
+    }
+
+    /** Clip children to this panel's bounds (and optionally receive mouse-wheel events). */
+    void setClipChildren(boolean clip, boolean wheel) {
+        int f = 0;
+        if (clip) {
+            f = f + 1;
+        }
+        if (wheel) {
+            f = f + 2;
+        }
+        UiNative.panelConfigure(nativeId, f);
+    }
+
+    /**
+     * Absolute container: children keep the bounds they were given, but their native frames are
+     * re-applied whenever this panel is resized so the Cocoa Y-flip stays correct.
+     */
+    void layout() {
+        layoutDirty = 0;
+        UiMetrics.layoutPasses = UiMetrics.layoutPasses + 1;
+        int i = 0;
+        while (i < childCount) {
+            Component c = children[i];
+            if (c != null && c.nativeId > 0) {
+                UiNative.setBounds(c.nativeId, c.x, c.y, c.width, c.height);
+            }
+            i = i + 1;
+        }
     }
 }
 
@@ -3680,6 +3768,10 @@ class ListView<T> extends Control {
         }
         if (value == null) {
             return "";
+        }
+        Object box = value;
+        if (box instanceof String) {
+            return (String) box;
         }
         return "?";
     }
@@ -5143,6 +5235,12 @@ class Window extends Component {
         Application.activeWindow = this;
         UiNative.show(nativeId);
         UiNative.focus(nativeId);
+    }
+
+    /** Saves the window's content as a PNG file; returns false when unsupported (headless / non-macOS). */
+    boolean snapshot(String path) {
+        ensureAlive("Window.snapshot");
+        return UiNative.windowSnapshot(nativeId, path) != 0;
     }
 
     void setTitle(String t) {
@@ -6782,6 +6880,23 @@ class UiTest {
     static void mouseDown(Component c, int mx, int my) {
         Application.checkUiThread("UiTest.mouseDown");
         UiNative.headlessMouse(c.nativeId, 1, mx, my, 1);
+    }
+
+    /** Move the pointer without any button pressed. */
+    static void mouseHover(Component c, int mx, int my) {
+        Application.checkUiThread("UiTest.mouseHover");
+        UiNative.headlessMouse(c.nativeId, 5, mx, my, 0);
+    }
+
+    static void mouseWheel(Component c, int mx, int my, int delta) {
+        Application.checkUiThread("UiTest.mouseWheel");
+        UiNative.headlessMouse(c.nativeId, 8, mx, my, (delta + 512) * 256);
+    }
+
+    /** Press (down) or release (up) a specific button (1 left, 2 middle, 3 right) with modifier bits. */
+    static void mouseButton(Component c, int mx, int my, int button, int mods, int down) {
+        Application.checkUiThread("UiTest.mouseButton");
+        UiNative.headlessMouse(c.nativeId, down != 0 ? 1 : 2, mx, my, button + mods * 16);
     }
 
     static void mouseMove(Component c, int mx, int my) {

@@ -250,6 +250,50 @@ class GraphicsEndToEndTest {
     }
 
     @Test
+    void canvasMouseButtonsModifiersWheelAndHover() throws Exception {
+        assertEquals("down 3 1 40,50\nup 3 1\nwheel -2 5,6\nhover 7,8 0\ndrag 9,9 1\n", run("""
+                import jnative.ui.*;
+                import jnative.graphics.*;
+                class Holder {
+                    static Canvas canvas;
+                }
+                public class Main {
+                    public static void main(String[] args) {
+                        Application.setHeadless(1);
+                        Application app = new Application();
+                        Window window = new Window("Gfx", 200, 150);
+                        Holder.canvas = new Canvas();
+                        Holder.canvas.onMouseDown(e -> {
+                            System.out.println("down " + e.getButton() + " " + e.shiftDown + " " + e.getX() + "," + e.getY());
+                        });
+                        Holder.canvas.onMouseUp(e -> {
+                            System.out.println("up " + e.getButton() + " " + e.shiftDown);
+                        });
+                        Holder.canvas.onMouseWheel(e -> {
+                            System.out.println("wheel " + e.getWheelDelta() + " " + e.getX() + "," + e.getY());
+                        });
+                        Holder.canvas.onMouseMove(e -> {
+                            if (e.getButton() == 0) {
+                                System.out.println("hover " + e.getX() + "," + e.getY() + " " + e.getButton());
+                            } else {
+                                System.out.println("drag " + e.getX() + "," + e.getY() + " " + e.getButton());
+                            }
+                        });
+                        window.setContent(Holder.canvas);
+                        window.show();
+                        UiTest.mouseButton(Holder.canvas, 40, 50, 3, 1, 1);
+                        UiTest.mouseButton(Holder.canvas, 40, 50, 3, 1, 0);
+                        UiTest.mouseWheel(Holder.canvas, 5, 6, -2);
+                        UiTest.mouseHover(Holder.canvas, 7, 8);
+                        UiTest.mouseMove(Holder.canvas, 9, 9);
+                        UiTest.closeWindow(window);
+                        app.run();
+                    }
+                }
+                """, "GfxCanvasMouse", Map.of("JNATIVE_HEADLESS", "1"), 0));
+    }
+
+    @Test
     void uiTimerFires() throws Exception {
         assertEquals("1\n", run("""
                 import jnative.ui.*;

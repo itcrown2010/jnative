@@ -25,6 +25,8 @@ char *jnative_proc_spawn_s(
 int32_t jnative_proc_wait(int32_t pid);
 int32_t jnative_proc_kill(int32_t pid);
 char *jnative_proc_read_string(int32_t fd, int32_t max_bytes);
+char *jnative_proc_read_nb(int32_t fd, int32_t max_bytes, int32_t timeout_ms);
+int32_t jnative_proc_try_wait(int32_t pid);
 void jnative_proc_close_fd(int32_t fd);
 void jnative_proc_free(char *p);
 

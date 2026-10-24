@@ -654,12 +654,32 @@ void jnative_exit(int32_t status) {
     exit((int)status);
 }
 
+/* JNATIVE_LINEBUF=1 makes stdout line-buffered even when piped, so IDE consoles can stream a child's
+ * output (println is emitted as puts/printf, which would otherwise sit in a full buffer). */
+static int jn_linebuf_mode = -1;
+
+#if defined(__GNUC__) || defined(__clang__)
+__attribute__((constructor)) static void jn_linebuf_init(void) {
+    const char *e = getenv("JNATIVE_LINEBUF");
+    if (e != NULL && e[0] == '1') {
+        setvbuf(stdout, NULL, _IOLBF, 0);
+    }
+}
+#endif
+
 void jnative_stdout_write(const char *s, int32_t newline) {
     if (s != NULL) {
         fputs(s, stdout);
     }
     if (newline) {
         fputc('\n', stdout);
+        if (jn_linebuf_mode < 0) {
+            const char *e = getenv("JNATIVE_LINEBUF");
+            jn_linebuf_mode = (e != NULL && e[0] == '1') ? 1 : 0;
+        }
+        if (jn_linebuf_mode) {
+            fflush(stdout);
+        }
     }
 }
 

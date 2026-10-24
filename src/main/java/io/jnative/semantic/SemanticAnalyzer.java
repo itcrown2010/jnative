@@ -1582,18 +1582,27 @@ public final class SemanticAnalyzer {
 
     private void analyzeStaticFieldInitializers(ClassSymbol symbol) {
         MethodSymbol prevMethod = currentMethod;
+        Scope prevScope = current;
         currentMethod = null; // treat as static context
-        for (FieldSymbol field : symbol.declaredFields()) {
-            if (!field.isStatic() || field.initializer() == null) {
-                continue;
-            }
-            JType initType = analyzeExpression(field.initializer());
-            if (!assignableWithBoxing(field.type(), initType) && !(initType instanceof ErrorType)) {
-                reporter.error(field.location(),
-                        "incompatible types: " + initType + " cannot be converted to " + field.type());
-            }
+        if (current == null) {
+            // a static initializer may be analysed before any method opened a scope
+            current = new Scope(null);
         }
-        currentMethod = prevMethod;
+        try {
+            for (FieldSymbol field : symbol.declaredFields()) {
+                if (!field.isStatic() || field.initializer() == null) {
+                    continue;
+                }
+                JType initType = analyzeExpression(field.initializer());
+                if (!assignableWithBoxing(field.type(), initType) && !(initType instanceof ErrorType)) {
+                    reporter.error(field.location(),
+                            "incompatible types: " + initType + " cannot be converted to " + field.type());
+                }
+            }
+        } finally {
+            current = prevScope;
+            currentMethod = prevMethod;
+        }
     }
 
     /**

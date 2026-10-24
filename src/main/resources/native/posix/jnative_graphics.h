@@ -31,6 +31,7 @@ int32_t jnative_gfx_unpack_b(int32_t rgba);
 int32_t jnative_gfx_unpack_a(int32_t rgba);
 void jnative_gfx_set_stroke_width(int32_t gfxId, double width);
 void jnative_gfx_set_font(int32_t gfxId, const char *family, int32_t size, int32_t style);
+void jnative_gfx_set_antialias(int32_t gfxId, int32_t on);
 
 void jnative_gfx_clear(int32_t gfxId, int32_t rgba);
 void jnative_gfx_draw_line(int32_t gfxId, double x1, double y1, double x2, double y2);
