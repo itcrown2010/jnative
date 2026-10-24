@@ -1,0 +1,18 @@
+{
+  "name": "MacCalculator",
+  "modules": {
+    "app": {
+      "kind": "app",
+      "src": "src"
+    }
+  },
+  "targets": [
+    {
+      "name": "MacCalculator",
+      "triple": "native",
+      "module": "app",
+      "main": "Main",
+      "output": ".jnative/build/MacCalculator"
+    }
+  ]
+}

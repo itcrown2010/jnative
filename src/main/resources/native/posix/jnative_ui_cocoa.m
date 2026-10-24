@@ -60,10 +60,30 @@ static void jn_apply_menu_shortcut(NSMenuItem *item, int32_t itemId) {
         ch = (unichar)(NSF1FunctionKey + (key - 112));
     } else if (ch >= 'A' && ch <= 'Z') {
         ch = (unichar)(ch - 'A' + 'a');
+    } else {
+        /* Windows-style virtual key codes for punctuation and the arrow keys. */
+        switch (key) {
+            case 37: ch = (unichar)NSLeftArrowFunctionKey; break;
+            case 38: ch = (unichar)NSUpArrowFunctionKey; break;
+            case 39: ch = (unichar)NSRightArrowFunctionKey; break;
+            case 40: ch = (unichar)NSDownArrowFunctionKey; break;
+            case 186: ch = ';'; break;
+            case 187: ch = '='; break;
+            case 188: ch = ','; break;
+            case 189: ch = '-'; break;
+            case 190: ch = '.'; break;
+            case 191: ch = '/'; break;
+            case 219: ch = '['; break;
+            case 220: ch = '\\'; break;
+            case 221: ch = ']'; break;
+            case 222: ch = '\''; break;
+            default: break;
+        }
+        fkey = (key >= 37 && key <= 40);
     }
     NSString *ke = [NSString stringWithCharacters:&ch length:1];
     [item setKeyEquivalent:ke];
-    NSUInteger mask = fkey ? 0 : NSEventModifierFlagCommand;
+    NSUInteger mask = (key >= 112 && key <= 123) ? 0 : NSEventModifierFlagCommand;
     if ((mods & 4) != 0) {
         mask = NSEventModifierFlagControl;
     }
@@ -1110,7 +1130,13 @@ static JnTableBridge *jn_bridge_for(int32_t peerId) {
     return b;
 }
 
-@interface JnCanvasView : NSView
+@interface JnCanvasView : NSView <NSTextInputClient>
+@property(nonatomic, assign) int32_t jnTextInput;
+@property(nonatomic, assign) int32_t jnIbeam;
+@property(nonatomic, assign) int32_t jnImeX;
+@property(nonatomic, assign) int32_t jnImeY;
+@property(nonatomic, assign) int32_t jnImeH;
+@property(nonatomic, copy) NSString *jnMarked;
 @property(nonatomic, assign) int32_t jnHandleId;
 @property(nonatomic, strong) NSBitmapImageRep *bitmap;
 @property(nonatomic, assign) int32_t dragging;
@@ -1254,7 +1280,8 @@ static int32_t jn_cocoa_key_mods(NSEvent *event) {
 - (void)mouseDown:(NSEvent *)event {
     [[self window] makeFirstResponder:self];
     self.dragging = 1;
-    [self jnEmitMouse:event sub:JN_UI_MOUSE_DOWN button:1 delta:0];
+    /* delta carries the click count for DOWN events (1 single, 2 double, 3 triple). */
+    [self jnEmitMouse:event sub:JN_UI_MOUSE_DOWN button:1 delta:(int32_t)event.clickCount];
 }
 - (void)mouseDragged:(NSEvent *)event {
     [self jnEmitMouse:event sub:JN_UI_MOUSE_MOVE button:1 delta:0];
@@ -1291,29 +1318,156 @@ static int32_t jn_cocoa_key_mods(NSEvent *event) {
 - (void)mouseExited:(NSEvent *)event {
     [self jnEmitMouse:event sub:JN_UI_MOUSE_EXIT button:0 delta:0];
 }
+/* Wheel events: bits 8-17 carry the notch delta (+512). Precise devices also carry the raw point delta
+ * (+4096) in bits 18+, so editors can scroll smoothly. */
+- (void)jnEmitWheel:(NSEvent *)event sub:(int32_t)sub notch:(int32_t)notch raw:(double)raw {
+    NSPoint p = [self convertPoint:event.locationInWindow fromView:nil];
+    int32_t packed = ((jn_cocoa_key_mods(event) & 15) << 4) | ((notch + 512) << 8);
+    if (event.hasPreciseScrollingDeltas) {
+        int32_t r = (int32_t)raw;
+        if (r > 4000) {
+            r = 4000;
+        } else if (r < -4000) {
+            r = -4000;
+        }
+        packed |= ((r + 4096) << 18);
+    }
+    jnative_ui_emit_event_ex(self.jnHandleId, JN_UI_EVENT_MOUSE, sub, (int32_t)p.x, (int32_t)p.y, packed);
+}
 - (void)scrollWheel:(NSEvent *)event {
     double dy = event.scrollingDeltaY;
+    double dx = event.scrollingDeltaX;
     int32_t d;
+    int32_t h;
     if (event.hasPreciseScrollingDeltas) {
         d = (int32_t)(dy / 8.0);
+        h = (int32_t)(dx / 8.0);
     } else {
         d = (int32_t)(dy > 0 ? ceil(dy) : floor(dy));
-    }
-    if (d == 0) {
-        return;
+        h = (int32_t)(dx > 0 ? ceil(dx) : floor(dx));
     }
     if (d > 100) {
         d = 100;
     } else if (d < -100) {
         d = -100;
     }
-    [self jnEmitMouse:event sub:JN_UI_MOUSE_WHEEL button:0 delta:d];
+    if (h > 100) {
+        h = 100;
+    } else if (h < -100) {
+        h = -100;
+    }
+    BOOL precise = event.hasPreciseScrollingDeltas;
+    if (d != 0 || (precise && dy != 0.0)) {
+        [self jnEmitWheel:event sub:JN_UI_MOUSE_WHEEL notch:d raw:dy];
+    }
+    if (h != 0 || (precise && dx != 0.0)) {
+        [self jnEmitWheel:event sub:JN_UI_MOUSE_WHEEL_H notch:h raw:dx];
+    }
+}
+- (void)resetCursorRects {
+    if (self.jnIbeam != 0) {
+        [self addCursorRect:self.bounds cursor:[NSCursor IBeamCursor]];
+    }
 }
 - (void)keyDown:(NSEvent *)event {
     int32_t code = jn_cocoa_key_code(event);
     int32_t mods = jn_cocoa_key_mods(event);
+    if (self.jnTextInput != 0) {
+        BOOL composing = (self.jnMarked != nil && self.jnMarked.length > 0);
+        BOOL cmdctrl = (mods & (2 | 8)) != 0;
+        BOOL special = NO;
+        switch (event.keyCode) {
+            case 123: case 124: case 125: case 126: case 51: case 117: case 36: case 76:
+            case 48: case 115: case 119: case 116: case 121: case 53:
+                special = YES;
+                break;
+            default:
+                break;
+        }
+        if (composing || (!cmdctrl && !special)) {
+            [self interpretKeyEvents:@[event]];
+            return;
+        }
+    }
+    int32_t typed = 0;
+    if ((mods & (2 | 8)) == 0) {
+        NSString *tc = event.characters;
+        if (tc != nil && tc.length > 0) {
+            unichar c0 = [tc characterAtIndex:0];
+            if (c0 >= 32 && c0 < 127) {
+                typed = (int32_t)c0;
+            }
+        }
+    }
     jnative_ui_emit_event_ex(self.jnHandleId, JN_UI_EVENT_KEY, JN_UI_KEY_DOWN,
-                             code, mods, 0);
+                             code, mods, typed);
+}
+/* ---- NSTextInputClient (IME) ---- */
+- (void)jnEmitText:(NSString *)text sub:(int32_t)sub {
+    const char *u = [text UTF8String];
+    jnative_ui_set_pending_text(u != NULL ? u : "");
+    jnative_ui_emit_event_ex(self.jnHandleId, JN_UI_EVENT_KEY, sub, 0, 0, 0);
+}
+- (void)insertText:(id)string replacementRange:(NSRange)replacementRange {
+    (void)replacementRange;
+    NSString *text = [string isKindOfClass:[NSAttributedString class]] ? [(NSAttributedString *)string string]
+                                                                     : (NSString *)string;
+    BOOL wasComposing = (self.jnMarked != nil && self.jnMarked.length > 0);
+    self.jnMarked = nil;
+    if (wasComposing) {
+        [self jnEmitText:@"" sub:JN_UI_KEY_MARKED];
+    }
+    if (text.length > 0) {
+        [self jnEmitText:text sub:JN_UI_KEY_TEXT];
+    }
+}
+- (void)setMarkedText:(id)string selectedRange:(NSRange)selectedRange replacementRange:(NSRange)replacementRange {
+    (void)selectedRange;
+    (void)replacementRange;
+    NSString *text = [string isKindOfClass:[NSAttributedString class]] ? [(NSAttributedString *)string string]
+                                                                     : (NSString *)string;
+    self.jnMarked = text;
+    [self jnEmitText:text sub:JN_UI_KEY_MARKED];
+}
+- (void)unmarkText {
+    if (self.jnMarked != nil && self.jnMarked.length > 0) {
+        self.jnMarked = nil;
+        [self jnEmitText:@"" sub:JN_UI_KEY_MARKED];
+    }
+}
+- (NSRange)selectedRange {
+    return NSMakeRange(NSNotFound, 0);
+}
+- (NSRange)markedRange {
+    if (self.jnMarked != nil && self.jnMarked.length > 0) {
+        return NSMakeRange(0, self.jnMarked.length);
+    }
+    return NSMakeRange(NSNotFound, 0);
+}
+- (BOOL)hasMarkedText {
+    return self.jnMarked != nil && self.jnMarked.length > 0;
+}
+- (NSAttributedString *)attributedSubstringForProposedRange:(NSRange)range actualRange:(NSRangePointer)actualRange {
+    (void)range;
+    (void)actualRange;
+    return nil;
+}
+- (NSArray<NSAttributedStringKey> *)validAttributesForMarkedText {
+    return @[];
+}
+- (NSRect)firstRectForCharacterRange:(NSRange)range actualRange:(NSRangePointer)actualRange {
+    (void)range;
+    (void)actualRange;
+    NSRect r = NSMakeRect(self.jnImeX, self.jnImeY, 2, self.jnImeH > 0 ? self.jnImeH : 16);
+    NSRect inWin = [self convertRect:r toView:nil];
+    return [self.window convertRectToScreen:inWin];
+}
+- (NSUInteger)characterIndexForPoint:(NSPoint)point {
+    (void)point;
+    return 0;
+}
+- (void)doCommandBySelector:(SEL)selector {
+    (void)selector;
 }
 - (void)keyUp:(NSEvent *)event {
     int32_t code = jn_cocoa_key_code(event);
@@ -2131,6 +2285,9 @@ void jnative_ui_platform_reparent(int32_t childId, int32_t parentId) {
     NSView *childView = (NSView *)child;
     if ([childView superview] != parentView) {
         [parentView addSubview:childView];
+    } else {
+        /* Re-adding an existing child brings it to the front (z-order follows add order). */
+        [parentView addSubview:childView positioned:NSWindowAbove relativeTo:nil];
     }
 }
 
@@ -2199,6 +2356,41 @@ void jnative_ui_platform_panel_configure(int32_t peerId, int32_t flags) {
         } else if (pv.wantsLayer) {
             pv.layer.masksToBounds = NO;
         }
+    }
+}
+
+static JnCanvasView *jn_canvas_peer(int32_t peerId) {
+    if (!g_cocoa_active || peerId <= 0 || peerId >= JN_UI_MAX) {
+        return nil;
+    }
+    id obj = g_peers[peerId];
+    if ([obj isKindOfClass:[JnCanvasView class]]) {
+        return (JnCanvasView *)obj;
+    }
+    return nil;
+}
+
+void jnative_ui_platform_canvas_set_text_input(int32_t peerId, int32_t on) {
+    JnCanvasView *v = jn_canvas_peer(peerId);
+    if (v != nil) {
+        v.jnTextInput = on;
+    }
+}
+
+void jnative_ui_platform_canvas_set_ime_rect(int32_t peerId, int32_t x, int32_t y, int32_t h) {
+    JnCanvasView *v = jn_canvas_peer(peerId);
+    if (v != nil) {
+        v.jnImeX = x;
+        v.jnImeY = y;
+        v.jnImeH = h;
+    }
+}
+
+void jnative_ui_platform_canvas_set_ibeam(int32_t peerId, int32_t on) {
+    JnCanvasView *v = jn_canvas_peer(peerId);
+    if (v != nil) {
+        v.jnIbeam = on;
+        [[v window] invalidateCursorRectsForView:v];
     }
 }
 

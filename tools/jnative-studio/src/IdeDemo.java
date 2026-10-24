@@ -35,21 +35,117 @@ public class IdeDemo {
         CodeEditor e = d.editor;
         e.goTo(11, 0);
         e.insertText(typed);
-        ide.completeDialog();
+        ide.completeInline(true);
         String s = label + " [" + typed.trim() + "]: ";
-        IdeCompletePopup p = IdeCompletePopup.last;
-        if (p != null && p.win != null && p.list.rows.size() > 0) {
-            s = s + p.list.rows.size() + " items:";
+        IdeSuggest p = ide.suggest;
+        if (p.isOpen && p.shown.size() > 0) {
+            s = s + p.shown.size() + " items:";
             int i = 0;
-            while (i < p.list.rows.size() && i < 6) {
-                s = s + " " + p.list.rows.get(i).text;
+            while (i < p.shown.size() && i < 6) {
+                s = s + " " + p.shown.get(i).text;
                 i = i + 1;
             }
-            p.win.snapshot("/tmp/ide-complete-" + label + ".png");
+            s = s + " @" + p.x + "," + p.y + " " + p.width + "x" + p.height + " vis=" + p.visible + " host=" + ide.host.width + "x" + ide.host.height;
+            ide.window.snapshot("/tmp/ide-complete-" + label + ".png");
         } else {
             s = s + "no popup";
         }
         log(s + "\n");
+    }
+
+    static void defStep() {
+        String main = ide.project.dir + "/src/MainForm.java";
+        if (step == 1) {
+            ide.openFile(main);
+        } else if (step == 2) {
+            ide.activeDoc().editor.goTo(11, 14);
+            ide.gotoDefinition();
+            IdeDoc d = ide.activeDoc();
+            TextPosition p = d.editor.document.offsetToPosition(d.editor.caret.offset);
+            log("lblMessage -> " + d.path + " line " + (p.line + 1) + "\n");
+        } else if (step == 3) {
+            ide.openFile(main);
+            int off = ide.activeDoc().editor.getText().indexOf("getText");
+            TextPosition p = ide.activeDoc().editor.document.offsetToPosition(off + 2);
+            ide.activeDoc().editor.goTo(p.line, p.column);
+            ide.gotoDefinition();
+            log("getText -> " + ide.statusText + "\n");
+        } else if (step == 4) {
+            int off = ide.activeDoc().editor.getText().indexOf("onBtnHelloClick");
+            TextPosition p = ide.activeDoc().editor.document.offsetToPosition(off + 3);
+            ide.activeDoc().editor.goTo(p.line, p.column);
+            ide.gotoDefinition();
+            IdeDoc d = ide.activeDoc();
+            TextPosition q = d.editor.document.offsetToPosition(d.editor.caret.offset);
+            log("onBtnHelloClick -> " + d.path + " line " + (q.line + 1) + " status=" + ide.statusText + "\n");
+        }
+    }
+
+    static void tools2Step() {
+        if (step == 1) {
+            ide.openFile(ide.project.dir + "/src/MainForm.java");
+        } else if (step == 2) {
+            ide.runSearch("text");
+            log("search: " + ide.search.root.kids.size() + " hits\n");
+            ide.window.snapshot("/tmp/ide-tools2-search.png");
+        } else if (step == 3) {
+            ide.searchActivate(ide.search.root.kids.get(0));
+            TextPosition p = ide.activeDoc().editor.document.offsetToPosition(ide.activeDoc().editor.caret.offset);
+            log("search jump -> " + ide.activeDoc().title + " " + (p.line + 1) + ":" + p.column + "\n");
+            ide.zoomEditors(3);
+        } else if (step == 4) {
+            ide.window.snapshot("/tmp/ide-tools2-zoom.png");
+            ide.zoomEditors(0);
+            IdeItem fi = ide.explorer.findByKey(ide.project.dir + "/src/Main.java");
+            ide.renameTo(fi, "App.java");
+            log("rename: " + Files.exists(FsPath.of(ide.project.dir + "/src/App.java")) + " " + Files.exists(FsPath.of(ide.project.dir + "/src/Main.java")) + "\n");
+        } else if (step == 5) {
+            ide.window.snapshot("/tmp/ide-tools2-rename.png");
+            ArrayList<String> rp = new ArrayList<String>();
+            ArrayList<String> rt = new ArrayList<String>();
+            int total = ide.planRename("lblMessage", "lblResult", rp, rt);
+            log("plan: " + total + " in " + rp.size() + " files\n");
+            ide.applyRename(rp, rt);
+            log("MainForm now has lblResult: " + (ide.tabs.docs.size() > 0) + "\n");
+        } else if (step == 6) {
+            ide.build(false);
+        } else if (step == 14) {
+            log("after rename build: " + ide.statusText + " diags=" + ide.diagCount + "\n");
+        }
+    }
+
+    static void toolsStep() {
+        if (step == 1) {
+            ide.openFile(ide.project.dir + "/src/MainForm.java");
+        } else if (step == 2) {
+            ide.findBar.open(true);
+            ide.findBar.find.setText("lbl");
+            ide.findBar.repl.setText("label");
+            ide.findBar.queryChanged();
+        } else if (step == 3) {
+            ide.window.snapshot("/tmp/ide-tools-find.png");
+            log("find: " + ide.findBar.count.getText() + "\n");
+            ide.findBar.replaceOne();
+            log("after replaceOne: " + ide.activeDoc().editor.getText().indexOf("label.setText") + " " + ide.findBar.count.getText() + "\n");
+            ide.findBar.close();
+            ide.quickOpenFile();
+            ide.quick.query = "form";
+            ide.quick.refilter();
+            ide.quick.repaint();
+        } else if (step == 4) {
+            ide.window.snapshot("/tmp/ide-tools-quick.png");
+            log("quick: " + ide.quick.shown.size() + " items\n");
+            ide.quick.close();
+            ide.quickSymbol();
+        } else if (step == 5) {
+            ide.window.snapshot("/tmp/ide-tools-symbol.png");
+            ide.quick.accept(1);
+            TextPosition p = ide.activeDoc().editor.document.offsetToPosition(ide.activeDoc().editor.caret.offset);
+            log("symbol -> line " + (p.line + 1) + "\n");
+            ide.navBack();
+            TextPosition q = ide.activeDoc().editor.document.offsetToPosition(ide.activeDoc().editor.caret.offset);
+            log("back -> line " + (q.line + 1) + "\n");
+        }
     }
 
     static void completeStep() {
@@ -58,19 +154,13 @@ public class IdeDemo {
         } else if (step == 2) {
             tryComplete("        lblMessage.", "label");
         } else if (step == 3) {
-            if (IdeCompletePopup.last != null) {
-                IdeCompletePopup.last.win.close();
-                IdeCompletePopup.last = null;
-            }
+            ide.suggest.hide();
             tryComplete("        txtName.getText().", "chain");
         } else if (step == 4) {
-            if (IdeCompletePopup.last != null) {
-                IdeCompletePopup.last.win.close();
-                IdeCompletePopup.last = null;
-            }
+            ide.suggest.hide();
             tryComplete("        lblM", "word");
         } else if (step == 5) {
-            IdeCompletePopup.last.acceptSelected();
+            ide.suggest.accept(ide.suggest.sel);
             log("after accept: " + ide.activeDoc().editor.getText().substring(0, 0) + "ok\n");
             ide.activeDoc().editor.goTo(11, 0);
             ide.window.snapshot("/tmp/ide-complete-final.png");
@@ -115,6 +205,52 @@ public class IdeDemo {
         step = step + 1;
         IdeDoc d = ide.activeDoc();
         String mode = Env.get("IDE_DEMO");
+        if (mode != null && mode.equals("gen")) {
+            if (step == 1) {
+                ide.openFile(ide.project.dir + "/src/MainForm.jnui");
+            } else if (step == 2) {
+                ide.saveDesigner(ide.activeDoc());
+                ide.build(false);
+            } else if (step == 6) {
+                ide.window.snapshot("/tmp/ide-gen.png");
+            }
+            return;
+        }
+        if (mode != null && mode.equals("snap")) {
+            if (step == 1) {
+                ide.openFile(ide.project.dir + "/src/MainForm.jnui");
+            } else if (step == 3) {
+                ide.window.snapshot("/tmp/ide-designer.png");
+                ide.activeDoc().designer.togglePreview();
+            } else if (step == 4) {
+                ide.activeDoc().designer.preview.window.snapshot("/tmp/ide-preview.png");
+                ide.activeDoc().designer.togglePreview();
+            }
+            return;
+        }
+        if (mode != null && mode.equals("tpl")) {
+            if (step == 1) {
+                IdeDialog.template = DsUtil.parseInt(Env.get("IDE_TPL"), 2);
+                ide.createProject("/tmp/ide-projects", Env.get("IDE_TPL_NAME"));
+            } else if (step == 2) {
+                ide.build(true);
+            } else if (step == 6) {
+                ide.stopAll();
+            }
+            return;
+        }
+        if (mode != null && mode.equals("def")) {
+            defStep();
+            return;
+        }
+        if (mode != null && mode.equals("tools2")) {
+            tools2Step();
+            return;
+        }
+        if (mode != null && mode.equals("tools")) {
+            toolsStep();
+            return;
+        }
         if (mode != null && mode.equals("complete")) {
             completeStep();
             return;

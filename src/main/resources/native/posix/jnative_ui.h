@@ -84,8 +84,13 @@ enum {
     JN_UI_MOUSE_ENTER = 6,
     JN_UI_MOUSE_EXIT = 7,
     JN_UI_MOUSE_WHEEL = 8,
+    /* Horizontal wheel / trackpad swipe; delta packed like WHEEL. */
+    JN_UI_MOUSE_WHEEL_H = 9,
     JN_UI_KEY_DOWN = 1,
     JN_UI_KEY_UP = 2,
+    /* Text input (IME aware): arg0 = 3 committed text, 4 marked (composing) text; fetch with jnative_ui_take_text(). */
+    JN_UI_KEY_TEXT = 3,
+    JN_UI_KEY_MARKED = 4,
     JN_UI_FOCUS_GAINED = 1,
     JN_UI_FOCUS_LOST = 2
 };
@@ -336,6 +341,15 @@ void jnative_ui_headless_timer_fire(int32_t id);
 /* Canvas: present software surface pixels to native peer (double-buffered blit). */
 void jnative_ui_canvas_invalidate(int32_t id);
 void jnative_ui_canvas_set_transparent(int32_t id, int32_t on);
+/* Route key events through the platform input method (IME) and report committed/marked text. */
+void jnative_ui_canvas_set_text_input(int32_t id, int32_t on);
+/* Caret rectangle in canvas coordinates; anchors the IME candidate window. */
+void jnative_ui_canvas_set_ime_rect(int32_t id, int32_t x, int32_t y, int32_t h);
+/* Show an I-beam cursor over the canvas. */
+void jnative_ui_canvas_set_ibeam(int32_t id, int32_t on);
+/* Text carried by the last KEY_TEXT / KEY_MARKED event (malloc'd copy, free with the dialog free fn). */
+char *jnative_ui_take_text(void);
+void jnative_ui_set_pending_text(const char *utf8);
 void jnative_ui_panel_configure(int32_t id, int32_t flags);
 int32_t jnative_ui_window_snapshot(int32_t id, const char *path);
 void jnative_ui_canvas_present(int32_t id, int32_t surfaceId);

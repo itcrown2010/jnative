@@ -207,13 +207,34 @@ class PieceTable {
     void rebuildLineStarts() {
         lineStarts.clear();
         lineStarts.add(0);
-        int i = 0;
-        while (i < length) {
-            if (charAt(i) == 10) {
-                lineStarts.add(i + 1);
+        int pi = 0;
+        int at = 0;
+        while (pi < pieces.size()) {
+            Piece p = pieces.get(pi);
+            String s = chunkText(p.chunk);
+            int j = p.start;
+            int e = p.start + p.length;
+            while (j < e) {
+                if (s.charAt(j) == 10) {
+                    lineStarts.add(at + (j - p.start) + 1);
+                }
+                j = j + 1;
             }
-            i = i + 1;
+            at = at + p.length;
+            pi = pi + 1;
         }
+    }
+
+    /** Length of a line in characters, without building the line string. */
+    int lineLength(int line) {
+        if (line < 0 || line >= lineStarts.size()) {
+            return 0;
+        }
+        int a = lineStarts.get(line);
+        if (line + 1 < lineStarts.size()) {
+            return lineStarts.get(line + 1) - a - 1;
+        }
+        return length - a;
     }
 
     int offsetToLine(int offset) {
@@ -328,11 +349,11 @@ class PieceTable {
         if (offset > length) {
             offset = length;
         }
-        int chunkIndex = addChunks.size();
-        addChunks.add(text);
+        int tl = text.length();
         if (pieces.size() == 0) {
-            pieces.add(new Piece(chunkIndex, 0, text.length()));
-            length = text.length();
+            addChunks.add(text);
+            pieces.add(new Piece(addChunks.size() - 1, 0, tl));
+            length = tl;
             rebuildLineStarts();
             return;
         }
@@ -341,29 +362,62 @@ class PieceTable {
         findPiece(offset, idx, local);
         int pi = idx[0];
         int loc = local[0];
-        if (pi >= pieces.size()) {
-            pieces.add(new Piece(chunkIndex, 0, text.length()));
-        } else {
+        int merged = 0;
+        if (pi < pieces.size() && loc > 0) {
             Piece cur = pieces.get(pi);
-            if (loc == 0) {
-                pieces.addAt(pi, new Piece(chunkIndex, 0, text.length()));
-            } else if (loc == cur.length) {
-                pieces.addAt(pi + 1, new Piece(chunkIndex, 0, text.length()));
-            } else {
-                Piece left = new Piece(cur.chunk, cur.start, loc);
-                Piece right = new Piece(cur.chunk, cur.start + loc, cur.length - loc);
-                pieces.set(pi, left);
-                pieces.addAt(pi + 1, new Piece(chunkIndex, 0, text.length()));
-                pieces.addAt(pi + 2, right);
+            /* Typing continues the newest add chunk: grow it instead of adding a piece per keystroke. */
+            if (loc == cur.length && cur.chunk >= 0 && cur.chunk == addChunks.size() - 1) {
+                String chunk = addChunks.get(cur.chunk);
+                if (cur.start + cur.length == chunk.length()) {
+                    addChunks.set(cur.chunk, chunk + text);
+                    pieces.set(pi, new Piece(cur.chunk, cur.start, cur.length + tl));
+                    merged = 1;
+                }
             }
         }
-        int oldLen = length;
-        length = length + text.length();
-        if (offset == oldLen) {
-            appendLineStarts(offset, text);
-        } else {
-            rebuildLineStarts();
+        if (merged == 0) {
+            int chunkIndex = addChunks.size();
+            addChunks.add(text);
+            if (pi >= pieces.size()) {
+                pieces.add(new Piece(chunkIndex, 0, tl));
+            } else {
+                Piece cur = pieces.get(pi);
+                if (loc == 0) {
+                    pieces.addAt(pi, new Piece(chunkIndex, 0, tl));
+                } else if (loc == cur.length) {
+                    pieces.addAt(pi + 1, new Piece(chunkIndex, 0, tl));
+                } else {
+                    Piece left = new Piece(cur.chunk, cur.start, loc);
+                    Piece right = new Piece(cur.chunk, cur.start + loc, cur.length - loc);
+                    pieces.set(pi, left);
+                    pieces.addAt(pi + 1, new Piece(chunkIndex, 0, tl));
+                    pieces.addAt(pi + 2, right);
+                }
+            }
         }
+        /* Incremental line index: shift later starts, add the starts of newlines in the inserted text. */
+        int line = offsetToLine(offset);
+        length = length + tl;
+        ArrayList<int> ls = new ArrayList<int>();
+        int k = 0;
+        while (k <= line) {
+            ls.add(lineStarts.get(k));
+            k = k + 1;
+        }
+        k = 0;
+        while (k < tl) {
+            if (text.charAt(k) == 10) {
+                ls.add(offset + k + 1);
+            }
+            k = k + 1;
+        }
+        k = line + 1;
+        int total = lineStarts.size();
+        while (k < total) {
+            ls.add(lineStarts.get(k) + tl);
+            k = k + 1;
+        }
+        lineStarts = ls;
     }
 
     void appendLineStarts(int baseOffset, String text) {
@@ -413,8 +467,20 @@ class PieceTable {
             i = i + 1;
         }
         pieces = neu;
+        ArrayList<int> ls = new ArrayList<int>();
+        int k = 0;
+        int total = lineStarts.size();
+        while (k < total) {
+            int v = lineStarts.get(k);
+            if (v <= offset) {
+                ls.add(v);
+            } else if (v > end) {
+                ls.add(v - delLen);
+            }
+            k = k + 1;
+        }
+        lineStarts = ls;
         length = length - delLen;
-        rebuildLineStarts();
     }
 
     void replace(int offset, int delLen, String text) {
@@ -475,34 +541,35 @@ class TextUtil {
             return "";
         }
         int n = text.length();
-        int i = 0;
-        int hasCr = 0;
-        while (i < n) {
-            if (text.charAt(i) == 13) {
-                hasCr = 1;
-                i = n;
-            } else {
-                i = i + 1;
-            }
-        }
-        if (hasCr == 0) {
+        int first = text.indexOf("\r");
+        if (first < 0) {
             return text;
         }
-        String out = "";
-        i = 0;
+        StringBuilder out = new StringBuilder();
+        int segStart = 0;
+        int i = first;
         while (i < n) {
             int c = text.charAt(i);
             if (c == 13) {
+                out.append(text.substring(segStart, i));
+                out.append("\n");
                 if (i + 1 < n && text.charAt(i + 1) == 10) {
                     i = i + 1;
                 }
-                out = out + "\n";
-            } else {
-                out = out + text.substring(i, i + 1);
+                segStart = i + 1;
             }
             i = i + 1;
         }
-        return out;
+        if (segStart < n) {
+            out.append(text.substring(segStart, n));
+        }
+        return out.toString();
+    }
+
+    /** Any Unicode code point as a one-character string. */
+    static String charString(int code) {
+        char ch = (char) code;
+        return "" + ch;
     }
 
     static int isWordChar(int c) {
@@ -515,7 +582,17 @@ class TextUtil {
         if (c >= 48 && c <= 57) {
             return 1;
         }
-        if (c == 95) {
+        if (c == 95 || c == 36) {
+            return 1;
+        }
+        if (c >= 128) {
+            return 1;
+        }
+        return 0;
+    }
+
+    static int isWhitespace(int c) {
+        if (c == 32 || c == 9) {
             return 1;
         }
         return 0;
@@ -650,6 +727,10 @@ class TextDocument {
         return buffer.getLineCount();
     }
 
+    int lineLength(int line) {
+        return buffer.lineLength(line);
+    }
+
     String getText() {
         return buffer.getText();
     }
@@ -761,9 +842,12 @@ class TextEdit {
 
 class UndoGroup {
     ArrayList<TextEdit> edits;
+    /** True while consecutive typing may still be merged into this group. */
+    int open;
 
     UndoGroup() {
         edits = new ArrayList<TextEdit>();
+        open = 0;
     }
 
     void add(TextEdit e) {
@@ -790,6 +874,10 @@ class UndoManager {
     int memoryBytes;
     int memoryLimit;
     TextDocument document;
+    /** When set, a new edit joins the previous group if that group is still open (typing runs). */
+    int coalescing;
+    /** Caret offset suggested by the last undo()/redo(). */
+    int lastCaret;
 
     UndoManager(TextDocument doc) {
         document = doc;
@@ -799,6 +887,15 @@ class UndoManager {
         compounding = 0;
         memoryBytes = 0;
         memoryLimit = 8 * 1024 * 1024;
+        coalescing = 0;
+        lastCaret = 0;
+    }
+
+    /** Ends the current typing run: the next edit starts a new undo step. */
+    void closeGroup() {
+        if (undoStack.size() > 0) {
+            undoStack.get(undoStack.size() - 1).open = 0;
+        }
     }
 
     void beginCompoundEdit() {
@@ -833,8 +930,20 @@ class UndoManager {
             compound.add(edit);
             return;
         }
+        if (coalescing != 0 && undoStack.size() > 0) {
+            UndoGroup last = undoStack.get(undoStack.size() - 1);
+            if (last.open != 0) {
+                last.add(edit);
+                memoryBytes = memoryBytes + edit.removedText.length() + edit.insertedText.length();
+                redoStack.clear();
+                return;
+            }
+        }
         UndoGroup g = new UndoGroup();
         g.add(edit);
+        if (coalescing != 0) {
+            g.open = 1;
+        }
         pushGroup(g);
     }
 
@@ -862,10 +971,12 @@ class UndoManager {
             return;
         }
         UndoGroup g = undoStack.removeAt(undoStack.size() - 1);
+        g.open = 0;
         int i = g.edits.size() - 1;
         while (i >= 0) {
             TextEdit e = g.edits.get(i);
             document.replace(e.offset, e.insertedText.length(), e.removedText);
+            lastCaret = e.offset + e.removedText.length();
             i = i - 1;
         }
         redoStack.add(g);
@@ -880,6 +991,7 @@ class UndoManager {
         while (i < g.edits.size()) {
             TextEdit e = g.edits.get(i);
             document.replace(e.offset, e.removedText.length(), e.insertedText);
+            lastCaret = e.offset + e.insertedText.length();
             i = i + 1;
         }
         undoStack.add(g);
@@ -891,57 +1003,96 @@ class UndoManager {
 }
 
 class TextSearch {
-    static TextRange find(TextDocument doc, String query, int fromOffset, int caseSensitive, int wholeWord) {
+    static int lower(int c) {
+        if (c >= 65 && c <= 90) {
+            return c + 32;
+        }
+        return c;
+    }
+
+    static int matchAt(String text, int i, String query, int caseSensitive) {
+        int qn = query.length();
+        int j = 0;
+        while (j < qn) {
+            int a = text.charAt(i + j);
+            int b = query.charAt(j);
+            if (a != b) {
+                if (caseSensitive != 0) {
+                    return 0;
+                }
+                if (lower(a) != lower(b)) {
+                    return 0;
+                }
+            }
+            j = j + 1;
+        }
+        return 1;
+    }
+
+    static int wholeWordOk(String text, int i, int qn) {
+        int n = text.length();
+        if (i > 0 && TextUtil.isWordChar(text.charAt(i - 1)) != 0) {
+            return 0;
+        }
+        if (i + qn < n && TextUtil.isWordChar(text.charAt(i + qn)) != 0) {
+            return 0;
+        }
+        return 1;
+    }
+
+    /** First match at or after fromOffset in text. */
+    static TextRange findIn(String text, String query, int fromOffset, int caseSensitive, int wholeWord) {
         if (query == null || query.length() == 0) {
             return null;
         }
-        String text = doc.getText();
         int n = text.length();
         int qn = query.length();
         int i = fromOffset;
         if (i < 0) {
             i = 0;
         }
+        int q0 = query.charAt(0);
         while (i + qn <= n) {
-            int match = 1;
-            int j = 0;
-            while (j < qn) {
-                int a = text.charAt(i + j);
-                int b = query.charAt(j);
-                if (caseSensitive == 0) {
-                    if (a >= 65 && a <= 90) {
-                        a = a + 32;
-                    }
-                    if (b >= 65 && b <= 90) {
-                        b = b + 32;
-                    }
-                }
-                if (a != b) {
-                    match = 0;
-                    j = qn;
-                } else {
-                    j = j + 1;
-                }
-            }
-            if (match != 0) {
-                if (wholeWord != 0) {
-                    int ok = 1;
-                    if (i > 0 && TextUtil.isWordChar(text.charAt(i - 1)) != 0) {
-                        ok = 0;
-                    }
-                    if (i + qn < n && TextUtil.isWordChar(text.charAt(i + qn)) != 0) {
-                        ok = 0;
-                    }
-                    if (ok != 0) {
+            int c0 = text.charAt(i);
+            if (c0 == q0 || (caseSensitive == 0 && lower(c0) == lower(q0))) {
+                if (matchAt(text, i, query, caseSensitive) != 0) {
+                    if (wholeWord == 0 || wholeWordOk(text, i, qn) != 0) {
                         return new TextRange(i, i + qn);
                     }
-                } else {
-                    return new TextRange(i, i + qn);
                 }
             }
             i = i + 1;
         }
         return null;
+    }
+
+    /** Last match that starts before beforeOffset. */
+    static TextRange findBackIn(String text, String query, int beforeOffset, int caseSensitive, int wholeWord) {
+        if (query == null || query.length() == 0) {
+            return null;
+        }
+        int n = text.length();
+        int qn = query.length();
+        int i = beforeOffset - 1;
+        if (i + qn > n) {
+            i = n - qn;
+        }
+        while (i >= 0) {
+            if (matchAt(text, i, query, caseSensitive) != 0) {
+                if (wholeWord == 0 || wholeWordOk(text, i, qn) != 0) {
+                    return new TextRange(i, i + qn);
+                }
+            }
+            i = i - 1;
+        }
+        return null;
+    }
+
+    static TextRange find(TextDocument doc, String query, int fromOffset, int caseSensitive, int wholeWord) {
+        if (query == null || query.length() == 0) {
+            return null;
+        }
+        return findIn(doc.getText(), query, fromOffset, caseSensitive, wholeWord);
     }
 
     static int replaceAll(TextDocument doc, UndoManager undo, String query, String replacement, int caseSensitive) {
@@ -1030,6 +1181,16 @@ class EditorTheme {
     Color comment;
     Color number;
     Color diagnosticError;
+    Color typeColor;
+    Color annotationColor;
+    Color bracketMatch;
+    Color findMatch;
+    Color findCurrent;
+    Color wordHighlight;
+    Color gutterBackground;
+    Color gutterCurrent;
+    Color scrollThumb;
+    Color indentGuide;
 
     static EditorTheme dark() {
         EditorTheme t = new EditorTheme();
@@ -1044,6 +1205,16 @@ class EditorTheme {
         t.comment = new Color(120, 180, 120);
         t.number = new Color(200, 140, 220);
         t.diagnosticError = new Color(255, 80, 80);
+        t.typeColor = new Color(78, 201, 176);
+        t.annotationColor = new Color(220, 220, 130);
+        t.bracketMatch = new Color(90, 90, 110);
+        t.findMatch = new Color(110, 90, 30);
+        t.findCurrent = new Color(160, 120, 20);
+        t.wordHighlight = new Color(55, 60, 75);
+        t.gutterBackground = new Color(30, 30, 30);
+        t.gutterCurrent = new Color(200, 200, 200);
+        t.scrollThumb = new Color(120, 120, 120, 120);
+        t.indentGuide = new Color(55, 55, 55);
         return t;
     }
 
@@ -1060,6 +1231,16 @@ class EditorTheme {
         t.comment = new Color(0, 128, 0);
         t.number = new Color(128, 0, 128);
         t.diagnosticError = new Color(200, 0, 0);
+        t.typeColor = new Color(0, 120, 130);
+        t.annotationColor = new Color(130, 100, 0);
+        t.bracketMatch = new Color(205, 220, 245);
+        t.findMatch = new Color(255, 232, 150);
+        t.findCurrent = new Color(255, 190, 80);
+        t.wordHighlight = new Color(228, 236, 248);
+        t.gutterBackground = new Color(250, 250, 250);
+        t.gutterCurrent = new Color(60, 60, 60);
+        t.scrollThumb = new Color(90, 90, 90, 110);
+        t.indentGuide = new Color(232, 232, 232);
         return t;
     }
 
@@ -1077,7 +1258,10 @@ class EditorTheme {
             return number;
         }
         if (type == TokenType.ANNOTATION) {
-            return keyword;
+            return annotationColor;
+        }
+        if (type == TokenType.TYPE) {
+            return typeColor;
         }
         return foreground;
     }
@@ -1088,6 +1272,14 @@ class JNativeSyntaxTokenizer {
     static int tokensGenerated;
 
     static int isKeyword(String w) {
+        int n = w.length();
+        if (n < 2 || n > 12) {
+            return 0;
+        }
+        int c0 = w.charAt(0);
+        if (c0 < 97 || c0 > 122) {
+            return 0;
+        }
         if (w.equals("class") || w.equals("interface") || w.equals("public")
                 || w.equals("private") || w.equals("protected") || w.equals("static")
                 || w.equals("void") || w.equals("int") || w.equals("long")
@@ -1099,8 +1291,34 @@ class JNativeSyntaxTokenizer {
                 || w.equals("import") || w.equals("package") || w.equals("final")
                 || w.equals("true") || w.equals("false") || w.equals("null")
                 || w.equals("this") || w.equals("super") || w.equals("break")
-                || w.equals("continue")) {
+                || w.equals("continue") || w.equals("abstract") || w.equals("switch")
+                || w.equals("case") || w.equals("default") || w.equals("do")
+                || w.equals("enum") || w.equals("float") || w.equals("short")
+                || w.equals("byte") || w.equals("instanceof") || w.equals("native")
+                || w.equals("synchronized") || w.equals("volatile") || w.equals("transient")
+                || w.equals("finally") || w.equals("var") || w.equals("record")) {
             return 1;
+        }
+        return 0;
+    }
+
+    /** CamelCase identifier (class / interface / enum name): first letter upper case and some lower case. */
+    static int isTypeName(String w) {
+        int n = w.length();
+        if (n < 2) {
+            return 0;
+        }
+        int c0 = w.charAt(0);
+        if (c0 < 65 || c0 > 90) {
+            return 0;
+        }
+        int i = 1;
+        while (i < n) {
+            int c = w.charAt(i);
+            if (c >= 97 && c <= 122) {
+                return 1;
+            }
+            i = i + 1;
         }
         return 0;
     }
@@ -1148,16 +1366,22 @@ class JNativeSyntaxTokenizer {
                     out.add(new Token(lineOffset + i, endPos + 2 - i, TokenType.COMMENT));
                     tokensGenerated = tokensGenerated + 1;
                     i = endPos + 2;
-                } else if (c == 34) {
+                } else if (c == 34 || c == 39) {
                     j = i + 1;
                     done = 0;
                     while (j < n && done == 0) {
-                        if (line.charAt(j) == 34 && line.charAt(j - 1) != 92) {
+                        d = line.charAt(j);
+                        if (d == 92) {
+                            j = j + 2;
+                        } else if (d == c) {
                             j = j + 1;
                             done = 1;
                         } else {
                             j = j + 1;
                         }
+                    }
+                    if (j > n) {
+                        j = n;
                     }
                     out.add(new Token(lineOffset + i, j - i, TokenType.STRING));
                     tokensGenerated = tokensGenerated + 1;
@@ -1175,7 +1399,10 @@ class JNativeSyntaxTokenizer {
                     cont = 1;
                     while (j < n && cont != 0) {
                         d = line.charAt(j);
-                        if ((d >= 48 && d <= 57) || d == 46) {
+                        if ((d >= 48 && d <= 57) || d == 46 || d == 95 || d == 76 || d == 102
+                                || (c == 48 && j == i + 1 && d == 120)
+                                || (c == 48 && i + 1 < n && line.charAt(i + 1) == 120
+                                    && ((d >= 97 && d <= 102) || (d >= 65 && d <= 70)))) {
                             j = j + 1;
                         } else {
                             cont = 0;
@@ -1193,6 +1420,8 @@ class JNativeSyntaxTokenizer {
                     ty = TokenType.IDENTIFIER;
                     if (isKeyword(w) != 0) {
                         ty = TokenType.KEYWORD;
+                    } else if (isTypeName(w) != 0) {
+                        ty = TokenType.TYPE;
                     }
                     out.add(new Token(lineOffset + i, j - i, ty));
                     tokensGenerated = tokensGenerated + 1;
@@ -1471,6 +1700,24 @@ class EditorCommand {
     static int REPLACE = 17;
     static int PAGE_UP = 18;
     static int PAGE_DOWN = 19;
+    static int DOC_START = 20;
+    static int DOC_END = 21;
+    static int WORD_LEFT = 22;
+    static int WORD_RIGHT = 23;
+    static int TOGGLE_COMMENT = 24;
+    static int INDENT = 25;
+    static int OUTDENT = 26;
+    static int DELETE_LINE = 27;
+    static int DUPLICATE_LINE = 28;
+    static int COPY_LINE_UP = 29;
+    static int MOVE_LINE_UP = 30;
+    static int MOVE_LINE_DOWN = 31;
+    static int SELECT_LINE = 32;
+    static int INSERT_LINE_BELOW = 33;
+    static int INSERT_LINE_ABOVE = 34;
+    static int DELETE_WORD_BACK = 35;
+    static int DELETE_WORD_FORWARD = 36;
+    static int DELETE_TO_LINE_START = 37;
 }
 
 /** Word boundary helpers for code-aware caret motion. */
@@ -1633,6 +1880,56 @@ class TextLineLayout {
     }
 }
 
+/** Tokens of one line as full-coverage runs [start, end, type] (line relative). */
+class LineTok {
+    int[] data;
+    int count;
+
+    LineTok() {
+        data = new int[12];
+        count = 0;
+    }
+
+    void add(int s, int e, int t) {
+        if (e <= s) {
+            return;
+        }
+        if (count >= 3 && data[count - 1] == t && data[count - 2] == s) {
+            data[count - 2] = e;
+            return;
+        }
+        if (count + 3 > data.length) {
+            int[] nd = new int[data.length * 2];
+            int i = 0;
+            while (i < count) {
+                nd[i] = data[i];
+                i = i + 1;
+            }
+            data = nd;
+        }
+        data[count] = s;
+        data[count + 1] = e;
+        data[count + 2] = t;
+        count = count + 3;
+    }
+
+    int typeAt(int col) {
+        int i = 0;
+        while (i < count) {
+            if (col >= data[i] && col < data[i + 1]) {
+                return data[i + 2];
+            }
+            i = i + 3;
+        }
+        return TokenType.NORMAL;
+    }
+}
+
+interface TypedListener {
+    /** A character was typed (code point), or 8 for backspace / 127 for delete. */
+    void typed(int code);
+}
+
 class CodeEditor extends Canvas {
     TextDocument document;
     UndoManager undo;
@@ -1640,9 +1937,10 @@ class CodeEditor extends Canvas {
     TextSelection selection;
     EditorViewport viewport;
     EditorTheme theme;
-    ArrayList<StyledSpan> spans;
+    ArrayList<LineTok> lineToks;
     ArrayList<int> lineStates;
     ArrayList<EditorDiagnostic> diagnostics;
+    String hoverTip = "";
     Font font;
     int tabSize;
     int insertSpaces;
@@ -1655,8 +1953,37 @@ class CodeEditor extends Canvas {
     ArrayList<CaretListener> caretListeners;
     ArrayList<SelectionListener> selectionListeners;
     String findQuery;
+    int findCase;
+    int findWhole;
     int compositionActive;
     String compositionText;
+    /** Auto-close brackets and quotes, auto-indent. */
+    int smartEdit;
+    /** Runs before the editor handles a key; consume() the event to take it over (popups). */
+    EventHandler<KeyEvent> keyPre;
+    TypedListener typedListener;
+    /** Called for Cmd/Ctrl + click with the clicked offset (go to definition). */
+    EventHandler<MouseEvent> commandClick;
+
+    double charW;
+    int lineH;
+    Font metricsFont;
+    String hlWord;
+    int bracketA;
+    int bracketB;
+    int dragMode;
+    int dragStart;
+    int dragEnd;
+    int dragBar;
+    int dragBarGrab;
+    int maxCols;
+    int maxColsDirty;
+    int mouseDownFlag;
+    int lastImeX;
+    int lastImeY;
+    ArrayList<int> wideCodes;
+    ArrayList<int> wideWidths;
+    ArrayList<Token> scratchTokens;
 
     CodeEditor() {
         document = new TextDocument("");
@@ -1665,7 +1992,7 @@ class CodeEditor extends Canvas {
         selection = new TextSelection();
         viewport = new EditorViewport();
         theme = EditorTheme.dark();
-        spans = new ArrayList<StyledSpan>();
+        lineToks = new ArrayList<LineTok>();
         lineStates = new ArrayList<int>();
         lineStates.add(0);
         diagnostics = new ArrayList<EditorDiagnostic>();
@@ -1680,14 +2007,32 @@ class CodeEditor extends Canvas {
         caretListeners = new ArrayList<CaretListener>();
         selectionListeners = new ArrayList<SelectionListener>();
         findQuery = "";
+        findCase = 0;
+        findWhole = 0;
         compositionActive = 0;
         compositionText = "";
+        smartEdit = 1;
+        charW = 0.0;
+        lineH = 19;
+        metricsFont = null;
+        hlWord = "";
+        bracketA = -1;
+        bracketB = -1;
+        dragMode = 0;
+        maxCols = 0;
+        maxColsDirty = 1;
+        wideCodes = new ArrayList<int>();
+        wideWidths = new ArrayList<int>();
+        scratchTokens = new ArrayList<Token>();
+        lastImeX = -1;
+        lastImeY = -1;
         setPrefSize(800, 600);
         width = 800;
         height = 600;
         viewport.width = 800;
         viewport.height = 600;
         installHandlers();
+        watchDocument();
         rehighlightAll();
     }
 
@@ -1696,17 +2041,28 @@ class CodeEditor extends Canvas {
         onPaint(g -> {
             self.paintEditor(g);
         });
-        onMouseDown(event -> {
-            self.handleMouseDown(event);
-        });
-        onMouseDrag(event -> {
-            self.handleMouseDrag(event);
+        onMouse(event -> {
+            self.handleMouse(event);
         });
         onKeyDown(event -> {
             self.handleKey(event);
         });
+        onTextInput(event -> {
+            self.handleTextInput(event);
+        });
+        if (nativeId > 0) {
+            UiNative.canvasSetTextInput(nativeId, 1);
+            UiNative.canvasSetIbeam(nativeId, 1);
+        }
         /* Blink timer started lazily via ensureBlinkTimer() to avoid headless hang. */
         blinkTimer = null;
+    }
+
+    void watchDocument() {
+        CodeEditor self = this;
+        document.onChange(ch -> {
+            self.documentChanged(ch);
+        });
     }
 
     void ensureBlinkTimer() {
@@ -1714,9 +2070,11 @@ class CodeEditor extends Canvas {
             return;
         }
         CodeEditor self = this;
-        blinkTimer = new UiTimer(500, () -> {
-            self.caret.blinkOn = 1 - self.caret.blinkOn;
-            self.repaint();
+        blinkTimer = new UiTimer(530, () -> {
+            if (self.visible != 0 && self.compositionActive == 0) {
+                self.caret.blinkOn = 1 - self.caret.blinkOn;
+                self.repaint();
+            }
         });
     }
 
@@ -1727,7 +2085,11 @@ class CodeEditor extends Canvas {
         selection.anchor = 0;
         selection.active = 0;
         viewport.firstLine = 0;
+        viewport.yOffset = 0;
+        viewport.xOffset = 0;
+        watchDocument();
         rehighlightAll();
+        refreshCaretInfo();
         repaint();
     }
 
@@ -1744,8 +2106,12 @@ class CodeEditor extends Canvas {
         caret.offset = 0;
         selection.anchor = 0;
         selection.active = 0;
+        viewport.firstLine = 0;
+        viewport.yOffset = 0;
+        viewport.xOffset = 0;
         undo = new UndoManager(document);
         rehighlightAll();
+        refreshCaretInfo();
         repaint();
     }
 
@@ -1773,11 +2139,10 @@ class CodeEditor extends Canvas {
     void setSyntaxHighlighting(boolean v) {
         if (v) {
             showSyntax = 1;
-            rehighlightAll();
         } else {
             showSyntax = 0;
-            spans = new ArrayList<StyledSpan>();
         }
+        rehighlightAll();
         repaint();
     }
 
@@ -1788,9 +2153,6 @@ class CodeEditor extends Canvas {
 
     void setDiagnostics(ArrayList<EditorDiagnostic> list) {
         diagnostics = list;
-        if (diagnostics == null) {
-            diagnostics = new ArrayList<EditorDiagnostic>();
-        }
         repaint();
     }
 
@@ -1812,6 +2174,7 @@ class CodeEditor extends Canvas {
     }
 
     void fireCaret() {
+        refreshCaretInfo();
         TextPosition p = document.offsetToPosition(caret.offset);
         int i = 0;
         while (i < caretListeners.size()) {
@@ -1828,58 +2191,250 @@ class CodeEditor extends Canvas {
         }
     }
 
+    // ------------------------------------------------------------------ tokens
+
     void rehighlightAll() {
-        if (showSyntax == 0) {
-            spans = new ArrayList<StyledSpan>();
-            return;
-        }
-        spans = JNativeSyntaxTokenizer.highlightDocument(document);
+        lineToks = new ArrayList<LineTok>();
         lineStates = new ArrayList<int>();
         lineStates.add(0);
-        int line = 0;
+        int n = document.getLineCount();
         int state = 0;
-        while (line < document.getLineCount()) {
-            ArrayList<Token> tokens = new ArrayList<Token>();
-            state = JNativeSyntaxTokenizer.tokenizeLine(state, document.getLine(line), tokens, document.lineToOffset(line));
-            lineStates.add(state);
+        int line = 0;
+        while (line < n) {
+            if (showSyntax != 0) {
+                String text = document.getLine(line);
+                lineToks.add(tokenizeInto(state, text));
+                lineStates.add(scratchState);
+                state = scratchState;
+            } else {
+                lineToks.add(null);
+                lineStates.add(0);
+            }
             line = line + 1;
+        }
+        maxColsDirty = 1;
+    }
+
+    int scratchState;
+
+    LineTok tokenizeInto(int state, String text) {
+        scratchTokens.clear();
+        scratchState = JNativeSyntaxTokenizer.tokenizeLine(state, text, scratchTokens, 0);
+        LineTok lt = new LineTok();
+        int n = text.length();
+        int cur = 0;
+        int i = 0;
+        while (i < scratchTokens.size()) {
+            Token t = scratchTokens.get(i);
+            int ty = t.type;
+            if (ty == TokenType.IDENTIFIER || ty == TokenType.OPERATOR) {
+                ty = TokenType.NORMAL;
+            }
+            if (t.start > cur) {
+                lt.add(cur, t.start, TokenType.NORMAL);
+            }
+            lt.add(t.start, t.start + t.length, ty);
+            cur = t.start + t.length;
+            i = i + 1;
+        }
+        if (cur < n) {
+            lt.add(cur, n, TokenType.NORMAL);
+        }
+        return lt;
+    }
+
+    /** Keeps the per-line token cache in step with a document edit and re-tokenizes what changed. */
+    void documentChanged(DocumentChange ch) {
+        maxColsDirty = 1;
+        bracketA = -1;
+        bracketB = -1;
+        int newCount = document.getLineCount();
+        int oldCount = lineToks.size();
+        int inserted = 0;
+        String txt = ch.insertedText;
+        if (txt != null) {
+            int k = 0;
+            int tn = txt.length();
+            while (k < tn) {
+                if (txt.charAt(k) == 10) {
+                    inserted = inserted + 1;
+                }
+                k = k + 1;
+            }
+        }
+        int removed = oldCount - newCount + inserted;
+        if (removed < 0 || inserted + removed > 200 || oldCount == 0) {
+            rehighlightAll();
+            return;
+        }
+        int line = document.offsetToLine(ch.offset);
+        int r = 0;
+        while (r < removed) {
+            if (line + 1 < lineToks.size()) {
+                lineToks.removeAt(line + 1);
+            }
+            if (line + 1 < lineStates.size()) {
+                lineStates.removeAt(line + 1);
+            }
+            r = r + 1;
+        }
+        r = 0;
+        while (r < inserted) {
+            lineToks.addAt(line + 1, null);
+            lineStates.addAt(line + 1, 0);
+            r = r + 1;
+        }
+        while (lineToks.size() < newCount) {
+            lineToks.add(null);
+        }
+        while (lineStates.size() < newCount + 1) {
+            lineStates.add(0);
+        }
+        if (showSyntax == 0) {
+            return;
+        }
+        int i = line;
+        int state = lineStates.get(i);
+        int guard = 0;
+        while (i < newCount) {
+            String text = document.getLine(i);
+            lineToks.set(i, tokenizeInto(state, text));
+            int next = scratchState;
+            int old = lineStates.get(i + 1);
+            lineStates.set(i + 1, next);
+            state = next;
+            i = i + 1;
+            if (i > line + inserted && next == old) {
+                return;
+            }
+            guard = guard + 1;
         }
     }
 
-    void rehighlightAround(int offset) {
-        int line = document.offsetToLine(offset);
-        int from = line - 1;
-        if (from < 0) {
-            from = 0;
+    LineTok tokensForLine(int line) {
+        if (showSyntax == 0 || line < 0 || line >= lineToks.size()) {
+            return null;
         }
-        int to = line + 8;
-        if (to >= document.getLineCount()) {
-            to = document.getLineCount() - 1;
+        LineTok t = lineToks.get(line);
+        if (t == null) {
+            int st = 0;
+            if (line < lineStates.size()) {
+                st = lineStates.get(line);
+            }
+            t = tokenizeInto(st, document.getLine(line));
+            lineToks.set(line, t);
         }
-        ArrayList<StyledSpan> neu = JNativeSyntaxTokenizer.highlightLineRange(document, from, to, lineStates);
-        ArrayList<StyledSpan> kept = new ArrayList<StyledSpan>();
-        int a = document.lineToOffset(from);
-        int b = document.getLength();
-        if (to + 1 < document.getLineCount()) {
-            b = document.lineToOffset(to + 1);
+        return t;
+    }
+
+    int tokenTypeAt(int line, int col) {
+        LineTok t = tokensForLine(line);
+        if (t == null) {
+            return TokenType.NORMAL;
         }
+        return t.typeAt(col);
+    }
+
+    // ------------------------------------------------------------------ metrics
+
+    void ensureMetrics() {
+        if (metricsFont == font && charW > 0.0) {
+            return;
+        }
+        Image tmp = Image.create(4, 4);
+        Graphics g = tmp.beginGraphics();
+        g.setFont(font);
+        FontMetrics fm = g.getFontMetrics(font);
+        String probe = "";
         int i = 0;
-        while (i < spans.size()) {
-            StyledSpan s = spans.get(i);
-            if (s.end <= a || s.start >= b) {
-                kept.add(s);
+        while (i < 8) {
+            probe = probe + "MMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMM";
+            i = i + 1;
+        }
+        Size sz = g.measureText(probe, font);
+        charW = sz.width / (probe.length() * 1.0);
+        int lh = fm.getLineHeight();
+        g.end();
+        tmp.dispose();
+        if (charW < 3.0) {
+            charW = 8.0;
+        }
+        lineH = lh + 4;
+        if (lineH < 16) {
+            lineH = 18;
+        }
+        viewport.lineHeight = lineH;
+        metricsFont = font;
+        wideCodes = new ArrayList<int>();
+        wideWidths = new ArrayList<int>();
+    }
+
+    double wideWidth(int c) {
+        int i = 0;
+        while (i < wideCodes.size()) {
+            if (wideCodes.get(i) == c) {
+                return wideWidths.get(i) * 1.0;
             }
             i = i + 1;
         }
-        i = 0;
-        while (i < neu.size()) {
-            kept.add(neu.get(i));
+        Image tmp = Image.create(4, 4);
+        Graphics g = tmp.beginGraphics();
+        Size sz = g.measureText(TextUtil.charString(c), font);
+        g.end();
+        tmp.dispose();
+        int w = sz.width;
+        if (w <= 0) {
+            w = (int) (charW * 2.0);
+        }
+        wideCodes.add(c);
+        wideWidths.add(w);
+        return w * 1.0;
+    }
+
+    double advance(int c, double cur) {
+        if (c == 9) {
+            double tabPx = tabSize * charW;
+            double next = ((int) (cur / tabPx) + 1) * tabPx;
+            return next - cur;
+        }
+        if (c < 128) {
+            return charW;
+        }
+        return wideWidth(c);
+    }
+
+    /** Pixel offset of a column inside a line (tabs and wide characters aware). */
+    double colToX(String line, int col) {
+        int n = line.length();
+        if (col > n) {
+            col = n;
+        }
+        double x = 0.0;
+        int i = 0;
+        while (i < col) {
+            x = x + advance(line.charAt(i), x);
             i = i + 1;
         }
-        spans = kept;
+        return x;
+    }
+
+    int xToCol(String line, double x) {
+        int n = line.length();
+        double cur = 0.0;
+        int i = 0;
+        while (i < n) {
+            double w = advance(line.charAt(i), cur);
+            if (x < cur + w / 2.0) {
+                return i;
+            }
+            cur = cur + w;
+            i = i + 1;
+        }
+        return n;
     }
 
     int gutterWidthFor() {
+        ensureMetrics();
         if (showLineNumbers == 0) {
             viewport.gutterWidth = 0;
             return 0;
@@ -1891,21 +2446,107 @@ class CodeEditor extends Canvas {
             digits = digits + 1;
             v = v / 10;
         }
-        int w = digits * 10 + 16;
-        if (w < 36) {
-            w = 36;
+        if (digits < 3) {
+            digits = 3;
         }
+        int w = (int) (digits * charW) + 26;
         viewport.gutterWidth = w;
         return w;
     }
 
-    int hitTest(int x, int y) {
-        int gw = gutterWidthFor();
-        int contentX = x - gw + viewport.xOffset;
-        if (contentX < 0) {
-            contentX = 0;
+    int textLeft() {
+        return gutterWidthFor() + 8;
+    }
+
+    int scrollPx() {
+        return viewport.firstLine * lineH + viewport.yOffset;
+    }
+
+    int contentHeight() {
+        return document.getLineCount() * lineH;
+    }
+
+    int maxScrollY() {
+        int m = contentHeight() - height + height / 2;
+        if (m < 0) {
+            m = 0;
         }
-        int line = viewport.firstLine + y / viewport.lineHeight;
+        return m;
+    }
+
+    void setScrollPx(int px) {
+        int mx = maxScrollY();
+        if (px > mx) {
+            px = mx;
+        }
+        if (px < 0) {
+            px = 0;
+        }
+        viewport.firstLine = px / lineH;
+        viewport.yOffset = px % lineH;
+    }
+
+    void refreshMaxCols() {
+        if (maxColsDirty == 0) {
+            return;
+        }
+        maxColsDirty = 0;
+        int n = document.getLineCount();
+        int m = 0;
+        int i = 0;
+        while (i < n) {
+            int l = document.lineLength(i);
+            if (l > m) {
+                m = l;
+            }
+            i = i + 1;
+        }
+        maxCols = m;
+    }
+
+    int maxScrollX() {
+        refreshMaxCols();
+        int content = (int) (maxCols * charW) + 40;
+        int avail = width - textLeft() - 12;
+        int m = content - avail;
+        if (m < 0) {
+            m = 0;
+        }
+        return m;
+    }
+
+    void setScrollX(int px) {
+        int mx = maxScrollX();
+        if (px > mx) {
+            px = mx;
+        }
+        if (px < 0) {
+            px = 0;
+        }
+        viewport.xOffset = px;
+    }
+
+    void scrollLines(int delta) {
+        ensureMetrics();
+        setScrollPx(scrollPx() + delta * lineH);
+        repaint();
+    }
+
+    int visibleLines() {
+        ensureMetrics();
+        int v = height / lineH;
+        if (v < 1) {
+            v = 1;
+        }
+        return v;
+    }
+
+    int hitTest(int x, int y) {
+        ensureMetrics();
+        int line = (y + scrollPx()) / lineH;
+        if (y + scrollPx() < 0) {
+            line = 0;
+        }
         if (line < 0) {
             line = 0;
         }
@@ -1916,51 +2557,93 @@ class CodeEditor extends Canvas {
             }
         }
         String text = document.getLine(line);
-        int col = 0;
-        int best = 0;
-        int n = text.length();
-        while (col <= n) {
-            String prefix = text.substring(0, col);
-            Size sz = measureLineWidth(prefix);
-            if (sz.width <= contentX) {
-                best = col;
-            } else {
-                return document.positionToOffset(line, best);
-            }
-            col = col + 1;
+        double cx = x - textLeft() + viewport.xOffset;
+        if (cx < 0.0) {
+            cx = 0.0;
         }
-        return document.positionToOffset(line, best);
+        int col = xToCol(text, cx);
+        return document.positionToOffset(line, col);
     }
 
     Size measureLineWidth(String s) {
-        Image tmp = Image.create(4, 4);
-        Graphics g = tmp.beginGraphics();
-        g.setFont(font);
-        Size sz = g.measureText(s, font);
-        g.end();
-        tmp.dispose();
-        return sz;
+        ensureMetrics();
+        return new Size((int) colToX(s, s.length()), lineH);
     }
 
     void ensureCaretVisible() {
-        TextPosition p = document.offsetToPosition(caret.offset);
-        int vis = viewport.visibleLineCount();
-        if (p.line < viewport.firstLine) {
-            viewport.firstLine = p.line;
+        ensureMetrics();
+        if (height <= 0) {
+            return;
         }
-        if (p.line >= viewport.firstLine + vis - 1) {
-            viewport.firstLine = p.line - vis + 2;
-            if (viewport.firstLine < 0) {
-                viewport.firstLine = 0;
-            }
+        TextPosition p = document.offsetToPosition(caret.offset);
+        int y = p.line * lineH;
+        int sp = scrollPx();
+        if (y < sp) {
+            setScrollPx(y);
+        } else if (y + lineH > sp + height) {
+            setScrollPx(y + lineH - height);
+        }
+        String text = document.getLine(p.line);
+        int x = (int) colToX(text, p.column);
+        int avail = width - textLeft() - 12;
+        if (avail < 40) {
+            return;
+        }
+        if (x - viewport.xOffset < 8) {
+            setScrollX(x - 60);
+        } else if (x - viewport.xOffset > avail - 24) {
+            setScrollX(x - avail + 80);
+        }
+    }
+
+    /** Caret position in editor pixels: x of the caret, y of the top of its line. */
+    int caretPixelX() {
+        ensureMetrics();
+        TextPosition p = document.offsetToPosition(caret.offset);
+        return (int) (textLeft() - viewport.xOffset + colToX(document.getLine(p.line), p.column));
+    }
+
+    int caretPixelY() {
+        ensureMetrics();
+        TextPosition p = document.offsetToPosition(caret.offset);
+        return p.line * lineH - scrollPx();
+    }
+
+    /** Pixel x of an arbitrary offset (same coordinate space as caretPixelX). */
+    int offsetPixelX(int offset) {
+        ensureMetrics();
+        TextPosition p = document.offsetToPosition(offset);
+        return (int) (textLeft() - viewport.xOffset + colToX(document.getLine(p.line), p.column));
+    }
+
+    int lineHeightPx() {
+        ensureMetrics();
+        return lineH;
+    }
+
+    /** Identifier text immediately before the caret. */
+    String wordBeforeCaret() {
+        return document.substring(wordStart(caret.offset), caret.offset);
+    }
+
+    /** Scrolls so that the line is visible, centring it when it is far away. */
+    void revealLine(int line) {
+        ensureMetrics();
+        int y = line * lineH;
+        int sp = scrollPx();
+        if (y < sp || y + lineH > sp + height) {
+            setScrollPx(y - height / 2 + lineH);
         }
     }
 
     void goTo(int line, int column) {
         int off = document.positionToOffset(line, column);
+        undo.closeGroup();
         caret.offset = off;
         selection.anchor = off;
         selection.active = off;
+        TextPosition p = document.offsetToPosition(off);
+        revealLine(p.line);
         ensureCaretVisible();
         fireCaret();
         fireSelection();
@@ -1973,9 +2656,26 @@ class CodeEditor extends Canvas {
         selection.anchor = range.start;
         selection.active = range.end;
         caret.offset = range.end;
+        ensureCaretVisible();
+        fireCaret();
         fireSelection();
         repaint();
     }
+
+    void selectRange(int a, int b) {
+        undo.closeGroup();
+        selection.anchor = a;
+        selection.active = b;
+        caret.offset = b;
+        TextPosition p = document.offsetToPosition(b);
+        revealLine(p.line);
+        ensureCaretVisible();
+        fireCaret();
+        fireSelection();
+        repaint();
+    }
+
+    // ------------------------------------------------------------------ editing primitives
 
     void applyEdit(int offset, int delLen, String insert) {
         if (readOnly != 0) {
@@ -1990,7 +2690,7 @@ class CodeEditor extends Canvas {
         caret.offset = offset + insert.length();
         selection.anchor = caret.offset;
         selection.active = caret.offset;
-        rehighlightAround(offset);
+        caret.blinkOn = 1;
         ensureCaretVisible();
         fireCaret();
         fireSelection();
@@ -2010,6 +2710,18 @@ class CodeEditor extends Canvas {
         }
     }
 
+    /** Inserts text as one undo step (paste, IME commit, completion). */
+    void insertBlock(String text) {
+        if (readOnly != 0) {
+            return;
+        }
+        undo.closeGroup();
+        undo.coalescing = 0;
+        insertText(text);
+        undo.closeGroup();
+        notifyTyped(0);
+    }
+
     void deleteSelectionOr(int dir) {
         if (!selection.isEmpty()) {
             replaceSelection("");
@@ -2026,6 +2738,12 @@ class CodeEditor extends Canvas {
         }
     }
 
+    void notifyTyped(int code) {
+        if (typedListener != null) {
+            typedListener.typed(code);
+        }
+    }
+
     void moveCaret(int newOffset, int extend) {
         if (newOffset < 0) {
             newOffset = 0;
@@ -2033,6 +2751,7 @@ class CodeEditor extends Canvas {
         if (newOffset > document.getLength()) {
             newOffset = document.getLength();
         }
+        undo.closeGroup();
         caret.offset = newOffset;
         if (extend != 0) {
             selection.active = newOffset;
@@ -2042,6 +2761,7 @@ class CodeEditor extends Canvas {
         }
         TextPosition p = document.offsetToPosition(caret.offset);
         caret.preferredColumn = p.column;
+        caret.blinkOn = 1;
         ensureCaretVisible();
         fireCaret();
         fireSelection();
@@ -2055,149 +2775,1269 @@ class CodeEditor extends Canvas {
         return WordBoundary.next(document, offset);
     }
 
-    void executeCommand(int cmd) {
-        TextRange r = selection.toRange();
-        TextPosition p = document.offsetToPosition(caret.offset);
-        String line = "";
-        String indent = "";
+    /** Offset of the first non-blank character of a line (line end for blank lines). */
+    int firstNonBlank(int line) {
+        String t = document.getLine(line);
         int i = 0;
-        int cont = 0;
-        int c = 0;
-        int lineNo = 0;
-        if (cmd == EditorCommand.COPY) {
-            Clipboard.setText(document.substring(r.start, r.end));
-        } else if (cmd == EditorCommand.CUT) {
-            if (readOnly == 0) {
-                Clipboard.setText(document.substring(r.start, r.end));
-                replaceSelection("");
-            }
-        } else if (cmd == EditorCommand.PASTE) {
-            if (readOnly == 0) {
-                insertText(TextUtil.normalizeNewlines(Clipboard.getText()));
-            }
-        } else if (cmd == EditorCommand.UNDO) {
-            if (readOnly == 0) {
-                undo.undo();
-                rehighlightAll();
-                repaint();
-            }
-        } else if (cmd == EditorCommand.REDO) {
-            if (readOnly == 0) {
-                undo.redo();
-                rehighlightAll();
-                repaint();
-            }
-        } else if (cmd == EditorCommand.SELECT_ALL) {
-            selection.anchor = 0;
-            selection.active = document.getLength();
-            caret.offset = selection.active;
-            fireSelection();
-            repaint();
-        } else if (cmd == EditorCommand.MOVE_LEFT) {
-            moveCaret(caret.offset - 1, shiftSelecting);
-        } else if (cmd == EditorCommand.MOVE_RIGHT) {
-            moveCaret(caret.offset + 1, shiftSelecting);
-        } else if (cmd == EditorCommand.MOVE_UP) {
-            lineNo = p.line - 1;
-            if (lineNo < 0) {
-                lineNo = 0;
-            }
-            moveCaret(document.positionToOffset(lineNo, caret.preferredColumn), shiftSelecting);
-        } else if (cmd == EditorCommand.MOVE_DOWN) {
-            lineNo = p.line + 1;
-            if (lineNo >= document.getLineCount()) {
-                lineNo = document.getLineCount() - 1;
-            }
-            moveCaret(document.positionToOffset(lineNo, caret.preferredColumn), shiftSelecting);
-        } else if (cmd == EditorCommand.DELETE_BACKWARD) {
-            deleteSelectionOr(-1);
-        } else if (cmd == EditorCommand.DELETE_FORWARD) {
-            deleteSelectionOr(1);
-        } else if (cmd == EditorCommand.NEWLINE) {
-            if (readOnly == 0) {
-                line = document.getLine(p.line);
-                indent = "";
-                i = 0;
-                cont = 1;
-                while (i < line.length() && cont != 0) {
-                    c = line.charAt(i);
-                    if (c == 32 || c == 9) {
-                        indent = indent + TextUtil.fromCode(c);
-                        i = i + 1;
-                    } else {
-                        cont = 0;
-                    }
-                }
-                insertText("\n" + indent);
-            }
-        } else if (cmd == EditorCommand.HOME) {
-            moveCaret(document.lineToOffset(p.line), shiftSelecting);
-        } else if (cmd == EditorCommand.END) {
-            line = document.getLine(p.line);
-            moveCaret(document.lineToOffset(p.line) + line.length(), shiftSelecting);
+        while (i < t.length() && TextUtil.isWhitespace(t.charAt(i)) != 0) {
+            i = i + 1;
         }
+        return document.lineToOffset(line) + i;
     }
 
-    void handleMouseDown(MouseEvent event) {
-        int off = hitTest(event.getX(), event.getY());
-        if (event.clickCount >= 2) {
-            int a = wordBoundary(off, -1);
-            int b = wordBoundary(off, 1);
+    String indentUnit() {
+        if (insertSpaces != 0) {
+            String sp = "";
+            int i = 0;
+            while (i < tabSize) {
+                sp = sp + " ";
+                i = i + 1;
+            }
+            return sp;
+        }
+        return "\t";
+    }
+
+    String leadingWhitespace(String line) {
+        int i = 0;
+        while (i < line.length() && TextUtil.isWhitespace(line.charAt(i)) != 0) {
+            i = i + 1;
+        }
+        return line.substring(0, i);
+    }
+
+    int lastNonBlankChar(String s) {
+        int i = s.length() - 1;
+        while (i >= 0 && TextUtil.isWhitespace(s.charAt(i)) != 0) {
+            i = i - 1;
+        }
+        if (i < 0) {
+            return 0;
+        }
+        return s.charAt(i);
+    }
+
+    // ------------------------------------------------------------------ typing
+
+    int closerFor(int c) {
+        if (c == 40) {
+            return 41;
+        }
+        if (c == 91) {
+            return 93;
+        }
+        if (c == 123) {
+            return 125;
+        }
+        if (c == 34) {
+            return 34;
+        }
+        if (c == 39) {
+            return 39;
+        }
+        return 0;
+    }
+
+    int isCloser(int c) {
+        if (c == 41 || c == 93 || c == 125 || c == 34 || c == 39) {
+            return 1;
+        }
+        return 0;
+    }
+
+    int charAtOffset(int off) {
+        if (off < 0 || off >= document.getLength()) {
+            return 0;
+        }
+        return document.charAt(off);
+    }
+
+    /** True when the caret sits inside a string or comment token (no auto pairing there). */
+    int inStringOrComment(int offset) {
+        TextPosition p = document.offsetToPosition(offset);
+        if (p.column == 0) {
+            return 0;
+        }
+        int ty = tokenTypeAt(p.line, p.column - 1);
+        if (ty == TokenType.COMMENT) {
+            return 1;
+        }
+        if (ty == TokenType.STRING) {
+            return 1;
+        }
+        return 0;
+    }
+
+    void typeChar(int ch) {
+        if (readOnly != 0) {
+            return;
+        }
+        String s = TextUtil.charString(ch);
+        int nextCh = charAtOffset(caret.offset);
+        int prevCh = charAtOffset(caret.offset - 1);
+        if (smartEdit != 0 && selection.isEmpty() && isCloser(ch) != 0 && nextCh == ch) {
+            /* Typing over an auto-inserted closer. */
+            if (ch == 34 || ch == 39) {
+                if (inStringOrComment(caret.offset) != 0 || TextUtil.isWordChar(prevCh) == 0) {
+                    moveCaret(caret.offset + 1, 0);
+                    notifyTyped(ch);
+                    return;
+                }
+            } else {
+                moveCaret(caret.offset + 1, 0);
+                notifyTyped(ch);
+                return;
+            }
+        }
+        if (smartEdit != 0 && closerFor(ch) != 0) {
+            int closer = closerFor(ch);
+            if (!selection.isEmpty()) {
+                /* Surround the selection. */
+                TextRange r = selection.toRange();
+                String inner = document.substring(r.start, r.end);
+                undo.closeGroup();
+                undo.beginCompoundEdit();
+                applyEdit(r.start, r.length(), s + inner + TextUtil.charString(closer));
+                undo.endCompoundEdit();
+                selection.anchor = r.start + 1;
+                selection.active = r.start + 1 + inner.length();
+                caret.offset = selection.active;
+                fireCaret();
+                fireSelection();
+                repaint();
+                undo.closeGroup();
+                notifyTyped(ch);
+                return;
+            }
+            int ok = 1;
+            if (ch == 34 || ch == 39) {
+                if (TextUtil.isWordChar(prevCh) != 0 || prevCh == ch || inStringOrComment(caret.offset) != 0) {
+                    ok = 0;
+                }
+            }
+            if (ok != 0 && nextCh != 0 && nextCh != 10 && nextCh != 32 && nextCh != 9 && isCloser(nextCh) == 0
+                    && nextCh != 59 && nextCh != 44 && nextCh != 46) {
+                ok = 0;
+            }
+            if (ok != 0 && inStringOrComment(caret.offset) != 0 && ch != 34 && ch != 39) {
+                ok = 0;
+            }
+            if (ok != 0) {
+                undo.closeGroup();
+                undo.beginCompoundEdit();
+                applyEdit(caret.offset, 0, s + TextUtil.charString(closer));
+                undo.endCompoundEdit();
+                moveCaret(caret.offset - 1, 0);
+                notifyTyped(ch);
+                return;
+            }
+        }
+        if (smartEdit != 0 && ch == 125 && selection.isEmpty()) {
+            /* A closing brace on a blank line steps back one indent level. */
+            TextPosition p = document.offsetToPosition(caret.offset);
+            String line = document.getLine(p.line);
+            String before = line.substring(0, p.column);
+            if (before.length() > 0 && leadingWhitespace(before).length() == before.length()) {
+                int remove = 0;
+                if (before.endsWith("\t")) {
+                    remove = 1;
+                } else if (before.length() >= tabSize) {
+                    remove = tabSize;
+                } else {
+                    remove = before.length();
+                }
+                undo.closeGroup();
+                undo.beginCompoundEdit();
+                applyEdit(caret.offset - remove, remove, "");
+                applyEdit(caret.offset, 0, "}");
+                undo.endCompoundEdit();
+                undo.closeGroup();
+                notifyTyped(ch);
+                return;
+            }
+        }
+        undo.coalescing = 1;
+        insertText(s);
+        undo.coalescing = 0;
+        notifyTyped(ch);
+    }
+
+    void typeNewline(int above, int below) {
+        if (readOnly != 0) {
+            return;
+        }
+        TextPosition p = document.offsetToPosition(caret.offset);
+        String line = document.getLine(p.line);
+        String indent = leadingWhitespace(line);
+        undo.closeGroup();
+        undo.beginCompoundEdit();
+        if (below != 0) {
+            int endOff = document.lineToOffset(p.line) + line.length();
+            String extra = "";
+            if (smartEdit != 0 && lastNonBlankChar(line) == 123) {
+                extra = indentUnit();
+            }
+            selection.anchor = endOff;
+            selection.active = endOff;
+            caret.offset = endOff;
+            applyEdit(endOff, 0, "\n" + indent + extra);
+        } else if (above != 0) {
+            int startOff = document.lineToOffset(p.line);
+            applyEdit(startOff, 0, indent + "\n");
+            moveCaret(startOff + indent.length(), 0);
+        } else {
+            TextRange r = selection.toRange();
+            String beforeCaret = document.substring(document.lineToOffset(p.line), r.start);
+            int afterCh = charAtOffset(r.end);
+            int beforeLast = lastNonBlankChar(beforeCaret);
+            if (smartEdit != 0 && beforeLast == 123) {
+                String unit = indentUnit();
+                if (afterCh == 125) {
+                    applyEdit(r.start, r.length(), "\n" + indent + unit + "\n" + indent);
+                    int back = indent.length() + 1;
+                    moveCaret(caret.offset - back, 0);
+                } else {
+                    applyEdit(r.start, r.length(), "\n" + indent + unit);
+                }
+            } else {
+                applyEdit(r.start, r.length(), "\n" + indent);
+            }
+        }
+        undo.endCompoundEdit();
+        undo.closeGroup();
+        notifyTyped(10);
+    }
+
+    // ------------------------------------------------------------------ line / block commands
+
+    int blockFirstLine() {
+        TextRange r = selection.toRange();
+        return document.offsetToLine(r.start);
+    }
+
+    int blockLastLine() {
+        TextRange r = selection.toRange();
+        int l = document.offsetToLine(r.end);
+        if (r.end > r.start && r.end == document.lineToOffset(l) && l > document.offsetToLine(r.start)) {
+            l = l - 1;
+        }
+        return l;
+    }
+
+    void indentLines(int outdent) {
+        if (readOnly != 0) {
+            return;
+        }
+        int l0 = blockFirstLine();
+        int l1 = blockLastLine();
+        int multi = 0;
+        if (!selection.isEmpty() && l1 > l0) {
+            multi = 1;
+        }
+        TextRange sel = selection.toRange();
+        int startLineOff = document.lineToOffset(l0);
+        undo.closeGroup();
+        undo.beginCompoundEdit();
+        String unit = indentUnit();
+        int deltaFirst = 0;
+        int deltaTotal = 0;
+        int line = l1;
+        while (line >= l0) {
+            String t = document.getLine(line);
+            int off = document.lineToOffset(line);
+            int d = 0;
+            if (outdent == 0) {
+                if (t.length() > 0 || l0 == l1) {
+                    undo.recordReplace(off, "", unit);
+                    document.replace(off, 0, unit);
+                    d = unit.length();
+                }
+            } else {
+                int rm = 0;
+                if (t.startsWith("\t")) {
+                    rm = 1;
+                } else {
+                    while (rm < tabSize && rm < t.length() && t.charAt(rm) == 32) {
+                        rm = rm + 1;
+                    }
+                }
+                if (rm > 0) {
+                    undo.recordReplace(off, t.substring(0, rm), "");
+                    document.replace(off, rm, "");
+                    d = 0 - rm;
+                }
+            }
+            deltaTotal = deltaTotal + d;
+            if (line == l0) {
+                deltaFirst = d;
+            }
+            line = line - 1;
+        }
+        undo.endCompoundEdit();
+        undo.closeGroup();
+        if (multi != 0 || !selection.isEmpty()) {
+            int a = startLineOff;
+            int b = sel.end + deltaTotal;
+            if (sel.start > startLineOff) {
+                a = sel.start + deltaFirst;
+                if (a < startLineOff) {
+                    a = startLineOff;
+                }
+            }
             selection.anchor = a;
             selection.active = b;
             caret.offset = b;
         } else {
-            moveCaret(off, 0);
+            int c = caret.offset + deltaTotal;
+            if (c < startLineOff) {
+                c = startLineOff;
+            }
+            selection.anchor = c;
+            selection.active = c;
+            caret.offset = c;
         }
-        caret.blinkOn = 1;
-        ensureBlinkTimer();
+        ensureCaretVisible();
+        fireCaret();
         fireSelection();
         repaint();
     }
 
-    void handleMouseDrag(MouseEvent event) {
-        int off = hitTest(event.getX(), event.getY());
-        moveCaret(off, 1);
+    void toggleComment() {
+        if (readOnly != 0) {
+            return;
+        }
+        int l0 = blockFirstLine();
+        int l1 = blockLastLine();
+        int allCommented = 1;
+        int minIndent = 100000;
+        int any = 0;
+        int line = l0;
+        while (line <= l1) {
+            String t = document.getLine(line);
+            String ws = leadingWhitespace(t);
+            if (t.length() > ws.length()) {
+                any = 1;
+                if (ws.length() < minIndent) {
+                    minIndent = ws.length();
+                }
+                if (!t.substring(ws.length()).startsWith("//")) {
+                    allCommented = 0;
+                }
+            }
+            line = line + 1;
+        }
+        if (any == 0) {
+            allCommented = 0;
+            minIndent = 0;
+        }
+        TextRange sel = selection.toRange();
+        int multi = 0;
+        if (!selection.isEmpty()) {
+            multi = 1;
+        }
+        int delta = 0;
+        int deltaFirst = 0;
+        undo.closeGroup();
+        undo.beginCompoundEdit();
+        line = l1;
+        while (line >= l0) {
+            String t = document.getLine(line);
+            String ws = leadingWhitespace(t);
+            int off = document.lineToOffset(line);
+            int d = 0;
+            if (allCommented != 0) {
+                if (t.length() > ws.length()) {
+                    int rm = 2;
+                    if (t.length() > ws.length() + 2 && t.charAt(ws.length() + 2) == 32) {
+                        rm = 3;
+                    }
+                    undo.recordReplace(off + ws.length(), t.substring(ws.length(), ws.length() + rm), "");
+                    document.replace(off + ws.length(), rm, "");
+                    d = 0 - rm;
+                }
+            } else {
+                if (t.length() > ws.length() || l0 == l1) {
+                    undo.recordReplace(off + minIndent, "", "// ");
+                    document.replace(off + minIndent, 0, "// ");
+                    d = 3;
+                }
+            }
+            delta = delta + d;
+            if (line == l0) {
+                deltaFirst = d;
+            }
+            line = line - 1;
+        }
+        undo.endCompoundEdit();
+        undo.closeGroup();
+        if (multi != 0) {
+            int a = sel.start + deltaFirst;
+            int lo = document.lineToOffset(l0);
+            if (a < lo) {
+                a = lo;
+            }
+            int b = sel.end + delta;
+            selection.anchor = a;
+            selection.active = b;
+            caret.offset = b;
+        } else {
+            int c = caret.offset + delta;
+            int lo = document.lineToOffset(l0);
+            if (c < lo) {
+                c = lo;
+            }
+            selection.anchor = c;
+            selection.active = c;
+            caret.offset = c;
+        }
+        fireCaret();
+        fireSelection();
+        repaint();
     }
 
+    void deleteLines() {
+        if (readOnly != 0) {
+            return;
+        }
+        int l0 = blockFirstLine();
+        int l1 = blockLastLine();
+        int a = document.lineToOffset(l0);
+        int b = document.lineToOffset(l1) + document.lineLength(l1);
+        if (l1 + 1 < document.getLineCount()) {
+            b = b + 1;
+        } else if (l0 > 0) {
+            a = a - 1;
+        }
+        undo.closeGroup();
+        applyEdit(a, b - a, "");
+        undo.closeGroup();
+        int target = l0;
+        if (target >= document.getLineCount()) {
+            target = document.getLineCount() - 1;
+        }
+        moveCaret(firstNonBlank(target), 0);
+    }
+
+    void duplicateLines(int down) {
+        if (readOnly != 0) {
+            return;
+        }
+        int l0 = blockFirstLine();
+        int l1 = blockLastLine();
+        int a = document.lineToOffset(l0);
+        int b = document.lineToOffset(l1) + document.lineLength(l1);
+        String block = document.substring(a, b);
+        int anchor0 = selection.anchor;
+        int active0 = selection.active;
+        undo.closeGroup();
+        if (down != 0) {
+            applyEdit(b, 0, "\n" + block);
+            int shift = b - a + 1;
+            anchor0 = anchor0 + shift;
+            active0 = active0 + shift;
+        } else {
+            applyEdit(a, 0, block + "\n");
+        }
+        undo.closeGroup();
+        selection.anchor = anchor0;
+        selection.active = active0;
+        caret.offset = active0;
+        ensureCaretVisible();
+        fireCaret();
+        fireSelection();
+        repaint();
+    }
+
+    void moveLines(int dir) {
+        if (readOnly != 0) {
+            return;
+        }
+        int l0 = blockFirstLine();
+        int l1 = blockLastLine();
+        int n = document.getLineCount();
+        if (dir < 0 && l0 == 0) {
+            return;
+        }
+        if (dir > 0 && l1 >= n - 1) {
+            return;
+        }
+        int a = document.lineToOffset(l0);
+        int b = document.lineToOffset(l1) + document.lineLength(l1);
+        String block = document.substring(a, b);
+        int anchor = selection.anchor;
+        int active = selection.active;
+        undo.closeGroup();
+        if (dir < 0) {
+            int pa = document.lineToOffset(l0 - 1);
+            String prev = document.getLine(l0 - 1);
+            applyEdit(pa, b - pa, block + "\n" + prev);
+            int shift = 0 - (prev.length() + 1);
+            anchor = anchor + shift;
+            active = active + shift;
+        } else {
+            String next = document.getLine(l1 + 1);
+            int nb = b + 1 + next.length();
+            applyEdit(a, nb - a, next + "\n" + block);
+            int shift = next.length() + 1;
+            anchor = anchor + shift;
+            active = active + shift;
+        }
+        undo.closeGroup();
+        selection.anchor = anchor;
+        selection.active = active;
+        caret.offset = active;
+        ensureCaretVisible();
+        fireCaret();
+        fireSelection();
+        repaint();
+    }
+
+    void selectLine() {
+        int l = document.offsetToLine(caret.offset);
+        int a = document.lineToOffset(l);
+        int b = a + document.lineLength(l);
+        if (l + 1 < document.getLineCount()) {
+            b = b + 1;
+        }
+        selectRange(a, b);
+    }
+
+    void deleteToLineStart() {
+        if (readOnly != 0) {
+            return;
+        }
+        if (!selection.isEmpty()) {
+            replaceSelection("");
+            return;
+        }
+        int l = document.offsetToLine(caret.offset);
+        int a = document.lineToOffset(l);
+        if (caret.offset > a) {
+            undo.closeGroup();
+            applyEdit(a, caret.offset - a, "");
+            undo.closeGroup();
+        } else if (a > 0) {
+            applyEdit(a - 1, 1, "");
+        }
+    }
+
+    void deleteWord(int dir) {
+        if (readOnly != 0) {
+            return;
+        }
+        if (!selection.isEmpty()) {
+            replaceSelection("");
+            return;
+        }
+        int target = wordBoundary(caret.offset, dir);
+        if (dir < 0 && target == caret.offset && caret.offset > 0) {
+            target = caret.offset - 1;
+        }
+        int a = target;
+        int b = caret.offset;
+        if (dir > 0) {
+            a = caret.offset;
+            b = target;
+        }
+        if (b > a) {
+            undo.closeGroup();
+            applyEdit(a, b - a, "");
+            undo.closeGroup();
+        }
+    }
+
+    void smartBackspace() {
+        if (readOnly != 0) {
+            return;
+        }
+        if (!selection.isEmpty()) {
+            undo.closeGroup();
+            replaceSelection("");
+            undo.closeGroup();
+            notifyTyped(8);
+            return;
+        }
+        int off = caret.offset;
+        if (off == 0) {
+            return;
+        }
+        int prev = charAtOffset(off - 1);
+        int next = charAtOffset(off);
+        undo.coalescing = 1;
+        if (smartEdit != 0 && closerFor(prev) != 0 && next == closerFor(prev)) {
+            undo.coalescing = 0;
+            undo.closeGroup();
+            applyEdit(off - 1, 2, "");
+            undo.closeGroup();
+            notifyTyped(8);
+            return;
+        }
+        /* Backspace inside leading indentation removes a whole indent unit. */
+        TextPosition p = document.offsetToPosition(off);
+        String line = document.getLine(p.line);
+        String before = line.substring(0, p.column);
+        if (smartEdit != 0 && insertSpaces != 0 && before.length() > 0
+                && leadingWhitespace(before).length() == before.length() && before.endsWith(" ")) {
+            int rm = before.length() % tabSize;
+            if (rm == 0) {
+                rm = tabSize;
+            }
+            if (rm > before.length()) {
+                rm = before.length();
+            }
+            applyEdit(off - rm, rm, "");
+            undo.coalescing = 0;
+            notifyTyped(8);
+            return;
+        }
+        applyEdit(off - 1, 1, "");
+        undo.coalescing = 0;
+        notifyTyped(8);
+    }
+
+    // ------------------------------------------------------------------ commands
+
+    void copySelection(int cut) {
+        TextRange r = selection.toRange();
+        if (r.isEmpty()) {
+            int l = document.offsetToLine(caret.offset);
+            int a = document.lineToOffset(l);
+            int b = a + document.lineLength(l);
+            Clipboard.setText(document.substring(a, b) + "\n");
+            if (cut != 0 && readOnly == 0) {
+                deleteLines();
+            }
+            return;
+        }
+        Clipboard.setText(document.substring(r.start, r.end));
+        if (cut != 0 && readOnly == 0) {
+            undo.closeGroup();
+            replaceSelection("");
+            undo.closeGroup();
+        }
+    }
+
+    void afterUndoRedo() {
+        caret.offset = undo.lastCaret;
+        if (caret.offset > document.getLength()) {
+            caret.offset = document.getLength();
+        }
+        selection.anchor = caret.offset;
+        selection.active = caret.offset;
+        ensureCaretVisible();
+        fireCaret();
+        fireSelection();
+        repaint();
+    }
+
+    void executeCommand(int cmd) {
+        TextRange r = selection.toRange();
+        TextPosition p = document.offsetToPosition(caret.offset);
+        int lineNo = 0;
+        if (cmd == EditorCommand.COPY) {
+            copySelection(0);
+        } else if (cmd == EditorCommand.CUT) {
+            copySelection(1);
+        } else if (cmd == EditorCommand.PASTE) {
+            if (readOnly == 0) {
+                insertBlock(TextUtil.normalizeNewlines(Clipboard.getText()));
+            }
+        } else if (cmd == EditorCommand.UNDO) {
+            if (readOnly == 0) {
+                undo.closeGroup();
+                undo.undo();
+                afterUndoRedo();
+            }
+        } else if (cmd == EditorCommand.REDO) {
+            if (readOnly == 0) {
+                undo.redo();
+                afterUndoRedo();
+            }
+        } else if (cmd == EditorCommand.SELECT_ALL) {
+            undo.closeGroup();
+            selection.anchor = 0;
+            selection.active = document.getLength();
+            caret.offset = selection.active;
+            fireCaret();
+            fireSelection();
+            repaint();
+        } else if (cmd == EditorCommand.MOVE_LEFT) {
+            if (!r.isEmpty() && shiftSelecting == 0) {
+                moveCaret(r.start, 0);
+            } else {
+                moveCaret(caret.offset - 1, shiftSelecting);
+            }
+        } else if (cmd == EditorCommand.MOVE_RIGHT) {
+            if (!r.isEmpty() && shiftSelecting == 0) {
+                moveCaret(r.end, 0);
+            } else {
+                moveCaret(caret.offset + 1, shiftSelecting);
+            }
+        } else if (cmd == EditorCommand.MOVE_UP || cmd == EditorCommand.MOVE_DOWN) {
+            int keep = caret.preferredColumn;
+            lineNo = p.line - 1;
+            if (cmd == EditorCommand.MOVE_DOWN) {
+                lineNo = p.line + 1;
+            }
+            if (lineNo < 0) {
+                moveCaret(0, shiftSelecting);
+            } else if (lineNo >= document.getLineCount()) {
+                moveCaret(document.getLength(), shiftSelecting);
+            } else {
+                moveCaret(document.positionToOffset(lineNo, keep), shiftSelecting);
+            }
+            caret.preferredColumn = keep;
+        } else if (cmd == EditorCommand.PAGE_UP || cmd == EditorCommand.PAGE_DOWN) {
+            int keep = caret.preferredColumn;
+            int vis = visibleLines() - 1;
+            lineNo = p.line - vis;
+            if (cmd == EditorCommand.PAGE_DOWN) {
+                lineNo = p.line + vis;
+            }
+            if (lineNo < 0) {
+                lineNo = 0;
+            }
+            if (lineNo >= document.getLineCount()) {
+                lineNo = document.getLineCount() - 1;
+            }
+            setScrollPx(scrollPx() + (lineNo - p.line) * lineH);
+            moveCaret(document.positionToOffset(lineNo, keep), shiftSelecting);
+            caret.preferredColumn = keep;
+        } else if (cmd == EditorCommand.DELETE_BACKWARD) {
+            smartBackspace();
+        } else if (cmd == EditorCommand.DELETE_FORWARD) {
+            deleteSelectionOr(1);
+            notifyTyped(127);
+        } else if (cmd == EditorCommand.NEWLINE) {
+            typeNewline(0, 0);
+        } else if (cmd == EditorCommand.HOME) {
+            int fnb = firstNonBlank(p.line);
+            int ls = document.lineToOffset(p.line);
+            if (caret.offset == fnb) {
+                moveCaret(ls, shiftSelecting);
+            } else {
+                moveCaret(fnb, shiftSelecting);
+            }
+        } else if (cmd == EditorCommand.END) {
+            moveCaret(document.lineToOffset(p.line) + document.lineLength(p.line), shiftSelecting);
+        } else if (cmd == EditorCommand.DOC_START) {
+            moveCaret(0, shiftSelecting);
+        } else if (cmd == EditorCommand.DOC_END) {
+            moveCaret(document.getLength(), shiftSelecting);
+        } else if (cmd == EditorCommand.WORD_LEFT) {
+            moveCaret(wordBoundary(caret.offset, -1), shiftSelecting);
+        } else if (cmd == EditorCommand.WORD_RIGHT) {
+            moveCaret(wordBoundary(caret.offset, 1), shiftSelecting);
+        } else if (cmd == EditorCommand.TOGGLE_COMMENT) {
+            toggleComment();
+        } else if (cmd == EditorCommand.INDENT) {
+            indentLines(0);
+        } else if (cmd == EditorCommand.OUTDENT) {
+            indentLines(1);
+        } else if (cmd == EditorCommand.DELETE_LINE) {
+            deleteLines();
+        } else if (cmd == EditorCommand.DUPLICATE_LINE) {
+            duplicateLines(1);
+        } else if (cmd == EditorCommand.COPY_LINE_UP) {
+            duplicateLines(0);
+        } else if (cmd == EditorCommand.MOVE_LINE_UP) {
+            moveLines(-1);
+        } else if (cmd == EditorCommand.MOVE_LINE_DOWN) {
+            moveLines(1);
+        } else if (cmd == EditorCommand.SELECT_LINE) {
+            selectLine();
+        } else if (cmd == EditorCommand.INSERT_LINE_BELOW) {
+            typeNewline(0, 1);
+        } else if (cmd == EditorCommand.INSERT_LINE_ABOVE) {
+            typeNewline(1, 0);
+        } else if (cmd == EditorCommand.DELETE_WORD_BACK) {
+            deleteWord(-1);
+        } else if (cmd == EditorCommand.DELETE_WORD_FORWARD) {
+            deleteWord(1);
+        } else if (cmd == EditorCommand.DELETE_TO_LINE_START) {
+            deleteToLineStart();
+        }
+    }
+
+    // ------------------------------------------------------------------ mouse
+
+    int inVBar(int x, int y) {
+        if (contentHeight() > height && x >= width - 12) {
+            return 1;
+        }
+        return 0;
+    }
+
+    int inHBar(int x, int y) {
+        if (maxScrollX() > 0 && y >= height - 12) {
+            return 1;
+        }
+        return 0;
+    }
+
+    void dragVBar(int y) {
+        int total = contentHeight();
+        int thumbH = height * height / total;
+        if (thumbH < 28) {
+            thumbH = 28;
+        }
+        int track = height - thumbH;
+        if (track < 1) {
+            return;
+        }
+        int mx = maxScrollY();
+        int top = y - dragBarGrab;
+        setScrollPx(top * mx / track);
+        repaint();
+    }
+
+    void dragHBar(int x) {
+        int avail = width - textLeft();
+        int content = avail + maxScrollX();
+        int thumbW = avail * avail / content;
+        if (thumbW < 28) {
+            thumbW = 28;
+        }
+        int track = avail - thumbW;
+        if (track < 1) {
+            return;
+        }
+        int left = x - textLeft() - dragBarGrab;
+        setScrollX(left * maxScrollX() / track);
+        repaint();
+    }
+
+    void handleMouse(MouseEvent event) {
+        int type = event.eventType;
+        if (type == 8 || type == 9) {
+            handleWheel(event);
+            return;
+        }
+        if (type == 1) {
+            handleMouseDown(event);
+        } else if (type == 5) {
+            if (mouseDownFlag != 0) {
+                handleMouseDrag(event);
+            } else {
+                updateHoverTip(event);
+            }
+        } else if (type == 2) {
+            mouseDownFlag = 0;
+            dragMode = 0;
+            dragBar = 0;
+        }
+    }
+
+    /** Shows the message of the diagnostic under the mouse pointer as a native tooltip. */
+    void updateHoverTip(MouseEvent event) {
+        String tip = "";
+        if (diagnostics.size() > 0) {
+            ensureMetrics();
+            int docY = event.y + scrollPx();
+            if (docY >= 0 && docY / lineH < document.getLineCount()) {
+                int off = hitTest(event.x, event.y);
+                int i = 0;
+                while (i < diagnostics.size()) {
+                    EditorDiagnostic d = diagnostics.get(i);
+                    if (off >= d.start && off <= Math.max(d.end, d.start + 1)) {
+                        if (tip.length() > 0) {
+                            tip = tip + "\n";
+                        }
+                        tip = tip + d.message;
+                    }
+                    i = i + 1;
+                }
+            }
+        }
+        if (!tip.equals(hoverTip)) {
+            hoverTip = tip;
+            setToolTip(tip);
+        }
+    }
+
+    void handleWheel(MouseEvent event) {
+        ensureMetrics();
+        int dx = 0;
+        int dy = 0;
+        if (event.pixelDelta != 0) {
+            if (event.horizontal != 0) {
+                dx = event.pixelDelta;
+            } else {
+                dy = event.pixelDelta;
+            }
+        } else {
+            if (event.horizontal != 0) {
+                dx = event.wheelDelta * 40;
+            } else {
+                dy = event.wheelDelta * lineH * 3;
+            }
+        }
+        if (event.shiftDown != 0 && dx == 0) {
+            dx = dy;
+            dy = 0;
+        }
+        if (dy != 0) {
+            setScrollPx(scrollPx() - dy);
+        }
+        if (dx != 0) {
+            setScrollX(viewport.xOffset - dx);
+        }
+        repaint();
+    }
+
+    void handleMouseDown(MouseEvent event) {
+        ensureMetrics();
+        ensureBlinkTimer();
+        requestFocus();
+        mouseDownFlag = 1;
+        int mx = event.getX();
+        int my = event.getY();
+        undo.closeGroup();
+        if (event.button == 3) {
+            int off = hitTest(mx, my);
+            TextRange sr = selection.toRange();
+            if (off < sr.start || off > sr.end) {
+                moveCaret(off, 0);
+            }
+            mouseDownFlag = 0;
+            return;
+        }
+        if (inVBar(mx, my) != 0) {
+            int total = contentHeight();
+            int thumbH = height * height / total;
+            if (thumbH < 28) {
+                thumbH = 28;
+            }
+            int mxs = maxScrollY();
+            int track = height - thumbH;
+            int thumbTop = 0;
+            if (mxs > 0 && track > 0) {
+                thumbTop = scrollPx() * track / mxs;
+            }
+            if (my >= thumbTop && my <= thumbTop + thumbH) {
+                dragBarGrab = my - thumbTop;
+            } else {
+                dragBarGrab = thumbH / 2;
+                dragVBar(my);
+            }
+            dragBar = 1;
+            return;
+        }
+        if (inHBar(mx, my) != 0) {
+            int avail = width - textLeft();
+            int content = avail + maxScrollX();
+            int thumbW = avail * avail / content;
+            if (thumbW < 28) {
+                thumbW = 28;
+            }
+            int track = avail - thumbW;
+            int thumbLeft = 0;
+            if (maxScrollX() > 0 && track > 0) {
+                thumbLeft = textLeft() + viewport.xOffset * track / maxScrollX();
+            }
+            if (mx >= thumbLeft && mx <= thumbLeft + thumbW) {
+                dragBarGrab = mx - thumbLeft;
+            } else {
+                dragBarGrab = thumbW / 2;
+                dragHBar(mx);
+            }
+            dragBar = 2;
+            return;
+        }
+        int off = hitTest(mx, my);
+        int line = document.offsetToLine(off);
+        if (mx < gutterWidthFor() && showLineNumbers != 0) {
+            int a = document.lineToOffset(line);
+            int b = a + document.lineLength(line);
+            if (line + 1 < document.getLineCount()) {
+                b = b + 1;
+            }
+            selection.anchor = a;
+            selection.active = b;
+            caret.offset = b;
+            dragMode = 3;
+            dragStart = a;
+            dragEnd = b;
+            fireCaret();
+            fireSelection();
+            repaint();
+            return;
+        }
+        if (event.clickCount >= 3) {
+            int a = document.lineToOffset(line);
+            int b = a + document.lineLength(line);
+            if (line + 1 < document.getLineCount()) {
+                b = b + 1;
+            }
+            selection.anchor = a;
+            selection.active = b;
+            caret.offset = b;
+            dragMode = 3;
+            dragStart = a;
+            dragEnd = b;
+        } else if (event.clickCount == 2) {
+            int a = wordStart(off);
+            int b = wordEnd(off);
+            selection.anchor = a;
+            selection.active = b;
+            caret.offset = b;
+            dragMode = 2;
+            dragStart = a;
+            dragEnd = b;
+        } else if (event.shiftDown != 0) {
+            moveCaret(off, 1);
+            dragMode = 1;
+            return;
+        } else {
+            moveCaret(off, 0);
+            dragMode = 1;
+            if (event.metaDown != 0 && commandClick != null) {
+                commandClick.handle(event);
+            }
+            return;
+        }
+        caret.blinkOn = 1;
+        fireCaret();
+        fireSelection();
+        repaint();
+    }
+
+    int wordStart(int off) {
+        int i = off;
+        while (i > 0 && TextUtil.isWordChar(charAtOffset(i - 1)) != 0) {
+            i = i - 1;
+        }
+        return i;
+    }
+
+    int wordEnd(int off) {
+        int n = document.getLength();
+        int i = off;
+        while (i < n && TextUtil.isWordChar(charAtOffset(i)) != 0) {
+            i = i + 1;
+        }
+        return i;
+    }
+
+    void handleMouseDrag(MouseEvent event) {
+        ensureMetrics();
+        int my = event.getY();
+        int mx = event.getX();
+        if (dragBar == 1) {
+            dragVBar(my);
+            return;
+        }
+        if (dragBar == 2) {
+            dragHBar(mx);
+            return;
+        }
+        if (my < 0) {
+            setScrollPx(scrollPx() + my / 2 - 4);
+        } else if (my > height) {
+            setScrollPx(scrollPx() + (my - height) / 2 + 4);
+        }
+        if (mx < textLeft()) {
+            setScrollX(viewport.xOffset - 12);
+        } else if (mx > width - 20) {
+            setScrollX(viewport.xOffset + 12);
+        }
+        int off = hitTest(mx, my);
+        if (dragMode == 2) {
+            int a = wordStart(off);
+            int b = wordEnd(off);
+            if (off < dragStart) {
+                selection.anchor = dragEnd;
+                selection.active = a;
+            } else {
+                selection.anchor = dragStart;
+                selection.active = b;
+            }
+            caret.offset = selection.active;
+            fireCaret();
+            fireSelection();
+            repaint();
+        } else if (dragMode == 3) {
+            int line = document.offsetToLine(off);
+            int a = document.lineToOffset(line);
+            int b = a + document.lineLength(line);
+            if (line + 1 < document.getLineCount()) {
+                b = b + 1;
+            }
+            if (off < dragStart) {
+                selection.anchor = dragEnd;
+                selection.active = a;
+            } else {
+                selection.anchor = dragStart;
+                selection.active = b;
+            }
+            caret.offset = selection.active;
+            fireCaret();
+            fireSelection();
+            repaint();
+        } else {
+            moveCaret(off, 1);
+        }
+    }
+
+    // ------------------------------------------------------------------ keyboard
+
     void handleKey(KeyEvent event) {
+        if (keyPre != null) {
+            keyPre.handle(event);
+            if (event.isConsumed()) {
+                return;
+            }
+        }
         int code = event.keyCode;
         shiftSelecting = event.shiftDown;
+        int shift = event.shiftDown;
+        int meta = event.metaDown;
         int ctrl = event.ctrlDown;
-        if (event.metaDown != 0) {
-            ctrl = 1;
+        int alt = event.altDown;
+        int k = code;
+        if (k >= 97 && k <= 122) {
+            k = k - 32;
         }
-        if (ctrl != 0) {
-            if (code == 67 || code == 99) {
+        caret.blinkOn = 1;
+        ensureBlinkTimer();
+        int cmdKey = 0;
+        if (meta != 0 || ctrl != 0) {
+            cmdKey = 1;
+        }
+        if (cmdKey != 0 && alt == 0) {
+            if (k == 67) {
                 executeCommand(EditorCommand.COPY);
                 return;
             }
-            if (code == 88 || code == 120) {
+            if (k == 88) {
                 executeCommand(EditorCommand.CUT);
                 return;
             }
-            if (code == 86 || code == 118) {
+            if (k == 86) {
                 executeCommand(EditorCommand.PASTE);
                 return;
             }
-            if (code == 90 || code == 122) {
-                executeCommand(EditorCommand.UNDO);
+            if (k == 90) {
+                if (shift != 0) {
+                    executeCommand(EditorCommand.REDO);
+                } else {
+                    executeCommand(EditorCommand.UNDO);
+                }
                 return;
             }
-            if (code == 89 || code == 121) {
+            if (k == 89) {
                 executeCommand(EditorCommand.REDO);
                 return;
             }
-            if (code == 65 || code == 97) {
+            if (k == 65 && meta != 0) {
                 executeCommand(EditorCommand.SELECT_ALL);
                 return;
             }
+            if (k == 47) {
+                executeCommand(EditorCommand.TOGGLE_COMMENT);
+                return;
+            }
+            if (k == 93) {
+                executeCommand(EditorCommand.INDENT);
+                return;
+            }
+            if (k == 91) {
+                executeCommand(EditorCommand.OUTDENT);
+                return;
+            }
+            if (k == 75 && shift != 0) {
+                executeCommand(EditorCommand.DELETE_LINE);
+                return;
+            }
+            if (k == 68 && shift != 0) {
+                executeCommand(EditorCommand.DUPLICATE_LINE);
+                return;
+            }
+            if (k == 76 && ctrl != 0 && meta == 0) {
+                executeCommand(EditorCommand.SELECT_LINE);
+                return;
+            }
+            if (code == 13) {
+                if (shift != 0) {
+                    executeCommand(EditorCommand.INSERT_LINE_ABOVE);
+                } else {
+                    executeCommand(EditorCommand.INSERT_LINE_BELOW);
+                }
+                return;
+            }
+            if (meta != 0) {
+                if (code == 37) {
+                    executeCommand(EditorCommand.HOME);
+                    return;
+                }
+                if (code == 39) {
+                    executeCommand(EditorCommand.END);
+                    return;
+                }
+                if (code == 38) {
+                    executeCommand(EditorCommand.DOC_START);
+                    return;
+                }
+                if (code == 40) {
+                    executeCommand(EditorCommand.DOC_END);
+                    return;
+                }
+                if (code == 8) {
+                    executeCommand(EditorCommand.DELETE_TO_LINE_START);
+                    return;
+                }
+            } else {
+                if (code == 37) {
+                    executeCommand(EditorCommand.WORD_LEFT);
+                    return;
+                }
+                if (code == 39) {
+                    executeCommand(EditorCommand.WORD_RIGHT);
+                    return;
+                }
+            }
+        }
+        if (alt != 0 && cmdKey == 0) {
             if (code == 37) {
-                moveCaret(wordBoundary(caret.offset, -1), shiftSelecting);
+                executeCommand(EditorCommand.WORD_LEFT);
                 return;
             }
             if (code == 39) {
-                moveCaret(wordBoundary(caret.offset, 1), shiftSelecting);
+                executeCommand(EditorCommand.WORD_RIGHT);
+                return;
+            }
+            if (code == 38) {
+                if (shift != 0) {
+                    executeCommand(EditorCommand.COPY_LINE_UP);
+                } else {
+                    executeCommand(EditorCommand.MOVE_LINE_UP);
+                }
+                return;
+            }
+            if (code == 40) {
+                if (shift != 0) {
+                    executeCommand(EditorCommand.DUPLICATE_LINE);
+                } else {
+                    executeCommand(EditorCommand.MOVE_LINE_DOWN);
+                }
+                return;
+            }
+            if (code == 8) {
+                executeCommand(EditorCommand.DELETE_WORD_BACK);
+                return;
+            }
+            if (code == 46) {
+                executeCommand(EditorCommand.DELETE_WORD_FORWARD);
+                return;
+            }
+        }
+        if (ctrl != 0 && meta == 0 && alt == 0) {
+            if (k == 65) {
+                executeCommand(EditorCommand.HOME);
+                return;
+            }
+            if (k == 69) {
+                executeCommand(EditorCommand.END);
                 return;
             }
         }
@@ -2209,6 +4049,10 @@ class CodeEditor extends Canvas {
             executeCommand(EditorCommand.MOVE_UP);
         } else if (code == 40) {
             executeCommand(EditorCommand.MOVE_DOWN);
+        } else if (code == 33) {
+            executeCommand(EditorCommand.PAGE_UP);
+        } else if (code == 34) {
+            executeCommand(EditorCommand.PAGE_DOWN);
         } else if (code == 8) {
             executeCommand(EditorCommand.DELETE_BACKWARD);
         } else if (code == 46) {
@@ -2219,214 +4063,63 @@ class CodeEditor extends Canvas {
             executeCommand(EditorCommand.HOME);
         } else if (code == 35) {
             executeCommand(EditorCommand.END);
+        } else if (code == 27) {
+            if (!selection.isEmpty()) {
+                moveCaret(caret.offset, 0);
+            }
         } else if (code == 9) {
-            if (insertSpaces != 0) {
-                String sp = "";
-                int i = 0;
-                while (i < tabSize) {
-                    sp = sp + " ";
-                    i = i + 1;
-                }
-                insertText(sp);
+            if (shift != 0) {
+                indentLines(1);
+            } else if (!selection.isEmpty() && blockLastLine() > blockFirstLine()) {
+                indentLines(0);
             } else {
-                insertText("\t");
+                insertBlock(indentUnit());
             }
-        } else if (code >= 32 && code < 127) {
-            insertText(TextUtil.fromCode(code));
-        }
-        caret.blinkOn = 1;
-    }
-
-    void scrollLines(int delta) {
-        viewport.firstLine = viewport.firstLine + delta;
-        if (viewport.firstLine < 0) {
-            viewport.firstLine = 0;
-        }
-        int max = document.getLineCount() - 1;
-        if (max < 0) {
-            max = 0;
-        }
-        if (viewport.firstLine > max) {
-            viewport.firstLine = max;
-        }
-        repaint();
-    }
-
-    void findNext(String query) {
-        findQuery = query;
-        TextRange r = TextSearch.find(document, query, caret.offset + 1, 1, 0);
-        if (r == null) {
-            r = TextSearch.find(document, query, 0, 1, 0);
-        }
-        if (r != null) {
-            reveal(r);
+        } else if (cmdKey == 0 && alt == 0) {
+            int ch = event.typedChar;
+            if (ch <= 0) {
+                ch = code;
+            }
+            if (ch >= 32 && ch < 127) {
+                typeChar(ch);
+            }
         }
     }
 
-    void paintEditor(Graphics g) {
-        viewport.width = width;
-        viewport.height = height;
-        int gw = gutterWidthFor();
-        g.setColor(theme.background);
-        g.fillRect(0, 0, width, height);
-        g.setFont(font);
-        FontMetrics fm = g.getFontMetrics(font);
-        viewport.lineHeight = fm.getLineHeight();
-        if (viewport.lineHeight < 14) {
-            viewport.lineHeight = 18;
-        }
-        int vis = viewport.visibleLineCount();
-        int line = viewport.firstLine;
-        int last = line + vis;
-        if (last > document.getLineCount()) {
-            last = document.getLineCount();
-        }
-        TextPosition caretPos = document.offsetToPosition(caret.offset);
-        EditorMetrics.visibleLinesPainted = last - line;
-        int y = 0;
-        String text = "";
-        int lineOff = 0;
-        int sel0 = 0;
-        int sel1 = 0;
-        int lineEnd = 0;
-        int a = 0;
-        int b = 0;
-        Size sa = null;
-        Size sb = null;
-        int di = 0;
-        EditorDiagnostic d = null;
-        String lineText = "";
-        Size prefix = null;
-        double cx = 0.0;
-        double cy = 0.0;
-        while (line < last) {
-            y = (line - viewport.firstLine) * viewport.lineHeight;
-            if (line == caretPos.line) {
-                g.setColor(theme.currentLine);
-                g.fillRect(0, y, width, viewport.lineHeight);
+    void handleTextInput(TextInputEvent ev) {
+        if (ev.marked != 0) {
+            compositionText = ev.text;
+            if (ev.text.length() > 0) {
+                compositionActive = 1;
+            } else {
+                compositionActive = 0;
             }
-            if (showLineNumbers != 0) {
-                g.setColor(theme.lineNumber);
-                g.drawText("" + (line + 1), 4, y);
-            }
-            g.setColor(theme.background);
-            text = document.getLine(line);
-            lineOff = document.lineToOffset(line);
-            sel0 = selection.start();
-            sel1 = selection.end();
-            lineEnd = lineOff + text.length();
-            if (sel0 < lineEnd && sel1 > lineOff) {
-                a = sel0;
-                if (a < lineOff) {
-                    a = lineOff;
-                }
-                b = sel1;
-                if (b > lineEnd) {
-                    b = lineEnd;
-                }
-                sa = g.measureText(text.substring(0, a - lineOff), font);
-                sb = g.measureText(text.substring(0, b - lineOff), font);
-                g.setColor(theme.selection);
-                g.fillRect(gw + sa.width - viewport.xOffset, y, sb.width - sa.width, viewport.lineHeight);
-            }
-            paintStyledLine(g, text, lineOff, gw, y);
-            di = 0;
-            while (di < diagnostics.size()) {
-                d = diagnostics.get(di);
-                if (d.start < lineEnd && d.end > lineOff) {
-                    a = d.start;
-                    if (a < lineOff) {
-                        a = lineOff;
-                    }
-                    b = d.end;
-                    if (b > lineEnd) {
-                        b = lineEnd;
-                    }
-                    sa = g.measureText(text.substring(0, a - lineOff), font);
-                    sb = g.measureText(text.substring(0, b - lineOff), font);
-                    g.setColor(theme.diagnosticError);
-                    g.drawLine(gw + sa.width, y + viewport.lineHeight - 2, gw + sb.width, y + viewport.lineHeight - 2);
-                }
-                di = di + 1;
-            }
-            line = line + 1;
-        }
-        if (showLineNumbers != 0 && gw > 0) {
-            g.setColor(new Color(60, 60, 60));
-            g.drawLine(gw - 2, 0, gw - 2, height);
-        }
-        if (caret.visible != 0 && caret.blinkOn != 0) {
-            if (caretPos.line >= viewport.firstLine && caretPos.line < last) {
-                lineText = document.getLine(caretPos.line);
-                prefix = g.measureText(lineText.substring(0, caretPos.column), font);
-                cx = gw + prefix.width - viewport.xOffset;
-                cy = (caretPos.line - viewport.firstLine) * viewport.lineHeight;
-                g.setColor(theme.caret);
-                g.fillRect(cx, cy, 2, viewport.lineHeight);
-            }
-        }
-        EditorMetrics.layoutsCreated = EditorMetrics.layoutsCreated + EditorMetrics.visibleLinesPainted;
-    }
-
-    void paintStyledLine(Graphics g, String text, int lineOff, int gw, int y) {
-        if (text.length() == 0) {
+            repaint();
             return;
         }
-        int i = 0;
-        int n = text.length();
-        int abs = 0;
-        int ty = 0;
-        int j = 0;
-        int k = 0;
-        int run = 0;
-        int abs2 = 0;
-        int ty2 = 0;
-        StyledSpan s = null;
-        String part = "";
-        Size before = null;
-        while (i < n) {
-            abs = lineOff + i;
-            ty = TokenType.NORMAL;
-            j = 0;
-            while (j < spans.size()) {
-                s = spans.get(j);
-                if (abs >= s.start && abs < s.end) {
-                    ty = s.tokenType;
-                    j = spans.size();
-                } else {
-                    j = j + 1;
-                }
-            }
-            k = i + 1;
-            run = 1;
-            while (k < n && run != 0) {
-                abs2 = lineOff + k;
-                ty2 = TokenType.NORMAL;
-                j = 0;
-                while (j < spans.size()) {
-                    s = spans.get(j);
-                    if (abs2 >= s.start && abs2 < s.end) {
-                        ty2 = s.tokenType;
-                        j = spans.size();
-                    } else {
-                        j = j + 1;
-                    }
-                }
-                if (ty2 != ty) {
-                    run = 0;
-                } else {
-                    k = k + 1;
-                }
-            }
-            part = text.substring(i, k);
-            before = g.measureText(text.substring(0, i), font);
-            g.setColor(theme.colorForToken(ty));
-            g.drawText(part, gw + before.width - viewport.xOffset, y);
-            i = k;
+        compositionActive = 0;
+        compositionText = "";
+        String t = ev.text;
+        if (t == null || t.length() == 0 || readOnly != 0) {
+            repaint();
+            return;
         }
+        caret.blinkOn = 1;
+        ensureBlinkTimer();
+        if (t.length() == 1) {
+            int c = t.charAt(0);
+            if (c == 10 || c == 13) {
+                typeNewline(0, 0);
+            } else if (c == 9) {
+                insertBlock(indentUnit());
+            } else if (c >= 32) {
+                typeChar(c);
+            }
+            return;
+        }
+        insertBlock(TextUtil.normalizeNewlines(t));
     }
 
-    /** IME composition foundation (commit path). */
     void beginComposition() {
         compositionActive = 1;
         compositionText = "";
@@ -2443,6 +4136,590 @@ class CodeEditor extends Canvas {
         }
         compositionActive = 0;
         compositionText = "";
+    }
+
+    // ------------------------------------------------------------------ find / replace
+
+    void setFind(String query, int caseSensitive, int wholeWord) {
+        if (query == null) {
+            query = "";
+        }
+        findQuery = query;
+        findCase = caseSensitive;
+        findWhole = wholeWord;
+        repaint();
+    }
+
+    void clearFind() {
+        findQuery = "";
+        repaint();
+    }
+
+    /** Selects the next (dir > 0) or previous match of the current find query; returns whether one was found. */
+    boolean findStep(int dir, boolean keepCurrent) {
+        if (findQuery.length() == 0) {
+            return false;
+        }
+        String text = document.getText();
+        TextRange r = null;
+        if (dir > 0) {
+            int from = selection.end();
+            if (keepCurrent) {
+                from = selection.start();
+            }
+            r = TextSearch.findIn(text, findQuery, from, findCase, findWhole);
+            if (r == null) {
+                r = TextSearch.findIn(text, findQuery, 0, findCase, findWhole);
+            }
+        } else {
+            r = TextSearch.findBackIn(text, findQuery, selection.start(), findCase, findWhole);
+            if (r == null) {
+                r = TextSearch.findBackIn(text, findQuery, text.length(), findCase, findWhole);
+            }
+        }
+        if (r == null) {
+            return false;
+        }
+        selectRange(r.start, r.end);
+        return true;
+    }
+
+    void findNext(String query) {
+        findQuery = query;
+        findStep(1, false);
+    }
+
+    /** Returns {1-based index of the current match (0 if none), total matches}. */
+    int[] findStats() {
+        int[] out = new int[2];
+        out[0] = 0;
+        out[1] = 0;
+        if (findQuery.length() == 0) {
+            return out;
+        }
+        String text = document.getText();
+        int from = 0;
+        int total = 0;
+        int cur = selection.start();
+        TextRange r = TextSearch.findIn(text, findQuery, from, findCase, findWhole);
+        while (r != null && total < 100000) {
+            total = total + 1;
+            if (r.start == cur && selection.end() == r.end) {
+                out[0] = total;
+            }
+            from = r.end;
+            if (r.end <= r.start) {
+                from = r.start + 1;
+            }
+            r = TextSearch.findIn(text, findQuery, from, findCase, findWhole);
+        }
+        out[1] = total;
+        return out;
+    }
+
+    int selectionIsMatch() {
+        if (findQuery.length() == 0 || selection.isEmpty()) {
+            return 0;
+        }
+        TextRange sr = selection.toRange();
+        String s = document.substring(sr.start, sr.end);
+        if (s.length() != findQuery.length()) {
+            return 0;
+        }
+        TextRange m = TextSearch.findIn(s, findQuery, 0, findCase, 0);
+        if (m != null && m.start == 0 && m.end == s.length()) {
+            return 1;
+        }
+        return 0;
+    }
+
+    boolean replaceCurrent(String replacement) {
+        if (readOnly != 0 || findQuery.length() == 0) {
+            return false;
+        }
+        if (selectionIsMatch() != 0) {
+            undo.closeGroup();
+            replaceSelection(replacement);
+            undo.closeGroup();
+        }
+        return findStep(1, false);
+    }
+
+    int replaceAllMatches(String replacement) {
+        if (readOnly != 0 || findQuery.length() == 0) {
+            return 0;
+        }
+        String text = document.getText();
+        ArrayList<int> starts = new ArrayList<int>();
+        int from = 0;
+        TextRange r = TextSearch.findIn(text, findQuery, from, findCase, findWhole);
+        while (r != null) {
+            starts.add(r.start);
+            from = r.end;
+            if (r.end <= r.start) {
+                from = r.start + 1;
+            }
+            r = TextSearch.findIn(text, findQuery, from, findCase, findWhole);
+        }
+        int n = starts.size();
+        if (n == 0) {
+            return 0;
+        }
+        int qlen = findQuery.length();
+        undo.closeGroup();
+        undo.beginCompoundEdit();
+        int i = n - 1;
+        while (i >= 0) {
+            int off = starts.get(i);
+            undo.recordReplace(off, text.substring(off, off + qlen), replacement);
+            document.replace(off, qlen, replacement);
+            i = i - 1;
+        }
+        undo.endCompoundEdit();
+        undo.closeGroup();
+        int first = starts.get(0);
+        selection.anchor = first;
+        selection.active = first;
+        caret.offset = first;
+        ensureCaretVisible();
+        fireCaret();
+        fireSelection();
+        repaint();
+        return n;
+    }
+
+    // ------------------------------------------------------------------ caret info (brackets, word highlight)
+
+    void refreshCaretInfo() {
+        bracketA = -1;
+        bracketB = -1;
+        hlWord = "";
+        if (document.getLength() > 0) {
+            computeBracketMatch();
+            computeWordHighlight();
+        }
+    }
+
+    void computeWordHighlight() {
+        TextRange r = selection.toRange();
+        int a = r.start;
+        int b = r.end;
+        if (r.isEmpty()) {
+            a = wordStart(caret.offset);
+            b = wordEnd(caret.offset);
+        } else {
+            if (document.offsetToLine(a) != document.offsetToLine(b)) {
+                return;
+            }
+            if (wordStart(a) != a || wordEnd(a) != b) {
+                return;
+            }
+        }
+        if (b - a < 2 || b - a > 60) {
+            return;
+        }
+        String w = document.substring(a, b);
+        int c0 = w.charAt(0);
+        if (c0 >= 48 && c0 <= 57) {
+            return;
+        }
+        hlWord = w;
+    }
+
+    int bracketPartner(int c) {
+        if (c == 40) {
+            return 41;
+        }
+        if (c == 41) {
+            return 40;
+        }
+        if (c == 91) {
+            return 93;
+        }
+        if (c == 93) {
+            return 91;
+        }
+        if (c == 123) {
+            return 125;
+        }
+        if (c == 125) {
+            return 123;
+        }
+        return 0;
+    }
+
+    void computeBracketMatch() {
+        int at = -1;
+        int c = charAtOffset(caret.offset);
+        if (bracketPartner(c) != 0) {
+            at = caret.offset;
+        } else {
+            c = charAtOffset(caret.offset - 1);
+            if (bracketPartner(c) != 0) {
+                at = caret.offset - 1;
+            }
+        }
+        if (at < 0) {
+            return;
+        }
+        TextPosition p = document.offsetToPosition(at);
+        int ty = tokenTypeAt(p.line, p.column);
+        if (ty == TokenType.COMMENT || ty == TokenType.STRING) {
+            return;
+        }
+        int partner = bracketPartner(c);
+        int forward = 0;
+        if (c == 40 || c == 91 || c == 123) {
+            forward = 1;
+        }
+        int depth = 0;
+        int line = p.line;
+        int col = p.column;
+        int steps = 0;
+        int n = document.getLineCount();
+        if (forward != 0) {
+            while (line < n && steps < 400) {
+                String t = document.getLine(line);
+                int i = col;
+                while (i < t.length()) {
+                    int ch = t.charAt(i);
+                    if (ch == c || ch == partner) {
+                        int tt = tokenTypeAt(line, i);
+                        if (tt != TokenType.COMMENT && tt != TokenType.STRING) {
+                            if (ch == c) {
+                                depth = depth + 1;
+                            } else {
+                                depth = depth - 1;
+                                if (depth == 0) {
+                                    bracketA = at;
+                                    bracketB = document.lineToOffset(line) + i;
+                                    return;
+                                }
+                            }
+                        }
+                    }
+                    i = i + 1;
+                }
+                line = line + 1;
+                col = 0;
+                steps = steps + 1;
+            }
+        } else {
+            while (line >= 0 && steps < 400) {
+                String t = document.getLine(line);
+                int i = t.length() - 1;
+                if (line == p.line) {
+                    i = col;
+                }
+                while (i >= 0) {
+                    int ch = t.charAt(i);
+                    if (ch == c || ch == partner) {
+                        int tt = tokenTypeAt(line, i);
+                        if (tt != TokenType.COMMENT && tt != TokenType.STRING) {
+                            if (ch == c) {
+                                depth = depth + 1;
+                            } else {
+                                depth = depth - 1;
+                                if (depth == 0) {
+                                    bracketA = at;
+                                    bracketB = document.lineToOffset(line) + i;
+                                    return;
+                                }
+                            }
+                        }
+                    }
+                    i = i - 1;
+                }
+                line = line - 1;
+                steps = steps + 1;
+            }
+        }
+    }
+
+    // ------------------------------------------------------------------ painting
+
+    /** Fills the pixel span of [fromCol, toCol) of a line. */
+    void fillCols(Graphics g, String text, int fromCol, int toCol, int y, int extra) {
+        double x0 = textLeft() - viewport.xOffset + colToX(text, fromCol);
+        double x1 = textLeft() - viewport.xOffset + colToX(text, toCol) + extra;
+        g.fillRect(x0, y, x1 - x0, lineH);
+    }
+
+    void paintMatches(Graphics g, String text, int y, String needle, int cs, int whole, Color color) {
+        if (needle.length() == 0) {
+            return;
+        }
+        int from = 0;
+        int guard = 0;
+        TextRange m = TextSearch.findIn(text, needle, from, cs, whole);
+        g.setColor(color);
+        while (m != null && guard < 200) {
+            fillCols(g, text, m.start, m.end, y, 0);
+            from = m.end;
+            if (m.end <= m.start) {
+                from = m.start + 1;
+            }
+            m = TextSearch.findIn(text, needle, from, cs, whole);
+            guard = guard + 1;
+        }
+    }
+
+    void drawRun(Graphics g, String text, int a, int b, int ty, int y, int splitCol, double splitPx) {
+        int i = a;
+        int segStart = a;
+        int tl = textLeft();
+        while (i <= b) {
+            int brk = 0;
+            if (i == b) {
+                brk = 1;
+            } else if (text.charAt(i) == 9 || i == splitCol) {
+                brk = 1;
+            }
+            if (brk != 0) {
+                int segEnd = i;
+                if (i < b && text.charAt(i) == 9) {
+                    segEnd = i;
+                }
+                if (segEnd > segStart) {
+                    double x = tl - viewport.xOffset + colToX(text, segStart);
+                    if (segStart >= splitCol) {
+                        x = x + splitPx;
+                    }
+                    if (x < width && x + (segEnd - segStart) * charW * 2.0 > tl) {
+                        g.drawText(text.substring(segStart, segEnd), x, y + 2);
+                    }
+                }
+                if (i < b && text.charAt(i) == 9) {
+                    segStart = i + 1;
+                } else {
+                    segStart = i;
+                }
+            }
+            i = i + 1;
+        }
+    }
+
+    void paintLineText(Graphics g, String text, int line, int y, int splitCol, double splitPx) {
+        int n = text.length();
+        if (n == 0) {
+            return;
+        }
+        LineTok lt = tokensForLine(line);
+        if (lt == null) {
+            g.setColor(theme.foreground);
+            drawRun(g, text, 0, n, TokenType.NORMAL, y, splitCol, splitPx);
+            return;
+        }
+        int i = 0;
+        while (i < lt.count) {
+            int a = lt.data[i];
+            int b = lt.data[i + 1];
+            int ty = lt.data[i + 2];
+            if (b > n) {
+                b = n;
+            }
+            if (a < b) {
+                g.setColor(theme.colorForToken(ty));
+                drawRun(g, text, a, b, ty, y, splitCol, splitPx);
+            }
+            i = i + 3;
+        }
+    }
+
+    void paintEditor(Graphics g) {
+        ensureMetrics();
+        viewport.width = width;
+        viewport.height = height;
+        int gw = gutterWidthFor();
+        refreshMaxCols();
+        setScrollPx(scrollPx());
+        setScrollX(viewport.xOffset);
+        g.setColor(theme.background);
+        g.fillRect(0, 0, width, height);
+        g.setFont(font);
+        int first = viewport.firstLine;
+        int yOff = viewport.yOffset;
+        int lines = document.getLineCount();
+        int last = first + (height + yOff) / lineH;
+        if (last >= lines) {
+            last = lines - 1;
+        }
+        TextPosition caretPos = document.offsetToPosition(caret.offset);
+        EditorMetrics.visibleLinesPainted = last - first + 1;
+        int sel0 = selection.start();
+        int sel1 = selection.end();
+        int tl = textLeft();
+        double compPx = 0.0;
+        if (compositionActive != 0) {
+            compPx = colToX(compositionText, compositionText.length());
+        }
+        g.setClip(gw, 0, width - gw, height);
+        int line = first;
+        while (line <= last) {
+            int y = (line - first) * lineH - yOff;
+            String text = document.getLine(line);
+            int lineOff = document.lineToOffset(line);
+            int lineEnd = lineOff + text.length();
+            if (line == caretPos.line && sel0 == sel1) {
+                g.setColor(theme.currentLine);
+                g.fillRect(gw, y, width - gw, lineH);
+            }
+            if (findQuery.length() > 0) {
+                paintMatches(g, text, y, findQuery, findCase, findWhole, theme.findMatch);
+            }
+            if (hlWord.length() > 0) {
+                paintMatches(g, text, y, hlWord, 1, 1, theme.wordHighlight);
+            }
+            if (bracketA >= 0 && bracketB >= 0) {
+                g.setColor(theme.bracketMatch);
+                if (bracketA >= lineOff && bracketA < lineEnd) {
+                    fillCols(g, text, bracketA - lineOff, bracketA - lineOff + 1, y, 0);
+                }
+                if (bracketB >= lineOff && bracketB < lineEnd) {
+                    fillCols(g, text, bracketB - lineOff, bracketB - lineOff + 1, y, 0);
+                }
+            }
+            if (sel0 < sel1 && sel0 <= lineEnd && sel1 > lineOff) {
+                int a = sel0;
+                if (a < lineOff) {
+                    a = lineOff;
+                }
+                int b = sel1;
+                if (b > lineEnd) {
+                    b = lineEnd;
+                }
+                int extra = 0;
+                if (sel1 > lineEnd) {
+                    extra = (int) charW;
+                }
+                g.setColor(theme.selection);
+                fillCols(g, text, a - lineOff, b - lineOff, y, extra);
+            }
+            int splitCol = 1000000;
+            if (compositionActive != 0 && line == caretPos.line) {
+                splitCol = caretPos.column;
+            }
+            paintLineText(g, text, line, y, splitCol, compPx);
+            if (compositionActive != 0 && line == caretPos.line) {
+                double cx0 = tl - viewport.xOffset + colToX(text, caretPos.column);
+                g.setColor(theme.background);
+                g.fillRect(cx0, y, compPx, lineH);
+                g.setColor(theme.foreground);
+                g.drawText(compositionText, cx0, y + 2);
+                g.drawLine(cx0, y + lineH - 3, cx0 + compPx, y + lineH - 3);
+            }
+            int di = 0;
+            while (di < diagnostics.size()) {
+                EditorDiagnostic d = diagnostics.get(di);
+                if (d.start < lineEnd + 1 && d.end > lineOff) {
+                    int a = d.start;
+                    if (a < lineOff) {
+                        a = lineOff;
+                    }
+                    int b = d.end;
+                    if (b > lineEnd) {
+                        b = lineEnd;
+                    }
+                    if (b <= a) {
+                        b = a + 1;
+                    }
+                    double sx = tl - viewport.xOffset + colToX(text, a - lineOff);
+                    double ex = tl - viewport.xOffset + colToX(text, b - lineOff);
+                    g.setColor(theme.diagnosticError);
+                    double px = sx;
+                    int zig = 0;
+                    int yy = y + lineH - 3;
+                    while (px < ex) {
+                        double nx = px + 3.0;
+                        if (nx > ex) {
+                            nx = ex;
+                        }
+                        if (zig == 0) {
+                            g.drawLine(px, yy + 2, nx, yy);
+                        } else {
+                            g.drawLine(px, yy, nx, yy + 2);
+                        }
+                        zig = 1 - zig;
+                        px = nx;
+                    }
+                }
+                di = di + 1;
+            }
+            line = line + 1;
+        }
+        if (caret.visible != 0 && caret.blinkOn != 0) {
+            int cy = caretPos.line * lineH - scrollPx();
+            if (cy > 0 - lineH && cy < height) {
+                String lineText = document.getLine(caretPos.line);
+                double cx = tl - viewport.xOffset + colToX(lineText, caretPos.column);
+                if (compositionActive != 0) {
+                    cx = cx + compPx;
+                }
+                g.setColor(theme.caret);
+                g.fillRect(cx, cy + 1, 2, lineH - 2);
+            }
+        }
+        g.clearClip();
+        /* Gutter */
+        if (showLineNumbers != 0 && gw > 0) {
+            g.setColor(theme.gutterBackground);
+            g.fillRect(0, 0, gw, height);
+            line = first;
+            while (line <= last) {
+                int y = (line - first) * lineH - yOff;
+                String num = "" + (line + 1);
+                if (line == caretPos.line) {
+                    g.setColor(theme.gutterCurrent);
+                } else {
+                    g.setColor(theme.lineNumber);
+                }
+                double nw = num.length() * charW;
+                g.drawText(num, gw - 14 - nw, y + 2);
+                line = line + 1;
+            }
+            g.setColor(theme.indentGuide);
+            g.drawLine(gw - 1, 0, gw - 1, height);
+        }
+        paintScrollbars(g);
+        int imeX = (int) (tl - viewport.xOffset + colToX(document.getLine(caretPos.line), caretPos.column));
+        int imeY = caretPos.line * lineH - scrollPx();
+        if ((imeX != lastImeX || imeY != lastImeY) && nativeId > 0) {
+            lastImeX = imeX;
+            lastImeY = imeY;
+            UiNative.canvasSetImeRect(nativeId, imeX, imeY, lineH);
+        }
+        EditorMetrics.layoutsCreated = EditorMetrics.layoutsCreated + EditorMetrics.visibleLinesPainted;
+    }
+
+    void paintScrollbars(Graphics g) {
+        int total = contentHeight();
+        if (total > height) {
+            int thumbH = height * height / total;
+            if (thumbH < 28) {
+                thumbH = 28;
+            }
+            int mx = maxScrollY();
+            int track = height - thumbH;
+            int top = 0;
+            if (mx > 0) {
+                top = scrollPx() * track / mx;
+            }
+            g.setColor(theme.scrollThumb);
+            g.fillRoundRect(width - 9, top + 1, 7, thumbH - 2, 3);
+        }
+        int mxx = maxScrollX();
+        if (mxx > 0) {
+            int avail = width - textLeft();
+            int content = avail + mxx;
+            int thumbW = avail * avail / content;
+            if (thumbW < 28) {
+                thumbW = 28;
+            }
+            int track = avail - thumbW;
+            int left = textLeft() + viewport.xOffset * track / mxx;
+            g.setColor(theme.scrollThumb);
+            g.fillRoundRect(left, height - 9, thumbW, 7, 3);
+        }
     }
 
     void disposeEditor() {

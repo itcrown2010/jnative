@@ -58,9 +58,12 @@ public class IdeDialog {
         tf.requestFocus();
     }
 
+    /** Template chosen in the last New Project dialog: 0 form app, 1 blank form, 2 console. */
+    static int template = 0;
+
     /** New-project dialog: project name + parent folder. */
     static void newProject(Window owner, String defaultParent, IdeStringPairHandler h) {
-        Window w = new Window("新建项目", 520, 232);
+        Window w = new Window("新建项目", 520, 290);
         w.setDialogStyle(owner);
         Panel p = new Panel();
         label(p, "项目名称", 20, 18, 200);
@@ -80,13 +83,19 @@ public class IdeDialog {
                 loc.setText(d);
             }
         });
+        label(p, "项目模板", 20, 150, 200);
+        SegmentedControl tpl = new SegmentedControl("窗体应用\t空白窗体\t控制台程序");
+        tpl.setSelectedIndex(template);
+        p.add(tpl);
+        tpl.setBounds(20, 174, 480, 30);
         Button ok = new Button("创建");
         Button cancel = new Button("取消");
         p.add(ok);
         p.add(cancel);
-        ok.setBounds(330, 168, 80, 32);
-        cancel.setBounds(420, 168, 80, 32);
+        ok.setBounds(330, 226, 80, 32);
+        cancel.setBounds(420, 226, 80, 32);
         ok.onClick(() -> {
+            template = tpl.getSelectedIndex();
             String n = name.getText().trim();
             String l = loc.getText().trim();
             if (n.length() == 0 || l.length() == 0) {

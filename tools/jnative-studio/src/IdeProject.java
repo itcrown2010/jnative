@@ -11,6 +11,7 @@ class IdeSettings {
     static String compiler = "";
     static ArrayList<String> recent = new ArrayList<String>();
     static boolean loaded = false;
+    static int fontSize = 13;
 
     static FsPath file() {
         FsPath dir = Files.configDir("jnative-studio");
@@ -37,6 +38,8 @@ class IdeSettings {
                         javaCmd = v;
                     } else if (k.equals("compiler")) {
                         compiler = v;
+                    } else if (k.equals("fontSize")) {
+                        fontSize = Math.max(9, Math.min(32, DsUtil.parseInt(v, 13)));
                     } else if (k.equals("recent") && v.length() > 0) {
                         recent.add(v);
                     }
@@ -53,6 +56,7 @@ class IdeSettings {
         StringBuilder sb = new StringBuilder();
         sb.append("java=" + javaCmd + "\n");
         sb.append("compiler=" + compiler + "\n");
+        sb.append("fontSize=" + fontSize + "\n");
         int i = 0;
         while (i < recent.size()) {
             sb.append("recent=" + recent.get(i) + "\n");
@@ -222,7 +226,11 @@ class IdeProject {
         sb.append("}\n");
         Files.writeString(FsPath.of(dir + "/jnative.project"), sb.toString());
         Files.writeString(FsPath.of(dir + "/.gitignore"), ".jnative/\n");
-        DsDoc d = DsSample.hello("MainForm");
+        if (IdeDialog.template == 2) {
+            Files.writeString(FsPath.of(dir + "/src/Main.java"), consoleMain(name));
+            return open(dir);
+        }
+        DsDoc d = IdeDialog.template == 1 ? DsDoc.blank("MainForm") : DsSample.hello("MainForm");
         writeForm(dir + "/src", d, true);
         String userPath = dir + "/src/MainForm.java";
         String user = Files.readString(FsPath.of(userPath));
@@ -233,10 +241,23 @@ class IdeProject {
             int eol = stub.indexOf("\n", todo);
             stub = stub.substring(0, todo) + "        lblMessage.setText(\"你好，\" + txtName.getText() + \"！\");" + stub.substring(eol);
         }
-        user = DsGen.insertMethod(user, stub);
-        Files.writeString(FsPath.of(userPath), user);
+        if (IdeDialog.template == 0) {
+            user = DsGen.insertMethod(user, stub);
+            Files.writeString(FsPath.of(userPath), user);
+        }
         Files.writeString(FsPath.of(dir + "/src/Main.java"), DsGen.mainStub(d));
         return open(dir);
+    }
+
+    static String consoleMain(String name) {
+        StringBuilder sb = new StringBuilder();
+        sb.append("/**\n * " + name + " 的入口。\n */\n");
+        sb.append("public class Main {\n");
+        sb.append("    public static void main(String[] args) {\n");
+        sb.append("        System.out.println(\"Hello, " + name + "!\");\n");
+        sb.append("    }\n");
+        sb.append("}\n");
+        return sb.toString();
     }
 
     /** Writes Name.jnui, NameBase.java and (when missing) Name.java into srcDir. */

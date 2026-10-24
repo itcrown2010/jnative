@@ -13,6 +13,8 @@ class IdeMem {
     boolean method;
     boolean isStatic;
     String owner;
+    String file = "";
+    int line = 0;
 
     String label() {
         if (method) {
@@ -40,6 +42,8 @@ class IdeMem {
 class IdeCls {
     String name;
     String base = "";
+    String file = "";
+    int line = 0;
     ArrayList<IdeMem> members = new ArrayList<IdeMem>();
 }
 
@@ -73,6 +77,9 @@ class IdeTable {
  */
 public class IdeComplete {
     static IdeTable stdlib = null;
+    /** Path of the file being edited (its unsaved text is indexed instead of the disk copy). */
+    static String currentFile = "";
+    static int lastVarPos = -1;
     /** Absolute project source directories, set by the IDE before completing. */
     static ArrayList<String> projectDirs = new ArrayList<String>();
     static String stdlibFor = "";
@@ -166,8 +173,9 @@ public class IdeComplete {
     // ------------------------------------------------------------------ indexing
 
     /** Parses all classes in one source text into the table. */
-    static void indexText(String text, IdeTable table) {
+    static void indexText(String text, IdeTable table, String file) {
         IdeCls cur = null;
+        int lineNo = 0;
         int pos = 0;
         int n = text.length();
         while (pos < n) {
@@ -177,6 +185,7 @@ public class IdeComplete {
             }
             String line = text.substring(pos, eol);
             pos = eol + 1;
+            lineNo = lineNo + 1;
             if (line.length() < 5) {
                 continue;
             }
@@ -184,6 +193,8 @@ public class IdeComplete {
             if (c0 != ' ' && c0 != '\t' && c0 != '}' && c0 != '/' && c0 != '*' && c0 != '@') {
                 IdeCls decl = parseClassLine(line);
                 if (decl != null) {
+                    decl.file = file;
+                    decl.line = lineNo;
                     IdeCls prev = table.get(decl.name);
                     if (prev != null && prev.members.size() > 0 && decl.base.length() == 0) {
                         decl.base = prev.base;
@@ -194,7 +205,7 @@ public class IdeComplete {
                 continue;
             }
             if (cur != null && c0 == ' ' && line.startsWith("    ") && line.charAt(4) != ' ') {
-                parseMember(line.substring(4), cur);
+                parseMember(line.substring(4), cur, file, lineNo);
             }
         }
     }
@@ -240,7 +251,7 @@ public class IdeComplete {
         return c;
     }
 
-    static void parseMember(String line, IdeCls cls) {
+    static void parseMember(String line, IdeCls cls, String file, int lineNo) {
         line = line.trim();
         if (line.length() == 0) {
             return;
@@ -260,6 +271,8 @@ public class IdeComplete {
         int eq = line.indexOf("=");
         IdeMem m = new IdeMem();
         m.owner = cls.name;
+        m.file = file;
+        m.line = lineNo;
         if (paren >= 0 && (eq < 0 || eq > paren)) {
             String head = line.substring(0, paren).trim();
             int close = line.lastIndexOf(")");
@@ -348,7 +361,7 @@ public class IdeComplete {
         if (dir.length() > 0 && Files.exists(FsPath.of(dir))) {
             loadDir(dir, t);
         }
-        indexText(BUILTIN, t);
+        indexText(BUILTIN, t, "");
         stdlib = t;
         stdlibFor = dir;
         return t;
@@ -360,10 +373,43 @@ public class IdeComplete {
         while (i < all.size()) {
             String p = all.get(i).toString();
             if (p.endsWith(".java") && Files.isFile(all.get(i))) {
-                indexText(Files.readString(all.get(i)), t);
+                indexText(Files.readString(all.get(i)), t, p);
             }
             i = i + 1;
         }
+    }
+
+    static IdeTable projTable = null;
+    static String projKey = "";
+    static long projStamp = 0;
+
+    /** Forget the cached project index (call after files change on disk). */
+    static void touch() {
+        projStamp = 0;
+    }
+
+    /** Index of the project's own sources, re-read at most every few seconds or after touch(). */
+    static IdeTable projectTable() {
+        String key = "";
+        int d = 0;
+        while (d < projectDirs.size()) {
+            key = key + projectDirs.get(d) + "|";
+            d = d + 1;
+        }
+        long now = System.currentTimeMillis();
+        if (projTable != null && projStamp != 0 && projKey.equals(key) && now - projStamp < 5000) {
+            return projTable;
+        }
+        IdeTable t = new IdeTable();
+        d = 0;
+        while (d < projectDirs.size()) {
+            loadDir(projectDirs.get(d), t);
+            d = d + 1;
+        }
+        projTable = t;
+        projKey = key;
+        projStamp = now;
+        return t;
     }
 
     /** stdlib + project sources + the (possibly unsaved) text of the current file. */
@@ -375,12 +421,13 @@ public class IdeComplete {
             t.put(lib.names.get(i), lib.get(lib.names.get(i)));
             i = i + 1;
         }
-        int d = 0;
-        while (d < projectDirs.size()) {
-            loadDir(projectDirs.get(d), t);
-            d = d + 1;
+        IdeTable proj = projectTable();
+        i = 0;
+        while (i < proj.names.size()) {
+            t.put(proj.names.get(i), proj.get(proj.names.get(i)));
+            i = i + 1;
         }
-        indexText(text, t);
+        indexText(text, t, currentFile);
         return t;
     }
 
@@ -472,6 +519,7 @@ public class IdeComplete {
     /** Declared type of a local / parameter / field named `name`, scanning the text before `upto`. */
     static String varType(String text, String name, int upto) {
         String found = "";
+        lastVarPos = -1;
         int from = 0;
         int guard = 0;
         while (guard < 4000) {
@@ -504,6 +552,7 @@ public class IdeComplete {
             if (ty.length() > 0 && (isUpper(ty.charAt(0)) || ty.equals("int") || ty.equals("long")
                     || ty.equals("double") || ty.equals("boolean") || ty.equals("char") || ty.equals("float"))) {
                 found = ty;
+                lastVarPos = i;
             }
         }
         return found;
@@ -737,6 +786,56 @@ public class IdeComplete {
                 i = i + 1;
             }
         }
+    }
+
+    /**
+     * Where the identifier at the caret is declared: "path:line" (path is "" for the current unsaved
+     * file, whose line numbers are valid in the editor), or "" when unknown.
+     */
+    static String definition(String text, int caret) {
+        int s = caret;
+        while (s > 0 && isIdent(text.charAt(s - 1))) {
+            s = s - 1;
+        }
+        int e = caret;
+        while (e < text.length() && isIdent(text.charAt(e))) {
+            e = e + 1;
+        }
+        if (e <= s) {
+            return "";
+        }
+        String word = text.substring(s, e);
+        IdeTable t = buildTable(text);
+        String cur = enclosingClass(text, caret);
+        if (s > 0 && text.charAt(s - 1) == '.') {
+            String type = typeOfExpr(t, exprBefore(text, s - 1), text, cur, caret);
+            IdeMem m = type.length() == 0 ? null : findMember(t, type, word);
+            if (m != null) {
+                return m.file + ":" + m.line;
+            }
+            return "";
+        }
+        String v = varType(text, word, caret);
+        if (v.length() > 0 && lastVarPos >= 0) {
+            int ln = 1;
+            int k = 0;
+            while (k < lastVarPos) {
+                if (text.charAt(k) == '\n') {
+                    ln = ln + 1;
+                }
+                k = k + 1;
+            }
+            return currentFile + ":" + ln;
+        }
+        IdeMem m = findMember(t, cur, word);
+        if (m != null) {
+            return m.file + ":" + m.line;
+        }
+        IdeCls c = t.get(word);
+        if (c != null) {
+            return c.file + ":" + c.line;
+        }
+        return "";
     }
 
     static boolean matches(String label, String prefix) {

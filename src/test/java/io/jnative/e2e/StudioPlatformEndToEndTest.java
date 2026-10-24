@@ -167,6 +167,136 @@ class StudioPlatformEndToEndTest {
         assertTrue(runOut.contains("ROUNDTRIP OK"), runOut);
         assertTrue(runOut.contains("public class DemoFormBase"), runOut);
         assertTrue(runOut.contains("void buildUi()"), runOut);
+
+        ProcessBuilder self = new ProcessBuilder(proj.resolve(".jnative/build/jnative-studio").toString(), "--selftest");
+        self.directory(proj.toFile());
+        self.redirectErrorStream(true);
+        Process sp = self.start();
+        String selfOut = new String(sp.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
+        assertTrue(sp.waitFor(60, TimeUnit.SECONDS), "studio selftest timeout");
+        assertEquals(0, sp.exitValue(), selfOut);
+        assertTrue(selfOut.contains("ALL OK"), selfOut);
+    }
+
+    /** The calculator example is built with Studio; its SelfTest drives the designer-bound handlers. */
+    @Test
+    void macCalculatorExampleSelfTestPasses() throws Exception {
+        Assumptions.assumeTrue(Toolchain.detect().isPresent(), "clang not available");
+        Assumptions.assumeTrue(System.getProperty("os.name", "").toLowerCase().contains("mac"), "macOS only");
+        Path src = Path.of("examples", "mac-calculator").toAbsolutePath();
+        Assumptions.assumeTrue(Files.isDirectory(src.resolve("src")), "examples/mac-calculator not present");
+        Path proj = tempDir.resolve("calc");
+        copyTree(src.resolve("src"), proj.resolve("src"));
+        Files.copy(src.resolve("jnative.project"), proj.resolve("jnative.project"));
+
+        ProcessBuilder build = new ProcessBuilder(
+                Path.of(System.getProperty("java.home"), "bin", "java").toString(),
+                "-cp", System.getProperty("java.class.path"), "io.jnative.Main", "build", "--project", ".");
+        build.directory(proj.toFile());
+        build.redirectErrorStream(true);
+        Process bp = build.start();
+        String buildOut = new String(bp.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
+        assertTrue(bp.waitFor(300, TimeUnit.SECONDS), "calculator build timeout");
+        assertEquals(0, bp.exitValue(), buildOut);
+
+        ProcessBuilder run = new ProcessBuilder(proj.resolve(".jnative/build/MacCalculator").toString(), "--selftest");
+        run.directory(proj.toFile());
+        run.redirectErrorStream(true);
+        Process rp = run.start();
+        String out = new String(rp.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
+        assertTrue(rp.waitFor(60, TimeUnit.SECONDS), "calculator selftest timeout");
+        assertEquals(0, rp.exitValue(), out);
+        assertTrue(out.contains("ALL OK"), out);
+        assertTrue(out.contains("0.1+0.2"), out);
+    }
+
+    /**
+     * Locals declared in nested blocks of a lambda body (loops, ifs) belong to the lambda; only variables from the
+     * enclosing method are captured (the compiler used to try to capture the nested-block locals and crash).
+     */
+    @Test
+    void lambdaNestedBlockLocalsAreNotCaptured() throws Exception {
+        assertEquals("done 6 x\n", run("""
+                public class Main {
+                    static void run(Runnable r) { r.run(); }
+                    public static void main(String[] args) {
+                        String tag = "x";
+                        int base = 1;
+                        run(() -> {
+                            int i = 0;
+                            int sum = 0;
+                            while (i < 3) {
+                                int step = base + i;
+                                String d = tag + i;
+                                if (d.length() > 5) {
+                                    return;
+                                }
+                                sum = sum + step;
+                                i = i + 1;
+                            }
+                            System.out.println("done " + sum + " " + tag);
+                        });
+                    }
+                }
+                """, "LamNested", Map.of()));
+    }
+
+    /**
+     * Override detection must not depend on file order: Studio's MainForm.java sorts before MainFormBase.java, and
+     * its event handlers silently never ran because the subclass was analysed before its superclass.
+     */
+    @Test
+    void overridesWorkWhenSubclassFileIsAnalysedFirst() throws Exception {
+        Assumptions.assumeTrue(Toolchain.detect().isPresent(), "clang not available");
+        Path proj = tempDir.resolve("order");
+        Files.createDirectories(proj.resolve("src"));
+        Files.writeString(proj.resolve("jnative.project"), """
+                {"name":"order","modules":{"app":{"kind":"app","src":"src"}},
+                 "targets":[{"name":"order","triple":"native","module":"app","main":"Main","output":".jnative/build/order"}]}
+                """);
+        Files.writeString(proj.resolve("src/MainForm.java"), """
+                public class MainForm extends MainFormBase {
+                    int hits = 0;
+                    @Override
+                    void onClick() {
+                        hits = hits + 1;
+                    }
+                }
+                """);
+        Files.writeString(proj.resolve("src/MainFormBase.java"), """
+                public class MainFormBase {
+                    void onClick() {
+                    }
+                    void fire() {
+                        Runnable r = () -> onClick();
+                        r.run();
+                    }
+                }
+                """);
+        Files.writeString(proj.resolve("src/Main.java"), """
+                public class Main {
+                    public static void main(String[] args) {
+                        MainForm f = new MainForm();
+                        MainFormBase b = f;
+                        b.onClick();
+                        b.fire();
+                        System.out.println("hits=" + f.hits);
+                    }
+                }
+                """);
+        ProcessBuilder build = new ProcessBuilder(
+                Path.of(System.getProperty("java.home"), "bin", "java").toString(),
+                "-cp", System.getProperty("java.class.path"), "io.jnative.Main", "build", "--project", ".");
+        build.directory(proj.toFile());
+        build.redirectErrorStream(true);
+        Process bp = build.start();
+        String buildOut = new String(bp.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
+        assertTrue(bp.waitFor(300, TimeUnit.SECONDS), "build timeout");
+        assertEquals(0, bp.exitValue(), buildOut);
+        Process rp = new ProcessBuilder(proj.resolve(".jnative/build/order").toString()).redirectErrorStream(true).start();
+        String out = new String(rp.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
+        assertTrue(rp.waitFor(60, TimeUnit.SECONDS), "run timeout");
+        assertEquals("hits=2\n", out);
     }
 
     private static void copyTree(Path from, Path to) throws IOException {

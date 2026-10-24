@@ -163,10 +163,16 @@ public class IdeApp extends Panel {
     IdeTree explorer;
     IdeTabs tabs;
     Panel host;
+    IdeFindBar findBar;
+    IdeSuggest suggest;
+    IdeQuick quick;
     IdeWelcome welcome;
     Canvas bottomHead;
     IdeTree output;
     IdeTree problems;
+    IdeTree search;
+    ArrayList<int> bhEdges = new ArrayList<int>();
+    String searchQuery = "";
     Canvas status;
     IdeSplitter splitV;
     IdeSplitter splitH;
@@ -224,6 +230,9 @@ public class IdeApp extends Panel {
         host = new Panel();
         host.setClipChildren(true, false);
         add(host);
+        findBar = new IdeFindBar(this);
+        suggest = new IdeSuggest(this);
+        host.add(suggest);
         welcome = new IdeWelcome(this);
         add(welcome);
 
@@ -245,6 +254,13 @@ public class IdeApp extends Panel {
         problems.onActivate = it -> problemActivate(it);
         add(problems);
         vis(problems, false);
+        search = new IdeTree();
+        search.flat = true;
+        search.rowH = 22;
+        search.emptyText = "在「编辑 → 在项目中查找」中搜索（⇧⌘F）";
+        search.onActivate = it -> searchActivate(it);
+        add(search);
+        vis(search, false);
 
         status = new Canvas();
         status.setHiDpi(true);
@@ -265,8 +281,64 @@ public class IdeApp extends Panel {
         };
         add(splitH);
 
+        quick = new IdeQuick(this);
+        add(quick);
+        window.onKeyDown(e -> windowKey(e));
         buildMenus();
         refreshState();
+    }
+
+    /** Escape from a native text field (the find bar) arrives here, not at the editor. */
+    void windowKey(KeyEvent e) {
+        if (e.keyCode == KeyCode.ESCAPE) {
+            if (quick.isOpen) {
+                quick.close();
+            } else if (findBar.shown) {
+                findBar.close();
+            } else {
+                suggest.hide();
+            }
+        }
+    }
+
+    /** Key pre-filter of every code editor: completion list first, then Esc closes the find bar. */
+    void editorKey(KeyEvent e) {
+        if (e.keyCode == KeyCode.ESCAPE && !suggest.isOpen && findBar.shown) {
+            e.consume();
+            findBar.close();
+            return;
+        }
+        suggest.keyPre(e);
+    }
+
+    void focusEditor() {
+        IdeDoc d = activeDoc();
+        if (d != null && d.kind == 0) {
+            d.editor.requestFocus();
+        }
+    }
+
+    int findBarHeight() {
+        return findBar.shown ? findBar.height() : 0;
+    }
+
+    /** Positions the find bar and gives the code editors the space below it. */
+    void layoutDocs() {
+        int fh = findBarHeight();
+        findBar.layoutBar(host.width);
+        int i = 0;
+        while (i < tabs.docs.size()) {
+            IdeDoc d = tabs.docs.get(i);
+            Component v = d.view();
+            if (v != null) {
+                if (d.kind == 0) {
+                    v.setBounds(0, fh, host.width, Math.max(0, host.height - fh));
+                } else {
+                    v.setBounds(0, 0, host.width, host.height);
+                }
+            }
+            i = i + 1;
+        }
     }
 
     Button tb(String text, Runnable r) {
@@ -307,15 +379,33 @@ public class IdeApp extends Panel {
         item(edit, "重做", 90, 1, () -> designerRedo());
         edit.addSeparator();
         item(edit, "查找…", 70, 0, () -> findDialog());
+        item(edit, "替换…", 70, 2, () -> findBar.open(true));
         item(edit, "查找下一个", 71, 0, () -> findAgain());
+        item(edit, "查找上一个", 71, 1, () -> findPrevious());
+        edit.addSeparator();
+        item(edit, "在项目中查找…", 70, 1, () -> findInFiles());
+        item(edit, "重新缩进代码", 73, 1, () -> formatDocument());
+        item(edit, "重命名符号…", 82, 1, () -> renameSymbol());
         item(edit, "转到行…", 76, 0, () -> gotoLineDialog());
+        item(edit, "转到文件…", 79, 1, () -> quickOpenFile());
+        item(edit, "转到符号…", 84, 0, () -> quickSymbol());
         edit.addSeparator();
         item(edit, "代码补全", 75, 0, () -> completeDialog());
+        item(edit, "转到定义", 68, 0, () -> gotoDefinition());
+        item(edit, "后退", 37, 2, () -> navBack());
+        item(edit, "前进", 39, 2, () -> navForward());
         bar.add(edit);
         Menu view = new Menu("视图");
         item(view, "设计器 / 代码 切换", 69, 0, () -> toggleDesignerCode());
         item(view, "实时预览", 80, 0, () -> designerPreview());
         item(view, "显示/隐藏输出面板", 74, 0, () -> toggleBottom());
+        view.addSeparator();
+        item(view, "放大编辑器字号", 187, 0, () -> zoomEditors(1));
+        item(view, "缩小编辑器字号", 189, 0, () -> zoomEditors(-1));
+        item(view, "重置编辑器字号", 48, 0, () -> zoomEditors(0));
+        view.addSeparator();
+        item(view, "下一个标签页", 221, 2, () -> cycleTab(1));
+        item(view, "上一个标签页", 219, 2, () -> cycleTab(-1));
         bar.add(view);
         Menu bld = new Menu("生成");
         item(bld, "生成项目", 66, 0, () -> build(false));
@@ -359,22 +449,17 @@ public class IdeApp extends Panel {
         tabs.setBounds(cx, top, cw, TABS_H);
         host.setBounds(cx, top + TABS_H, cw, centerH - TABS_H);
         welcome.setBounds(cx, top + TABS_H, cw, centerH - TABS_H);
-        int i = 0;
-        while (i < tabs.docs.size()) {
-            Component v = tabs.docs.get(i).view();
-            if (v != null) {
-                v.setBounds(0, 0, cw, centerH - TABS_H);
-            }
-            i = i + 1;
-        }
+        layoutDocs();
         vis(bottomHead, bottomVisible);
         vis(output, bottomVisible && bottomTab == 0);
         vis(problems, bottomVisible && bottomTab == 1);
+        vis(search, bottomVisible && bottomTab == 2);
         if (bottomVisible) {
             int by = top + centerH;
             bottomHead.setBounds(cx, by, cw, HEAD_H);
             output.setBounds(cx, by + HEAD_H, cw, bh - HEAD_H);
             problems.setBounds(cx, by + HEAD_H, cw, bh - HEAD_H);
+            search.setBounds(cx, by + HEAD_H, cw, bh - HEAD_H);
         }
         status.setBounds(0, height - ST_H, width, ST_H);
         splitV.setBounds(explorerW - 2, top, 5, bodyH);
@@ -422,18 +507,28 @@ public class IdeApp extends Panel {
         Ide.fill(g, Ide.PANEL_ALT, 0, 0, width, height);
         Ide.line(g, Ide.BORDER, 0, 0.5, width, 0.5);
         Ide.line(g, Ide.BORDER, 0, height - 0.5, width, height - 0.5);
-        String t0 = "输出";
-        String t1 = "问题" + (diagCount + warnCount > 0 ? " (" + (diagCount + warnCount) + ")" : "");
+        String[] titles = new String[3];
+        titles[0] = "输出";
+        titles[1] = "问题" + (diagCount + warnCount > 0 ? " (" + (diagCount + warnCount) + ")" : "");
+        titles[2] = "搜索" + (search.root.kids.size() > 0 ? " (" + search.root.kids.size() + ")" : "");
+        bhEdges.clear();
         int x = 12;
-        int w0 = Ide.textWidth(g, t0, Ide.bold()) + 20;
-        int w1 = Ide.textWidth(g, t1, Ide.bold()) + 20;
-        if (bottomTab == 0) {
-            Ide.fill(g, Ide.ACCENT, x, height - 2, w0, 2);
-        } else {
-            Ide.fill(g, Ide.ACCENT, x + w0, height - 2, w1, 2);
+        int t = 0;
+        while (t < 3) {
+            int w = Ide.textWidth(g, titles[t], Ide.bold()) + 20;
+            bhEdges.add(x);
+            if (bottomTab == t) {
+                Ide.fill(g, Ide.ACCENT, x, height - 2, w, 2);
+            }
+            int col = bottomTab == t ? Ide.TEXT : Ide.SUBTLE;
+            if (t == 1 && bottomTab == 1 && diagCount > 0) {
+                col = Ide.ERROR;
+            }
+            Ide.textRow(g, titles[t], x + 10, 0, height, Ide.bold(), col);
+            x = x + w;
+            t = t + 1;
         }
-        Ide.textRow(g, t0, x + 10, 0, height, Ide.bold(), bottomTab == 0 ? Ide.TEXT : Ide.SUBTLE);
-        Ide.textRow(g, t1, x + w0 + 10, 0, height, Ide.bold(), bottomTab == 1 ? (diagCount > 0 ? Ide.ERROR : Ide.TEXT) : Ide.SUBTLE);
+        bhEdges.add(x);
         Ide.text(g, "✕", width - 22, 7, Ide.ui(), Ide.SUBTLE);
         Ide.text(g, "清除", width - 70, 8, Ide.small(), Ide.SUBTLE);
     }
@@ -444,20 +539,23 @@ public class IdeApp extends Panel {
             return;
         }
         if (e.x > bottomHead.width - 80) {
-            output.rows.clear();
-            output.root = new IdeItem("", "", "");
-            output.rebuild();
+            IdeTree t = bottomTab == 0 ? output : (bottomTab == 1 ? problems : search);
+            if (bottomTab == 1) {
+                return;
+            }
+            t.rows.clear();
+            t.root = new IdeItem("", "", "");
+            t.rebuild();
+            bottomHead.repaint();
             return;
         }
-        Image tmp = Image.create(4, 4);
-        Graphics g = tmp.beginGraphics();
-        int w0 = Ide.textWidth(g, "输出", Ide.bold()) + 20;
-        g.end();
-        tmp.dispose();
-        if (e.x < 12 + w0) {
-            showBottomTab(0);
-        } else {
-            showBottomTab(1);
+        int t = 0;
+        while (t < 3 && t + 1 < bhEdges.size()) {
+            if (e.x >= bhEdges.get(t) && e.x < bhEdges.get(t + 1)) {
+                showBottomTab(t);
+                return;
+            }
+            t = t + 1;
         }
     }
 
@@ -530,7 +628,11 @@ public class IdeApp extends Panel {
             return;
         }
         openProject(p.dir);
-        openFile(p.dir + "/src/MainForm.jnui");
+        if (IdeDialog.template == 2) {
+            openFile(p.dir + "/src/Main.java");
+        } else {
+            openFile(p.dir + "/src/MainForm.jnui");
+        }
     }
 
     void openProjectDialog() {
@@ -656,8 +758,11 @@ public class IdeApp extends Panel {
         ContextMenu cm = new ContextMenu();
         cm.add(new MenuItem("新建窗体…", () -> newForm(it)));
         cm.add(new MenuItem("新建 Java 类…", () -> newClass(it)));
+        cm.add(new MenuItem("新建文件…", () -> newFile(it)));
+        cm.add(new MenuItem("新建文件夹…", () -> newFolder(it)));
         cm.addSeparator();
         if (!it.icon.equals("project")) {
+            cm.add(new MenuItem("重命名…", () -> renameItem(it)));
             cm.add(new MenuItem("删除…", () -> deleteItem(it)));
         }
         cm.add(new MenuItem("在 Finder 中显示", () -> Desktop.revealFile(it.key)));
@@ -718,19 +823,404 @@ public class IdeApp extends Panel {
     }
 
     void deleteItem(IdeItem it) {
-        if (Files.isDirectory(FsPath.of(it.key))) {
-            Dialogs.info(window, "暂不支持删除文件夹，请在 Finder 中操作。");
+        boolean dir = Files.isDirectory(FsPath.of(it.key));
+        String what = dir ? "文件夹 " + it.text + " 及其全部内容" : it.text;
+        if (!Dialogs.confirm(window, "确定删除 " + what + " ？将移到废纸篓。")) {
             return;
         }
-        if (!Dialogs.confirm(window, "确定删除 " + it.text + " ？此操作不可撤销。")) {
-            return;
+        closeDocsUnder(it.key);
+        if (!Desktop.moveToTrash(FsPath.of(it.key))) {
+            if (dir) {
+                Dialogs.error(window, "无法删除文件夹，请在 Finder 中操作。");
+                return;
+            }
+            Files.delete(FsPath.of(it.key));
         }
-        int idx = tabs.find(it.key);
-        if (idx >= 0) {
-            forceClose(idx);
-        }
-        Files.delete(FsPath.of(it.key));
         refreshExplorer();
+        setStatus("已删除 " + it.text);
+    }
+
+    /** Closes (without asking) every open document at or below a path that is about to disappear. */
+    void closeDocsUnder(String path) {
+        int i = tabs.docs.size() - 1;
+        while (i >= 0) {
+            String dp = tabs.docs.get(i).path;
+            if (dp.equals(path) || dp.startsWith(path + "/")) {
+                forceClose(i);
+            }
+            i = i - 1;
+        }
+    }
+
+    boolean validName(String n) {
+        if (n.length() == 0 || n.indexOf("/") >= 0 || n.startsWith(".") || n.indexOf("\\") >= 0) {
+            Dialogs.error(window, "名称无效：" + n);
+            return false;
+        }
+        return true;
+    }
+
+    void newFile(IdeItem at) {
+        if (project == null) {
+            return;
+        }
+        String dir = dirOf(at);
+        IdeDialog.input(window, "新建文件", "文件名（例如 notes.md）", "untitled.txt", n -> {
+            if (!validName(n)) {
+                return;
+            }
+            String path = dir + "/" + n;
+            if (Files.exists(FsPath.of(path))) {
+                Dialogs.error(window, "已存在：" + n);
+                return;
+            }
+            Files.writeString(FsPath.of(path), "");
+            refreshExplorer();
+            openFile(path);
+        });
+    }
+
+    void newFolder(IdeItem at) {
+        if (project == null) {
+            return;
+        }
+        String dir = dirOf(at);
+        IdeDialog.input(window, "新建文件夹", "文件夹名", "folder", n -> {
+            if (!validName(n)) {
+                return;
+            }
+            String path = dir + "/" + n;
+            if (Files.exists(FsPath.of(path))) {
+                Dialogs.error(window, "已存在：" + n);
+                return;
+            }
+            Files.createDirectories(FsPath.of(path));
+            refreshExplorer();
+            setStatus("已创建文件夹 " + n);
+        });
+    }
+
+    void renameItem(IdeItem it) {
+        if (project == null || it.icon.equals("project")) {
+            return;
+        }
+        IdeDialog.input(window, "重命名", "新名称", it.text, n -> renameTo(it, n));
+    }
+
+    void renameTo(IdeItem it, String n) {
+        {
+            if (n.equals(it.text) || !validName(n)) {
+                return;
+            }
+            String from = it.key;
+            String to = Ide.dirName(from) + "/" + n;
+            if (Files.exists(FsPath.of(to))) {
+                Dialogs.error(window, "已存在：" + n);
+                return;
+            }
+            int i = 0;
+            while (i < tabs.docs.size()) {
+                IdeDoc od = tabs.docs.get(i);
+                if ((od.path.equals(from) || od.path.startsWith(from + "/")) && od.isDirty()) {
+                    saveDoc(od);
+                }
+                i = i + 1;
+            }
+            if (!Files.move(FsPath.of(from), FsPath.of(to))) {
+                Dialogs.error(window, "重命名失败：" + it.text);
+                return;
+            }
+            i = 0;
+            while (i < tabs.docs.size()) {
+                IdeDoc rd = tabs.docs.get(i);
+                if (rd.path.equals(from) || rd.path.startsWith(from + "/")) {
+                    rd.path = to + rd.path.substring(from.length());
+                    rd.title = Ide.baseName(rd.path);
+                }
+                i = i + 1;
+            }
+            IdeComplete.touch();
+            refreshExplorer();
+            tabs.repaint();
+            setStatus("已重命名为 " + n);
+        }
+    }
+
+    // ---------------------------------------------------------------- search in project
+
+    void findInFiles() {
+        if (project == null) {
+            setStatus("请先打开项目");
+            return;
+        }
+        String init = lastFind;
+        IdeDoc d = activeDoc();
+        if (d != null && d.kind == 0 && d.editor.selection.toRange().length() > 0
+                && d.editor.selection.toRange().length() < 80) {
+            TextRange sr = d.editor.selection.toRange();
+            init = d.editor.document.substring(sr.start, sr.end);
+        }
+        IdeDialog.input(window, "在项目中查找", "查找内容（不区分大小写）：", init, q -> runSearch(q));
+    }
+
+    void runSearch(String q) {
+        if (project == null || q.length() == 0) {
+            return;
+        }
+        lastFind = q;
+        searchQuery = q;
+        String lq = q.toLowerCase();
+        ArrayList<IdeItem> files = new ArrayList<IdeItem>();
+        collectFiles(project.dir, files, 0);
+        IdeItem root = new IdeItem("", "", "");
+        int total = 0;
+        int f = 0;
+        while (f < files.size() && total < 500) {
+            IdeItem fi = files.get(f);
+            f = f + 1;
+            String text;
+            int open = tabs.find(fi.key);
+            if (open >= 0 && tabs.docs.get(open).kind == 0) {
+                text = tabs.docs.get(open).editor.getText();
+            } else {
+                if (Files.size(FsPath.of(fi.key)) > 2000000) {
+                    continue;
+                }
+                text = Files.readString(FsPath.of(fi.key));
+            }
+            if (text.toLowerCase().indexOf(lq) < 0) {
+                continue;
+            }
+            int pos = 0;
+            int lineNo = 0;
+            int n = text.length();
+            while (pos <= n && total < 500) {
+                int eol = text.indexOf("\n", pos);
+                if (eol < 0) {
+                    eol = n;
+                }
+                String line = text.substring(pos, eol);
+                int col = line.toLowerCase().indexOf(lq);
+                if (col >= 0) {
+                    String shown = line.trim();
+                    if (shown.length() > 200) {
+                        shown = shown.substring(0, 200);
+                    }
+                    IdeItem it = new IdeItem(shown, Ide.iconForFile(fi.text), fi.key);
+                    it.hint = fi.hint + ":" + (lineNo + 1);
+                    it.tag = lineNo * 4096 + Math.min(col, 4095);
+                    root.add(it);
+                    total = total + 1;
+                }
+                pos = eol + 1;
+                lineNo = lineNo + 1;
+            }
+        }
+        search.setRoot(root);
+        search.scroll = 0;
+        search.emptyText = "没有找到「" + q + "」";
+        showBottomTab(2);
+        setStatus(total == 0 ? "没有找到「" + q + "」" : "找到 " + total + (total >= 500 ? "+" : "") + " 处「" + q + "」");
+    }
+
+    void searchActivate(IdeItem it) {
+        navRecord();
+        openFile(it.key);
+        IdeDoc d = activeDoc();
+        if (d != null && d.kind == 0) {
+            int line = it.tag / 4096;
+            int col = it.tag % 4096;
+            d.editor.goTo(line, col);
+            d.editor.selectRange(d.editor.caret.offset, d.editor.caret.offset + searchQuery.length());
+            d.editor.requestFocus();
+        }
+    }
+
+    // ---------------------------------------------------------------- formatting
+
+    /** Replaces the editor text with {@code neu} as one undoable edit that only touches the changed middle part. */
+    void applyTextDiff(CodeEditor e, String neu) {
+        String old = e.getText();
+        int pre = 0;
+        int max = Math.min(old.length(), neu.length());
+        while (pre < max && old.charAt(pre) == neu.charAt(pre)) {
+            pre = pre + 1;
+        }
+        int suf = 0;
+        while (suf < max - pre && old.charAt(old.length() - 1 - suf) == neu.charAt(neu.length() - 1 - suf)) {
+            suf = suf + 1;
+        }
+        e.undo.closeGroup();
+        e.applyEdit(pre, old.length() - pre - suf, neu.substring(pre, neu.length() - suf));
+        e.undo.closeGroup();
+    }
+
+    // ---------------------------------------------------------------- rename symbol
+
+    /** ⇧⌘R: renames the identifier under the caret in all project sources (and the designer files that name it). */
+    void renameSymbol() {
+        IdeDoc d = activeDoc();
+        if (d == null || d.kind != 0 || project == null) {
+            return;
+        }
+        String text = d.editor.getText();
+        int c = d.editor.caret.offset;
+        int a = c;
+        while (a > 0 && IdeRename.identChar(text.charAt(a - 1))) {
+            a = a - 1;
+        }
+        int b = c;
+        while (b < text.length() && IdeRename.identChar(text.charAt(b))) {
+            b = b + 1;
+        }
+        String word = text.substring(a, b);
+        if (word.length() == 0 || !DsUtil.isIdent(word) || DsUtil.isKeyword(word)) {
+            setStatus("请把光标放在要重命名的标识符上");
+            return;
+        }
+        IdeDialog.input(window, "重命名符号", "将「" + word + "」重命名为：", word, n -> renameSymbolTo(word, n));
+    }
+
+    /** Computes the new text of every project file that mentions the identifier; returns the replacement count. */
+    int planRename(String word, String n, ArrayList<String> paths, ArrayList<String> texts) {
+        ArrayList<IdeItem> files = new ArrayList<IdeItem>();
+        collectFiles(project.dir, files, 0);
+        int total = 0;
+        int f = 0;
+        while (f < files.size()) {
+            String path = files.get(f).key;
+            f = f + 1;
+            boolean isJava = path.endsWith(".java");
+            if (!isJava && !path.endsWith(".jnui")) {
+                continue;
+            }
+            int open = tabs.find(path);
+            String text = "";
+            if (open >= 0 && tabs.docs.get(open).kind == 0) {
+                text = tabs.docs.get(open).editor.getText();
+            } else if (open >= 0 && tabs.docs.get(open).kind == 1) {
+                saveDesigner(tabs.docs.get(open));
+                text = Files.readString(FsPath.of(path));
+            } else {
+                text = Files.readString(FsPath.of(path));
+            }
+            int[] cnt = new int[1];
+            String neu = isJava ? IdeRename.replaceIdent(text, word, n, cnt) : IdeRename.replaceQuoted(text, word, n, cnt);
+            if (cnt[0] > 0) {
+                paths.add(path);
+                texts.add(neu);
+                total = total + cnt[0];
+            }
+        }
+        return total;
+    }
+
+    void renameSymbolTo(String word, String n) {
+        if (n.equals(word)) {
+            return;
+        }
+        if (!DsUtil.isIdent(n) || DsUtil.isKeyword(n)) {
+            Dialogs.error(window, "标识符无效：" + n);
+            return;
+        }
+        ArrayList<String> paths = new ArrayList<String>();
+        ArrayList<String> texts = new ArrayList<String>();
+        int total = planRename(word, n, paths, texts);
+        if (total == 0) {
+            setStatus("没有找到可重命名的「" + word + "」");
+            return;
+        }
+        if (!Dialogs.confirm(window, "将「" + word + "」重命名为「" + n + "」：共 " + total + " 处，" + paths.size()
+                + " 个文件。继续？\n（已打开的文件可用 ⌘Z 撤销，其它文件会直接写入磁盘。）")) {
+            return;
+        }
+        applyRename(paths, texts);
+        IdeComplete.touch();
+        setStatus("已重命名 " + word + " → " + n + "：" + total + " 处，" + paths.size() + " 个文件");
+    }
+
+    void applyRename(ArrayList<String> paths, ArrayList<String> texts) {
+        ArrayList<String> reopen = new ArrayList<String>();
+        int i = 0;
+        while (i < paths.size()) {
+            String path = paths.get(i);
+            int open = tabs.find(path);
+            if (open >= 0 && tabs.docs.get(open).kind == 0) {
+                applyTextDiff(tabs.docs.get(open).editor, texts.get(i));
+            } else {
+                Files.writeString(FsPath.of(path), texts.get(i));
+                if (open >= 0) {
+                    reopen.add(path);
+                }
+            }
+            i = i + 1;
+        }
+        i = 0;
+        while (i < reopen.size()) {
+            int idx = tabs.find(reopen.get(i));
+            if (idx >= 0) {
+                forceClose(idx);
+            }
+            openFile(reopen.get(i));
+            i = i + 1;
+        }
+    }
+
+    /** ⇧⌘I: re-indents the current Java file by bracket depth (one undoable edit that only touches changed text). */
+    void formatDocument() {
+        IdeDoc d = activeDoc();
+        if (d == null || d.kind != 0) {
+            return;
+        }
+        CodeEditor e = d.editor;
+        String old = e.getText();
+        String neu = IdeFormat.reindent(old);
+        if (neu.equals(old)) {
+            setStatus("缩进已经是整齐的");
+            return;
+        }
+        TextPosition cp = e.document.offsetToPosition(e.caret.offset);
+        String oldLine = e.document.getLine(cp.line);
+        int oldIndent = 0;
+        while (oldIndent < oldLine.length() && oldLine.charAt(oldIndent) == ' ') {
+            oldIndent = oldIndent + 1;
+        }
+        applyTextDiff(e, neu);
+        String newLine = e.document.getLine(Math.min(cp.line, e.document.getLineCount() - 1));
+        int newIndent = 0;
+        while (newIndent < newLine.length() && newLine.charAt(newIndent) == ' ') {
+            newIndent = newIndent + 1;
+        }
+        int col = cp.column >= oldIndent ? cp.column + newIndent - oldIndent : newIndent;
+        e.goTo(Math.min(cp.line, e.document.getLineCount() - 1), Math.max(0, Math.min(col, newLine.length())));
+        setStatus("已重新缩进");
+    }
+
+    // ---------------------------------------------------------------- view helpers
+
+    void zoomEditors(int delta) {
+        int n = delta == 0 ? 13 : IdeSettings.fontSize + delta;
+        n = Math.max(9, Math.min(32, n));
+        IdeSettings.fontSize = n;
+        IdeSettings.save();
+        int i = 0;
+        while (i < tabs.docs.size()) {
+            IdeDoc d = tabs.docs.get(i);
+            if (d.kind == 0) {
+                d.editor.font = Font.mono(n);
+                d.editor.repaint();
+            }
+            i = i + 1;
+        }
+        setStatus("编辑器字号 " + n);
+    }
+
+    void cycleTab(int dir) {
+        int n = tabs.docs.size();
+        if (n < 2) {
+            return;
+        }
+        showDoc((tabs.active + dir + n) % n);
     }
 
     // ---------------------------------------------------------------- documents
@@ -775,16 +1265,23 @@ public class IdeApp extends Panel {
             d.kind = 0;
             CodeEditor ed = new CodeEditor();
             ed.setHiDpi(true);
-            ed.font = Font.mono(13);
+            ed.font = Font.mono(IdeSettings.fontSize);
             ed.setTheme(EditorTheme.light());
             ed.setText(text);
             ed.document.markSaved();
             ed.onCaretChanged(pos -> caretMoved(pos));
+            ed.keyPre = e -> editorKey(e);
+            ed.typedListener = c -> suggest.typed(c);
+            ed.commandClick = e -> gotoDefinition();
+            ed.onMouse(e -> {
+                if (e.eventType == 1) {
+                    suggest.hide();
+                }
+            });
             d.editor = ed;
         }
         tabs.docs.add(d);
         host.add(d.view());
-        d.view().setBounds(0, 0, host.width, host.height);
         showDoc(tabs.docs.size() - 1);
         applyDiagnostics();
     }
@@ -809,9 +1306,11 @@ public class IdeApp extends Panel {
             i = i + 1;
         }
         vis(welcome, tabs.docs.size() == 0);
+        suggest.hide();
         IdeDoc d = activeDoc();
+        findBar.sync();
+        layoutDocs();
         if (d != null) {
-            d.view().setBounds(0, 0, host.width, host.height);
             if (d.kind == 0) {
                 d.editor.requestFocus();
                 caretMoved(d.editor.document.offsetToPosition(d.editor.caret.offset));
@@ -914,6 +1413,7 @@ public class IdeApp extends Panel {
         if (d.kind == 0) {
             Files.writeString(FsPath.of(d.path), d.editor.getText());
             d.editor.document.markSaved();
+            IdeComplete.touch();
         } else {
             saveDesigner(d);
         }
@@ -978,14 +1478,7 @@ public class IdeApp extends Panel {
 
     String lastFind = "";
 
-    /** Code completion popup (⌘K): candidates for the caret, filtered by a live prefix box. */
-    void completeDialog() {
-        IdeDoc d = activeDoc();
-        if (d == null || d.kind != 0) {
-            return;
-        }
-        CodeEditor e = d.editor;
-        String[] pre = new String[1];
+    void indexContext(IdeDoc d) {
         IdeComplete.projectDirs.clear();
         if (project != null) {
             int k = 0;
@@ -994,12 +1487,70 @@ public class IdeApp extends Panel {
                 k = k + 1;
             }
         }
-        ArrayList<IdeItem> all = IdeComplete.candidates(e.getText(), e.caret.offset, pre);
-        if (all.size() == 0) {
-            setStatus("没有可用的补全");
+        IdeComplete.currentFile = d.path;
+    }
+
+    /** Jumps to where the identifier under the caret is declared (project sources open in a tab). */
+    void gotoDefinition() {
+        IdeDoc d = activeDoc();
+        if (d == null || d.kind != 0) {
             return;
         }
-        IdeCompletePopup.show(window, all, pre[0], e);
+        indexContext(d);
+        String r = IdeComplete.definition(d.editor.getText(), d.editor.caret.offset);
+        int colon = r.lastIndexOf(":");
+        if (r.length() == 0 || colon < 0) {
+            setStatus("找不到定义");
+            return;
+        }
+        String path = r.substring(0, colon);
+        int line = DsUtil.parseInt(r.substring(colon + 1), 1);
+        if (path.length() == 0) {
+            setStatus("定义在编译器内置类型（String / Object）中");
+            return;
+        }
+        if (project == null || !path.startsWith(project.dir)) {
+            setStatus("定义在标准库：" + Ide.baseName(path) + " 第 " + line + " 行");
+            return;
+        }
+        navRecord();
+        openFile(path);
+        IdeDoc nd = activeDoc();
+        if (nd != null && nd.kind == 0) {
+            nd.editor.goTo(line - 1, 0);
+            nd.editor.requestFocus();
+        }
+    }
+
+    /** ⌘K: opens the inline completion list at the caret. */
+    void completeDialog() {
+        completeInline(true);
+    }
+
+    /** Shows the completion list for the caret; automatic triggers stay silent when nothing matches. */
+    void completeInline(boolean manual) {
+        IdeDoc d = activeDoc();
+        if (d == null || d.kind != 0) {
+            return;
+        }
+        CodeEditor e = d.editor;
+        String[] pre = new String[1];
+        indexContext(d);
+        ArrayList<IdeItem> all = IdeComplete.candidates(e.getText(), e.caret.offset, pre);
+        if (all.size() == 0) {
+            suggest.hide();
+            if (manual) {
+                setStatus("没有可用的补全");
+            }
+            return;
+        }
+        suggest.open(e, all, pre[0]);
+        if (!suggest.isOpen) {
+            suggest.hide();
+            if (manual) {
+                setStatus("没有可用的补全");
+            }
+        }
     }
 
     void findDialog() {
@@ -1007,14 +1558,7 @@ public class IdeApp extends Panel {
         if (d == null || d.kind != 0) {
             return;
         }
-        IdeDialog.input(window, "查找", "在当前文件中查找：", lastFind, q -> {
-            lastFind = q;
-            IdeDoc cur = activeDoc();
-            if (cur != null && cur.kind == 0) {
-                cur.editor.findNext(q);
-                cur.editor.requestFocus();
-            }
-        });
+        findBar.open(false);
     }
 
     void findAgain() {
@@ -1022,11 +1566,32 @@ public class IdeApp extends Panel {
         if (d == null || d.kind != 0) {
             return;
         }
+        if (findBar.shown) {
+            findBar.step(1);
+            return;
+        }
         if (lastFind.length() == 0) {
-            findDialog();
+            findBar.open(false);
             return;
         }
         d.editor.findNext(lastFind);
+    }
+
+    void findPrevious() {
+        IdeDoc d = activeDoc();
+        if (d == null || d.kind != 0) {
+            return;
+        }
+        if (findBar.shown) {
+            findBar.step(-1);
+            return;
+        }
+        if (lastFind.length() == 0) {
+            findBar.open(false);
+            return;
+        }
+        d.editor.setFind(lastFind, d.editor.findCase, d.editor.findWhole);
+        d.editor.findStep(-1, false);
     }
 
     void gotoLineDialog() {
@@ -1041,7 +1606,157 @@ public class IdeApp extends Panel {
             }
             int n = DsUtil.parseInt(t, -1);
             if (n >= 1) {
+                navRecord();
                 cur.editor.goTo(Math.min(n, cur.editor.document.getLineCount()) - 1, 0);
+                cur.editor.requestFocus();
+            }
+        });
+    }
+
+    // ---------------------------------------------------------------- navigation history
+
+    ArrayList<String> navBack = new ArrayList<String>();
+    ArrayList<String> navFwd = new ArrayList<String>();
+
+    String navHere() {
+        IdeDoc d = activeDoc();
+        if (d == null || d.kind != 0) {
+            return "";
+        }
+        TextPosition p = d.editor.document.offsetToPosition(d.editor.caret.offset);
+        return d.path + "\n" + p.line + "\n" + p.column;
+    }
+
+    /** Remembers the current caret position before a jump so ⌥⌘← can return to it. */
+    void navRecord() {
+        String here = navHere();
+        if (here.length() == 0) {
+            return;
+        }
+        if (navBack.size() > 0 && navBack.get(navBack.size() - 1).equals(here)) {
+            navFwd.clear();
+            return;
+        }
+        navBack.add(here);
+        navFwd.clear();
+    }
+
+    void navJump(String loc) {
+        int a = loc.indexOf("\n");
+        int b = loc.lastIndexOf("\n");
+        String path = loc.substring(0, a);
+        int line = DsUtil.parseInt(loc.substring(a + 1, b), 0);
+        int col = DsUtil.parseInt(loc.substring(b + 1), 0);
+        openFile(path);
+        IdeDoc nd = activeDoc();
+        if (nd != null && nd.kind == 0) {
+            nd.editor.goTo(line, col);
+            nd.editor.requestFocus();
+        }
+    }
+
+    void navBack() {
+        if (navBack.size() == 0) {
+            setStatus("没有更早的位置");
+            return;
+        }
+        String here = navHere();
+        String loc = navBack.get(navBack.size() - 1);
+        navBack.removeAt(navBack.size() - 1);
+        if (here.length() > 0) {
+            navFwd.add(here);
+        }
+        navJump(loc);
+    }
+
+    void navForward() {
+        if (navFwd.size() == 0) {
+            setStatus("没有更新的位置");
+            return;
+        }
+        String here = navHere();
+        String loc = navFwd.get(navFwd.size() - 1);
+        navFwd.removeAt(navFwd.size() - 1);
+        if (here.length() > 0) {
+            navBack.add(here);
+        }
+        navJump(loc);
+    }
+
+    // ---------------------------------------------------------------- quick pick
+
+    void collectFiles(String dir, ArrayList<IdeItem> out, int depth) {
+        ArrayList<String> kids = Files.list(FsPath.of(dir));
+        int i = 0;
+        while (i < kids.size() && out.size() < 3000) {
+            String n = kids.get(i);
+            String p = dir + "/" + n;
+            if (n.startsWith(".")) {
+                i = i + 1;
+                continue;
+            }
+            if (Files.isDirectory(FsPath.of(p))) {
+                if (depth < 8 && !n.endsWith(".app") && !n.equals("build") && !n.equals("node_modules")) {
+                    collectFiles(p, out, depth + 1);
+                }
+            } else {
+                String ext = Ide.fileExt(n);
+                if (ext.equals("java") || ext.equals("jnui") || ext.equals("md") || ext.equals("txt")
+                        || ext.equals("sh") || ext.equals("json") || ext.equals("project") || ext.equals("properties")) {
+                    IdeItem it = new IdeItem(n, Ide.iconForFile(n), p);
+                    it.hint = p.substring(project.dir.length() + 1);
+                    out.add(it);
+                }
+            }
+            i = i + 1;
+        }
+    }
+
+    void quickOpenFile() {
+        if (project == null) {
+            setStatus("请先打开项目");
+            return;
+        }
+        ArrayList<IdeItem> items = new ArrayList<IdeItem>();
+        collectFiles(project.dir, items, 0);
+        quick.open("转到文件…（输入文件名）", items, it -> {
+            navRecord();
+            openFile(it.key);
+        });
+    }
+
+    void quickSymbol() {
+        IdeDoc d = activeDoc();
+        if (d == null || d.kind != 0) {
+            setStatus("请先打开一个代码文件");
+            return;
+        }
+        IdeTable t = new IdeTable();
+        IdeComplete.indexText(d.editor.getText(), t, d.path);
+        ArrayList<IdeItem> items = new ArrayList<IdeItem>();
+        int i = 0;
+        while (i < t.names.size()) {
+            IdeCls c = t.get(t.names.get(i));
+            IdeItem ci = new IdeItem(c.name, "cc", d.path);
+            ci.tag = c.line;
+            ci.hint = "类 · 第 " + c.line + " 行";
+            items.add(ci);
+            int m = 0;
+            while (m < c.members.size()) {
+                IdeMem mem = c.members.get(m);
+                IdeItem mi = new IdeItem(mem.label(), mem.method ? "cm" : "cf", d.path);
+                mi.tag = mem.line;
+                mi.hint = c.name + " · 第 " + mem.line + " 行";
+                items.add(mi);
+                m = m + 1;
+            }
+            i = i + 1;
+        }
+        quick.open("转到符号…（类 / 方法 / 字段）", items, it -> {
+            IdeDoc cur = activeDoc();
+            if (cur != null && cur.kind == 0) {
+                navRecord();
+                cur.editor.goTo(it.tag - 1, 0);
                 cur.editor.requestFocus();
             }
         });

@@ -1,0 +1,382 @@
+{
+  "jnui": 1,
+  "form": "MainForm",
+  "root":
+    {
+      "type": "Form",
+      "name": "MainForm",
+      "props": {
+        "title": "计算器",
+        "width": "326",
+        "height": "552"
+      },
+      "children": [
+        {
+          "type": "VBox",
+          "name": "root",
+          "props": {
+            "spacing": "0",
+            "padding": "0",
+            "background": "#1C1C1E"
+          },
+          "children": [
+            {
+              "type": "VBox",
+              "name": "head",
+              "props": {
+                "spacing": "0",
+                "padding": "18",
+                "background": "#1C1C1E"
+              },
+              "children": [
+                {
+                  "type": "Label",
+                  "name": "lblHistory",
+                  "props": {
+                    "text": "",
+                    "fontSize": "16",
+                    "foreground": "#8E8E93",
+                    "textAlign": "Right",
+                    "height": "26",
+                    "background": "#1C1C1E",
+                    "width": "100"
+                  }
+                },
+                {
+                  "type": "Label",
+                  "name": "lblDisplay",
+                  "props": {
+                    "text": "0",
+                    "fontSize": "52",
+                    "foreground": "#FFFFFF",
+                    "textAlign": "Right",
+                    "height": "84",
+                    "background": "#1C1C1E",
+                    "width": "100"
+                  }
+                }
+              ]
+            },
+            {
+              "type": "GridPane",
+              "name": "pad",
+              "props": {
+                "spacing": "10",
+                "padding": "12",
+                "cellWidth": "68",
+                "cellHeight": "68",
+                "background": "#1C1C1E"
+              },
+              "children": [
+                {
+                  "type": "Button",
+                  "name": "btnClear",
+                  "props": {
+                    "text": "AC",
+                    "background": "#A5A5A5",
+                    "foreground": "#000000",
+                    "cornerRadius": "34",
+                    "fontSize": "26",
+                    "col": "0",
+                    "row": "0"
+                  },
+                  "events": {
+                    "click": "onClear"
+                  }
+                },
+                {
+                  "type": "Button",
+                  "name": "btnSign",
+                  "props": {
+                    "text": "±",
+                    "background": "#A5A5A5",
+                    "foreground": "#000000",
+                    "cornerRadius": "34",
+                    "fontSize": "26",
+                    "col": "1",
+                    "row": "0"
+                  },
+                  "events": {
+                    "click": "onSign"
+                  }
+                },
+                {
+                  "type": "Button",
+                  "name": "btnPercent",
+                  "props": {
+                    "text": "%",
+                    "background": "#A5A5A5",
+                    "foreground": "#000000",
+                    "cornerRadius": "34",
+                    "fontSize": "26",
+                    "col": "2",
+                    "row": "0"
+                  },
+                  "events": {
+                    "click": "onPercent"
+                  }
+                },
+                {
+                  "type": "Button",
+                  "name": "btnDivide",
+                  "props": {
+                    "text": "÷",
+                    "background": "#FF9F0A",
+                    "foreground": "#FFFFFF",
+                    "cornerRadius": "34",
+                    "fontSize": "26",
+                    "col": "3",
+                    "row": "0"
+                  },
+                  "events": {
+                    "click": "onDivide"
+                  }
+                },
+                {
+                  "type": "Button",
+                  "name": "btn7",
+                  "props": {
+                    "text": "7",
+                    "background": "#333333",
+                    "foreground": "#FFFFFF",
+                    "cornerRadius": "34",
+                    "fontSize": "26",
+                    "col": "0",
+                    "row": "1"
+                  },
+                  "events": {
+                    "click": "onDigit7"
+                  }
+                },
+                {
+                  "type": "Button",
+                  "name": "btn8",
+                  "props": {
+                    "text": "8",
+                    "background": "#333333",
+                    "foreground": "#FFFFFF",
+                    "cornerRadius": "34",
+                    "fontSize": "26",
+                    "col": "1",
+                    "row": "1"
+                  },
+                  "events": {
+                    "click": "onDigit8"
+                  }
+                },
+                {
+                  "type": "Button",
+                  "name": "btn9",
+                  "props": {
+                    "text": "9",
+                    "background": "#333333",
+                    "foreground": "#FFFFFF",
+                    "cornerRadius": "34",
+                    "fontSize": "26",
+                    "col": "2",
+                    "row": "1"
+                  },
+                  "events": {
+                    "click": "onDigit9"
+                  }
+                },
+                {
+                  "type": "Button",
+                  "name": "btn4",
+                  "props": {
+                    "text": "4",
+                    "background": "#333333",
+                    "foreground": "#FFFFFF",
+                    "cornerRadius": "34",
+                    "fontSize": "26",
+                    "col": "0",
+                    "row": "2"
+                  },
+                  "events": {
+                    "click": "onDigit4"
+                  }
+                },
+                {
+                  "type": "Button",
+                  "name": "btn5",
+                  "props": {
+                    "text": "5",
+                    "background": "#333333",
+                    "foreground": "#FFFFFF",
+                    "cornerRadius": "34",
+                    "fontSize": "26",
+                    "col": "1",
+                    "row": "2"
+                  },
+                  "events": {
+                    "click": "onDigit5"
+                  }
+                },
+                {
+                  "type": "Button",
+                  "name": "btn6",
+                  "props": {
+                    "text": "6",
+                    "background": "#333333",
+                    "foreground": "#FFFFFF",
+                    "cornerRadius": "34",
+                    "fontSize": "26",
+                    "col": "2",
+                    "row": "2"
+                  },
+                  "events": {
+                    "click": "onDigit6"
+                  }
+                },
+                {
+                  "type": "Button",
+                  "name": "btn1",
+                  "props": {
+                    "text": "1",
+                    "background": "#333333",
+                    "foreground": "#FFFFFF",
+                    "cornerRadius": "34",
+                    "fontSize": "26",
+                    "col": "0",
+                    "row": "3"
+                  },
+                  "events": {
+                    "click": "onDigit1"
+                  }
+                },
+                {
+                  "type": "Button",
+                  "name": "btn2",
+                  "props": {
+                    "text": "2",
+                    "background": "#333333",
+                    "foreground": "#FFFFFF",
+                    "cornerRadius": "34",
+                    "fontSize": "26",
+                    "col": "1",
+                    "row": "3"
+                  },
+                  "events": {
+                    "click": "onDigit2"
+                  }
+                },
+                {
+                  "type": "Button",
+                  "name": "btn3",
+                  "props": {
+                    "text": "3",
+                    "background": "#333333",
+                    "foreground": "#FFFFFF",
+                    "cornerRadius": "34",
+                    "fontSize": "26",
+                    "col": "2",
+                    "row": "3"
+                  },
+                  "events": {
+                    "click": "onDigit3"
+                  }
+                },
+                {
+                  "type": "Button",
+                  "name": "btnMultiply",
+                  "props": {
+                    "text": "×",
+                    "background": "#FF9F0A",
+                    "foreground": "#FFFFFF",
+                    "cornerRadius": "34",
+                    "fontSize": "26",
+                    "col": "3",
+                    "row": "1"
+                  },
+                  "events": {
+                    "click": "onMultiply"
+                  }
+                },
+                {
+                  "type": "Button",
+                  "name": "btnSubtract",
+                  "props": {
+                    "text": "−",
+                    "background": "#FF9F0A",
+                    "foreground": "#FFFFFF",
+                    "cornerRadius": "34",
+                    "fontSize": "26",
+                    "col": "3",
+                    "row": "2"
+                  },
+                  "events": {
+                    "click": "onSubtract"
+                  }
+                },
+                {
+                  "type": "Button",
+                  "name": "btnAdd",
+                  "props": {
+                    "text": "+",
+                    "background": "#FF9F0A",
+                    "foreground": "#FFFFFF",
+                    "cornerRadius": "34",
+                    "fontSize": "26",
+                    "col": "3",
+                    "row": "3"
+                  },
+                  "events": {
+                    "click": "onAdd"
+                  }
+                },
+                {
+                  "type": "Button",
+                  "name": "btn0",
+                  "props": {
+                    "text": "0",
+                    "background": "#333333",
+                    "foreground": "#FFFFFF",
+                    "cornerRadius": "34",
+                    "fontSize": "26",
+                    "col": "0",
+                    "row": "4",
+                    "colSpan": "2"
+                  },
+                  "events": {
+                    "click": "onDigit0"
+                  }
+                },
+                {
+                  "type": "Button",
+                  "name": "btnDecimal",
+                  "props": {
+                    "text": ".",
+                    "background": "#333333",
+                    "foreground": "#FFFFFF",
+                    "cornerRadius": "34",
+                    "fontSize": "26",
+                    "col": "2",
+                    "row": "4"
+                  },
+                  "events": {
+                    "click": "onDecimal"
+                  }
+                },
+                {
+                  "type": "Button",
+                  "name": "btnEquals",
+                  "props": {
+                    "text": "=",
+                    "background": "#FF9F0A",
+                    "foreground": "#FFFFFF",
+                    "cornerRadius": "34",
+                    "fontSize": "26",
+                    "col": "3",
+                    "row": "4"
+                  },
+                  "events": {
+                    "click": "onEquals"
+                  }
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+}

@@ -1,0 +1,163 @@
+import jnative.ui.*;
+import jnative.graphics.*;
+import jnative.editor.*;
+import jnative.io.*;
+public class Main {
+    static int fails = 0;
+    static void check(String name, String got, String want) {
+        if (got.equals(want)) {
+            System.out.println("ok   " + name);
+        } else {
+            fails = fails + 1;
+            System.out.println("FAIL " + name + ": got [" + got + "] want [" + want + "]");
+        }
+    }
+    static void type(CodeEditor ed, String s) {
+        int i = 0;
+        while (i < s.length()) {
+            int c = s.charAt(i);
+            if (c == 10) { UiTest.keyPress(ed, 13); } else { UiTest.typeText(ed, s.substring(i, i + 1), false); }
+            i = i + 1;
+        }
+    }
+    static CodeEditor fresh(String text) {
+        CodeEditor ed = new CodeEditor();
+        ed.font = Font.mono(13);
+        ed.setText(text);
+        return ed;
+    }
+    public static void main(String[] args) {
+        Application app = new Application();
+        Window w = new Window("t", 900, 600);
+        CodeEditor e0 = new CodeEditor();
+        w.setContent(e0);
+        w.show();
+
+        CodeEditor ed = fresh("");
+        type(ed, "foo(");
+        check("auto close paren", ed.getText(), "foo()");
+        type(ed, "a)");
+        check("type over closer", ed.getText(), "foo(a)");
+        ed = fresh("");
+        type(ed, "if (x) {\n");
+        check("brace newline indent", ed.getText(), "if (x) {\n    \n}");
+        type(ed, "y;\n");
+        check("keep indent", ed.getText(), "if (x) {\n    y;\n    \n}");
+        ed = fresh("if (x) {\n    ");
+        ed.goTo(1, 4);
+        type(ed, "}");
+        check("closing brace dedent", ed.getText(), "if (x) {\n}");
+        ed = fresh("");
+        type(ed, "{");
+        UiTest.keyPress(ed, 13);
+        check("split braces", ed.getText(), "{\n    \n}");
+        TextPosition p = ed.document.offsetToPosition(ed.caret.offset);
+        check("split braces caret", p.line + ":" + p.column, "1:4");
+        ed = fresh("");
+        type(ed, "\"ab");
+        check("auto close quote", ed.getText(), "\"ab\"");
+        ed = fresh("hello world");
+        ed.selectRange(0, 5);
+        type(ed, "(");
+        check("surround selection", ed.getText(), "(hello) world");
+        // undo coalescing
+        ed = fresh("");
+        type(ed, "abc");
+        UiTest.keyPressMods(ed, 122, 8);
+        check("undo typed run", ed.getText(), "");
+        UiTest.keyPressMods(ed, 122, 9);
+        check("redo typed run", ed.getText(), "abc");
+        // comment toggle
+        ed = fresh("a\n  b\nc");
+        ed.selectRange(0, 7);
+        UiTest.keyPressMods(ed, 47, 8);
+        check("comment on", ed.getText(), "// a\n//   b\n// c");
+        UiTest.keyPressMods(ed, 47, 8);
+        check("comment off", ed.getText(), "a\n  b\nc");
+        // indent / outdent
+        ed = fresh("a\nb\nc");
+        ed.selectRange(0, 3);
+        UiTest.keyPress(ed, 9);
+        check("tab indent block", ed.getText(), "    a\n    b\nc");
+        UiTest.keyPressMods(ed, 9, 1);
+        check("shift-tab outdent block", ed.getText(), "a\nb\nc");
+        // move lines
+        ed = fresh("1\n2\n3");
+        ed.goTo(1, 0);
+        UiTest.keyPressMods(ed, 38, 4);
+        check("move line up", ed.getText(), "2\n1\n3");
+        UiTest.keyPressMods(ed, 40, 4);
+        check("move line down", ed.getText(), "1\n2\n3");
+        // duplicate / delete line
+        UiTest.keyPressMods(ed, 68, 9);
+        check("duplicate line", ed.getText(), "1\n2\n2\n3");
+        UiTest.keyPressMods(ed, 75, 9);
+        check("delete line", ed.getText(), "1\n2\n3");
+        // home smart
+        ed = fresh("    abc");
+        ed.goTo(0, 7);
+        UiTest.keyPress(ed, 36);
+        check("home to first non blank", "" + ed.caret.offset, "4");
+        UiTest.keyPress(ed, 36);
+        check("home toggles to col 0", "" + ed.caret.offset, "0");
+        // copy line without selection
+        ed = fresh("one\ntwo");
+        ed.goTo(1, 1);
+        ed.executeCommand(EditorCommand.COPY);
+        check("copy line", Clipboard.getText(), "two\n");
+        // word nav
+        ed = fresh("foo bar baz");
+        UiTest.keyPressMods(ed, 39, 4);
+        check("alt right word", "" + ed.caret.offset, "3");
+        UiTest.keyPressMods(ed, 39, 4);
+        check("alt right word2", "" + ed.caret.offset, "7");
+        UiTest.keyPressMods(ed, 37, 4);
+        check("alt left word", "" + ed.caret.offset, "4");
+        // delete word back
+        UiTest.keyPressMods(ed, 8, 4);
+        check("alt backspace", ed.getText(), "bar baz");
+        // find / replace
+        ed = fresh("aa Bb aa bb AA");
+        ed.setFind("aa", 0, 0);
+        ed.findStep(1, false);
+        check("find first", ed.selection.start() + "-" + ed.selection.end(), "0-2");
+        ed.findStep(1, false);
+        check("find next", ed.selection.start() + "-" + ed.selection.end(), "6-8");
+        ed.findStep(-1, false);
+        check("find prev", ed.selection.start() + "-" + ed.selection.end(), "0-2");
+        int[] st = ed.findStats();
+        check("find stats", st[0] + "/" + st[1], "1/3");
+        int n = ed.replaceAllMatches("X");
+        check("replace all", ed.getText() + "#" + n, "X Bb X bb X#3");
+        UiTest.keyPressMods(ed, 122, 8);
+        check("undo replace all", ed.getText(), "aa Bb aa bb AA");
+        // IME text
+        ed = fresh("");
+        UiTest.typeText(ed, "你好", true);
+        check("composition not inserted", ed.getText(), "");
+        UiTest.typeText(ed, "你好", false);
+        check("ime commit", ed.getText(), "你好");
+        UiTest.keyPress(ed, 8);
+        check("backspace cjk", ed.getText(), "你");
+        // bracket match
+        ed = fresh("f(a[1], (b))");
+        ed.goTo(0, 1);
+        ed.fireCaret();
+        check("bracket match", ed.bracketA + ":" + ed.bracketB, "1:11");
+        // wheel
+        ed = fresh("x\n");
+        int k = 0;
+        String big = "";
+        while (k < 300) { big = big + "line " + k + "\n"; k = k + 1; }
+        ed.setText(big);
+        w.setContent(ed);
+        UiTest.paint(ed);
+        ed.fireMouse(8, 10, 10, (0 - 1 + 512) * 256);
+        check("wheel notch scrolls 3 lines", "" + ed.scrollPx(), "" + (3 * ed.lineH));
+        ed.fireMouse(8, 10, 10, ((2 + 512) * 256) + ((0 - 30 + 4096) * 262144));
+        check("precise wheel scrolls pixels", "" + ed.scrollPx(), "" + (3 * ed.lineH + 30));
+        // click count
+        ed.fireMouse(1, 60, 5, ((512 + 2) * 256) + 1);
+        System.out.println("fails=" + fails);
+    }
+}

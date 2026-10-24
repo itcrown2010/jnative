@@ -110,6 +110,15 @@ __attribute__((weak)) void jnative_ui_platform_panel_configure(int32_t id, int32
 __attribute__((weak)) void jnative_ui_platform_canvas_set_transparent(int32_t id, int32_t on) {
     (void)id; (void)on;
 }
+__attribute__((weak)) void jnative_ui_platform_canvas_set_text_input(int32_t id, int32_t on) {
+    (void)id; (void)on;
+}
+__attribute__((weak)) void jnative_ui_platform_canvas_set_ime_rect(int32_t id, int32_t x, int32_t y, int32_t h) {
+    (void)id; (void)x; (void)y; (void)h;
+}
+__attribute__((weak)) void jnative_ui_platform_canvas_set_ibeam(int32_t id, int32_t on) {
+    (void)id; (void)on;
+}
 __attribute__((weak)) void jnative_ui_platform_timer_arm(
         int32_t timerId, int32_t intervalMs, int32_t handleId) {
     (void)timerId; (void)intervalMs; (void)handleId;
@@ -1188,6 +1197,40 @@ void jnative_ui_canvas_set_transparent(int32_t id, int32_t on) {
     if (g_platform_active && !g_headless) {
         jnative_ui_platform_canvas_set_transparent(id, on);
     }
+}
+
+void jnative_ui_canvas_set_text_input(int32_t id, int32_t on) {
+    if (g_platform_active && !g_headless) {
+        jnative_ui_platform_canvas_set_text_input(id, on);
+    }
+}
+
+void jnative_ui_canvas_set_ime_rect(int32_t id, int32_t x, int32_t y, int32_t h) {
+    if (g_platform_active && !g_headless) {
+        jnative_ui_platform_canvas_set_ime_rect(id, x, y, h);
+    }
+}
+
+void jnative_ui_canvas_set_ibeam(int32_t id, int32_t on) {
+    if (g_platform_active && !g_headless) {
+        jnative_ui_platform_canvas_set_ibeam(id, on);
+    }
+}
+
+static char *g_pending_text = NULL;
+
+void jnative_ui_set_pending_text(const char *utf8) {
+    free(g_pending_text);
+    g_pending_text = jn_ui_strdup(utf8 != NULL ? utf8 : "");
+}
+
+char *jnative_ui_take_text(void) {
+    char *t = g_pending_text;
+    g_pending_text = NULL;
+    if (t == NULL) {
+        return jn_ui_strdup("");
+    }
+    return t;
 }
 
 void jnative_ui_canvas_present(int32_t id, int32_t surfaceId) {

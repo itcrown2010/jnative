@@ -45,6 +45,11 @@ public class StudioMain {
             return;
         }
         if (args[0].equals("--newproject") && args.length > 2) {
+            if (args.length > 3 && args[3].equals("blank")) {
+                IdeDialog.template = 1;
+            } else if (args.length > 3 && args[3].equals("console")) {
+                IdeDialog.template = 2;
+            }
             IdeProject p = IdeProject.create(args[1], args[2]);
             if (p != null && args.length > 3 && args[3].equals("everything")) {
                 DsDoc ev = DsSample.everything();
@@ -94,6 +99,12 @@ public class StudioMain {
             File.writeString(dir + "/src/DemoFormBase.java", DsGen.generateBase(d));
             File.writeString(dir + "/src/DemoForm.java", DsGen.userStub(d));
             File.writeString(dir + "/src/Main.java", DsGen.mainStub(d));
+            return;
+        }
+        if (args.length > 0 && args[0].equals("--selftest")) {
+            if (IdeSelfTest.run() != 0) {
+                System.exit(1);
+            }
             return;
         }
         if (args.length > 0 && args[0].equals("--gen")) {

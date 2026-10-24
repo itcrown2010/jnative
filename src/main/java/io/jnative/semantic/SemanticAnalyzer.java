@@ -225,29 +225,33 @@ public final class SemanticAnalyzer {
                 }
             }
         }
-        for (CompilationUnit unit : unitList) {
-            for (ClassDeclaration cls : unit.classes()) {
-                if (cls.nativeStruct()) {
-                    continue;
-                }
-                beginResolve(cls);
-                if (cls.isInterface()) {
-                    InterfaceSymbol symbol = interfaceOf(cls);
-                    if (symbol != null) {
-                        registerInterfaceMethods(symbol, cls);
+        // Superclasses must register their methods first: override detection (setOverrides) looks the
+        // inherited method up on the superclass symbol, so source/file order must not matter.
+        for (ClassDeclaration cls : superclassFirst(unitList)) {
+            {
+                {
+                    if (cls.nativeStruct()) {
+                        continue;
                     }
-                } else {
-                    ClassSymbol symbol = classOf(cls);
-                    if (symbol != null) {
-                        currentClass = symbol;
-                        registerMethods(symbol, cls);
-                        registerConstructors(symbol, cls);
-                        if (cls.isEnum()) {
-                            registerEnumSynthetics(symbol, cls);
+                    beginResolve(cls);
+                    if (cls.isInterface()) {
+                        InterfaceSymbol symbol = interfaceOf(cls);
+                        if (symbol != null) {
+                            registerInterfaceMethods(symbol, cls);
+                        }
+                    } else {
+                        ClassSymbol symbol = classOf(cls);
+                        if (symbol != null) {
+                            currentClass = symbol;
+                            registerMethods(symbol, cls);
+                            registerConstructors(symbol, cls);
+                            if (cls.isEnum()) {
+                                registerEnumSynthetics(symbol, cls);
+                            }
                         }
                     }
+                    endResolve();
                 }
-                endResolve();
             }
         }
 
@@ -1505,6 +1509,52 @@ public final class SemanticAnalyzer {
         visiting.remove(iface);
         visited.add(iface);
         result.add(iface);
+    }
+
+    /** All declarations of the units, with every class after its superclass (interfaces first). */
+    private List<ClassDeclaration> superclassFirst(List<CompilationUnit> units) {
+        List<ClassDeclaration> out = new ArrayList<>();
+        List<ClassDeclaration> classDecls = new ArrayList<>();
+        for (CompilationUnit unit : units) {
+            for (ClassDeclaration cls : unit.classes()) {
+                if (cls.isInterface() || cls.nativeStruct()) {
+                    out.add(cls);
+                } else {
+                    classDecls.add(cls);
+                }
+            }
+        }
+        java.util.Map<ClassSymbol, ClassDeclaration> bySymbol = new java.util.IdentityHashMap<>();
+        for (ClassDeclaration cls : classDecls) {
+            ClassSymbol sym = classOf(cls);
+            if (sym != null) {
+                bySymbol.put(sym, cls);
+            }
+        }
+        Set<ClassDeclaration> done = java.util.Collections.newSetFromMap(new java.util.IdentityHashMap<>());
+        for (ClassDeclaration cls : classDecls) {
+            addSuperclassFirst(cls, bySymbol, done, out);
+        }
+        return out;
+    }
+
+    private void addSuperclassFirst(
+            ClassDeclaration cls,
+            java.util.Map<ClassSymbol, ClassDeclaration> bySymbol,
+            Set<ClassDeclaration> done,
+            List<ClassDeclaration> out
+    ) {
+        if (!done.add(cls)) {
+            return;
+        }
+        ClassSymbol sym = classOf(cls);
+        if (sym != null && sym.superClass().isPresent()) {
+            ClassDeclaration parent = bySymbol.get(sym.superClass().get());
+            if (parent != null) {
+                addSuperclassFirst(parent, bySymbol, done, out);
+            }
+        }
+        out.add(cls);
     }
 
     private List<ClassSymbol> topologicalClasses() {
@@ -4831,10 +4881,21 @@ public final class SemanticAnalyzer {
         return isLocalToFrame(lambdaStack.peek(), vs);
     }
 
-    private static boolean isLocalToFrame(LambdaAnalysisFrame frame, VariableSymbol vs) {
-        Optional<Symbol> sym = frame.bodyScope.resolveLocal(vs.name());
-        return sym.isPresent() && sym.get() instanceof Symbol.VariableBinding vb
-                && vb.variable() == vs;
+    /**
+     * Whether {@code vs} is declared inside the lambda body of {@code frame}: in the body scope itself or in any
+     * nested block scope between the current position and that body scope.
+     */
+    private boolean isLocalToFrame(LambdaAnalysisFrame frame, VariableSymbol vs) {
+        for (Scope s = current; s != null; s = s.parent()) {
+            Optional<Symbol> sym = s.resolveLocal(vs.name());
+            if (sym.isPresent() && sym.get() instanceof Symbol.VariableBinding vb && vb.variable() == vs) {
+                return true;
+            }
+            if (s == frame.bodyScope) {
+                return false;
+            }
+        }
+        return false;
     }
 
     /**

@@ -1284,6 +1284,30 @@ void jnative_ui_canvas_set_transparent(int32_t id, int32_t on) {
     (void)id; (void)on;
 }
 
+void jnative_ui_canvas_set_text_input(int32_t id, int32_t on) {
+    (void)id; (void)on;
+}
+
+void jnative_ui_canvas_set_ime_rect(int32_t id, int32_t x, int32_t y, int32_t h) {
+    (void)id; (void)x; (void)y; (void)h;
+}
+
+void jnative_ui_canvas_set_ibeam(int32_t id, int32_t on) {
+    (void)id; (void)on;
+}
+
+char *jnative_ui_take_text(void) {
+    char *t = (char *)malloc(1);
+    if (t != NULL) {
+        t[0] = 0;
+    }
+    return t;
+}
+
+void jnative_ui_set_pending_text(const char *utf8) {
+    (void)utf8;
+}
+
 void jnative_ui_canvas_invalidate(int32_t id) {
     if (id > 0 && id < JN_UI_MAX && g_hwnds[id] != NULL) {
         InvalidateRect(g_hwnds[id], NULL, FALSE);

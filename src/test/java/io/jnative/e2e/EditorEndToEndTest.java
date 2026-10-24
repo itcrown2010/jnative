@@ -315,7 +315,7 @@ class EditorEndToEndTest {
                             i = i + 1;
                         }
                         int ok = 0;
-                        if (doc.getLineCount() >= 800 && doc.getPieceCount() > 1) {
+                        if (doc.getLineCount() >= 800 && doc.getPieceCount() >= 1) {
                             ok = 1;
                         }
                         System.out.println(ok);

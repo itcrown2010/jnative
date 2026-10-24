@@ -529,6 +529,18 @@ class UiNative {
     @Native(symbol = "jnative_ui_canvas_set_transparent")
     static native void canvasSetTransparent(int id, int on);
 
+    @Native(symbol = "jnative_ui_canvas_set_text_input")
+    static native void canvasSetTextInput(int id, int on);
+
+    @Native(symbol = "jnative_ui_canvas_set_ime_rect")
+    static native void canvasSetImeRect(int id, int x, int y, int h);
+
+    @Native(symbol = "jnative_ui_canvas_set_ibeam")
+    static native void canvasSetIbeam(int id, int on);
+
+    @Native(symbol = "jnative_ui_take_text")
+    static native NativePtr takeText();
+
     @Native(symbol = "jnative_ui_canvas_present")
     static native void canvasPresent(int id, int surfaceId);
 
@@ -891,6 +903,10 @@ class MouseEvent extends UiEvent {
     int metaDown;
     /** Wheel movement in notches (positive = away from the user / up); only set for wheel events. */
     int wheelDelta;
+    /** 1 when a wheel event is a horizontal scroll (trackpad swipe / tilt wheel). */
+    int horizontal;
+    /** Precise (trackpad) scroll distance in points for wheel events; 0 when the device reports notches only. */
+    int pixelDelta;
 
     MouseEvent(Component src, int type, int mx, int my, int btn) {
         super(src);
@@ -922,6 +938,19 @@ class MouseEvent extends UiEvent {
 
     int getWheelDelta() {
         return wheelDelta;
+    }
+}
+
+/** Text delivered by the platform input method: committed text, or the in-progress composition (marked). */
+class TextInputEvent extends UiEvent {
+    String text;
+    /** 1 while the text is an uncommitted IME composition; 0 when committed. */
+    int marked;
+
+    TextInputEvent(Component src, String t, int m) {
+        super(src);
+        text = t;
+        marked = m;
     }
 }
 
@@ -1417,6 +1446,7 @@ class Component {
     EventHandler<MouseEvent> mouseMoveHandler;
     EventHandler<MouseEvent> mouseDragHandler;
     EventHandler<MouseEvent> mouseWheelHandler;
+    EventHandler<TextInputEvent> textInputHandler;
     EventHandler<MouseEvent> mouseExitHandler;
     EventHandler<MouseEvent> mouseEnterHandler;
     UiHook paintHook;
@@ -1883,6 +1913,12 @@ class Component {
         mouseWheelHandler = handler;
     }
 
+    /** Committed / composing text from the platform input method (only canvases that enable text input). */
+    void onTextInput(EventHandler<TextInputEvent> handler) {
+        ensureAlive("Component.onTextInput");
+        textInputHandler = handler;
+    }
+
     void onMouseDrag(EventHandler<MouseEvent> handler) {
         ensureAlive("Component.onMouseDrag");
         mouseDragHandler = handler;
@@ -1976,8 +2012,32 @@ class Component {
     void fireToggle(int selected) {
     }
 
+    void fireTextInput(int marked) {
+        NativePtr p = UiNative.takeText();
+        String t = "";
+        if (p != NativePtr.NULL) {
+            t = NativeMemory.fromCString(p);
+            UiNative.dialogFreePath(p);
+            if (t == null) {
+                t = "";
+            }
+        }
+        deliverTextInput(t, marked);
+    }
+
+    void deliverTextInput(String t, int marked) {
+        if (disposed != 0 || textInputHandler == null) {
+            return;
+        }
+        textInputHandler.handle(new TextInputEvent(this, t, marked));
+    }
+
     void fireKey(int downType, int keyCode, int mods, int typedChar) {
         if (disposed != 0) {
+            return;
+        }
+        if (downType == 3 || downType == 4) {
+            fireTextInput(downType == 4 ? 1 : 0);
             return;
         }
         /* Key-up goes to onKeyUp handlers only; onKeyDown handlers never see it. */
@@ -2012,7 +2072,7 @@ class Component {
         }
         int button = packed % 16;
         int mods = (packed / 16) % 16;
-        if (button == 0 && type != 5 && type != 8 && type != 6 && type != 7) {
+        if (button == 0 && type != 5 && type != 8 && type != 9 && type != 6 && type != 7) {
             button = 1;
         }
         MouseEvent ev = new MouseEvent(this, type, mx, my, button);
@@ -2028,13 +2088,24 @@ class Component {
             if (mouseExitHandler != null) {
                 mouseExitHandler.handle(ev);
             }
-        } else if (type == 8) {
-            ev.wheelDelta = packed / 256 - 512;
+        } else if (type == 8 || type == 9) {
+            ev.wheelDelta = (packed / 256) % 1024 - 512;
+            int rawPx = packed / 262144;
+            if (rawPx > 0) {
+                ev.pixelDelta = rawPx - 4096;
+            }
+            if (type == 9) {
+                ev.horizontal = 1;
+            }
             if (mouseWheelHandler != null) {
                 mouseWheelHandler.handle(ev);
             }
         } else if (type == 1) {
             mousePressedFlag = 1;
+            int cc = (packed / 256) % 1024 - 512;
+            if (cc > 1) {
+                ev.clickCount = cc;
+            }
             if (mouseDownHandler != null) {
                 mouseDownHandler.handle(ev);
             }
@@ -2334,6 +2405,7 @@ class VBox extends Container {
         UiMetrics.layoutPasses = UiMetrics.layoutPasses + 1;
         int cy = padding;
         int maxW = 0;
+        int naturalW = 0;
         int i = 0;
         int availW = width - padding * 2;
         if (availW < 0) {
@@ -2363,6 +2435,12 @@ class VBox extends Container {
             } else {
                 int pw = c.preferredWidth();
                 int ph = c.preferredHeight();
+                /* The container's own preferred width is based on its children's natural widths, not on the
+                   width they were stretched to (a freshly created VBox is 400 wide, which would otherwise
+                   make every VBox at least 400 wide and break narrow windows). */
+                if (pw > naturalW) {
+                    naturalW = pw;
+                }
                 if (pw < availW) {
                     pw = availW;
                 }
@@ -2393,10 +2471,10 @@ class VBox extends Container {
         }
         int needW = maxW + padding * 2;
         int needH = cy + padding;
-        prefWidth = needW;
+        prefWidth = naturalW + padding * 2;
         prefHeight = needH;
-        if (width < needW) {
-            width = needW;
+        if (width < prefWidth) {
+            width = prefWidth;
         }
         /* When a child was stretched to fill, keep the parent-assigned height.
            Growing the VBox after children were Y-flipped against the old height
@@ -6865,6 +6943,18 @@ class UiTest {
     static void action(MenuItem item) {
         Application.checkUiThread("UiTest.action");
         UiNative.headlessAction(item.nativeId);
+    }
+
+    /** Simulates committed IME / typed text (marked = true simulates an uncommitted composition). */
+    static void typeText(Component c, String text, boolean marked) {
+        Application.checkUiThread("UiTest.typeText");
+        c.deliverTextInput(text, marked ? 1 : 0);
+    }
+
+    /** mods: 1 shift, 2 ctrl, 4 alt, 8 meta. */
+    static void keyPressMods(Component c, int keyCode, int mods) {
+        Application.checkUiThread("UiTest.keyPressMods");
+        UiNative.headlessKey(c.nativeId, keyCode, mods, 1);
     }
 
     static void keyPress(Component c, int keyCode) {
