@@ -4,7 +4,7 @@ import jnative.editor.*;
 
 /**
  * Inline code completion: a list that floats under the caret while the editor keeps keyboard focus. It opens
- * automatically after "." or after two identifier characters (and on demand with Ctrl+Space / ⌘K), narrows as
+ * automatically after "." or after the first identifier character (and on demand with Ctrl+Space / ⌘K), narrows as
  * you type, and Up / Down / Enter / Tab / Esc drive it from the keyboard.
  *
  * @author 张晓达
@@ -184,8 +184,13 @@ public class IdeSuggest extends Canvas {
 
     /** Called after the editor inserted / deleted a character. */
     void typed(int code) {
-        if (editor == null) {
+        IdeDoc cur = app.activeDoc();
+        if (cur == null || cur.kind != 0) {
             return;
+        }
+        if (editor != cur.editor) {
+            hide();
+            editor = cur.editor;
         }
         if (isOpen) {
             if (code == 8 || code == 127 || identChar(code)) {
@@ -219,7 +224,7 @@ public class IdeSuggest extends Canvas {
             app.completeInline(false);
         } else if (identChar(code) && !(code >= 48 && code <= 57)) {
             String w = editor.wordBeforeCaret();
-            if (w.length() >= 2 && editor.inStringOrComment(editor.caret.offset) == 0) {
+            if (w.length() >= 1 && editor.inStringOrComment(editor.caret.offset) == 0) {
                 int c0 = w.charAt(0);
                 if (!(c0 >= 48 && c0 <= 57)) {
                     app.completeInline(false);

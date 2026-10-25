@@ -26,8 +26,19 @@ public final class AnalyzeCli {
     private AnalyzeCli() {
     }
 
+    /** Canonical path (resolves symlinks such as macOS /tmp) so overlays match the files found on disk. */
+    private static Path realPath(Path p) {
+        try {
+            return p.toRealPath();
+        } catch (java.io.IOException e) {
+            return p.toAbsolutePath().normalize();
+        }
+    }
+
     public static int dispatch(String[] args) throws Exception {
         Path file = null;
+        Path projectRoot = null;
+        java.util.Map<String, String> overlays = new java.util.LinkedHashMap<>();
         boolean stdin = false;
         String pathName = "stdin.java";
         long version = 0;
@@ -36,6 +47,27 @@ public final class AnalyzeCli {
             String a = args[i];
             switch (a) {
                 case "--stdin" -> stdin = true;
+                case "--project" -> {
+                    if (i + 1 < args.length) {
+                        projectRoot = realPath(Path.of(args[++i]));
+                    }
+                }
+                case "--overlay" -> {
+                    // --overlay /abs/Source.java=/tmp/unsaved-text : unsaved editor buffer for that source
+                    if (i + 1 < args.length) {
+                        String spec = args[++i];
+                        int eq = spec.lastIndexOf('=');
+                        if (eq > 0) {
+                            try {
+                                overlays.put(realPath(Path.of(spec.substring(0, eq))).toString(),
+                                        Files.readString(Path.of(spec.substring(eq + 1)), StandardCharsets.UTF_8));
+                            } catch (java.io.IOException e) {
+                                System.err.println("error: cannot read overlay " + spec);
+                                return 1;
+                            }
+                        }
+                    }
+                }
                 case "--path" -> {
                     if (i + 1 < args.length) {
                         pathName = args[++i];
@@ -61,6 +93,25 @@ public final class AnalyzeCli {
             }
         }
 
+        if (projectRoot != null) {
+            // Whole-project frontend check (all module sources + unsaved overlays); never builds native code.
+            java.util.List<io.jnative.compiler.SourceUnit> units =
+                    io.jnative.lsp.ProjectSourceCollector.collect(projectRoot, overlays);
+            if (units.isEmpty()) {
+                System.err.println("error: no sources under " + projectRoot);
+                return 1;
+            }
+            Compilation pc = new JNativeCompiler().analyzeUnits(units, version);
+            if (json) {
+                System.out.println(DiagnosticJson.buildReportJson(pc.success(), null, pc.diagnostics()));
+            } else {
+                for (Diagnostic d : pc.diagnostics()) {
+                    System.out.println(d);
+                }
+            }
+            return pc.success() ? 0 : 1;
+        }
+
         String text;
         String unitPath;
         if (stdin) {
@@ -82,7 +133,7 @@ public final class AnalyzeCli {
             text = Files.readString(abs, StandardCharsets.UTF_8);
             unitPath = abs.toString();
         } else {
-            System.err.println("usage: jnative analyze <file.jn|.java> | --stdin [--path name] [--format json|text]");
+            System.err.println("usage: jnative analyze <file.jn|.java> | --stdin [--path name] | --project DIR [--overlay path=file]... [--format json|text]");
             return 1;
         }
 

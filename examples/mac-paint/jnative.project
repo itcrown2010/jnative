@@ -1,0 +1,18 @@
+{
+  "name": "MacPaint",
+  "modules": {
+    "app": {
+      "kind": "app",
+      "src": "src"
+    }
+  },
+  "targets": [
+    {
+      "name": "MacPaint",
+      "triple": "native",
+      "module": "app",
+      "main": "Main",
+      "output": ".jnative/build/MacPaint"
+    }
+  ]
+}

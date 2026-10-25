@@ -19,6 +19,8 @@ class IdeDoc {
     DsDesigner designer;
     DsDoc ds;
     boolean dirtyFlag = false;
+    /** Modification time of the file when it was last read or written (detects external changes). */
+    long mtime = 0;
 
     boolean isDirty() {
         if (kind == 1) {

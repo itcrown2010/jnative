@@ -12,6 +12,10 @@ class IdeSettings {
     static ArrayList<String> recent = new ArrayList<String>();
     static boolean loaded = false;
     static int fontSize = 13;
+    static boolean liveCheck = true;
+    static String lastProject = "";
+    static String sessionActive = "";
+    static ArrayList<String> session = new ArrayList<String>();
 
     static FsPath file() {
         FsPath dir = Files.configDir("jnative-studio");
@@ -38,6 +42,14 @@ class IdeSettings {
                         javaCmd = v;
                     } else if (k.equals("compiler")) {
                         compiler = v;
+                    } else if (k.equals("lastProject")) {
+                        lastProject = v;
+                    } else if (k.equals("sessionActive")) {
+                        sessionActive = v;
+                    } else if (k.equals("session") && v.length() > 0) {
+                        session.add(v);
+                    } else if (k.equals("liveCheck")) {
+                        liveCheck = !v.equals("0");
                     } else if (k.equals("fontSize")) {
                         fontSize = Math.max(9, Math.min(32, DsUtil.parseInt(v, 13)));
                     } else if (k.equals("recent") && v.length() > 0) {
@@ -57,6 +69,14 @@ class IdeSettings {
         sb.append("java=" + javaCmd + "\n");
         sb.append("compiler=" + compiler + "\n");
         sb.append("fontSize=" + fontSize + "\n");
+        sb.append("liveCheck=" + (liveCheck ? "1" : "0") + "\n");
+        sb.append("lastProject=" + lastProject + "\n");
+        sb.append("sessionActive=" + sessionActive + "\n");
+        int si = 0;
+        while (si < session.size()) {
+            sb.append("session=" + session.get(si) + "\n");
+            si = si + 1;
+        }
         int i = 0;
         while (i < recent.size()) {
             sb.append("recent=" + recent.get(i) + "\n");
@@ -120,6 +140,15 @@ class IdeSettings {
     }
 
     /** Shell command that builds the project in the current directory. */
+    /** Frontend-only whole-project check (no native build); overlay args are "--overlay 'path=file'" pieces. */
+    static String analyzeCommand(String overlayArgs) {
+        if (compiler.endsWith(".jar")) {
+            return javaCmd + " -jar '" + compiler + "' analyze --project . " + overlayArgs + " --format text 2>&1";
+        }
+        return javaCmd + " -cp '" + compiler + "' io.jnative.Main analyze --project . " + overlayArgs
+                + " --format text 2>&1";
+    }
+
     static String buildCommand() {
         if (compiler.endsWith(".jar")) {
             return javaCmd + " -jar '" + compiler + "' build --project . 2>&1";

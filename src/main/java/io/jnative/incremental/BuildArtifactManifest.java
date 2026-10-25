@@ -61,6 +61,26 @@ public final class BuildArtifactManifest {
         Files.move(staging, man, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
     }
 
+    /**
+     * Like {@link #writeFailure(Path, String, String, String)} but skips the record when the manifest directory would
+     * sit exactly where the target's output file belongs (output {@code .jnative/build/<target>}): a directory there
+     * would block publishing the binary and make later builds believe the output already exists.
+     */
+    public static void writeFailure(
+            Path projectRoot,
+            String targetName,
+            String triple,
+            String reason,
+            Path outputPath
+    ) throws IOException {
+        Path dir = manifestPath(projectRoot, sanitize(targetName)).getParent();
+        if (outputPath != null
+                && dir.toAbsolutePath().normalize().equals(outputPath.toAbsolutePath().normalize())) {
+            return;
+        }
+        writeFailure(projectRoot, targetName, triple, reason);
+    }
+
     public static void writeFailure(
             Path projectRoot,
             String targetName,

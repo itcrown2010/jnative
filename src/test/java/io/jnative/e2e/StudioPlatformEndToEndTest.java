@@ -176,6 +176,47 @@ class StudioPlatformEndToEndTest {
         assertTrue(sp.waitFor(60, TimeUnit.SECONDS), "studio selftest timeout");
         assertEquals(0, sp.exitValue(), selfOut);
         assertTrue(selfOut.contains("ALL OK"), selfOut);
+
+        autoCompletePopsUpWhileTyping(proj);
+    }
+
+    /**
+     * Drives the real Studio window through its typing paths (key events and text input) and checks the completion
+     * list opens by itself, for identifiers and after a dot (it used to stay silent until opened manually once).
+     */
+    private void autoCompletePopsUpWhileTyping(Path studioProj) throws Exception {
+        if (!System.getProperty("os.name", "").toLowerCase().contains("mac")) {
+            return;
+        }
+        Path ex = Path.of("examples", "mac-notepad").toAbsolutePath();
+        if (!Files.isDirectory(ex.resolve("src"))) {
+            return;
+        }
+        Path np = tempDir.resolve("np");
+        copyTree(ex.resolve("src"), np.resolve("src"));
+        Files.copy(ex.resolve("jnative.project"), np.resolve("jnative.project"));
+        Path log = Path.of("/tmp/ide-edit.log");
+        Files.deleteIfExists(log);
+        ProcessBuilder pb = new ProcessBuilder(studioProj.resolve(".jnative/build/jnative-studio").toString(),
+                "--demo", np.toString());
+        pb.environment().put("IDE_DEMO", "autotype");
+        pb.redirectErrorStream(true);
+        pb.redirectOutput(ProcessBuilder.Redirect.DISCARD);
+        Process p = pb.start();
+        try {
+            String text = "";
+            long end = System.currentTimeMillis() + 90_000;
+            while (System.currentTimeMillis() < end && !text.contains("txtEditor.'")) {
+                Thread.sleep(500);
+                if (Files.exists(log)) {
+                    text = Files.readString(log);
+                }
+            }
+            assertTrue(text.contains("key path 'lblM': 1 items: lblMatches"), text);
+            assertTrue(text.contains("text path 'txtEditor.': ") && !text.contains("txtEditor.': no popup"), text);
+        } finally {
+            p.destroyForcibly();
+        }
     }
 
     /** The calculator example is built with Studio; its SelfTest drives the designer-bound handlers. */
@@ -208,6 +249,70 @@ class StudioPlatformEndToEndTest {
         assertEquals(0, rp.exitValue(), out);
         assertTrue(out.contains("ALL OK"), out);
         assertTrue(out.contains("0.1+0.2"), out);
+    }
+
+    /** The notepad example (designer form + hand-written logic): file round-trips, find/replace, undo, etc. */
+    @Test
+    void macNotepadExampleSelfTestPasses() throws Exception {
+        Assumptions.assumeTrue(Toolchain.detect().isPresent(), "clang not available");
+        Assumptions.assumeTrue(System.getProperty("os.name", "").toLowerCase().contains("mac"), "macOS only");
+        Path src = Path.of("examples", "mac-notepad").toAbsolutePath();
+        Assumptions.assumeTrue(Files.isDirectory(src.resolve("src")), "examples/mac-notepad not present");
+        Path proj = tempDir.resolve("notepad");
+        copyTree(src.resolve("src"), proj.resolve("src"));
+        Files.copy(src.resolve("jnative.project"), proj.resolve("jnative.project"));
+
+        ProcessBuilder build = new ProcessBuilder(
+                Path.of(System.getProperty("java.home"), "bin", "java").toString(),
+                "-cp", System.getProperty("java.class.path"), "io.jnative.Main", "build", "--project", ".");
+        build.directory(proj.toFile());
+        build.redirectErrorStream(true);
+        Process bp = build.start();
+        String buildOut = new String(bp.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
+        assertTrue(bp.waitFor(300, TimeUnit.SECONDS), "notepad build timeout");
+        assertEquals(0, bp.exitValue(), buildOut);
+
+        ProcessBuilder run = new ProcessBuilder(proj.resolve(".jnative/build/MacNotepad").toString(), "--selftest");
+        run.directory(proj.toFile());
+        run.redirectErrorStream(true);
+        Process rp = run.start();
+        String out = new String(rp.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
+        assertTrue(rp.waitFor(60, TimeUnit.SECONDS), "notepad selftest timeout");
+        assertEquals(0, rp.exitValue(), out);
+        assertTrue(out.contains("ALL OK"), out);
+        assertTrue(out.contains("保存时写回 CRLF 与 BOM"), out);
+    }
+
+    /** The paint example (designer form + software bitmap engine): tools, selection, image ops, file round-trips, form wiring. */
+    @Test
+    void macPaintExampleSelfTestPasses() throws Exception {
+        Assumptions.assumeTrue(Toolchain.detect().isPresent(), "clang not available");
+        Assumptions.assumeTrue(System.getProperty("os.name", "").toLowerCase().contains("mac"), "macOS only");
+        Path src = Path.of("examples", "mac-paint").toAbsolutePath();
+        Assumptions.assumeTrue(Files.isDirectory(src.resolve("src")), "examples/mac-paint not present");
+        Path proj = tempDir.resolve("paint");
+        copyTree(src.resolve("src"), proj.resolve("src"));
+        Files.copy(src.resolve("jnative.project"), proj.resolve("jnative.project"));
+
+        ProcessBuilder build = new ProcessBuilder(
+                Path.of(System.getProperty("java.home"), "bin", "java").toString(),
+                "-cp", System.getProperty("java.class.path"), "io.jnative.Main", "build", "--project", ".");
+        build.directory(proj.toFile());
+        build.redirectErrorStream(true);
+        Process bp = build.start();
+        String buildOut = new String(bp.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
+        assertTrue(bp.waitFor(300, TimeUnit.SECONDS), "paint build timeout");
+        assertEquals(0, bp.exitValue(), buildOut);
+
+        ProcessBuilder run = new ProcessBuilder(proj.resolve(".jnative/build/MacPaint").toString(), "--selftest");
+        run.directory(proj.toFile());
+        run.redirectErrorStream(true);
+        Process rp = run.start();
+        String out = new String(rp.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
+        assertTrue(rp.waitFor(60, TimeUnit.SECONDS), "paint selftest timeout");
+        assertEquals(0, rp.exitValue(), out);
+        assertTrue(out.contains("ALL OK"), out);
+        assertTrue(out.contains("缩放 2 倍"), out);
     }
 
     /**

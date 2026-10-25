@@ -47,6 +47,9 @@ static int32_t jn_cocoa_key_mods(NSEvent *event);
 
 static JnUiMenuTarget *g_menu_target = nil;
 
+/* Undo / redo on a text view, keeping the peer text in sync (defined after JnTextArea). */
+static void jn_text_undo_redo(NSTextView *tv, BOOL redo);
+
 static void jn_apply_menu_shortcut(NSMenuItem *item, int32_t itemId) {
     int32_t key = jnative_ui_menu_get_shortcut_key(itemId);
     int32_t mods = jnative_ui_menu_get_shortcut_mods(itemId);
@@ -178,11 +181,7 @@ static void jn_menu_item_refresh(int32_t itemId) {
                 [tv selectAll:nil];
                 return YES;
             } else if (c == 'z') {
-                if (cmdShift) {
-                    [[tv undoManager] redo];
-                } else {
-                    [[tv undoManager] undo];
-                }
+                jn_text_undo_redo(tv, cmdShift ? YES : NO);
                 return YES;
             }
         }
@@ -438,10 +437,12 @@ static int32_t jn_lighten_rgba(int32_t rgba, int delta) {
 /* Plain-text multi-line editor (Notepad-class TextArea). */
 @interface JnTextArea : NSTextView
 @property(nonatomic, assign) int32_t jnHandleId;
+@property(nonatomic, assign) NSUInteger jnChangeSeq;
 @end
 @implementation JnTextArea
 - (void)didChangeText {
     [super didChangeText];
+    self.jnChangeSeq = self.jnChangeSeq + 1;
     if (self.jnHandleId > 0) {
         const char *u = self.string.UTF8String;
         jnative_ui_store_text(self.jnHandleId, u ? u : "");
@@ -449,6 +450,27 @@ static int32_t jn_lighten_rgba(int32_t rgba, int delta) {
     }
 }
 @end
+
+static void jn_text_undo_redo(NSTextView *tv, BOOL redo) {
+    NSUndoManager *um = [tv undoManager];
+    if (um == nil) {
+        return;
+    }
+    JnTextArea *ta = [tv isKindOfClass:[JnTextArea class]] ? (JnTextArea *)tv : nil;
+    NSUInteger seq = ta != nil ? ta.jnChangeSeq : 0;
+    NSString *before = ta != nil ? [tv.string copy] : nil;
+    if (redo) {
+        [um redo];
+    } else {
+        [tv breakUndoCoalescing];
+        while ([um groupingLevel] > 0) [um endUndoGrouping];
+        [um undo];
+    }
+    /* NSTextView's undo/redo does not always call didChangeText; keep the peer's text and change event in sync. */
+    if (ta != nil && seq == ta.jnChangeSeq && ![tv.string isEqualToString:before]) {
+        [tv didChangeText];
+    }
+}
 
 
 @interface JnUiCombo : NSComboBox
@@ -3230,7 +3252,8 @@ void jnative_ui_ta_command(int32_t peerId, int32_t cmd) {
         return;
     }
     switch (cmd) {
-    case 1: [[tv undoManager] undo]; break;
+    case 1: jn_text_undo_redo(tv, NO); break;
+    case 2: jn_text_undo_redo(tv, YES); break;
     case 3: [tv cut:nil]; break;
     case 4: [tv copy:nil]; break;
     case 5: [tv pasteAsPlainText:nil]; break;

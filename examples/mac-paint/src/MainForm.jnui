@@ -1,0 +1,131 @@
+{
+  "jnui": 1,
+  "form": "MainForm",
+  "root":
+    {
+      "type": "Form",
+      "name": "MainForm",
+      "props": {
+        "title": "未命名 — 画图",
+        "width": "1100",
+        "height": "760"
+      },
+      "children": [
+        {
+          "type": "VBox",
+          "name": "root",
+          "props": {
+            "spacing": "0",
+            "padding": "0"
+          },
+          "children": [
+            {
+              "type": "HBox",
+              "name": "body",
+              "props": {
+                "spacing": "0",
+                "padding": "0",
+                "vgrow": "true",
+                "width": "100",
+                "height": "200"
+              },
+              "children": [
+                {
+                  "type": "Canvas",
+                  "name": "toolbox",
+                  "props": {
+                    "width": "92",
+                    "height": "200",
+                    "vgrow": "true"
+                  }
+                },
+                {
+                  "type": "Canvas",
+                  "name": "board",
+                  "props": {
+                    "width": "400",
+                    "height": "200",
+                    "hgrow": "true",
+                    "vgrow": "true"
+                  }
+                }
+              ]
+            },
+            {
+              "type": "Canvas",
+              "name": "palette",
+              "props": {
+                "width": "100",
+                "height": "78"
+              }
+            },
+            {
+              "type": "HBox",
+              "name": "statusBar",
+              "props": {
+                "spacing": "18",
+                "padding": "6",
+                "height": "28",
+                "background": "#F2F2F7",
+                "width": "100"
+              },
+              "children": [
+                {
+                  "type": "Label",
+                  "name": "lblPos",
+                  "props": {
+                    "text": "",
+                    "foreground": "#6B7280",
+                    "fontSize": "12",
+                    "width": "110"
+                  }
+                },
+                {
+                  "type": "Label",
+                  "name": "lblSel",
+                  "props": {
+                    "text": "",
+                    "foreground": "#6B7280",
+                    "fontSize": "12",
+                    "width": "120"
+                  }
+                },
+                {
+                  "type": "Label",
+                  "name": "lblSize",
+                  "props": {
+                    "text": "800 × 600 像素",
+                    "foreground": "#6B7280",
+                    "fontSize": "12",
+                    "width": "130"
+                  }
+                },
+                {
+                  "type": "Label",
+                  "name": "lblHint",
+                  "props": {
+                    "text": "",
+                    "foreground": "#6B7280",
+                    "fontSize": "12",
+                    "hgrow": "true",
+                    "width": "200"
+                  }
+                },
+                {
+                  "type": "Label",
+                  "name": "lblZoom",
+                  "props": {
+                    "text": "100%",
+                    "foreground": "#6B7280",
+                    "fontSize": "12",
+                    "width": "60",
+                    "textAlign": "Right"
+                  }
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+}

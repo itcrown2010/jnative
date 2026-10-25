@@ -82,6 +82,11 @@ int32_t jnative_gfx_image_save_png(int32_t surfaceId, const char *path);
 /* Pixel probe for tests: returns RGBA packed. */
 int32_t jnative_gfx_get_pixel(int32_t surfaceId, int32_t x, int32_t y);
 void jnative_gfx_set_pixel(int32_t surfaceId, int32_t x, int32_t y, int32_t rgba);
+/* Scaled (nearest) blit of the source rectangle (sx,sy,sw,sh) into (x,y,w,h); only visible pixels are touched. */
+void jnative_gfx_draw_image_region(int32_t gfxId, int32_t imageId, int32_t sx, int32_t sy, int32_t sw, int32_t sh,
+                                   double x, double y, double w, double h);
+/* Flood fill; tol is the per-channel colour tolerance. Returns pixels changed. */
+int32_t jnative_gfx_flood_fill(int32_t surfaceId, int32_t x, int32_t y, int32_t rgba, int32_t tol);
 
 int32_t jnative_gfx_live_surfaces(void);
 int32_t jnative_gfx_live_fonts(void);

@@ -672,6 +672,103 @@ void jnative_gfx_draw_image_sized(int32_t gfxId, int32_t imageId, double x, doub
     }
 }
 
+/* Scaled blit of a source rectangle (nearest neighbour). Only destination pixels inside the surface / clip are
+ * visited, so magnified views of large images stay cheap. */
+void jnative_gfx_draw_image_region(int32_t gfxId, int32_t imageId, int32_t sx, int32_t sy, int32_t sw, int32_t sh,
+                                   double x, double y, double w, double h) {
+    JnGfx *g = G(gfxId); JnSurface *s = g ? S(g->surfaceId) : NULL; JnSurface *img = S(imageId);
+    if (!g || !g->valid || !s || !img || w < 1 || h < 1 || sw <= 0 || sh <= 0) return;
+    double ox, oy, ex, ey;
+    xform(g, x, y, &ox, &oy);
+    xform(g, x + w, y + h, &ex, &ey);
+    int dx0 = (int)floor(ox + 0.5), dy0 = (int)floor(oy + 0.5);
+    int dw = (int)floor(ex + 0.5) - dx0, dh = (int)floor(ey + 0.5) - dy0;
+    if (dw <= 0 || dh <= 0) return;
+    int x0 = 0, y0 = 0, x1 = dw, y1 = dh;
+    int minx = 0, miny = 0, maxx = s->w, maxy = s->h;
+    if (g->st.clip) {
+        if (g->st.cx > minx) minx = g->st.cx;
+        if (g->st.cy > miny) miny = g->st.cy;
+        if (g->st.cx + g->st.cw < maxx) maxx = g->st.cx + g->st.cw;
+        if (g->st.cy + g->st.ch < maxy) maxy = g->st.cy + g->st.ch;
+    }
+    if (dx0 + x0 < minx) x0 = minx - dx0;
+    if (dy0 + y0 < miny) y0 = miny - dy0;
+    if (dx0 + x1 > maxx) x1 = maxx - dx0;
+    if (dy0 + y1 > maxy) y1 = maxy - dy0;
+    for (int yy = y0; yy < y1; yy++) {
+        int srow = sy + (int)((int64_t)yy * sh / dh);
+        if (srow < 0 || srow >= img->h) continue;
+        for (int xx = x0; xx < x1; xx++) {
+            int scol = sx + (int)((int64_t)xx * sw / dw);
+            if (scol < 0 || scol >= img->w) continue;
+            blend(&s->px[(dy0 + yy) * s->w + dx0 + xx], img->px[srow * img->w + scol]);
+        }
+    }
+}
+
+/* Scanline flood fill. Replaces the connected region of pixels whose colour is within `tol` (per channel) of the
+ * pixel at (x, y) with `rgba`. Returns the number of pixels changed. */
+static int px_near(uint32_t a, uint32_t b, int tol) {
+    for (int sh = 0; sh < 32; sh += 8) {
+        int ca = (int)((a >> sh) & 255), cb = (int)((b >> sh) & 255);
+        int d = ca > cb ? ca - cb : cb - ca;
+        if (d > tol) return 0;
+    }
+    return 1;
+}
+
+int32_t jnative_gfx_flood_fill(int32_t surfaceId, int32_t x, int32_t y, int32_t rgba, int32_t tol) {
+    JnSurface *s = S(surfaceId);
+    if (!s || x < 0 || y < 0 || x >= s->w || y >= s->h) return 0;
+    uint32_t target = s->px[y * s->w + x];
+    uint32_t fill = (uint32_t)rgba;
+    if (tol < 0) tol = 0;
+    if (target == fill && tol == 0) return 0;
+    size_t n = (size_t)s->w * (size_t)s->h;
+    uint8_t *seen = (uint8_t *)calloc(n, 1);
+    if (!seen) return 0;
+    size_t cap = 1024, top = 0;
+    int32_t *stack = (int32_t *)malloc(cap * 2 * sizeof(int32_t));
+    if (!stack) { free(seen); return 0; }
+    int32_t changed = 0;
+    stack[0] = x; stack[1] = y; top = 1;
+    while (top > 0) {
+        top--;
+        int cx = stack[top * 2], cy = stack[top * 2 + 1];
+        if (seen[cy * s->w + cx] || !px_near(s->px[cy * s->w + cx], target, tol)) continue;
+        int l = cx, r = cx;
+        while (l > 0 && !seen[cy * s->w + l - 1] && px_near(s->px[cy * s->w + l - 1], target, tol)) l--;
+        while (r < s->w - 1 && !seen[cy * s->w + r + 1] && px_near(s->px[cy * s->w + r + 1], target, tol)) r++;
+        for (int i = l; i <= r; i++) {
+            seen[cy * s->w + i] = 1;
+            s->px[cy * s->w + i] = fill;
+            changed++;
+        }
+        for (int dy = -1; dy <= 1; dy += 2) {
+            int ny = cy + dy;
+            if (ny < 0 || ny >= s->h) continue;
+            int inrun = 0;
+            for (int i = l; i <= r; i++) {
+                int ok = !seen[ny * s->w + i] && px_near(s->px[ny * s->w + i], target, tol);
+                if (ok && !inrun) {
+                    if (top + 1 >= cap) {
+                        cap *= 2;
+                        int32_t *ns = (int32_t *)realloc(stack, cap * 2 * sizeof(int32_t));
+                        if (!ns) { free(stack); free(seen); return changed; }
+                        stack = ns;
+                    }
+                    stack[top * 2] = i; stack[top * 2 + 1] = ny; top++;
+                }
+                inrun = ok;
+            }
+        }
+    }
+    free(stack);
+    free(seen);
+    return changed;
+}
+
 void jnative_gfx_set_clip(int32_t gfxId, double x, double y, double w, double h) {
     JnGfx *g = G(gfxId); if (!g || !g->valid) return;
     double x0, y0, x1, y1; xform(g, x, y, &x0, &y0); xform(g, x + w, y + h, &x1, &y1);

@@ -954,6 +954,10 @@ class TextInputEvent extends UiEvent {
     }
 }
 
+interface QuitGuard {
+    boolean canQuit();
+}
+
 class KeyEvent extends UiEvent {
     int keyCode;
     int character;
@@ -1196,6 +1200,16 @@ class Application {
         }
     }
 
+    /**
+     * Quit confirmation for the Quit menu command / Cmd+Q: return false (after asking about unsaved work) to cancel
+     * the quit. Closing the last window goes through Window.onClose + vetoClose instead.
+     */
+    static QuitGuard quitGuard;
+
+    static void setQuitGuard(QuitGuard g) {
+        quitGuard = g;
+    }
+
     /** Register a bounded cleanup hook (stop sampling, close DB, dispose scopes). */
     static void onQuit(Runnable hook) {
         if (hook == null) {
@@ -1269,6 +1283,9 @@ class Application {
     static void dispatchNative(int handleId, int eventCode) {
         try {
             if (eventCode == 16) {
+                if (quitGuard != null && quitting == 0 && !quitGuard.canQuit()) {
+                    return;
+                }
                 requestQuit();
                 return;
             }
@@ -2610,6 +2627,10 @@ class HBox extends Container {
                         ph2 = availH;
                     }
                 }
+                /* A child that opts in via vgrow fills the row's full height (like VBox does for width). */
+                if (c.vgrow != 0 && availH > ph2) {
+                    ph2 = availH;
+                }
                 int yOff = padding;
                 if (ph2 < availH) {
                     yOff = padding + (availH - ph2) / 2;
@@ -3400,6 +3421,10 @@ class TextArea extends Control {
 
     void undo() {
         UiNative.taCommand(nativeId, 1);
+    }
+
+    void redo() {
+        UiNative.taCommand(nativeId, 2);
     }
 
     void cut() {

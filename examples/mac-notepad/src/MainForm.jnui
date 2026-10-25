@@ -1,0 +1,203 @@
+{
+  "jnui": 1,
+  "form": "MainForm",
+  "root":
+    {
+      "type": "Form",
+      "name": "MainForm",
+      "props": {
+        "title": "未命名 — 记事本",
+        "width": "900",
+        "height": "640"
+      },
+      "children": [
+        {
+          "type": "VBox",
+          "name": "root",
+          "props": {
+            "spacing": "0",
+            "padding": "0"
+          },
+          "children": [
+            {
+              "type": "HBox",
+              "name": "findBar",
+              "props": {
+                "spacing": "6",
+                "padding": "8",
+                "height": "46",
+                "background": "#F2F2F7",
+                "visible": "false",
+                "width": "100"
+              },
+              "children": [
+                {
+                  "type": "TextField",
+                  "name": "txtFind",
+                  "props": {
+                    "cueBanner": "查找",
+                    "width": "220"
+                  },
+                  "events": {
+                    "change": "onFindChange"
+                  }
+                },
+                {
+                  "type": "TextField",
+                  "name": "txtReplace",
+                  "props": {
+                    "cueBanner": "替换为",
+                    "width": "180"
+                  }
+                },
+                {
+                  "type": "Button",
+                  "name": "btnFindPrev",
+                  "props": {
+                    "text": "↑",
+                    "width": "36"
+                  },
+                  "events": {
+                    "click": "onFindPrev"
+                  }
+                },
+                {
+                  "type": "Button",
+                  "name": "btnFindNext",
+                  "props": {
+                    "text": "↓",
+                    "width": "36"
+                  },
+                  "events": {
+                    "click": "onFindNext"
+                  }
+                },
+                {
+                  "type": "CheckBox",
+                  "name": "chkCase",
+                  "props": {
+                    "text": "区分大小写",
+                    "width": "104"
+                  },
+                  "events": {
+                    "click": "onCaseToggle"
+                  }
+                },
+                {
+                  "type": "Button",
+                  "name": "btnReplace",
+                  "props": {
+                    "text": "替换",
+                    "width": "64"
+                  },
+                  "events": {
+                    "click": "onReplace"
+                  }
+                },
+                {
+                  "type": "Button",
+                  "name": "btnReplaceAll",
+                  "props": {
+                    "text": "全部替换",
+                    "width": "84"
+                  },
+                  "events": {
+                    "click": "onReplaceAll"
+                  }
+                },
+                {
+                  "type": "Label",
+                  "name": "lblMatches",
+                  "props": {
+                    "text": "",
+                    "foreground": "#6B7280",
+                    "hgrow": "true",
+                    "width": "80"
+                  }
+                },
+                {
+                  "type": "Button",
+                  "name": "btnFindClose",
+                  "props": {
+                    "text": "✕",
+                    "width": "36"
+                  },
+                  "events": {
+                    "click": "onFindClose"
+                  }
+                }
+              ]
+            },
+            {
+              "type": "TextArea",
+              "name": "txtEditor",
+              "props": {
+                "wordWrap": "true",
+                "vgrow": "true",
+                "width": "100",
+                "height": "200"
+              },
+              "events": {
+                "change": "onEditorChange"
+              }
+            },
+            {
+              "type": "HBox",
+              "name": "statusBar",
+              "props": {
+                "spacing": "18",
+                "padding": "6",
+                "height": "28",
+                "background": "#F2F2F7",
+                "width": "100"
+              },
+              "children": [
+                {
+                  "type": "Label",
+                  "name": "lblPosition",
+                  "props": {
+                    "text": "行 1，列 1",
+                    "foreground": "#6B7280",
+                    "fontSize": "12",
+                    "width": "96"
+                  }
+                },
+                {
+                  "type": "Label",
+                  "name": "lblSelection",
+                  "props": {
+                    "text": "",
+                    "foreground": "#6B7280",
+                    "fontSize": "12",
+                    "width": "110"
+                  }
+                },
+                {
+                  "type": "Label",
+                  "name": "lblStats",
+                  "props": {
+                    "text": "0 字符 · 1 行",
+                    "foreground": "#6B7280",
+                    "fontSize": "12",
+                    "hgrow": "true",
+                    "width": "140"
+                  }
+                },
+                {
+                  "type": "Label",
+                  "name": "lblFormat",
+                  "props": {
+                    "text": "UTF-8 · LF",
+                    "foreground": "#6B7280",
+                    "fontSize": "12",
+                    "width": "86",
+                    "textAlign": "Right"
+                  }
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+}

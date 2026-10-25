@@ -29,6 +29,9 @@ public class StudioMain {
         if (openDir.length() > 0) {
             ide.openProject(openDir);
         }
+        if (openDir.length() == 0 && !demo) {
+            ide.restoreSession();
+        }
         if (demo) {
             IdeDemo.start(ide);
         }

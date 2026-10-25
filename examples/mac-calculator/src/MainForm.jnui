@@ -126,7 +126,9 @@
                     "cornerRadius": "34",
                     "fontSize": "26",
                     "col": "3",
-                    "row": "0"
+                    "row": "0",
+                    "height": "68",
+                    "width": "47"
                   },
                   "events": {
                     "click": "onDivide"

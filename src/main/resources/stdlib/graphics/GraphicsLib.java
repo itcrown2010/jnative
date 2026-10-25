@@ -196,6 +196,13 @@ class GfxNative {
     @Native(symbol = "jnative_gfx_set_pixel")
     static native void setPixel(int surfaceId, int x, int y, int rgba);
 
+    @Native(symbol = "jnative_gfx_draw_image_region")
+    static native void drawImageRegion(int gfxId, int imageId, int sx, int sy, int sw, int sh, double x, double y,
+            double w, double h);
+
+    @Native(symbol = "jnative_gfx_flood_fill")
+    static native int floodFill(int surfaceId, int x, int y, int rgba, int tol);
+
     @Native(symbol = "jnative_gfx_live_surfaces")
     static native int liveSurfaces();
 
@@ -495,6 +502,17 @@ class Image {
         return GfxNative.getPixel(surfaceId, x, y);
     }
 
+    void setPixel(int x, int y, int rgba) {
+        ensure();
+        GfxNative.setPixel(surfaceId, x, y, rgba);
+    }
+
+    /** Flood fill from (x, y) with the packed colour; tol is the per-channel tolerance. Returns pixels changed. */
+    int floodFill(int x, int y, int rgba, int tol) {
+        ensure();
+        return GfxNative.floodFill(surfaceId, x, y, rgba, tol);
+    }
+
     void dispose() {
         if (disposed != 0) {
             return;
@@ -640,6 +658,13 @@ class Graphics {
         ensureValid();
         image.ensure();
         GfxNative.drawImageSized(gfxId, image.surfaceId, x, y, w, h);
+    }
+
+    /** Nearest-neighbour blit of the source rectangle (sx, sy, sw, sh) scaled into (x, y, w, h). */
+    void drawImageRegion(Image image, int sx, int sy, int sw, int sh, double x, double y, double w, double h) {
+        ensureValid();
+        image.ensure();
+        GfxNative.drawImageRegion(gfxId, image.surfaceId, sx, sy, sw, sh, x, y, w, h);
     }
 
     void drawPath(Path path) {

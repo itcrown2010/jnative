@@ -275,7 +275,7 @@ public final class CompilerSession {
         boolean needInitialArtifacts = false;
         for (BuildTargetSpec t : project.targets()) {
             Path out = projectRoot.resolve(targetOutput(t));
-            if (!Files.exists(out)) {
+            if (!Files.exists(out) || (!t.isBrowser() && Files.isDirectory(out))) {
                 needInitialArtifacts = true;
                 break;
             }
@@ -407,6 +407,16 @@ public final class CompilerSession {
         Files.createDirectories(out.getParent() == null ? projectRoot.resolve(project.buildDir()) : out.getParent());
         Path published = out;
         Path staging = out.resolveSibling(out.getFileName() + ".tmp." + gen);
+        if (!target.isBrowser() && Files.isDirectory(published)) {
+            // A failed build used to leave a manifest-only directory where the binary belongs.
+            try (var st = Files.list(published)) {
+                boolean onlyManifest = st.allMatch(f -> f.getFileName().toString().startsWith(BuildArtifactManifest.FILE_NAME));
+                if (onlyManifest) {
+                    deleteRecursive(published);
+                }
+            } catch (IOException ignored) {
+            }
+        }
 
         String compileTriple = target.isBrowser() ? "wasm32-browser" : "native";
         // Per-target package + source capability precheck (fail before link/run).
@@ -418,7 +428,7 @@ public final class CompilerSession {
             String msg = pre.stream().map(Object::toString).collect(Collectors.joining("\n"));
             errors.add(target.name() + ": " + msg);
             try {
-                BuildArtifactManifest.writeFailure(projectRoot, target.name(), compileTriple, msg);
+                BuildArtifactManifest.writeFailure(projectRoot, target.name(), compileTriple, msg, published);
             } catch (IOException ignored) {
             }
             return;
@@ -458,7 +468,7 @@ public final class CompilerSession {
             errors.add(target.name() + ": " + msg);
             Files.deleteIfExists(staging);
             try {
-                BuildArtifactManifest.writeFailure(projectRoot, target.name(), compileTriple, msg);
+                BuildArtifactManifest.writeFailure(projectRoot, target.name(), compileTriple, msg, published);
             } catch (IOException ignored) {
             }
             // preserve last good binary on disk, but manifest marks this generation failed

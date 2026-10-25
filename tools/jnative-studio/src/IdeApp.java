@@ -171,6 +171,15 @@ public class IdeApp extends Panel {
     IdeTree output;
     IdeTree problems;
     IdeTree search;
+    IdeProc checkProc;
+    UiTimer checkTimer;
+    boolean checkPending = false;
+    long lastEditMs = 0;
+    ArrayList<IdeDiag> checkDiags = new ArrayList<IdeDiag>();
+    int checkSeq = 0;
+    int tickCount = 0;
+    boolean skipAutoOpen = false;
+    boolean restoring = false;
     ArrayList<int> bhEdges = new ArrayList<int>();
     String searchQuery = "";
     Canvas status;
@@ -283,7 +292,9 @@ public class IdeApp extends Panel {
 
         quick = new IdeQuick(this);
         add(quick);
+        checkTimer = new UiTimer(500, () -> checkTick());
         window.onKeyDown(e -> windowKey(e));
+        Application.setQuitGuard(() -> confirmQuit());
         buildMenus();
         refreshState();
     }
@@ -399,6 +410,7 @@ public class IdeApp extends Panel {
         item(view, "设计器 / 代码 切换", 69, 0, () -> toggleDesignerCode());
         item(view, "实时预览", 80, 0, () -> designerPreview());
         item(view, "显示/隐藏输出面板", 74, 0, () -> toggleBottom());
+        item(view, "开关实时错误检查", 69, 1, () -> toggleLiveCheck());
         view.addSeparator();
         item(view, "放大编辑器字号", 187, 0, () -> zoomEditors(1));
         item(view, "缩小编辑器字号", 189, 0, () -> zoomEditors(-1));
@@ -566,9 +578,16 @@ public class IdeApp extends Panel {
         boolean busy = buildProc != null && buildProc.running() || runProc != null && runProc.running();
         Ide.fill(g, busy ? Ide.ACCENT : 0x2B2F36, 0, 0, width, height);
         Ide.textRow(g, statusText, 12, 0, height, Ide.small(), 0xFFFFFF);
+        int rightEdge = width - 14;
         if (caretText.length() > 0) {
             int tw = Ide.textWidth(g, caretText, Ide.small());
-            Ide.textRow(g, caretText, width - tw - 14, 0, height, Ide.small(), 0xFFFFFF);
+            Ide.textRow(g, caretText, rightEdge - tw, 0, height, Ide.small(), 0xFFFFFF);
+            rightEdge = rightEdge - tw - 18;
+        }
+        if (project != null) {
+            String counts = "✖ " + diagCount + "   ⚠ " + warnCount;
+            int cw = Ide.textWidth(g, counts, Ide.small());
+            Ide.textRow(g, counts, rightEdge - cw, 0, height, Ide.small(), diagCount > 0 ? 0xFFB4B4 : 0xFFFFFF);
         }
         if (!IdeSettings.hasCompiler()) {
             String w = "⚠ 未找到编译器";
@@ -666,7 +685,7 @@ public class IdeApp extends Panel {
         String mainForm = findFirstForm(p.srcRoot());
         refreshState();
         layout();
-        if (mainForm.length() > 0) {
+        if (mainForm.length() > 0 && !skipAutoOpen) {
             openFile(mainForm);
         }
     }
@@ -1196,6 +1215,182 @@ public class IdeApp extends Panel {
         setStatus("已重新缩进");
     }
 
+    // ---------------------------------------------------------------- live error check
+
+    /** Reloads open files that changed on disk (unless they have unsaved edits, then only warns). */
+    void checkExternalChanges() {
+        int i = 0;
+        while (i < tabs.docs.size()) {
+            IdeDoc d = tabs.docs.get(i);
+            i = i + 1;
+            if (d.kind != 0 || !Files.exists(FsPath.of(d.path))) {
+                continue;
+            }
+            long m = Files.lastModified(FsPath.of(d.path));
+            if (m == d.mtime) {
+                continue;
+            }
+            d.mtime = m;
+            if (d.isDirty()) {
+                setStatus("注意：" + d.title + " 已在外部被修改，保存将覆盖外部更改");
+                continue;
+            }
+            String t = Files.readString(FsPath.of(d.path));
+            if (!t.equals(d.editor.getText())) {
+                applyTextDiff(d.editor, t);
+                d.editor.document.markSaved();
+                setStatus("已重新载入外部修改：" + d.title);
+                markEdited();
+                tabs.repaint();
+            }
+        }
+    }
+
+    // ---------------------------------------------------------------- session
+
+    void saveSession() {
+        if (project == null) {
+            return;
+        }
+        IdeSettings.lastProject = project.dir;
+        IdeSettings.session = new ArrayList<String>();
+        int i = 0;
+        while (i < tabs.docs.size()) {
+            IdeSettings.session.add(tabs.docs.get(i).path);
+            i = i + 1;
+        }
+        IdeDoc a = activeDoc();
+        IdeSettings.sessionActive = a == null ? "" : a.path;
+        IdeSettings.save();
+    }
+
+    /** Reopens the project and tabs of the previous run (called at startup when no project was given). */
+    void restoreSession() {
+        IdeSettings.load();
+        String dir = IdeSettings.lastProject;
+        if (dir.length() == 0 || !Files.exists(FsPath.of(dir + "/jnative.project"))) {
+            return;
+        }
+        ArrayList<String> docs = new ArrayList<String>();
+        int i = 0;
+        while (i < IdeSettings.session.size()) {
+            docs.add(IdeSettings.session.get(i));
+            i = i + 1;
+        }
+        String active = IdeSettings.sessionActive;
+        skipAutoOpen = docs.size() > 0;
+        restoring = true;
+        openProject(dir);
+        skipAutoOpen = false;
+        i = 0;
+        while (i < docs.size()) {
+            if (Files.exists(FsPath.of(docs.get(i)))) {
+                openFile(docs.get(i));
+            }
+            i = i + 1;
+        }
+        restoring = false;
+        int idx = tabs.find(active);
+        if (idx >= 0) {
+            showDoc(idx);
+        } else {
+            saveSession();
+        }
+    }
+
+    void markEdited() {
+        checkPending = true;
+        lastEditMs = System.currentTimeMillis();
+    }
+
+    void toggleLiveCheck() {
+        IdeSettings.liveCheck = !IdeSettings.liveCheck;
+        IdeSettings.save();
+        if (IdeSettings.liveCheck) {
+            markEdited();
+            setStatus("实时错误检查：开");
+        } else {
+            setStatus("实时错误检查：关");
+        }
+    }
+
+    /** Runs every half second: when the user paused typing, starts a frontend-only check of the project. */
+    void checkTick() {
+        tickCount = tickCount + 1;
+        if (tickCount % 4 == 0) {
+            checkExternalChanges();
+        }
+        if (!checkPending || !IdeSettings.liveCheck || project == null || !IdeSettings.hasCompiler()) {
+            return;
+        }
+        if (buildProc != null && buildProc.running()) {
+            return;
+        }
+        if (checkProc != null && checkProc.running()) {
+            return;
+        }
+        if (System.currentTimeMillis() - lastEditMs < 900) {
+            return;
+        }
+        startCheck();
+    }
+
+    void startCheck() {
+        checkPending = false;
+        checkSeq = checkSeq + 1;
+        String overlayArgs = "";
+        int i = 0;
+        while (i < tabs.docs.size()) {
+            IdeDoc d = tabs.docs.get(i);
+            if (d.kind == 0 && d.isDirty() && d.path.endsWith(".java")) {
+                String tmp = "/tmp/jnative-studio-overlay-" + i + ".txt";
+                Files.writeString(FsPath.of(tmp), d.editor.getText());
+                overlayArgs = overlayArgs + " --overlay '" + d.path + "=" + tmp + "'";
+            }
+            i = i + 1;
+        }
+        checkDiags = new ArrayList<IdeDiag>();
+        IdeProc p = new IdeProc();
+        p.onLine = ln -> checkLine(ln);
+        p.onExit = code -> checkDone(code);
+        checkProc = p;
+        if (!p.start(project.dir, IdeSettings.analyzeCommand(overlayArgs))) {
+            checkProc = null;
+        }
+    }
+
+    void checkLine(String ln) {
+        IdeDiag d = IdeDiag.parse(ln);
+        if (d != null && project != null && d.path.startsWith(project.dir)) {
+            checkDiags.add(d);
+        }
+    }
+
+    void checkDone(int code) {
+        checkProc = null;
+        if (buildProc != null && buildProc.running()) {
+            return;
+        }
+        if (project == null) {
+            return;
+        }
+        /* Replace the problem list with the fresh result (a build repopulates it when it runs). */
+        diags = checkDiags;
+        diagCount = 0;
+        warnCount = 0;
+        int i = 0;
+        while (i < diags.size()) {
+            if (diags.get(i).severity == 1) {
+                diagCount = diagCount + 1;
+            } else {
+                warnCount = warnCount + 1;
+            }
+            i = i + 1;
+        }
+        refreshProblems();
+        applyDiagnostics();
+    }
+
     // ---------------------------------------------------------------- view helpers
 
     void zoomEditors(int delta) {
@@ -1270,6 +1465,8 @@ public class IdeApp extends Panel {
             ed.setText(text);
             ed.document.markSaved();
             ed.onCaretChanged(pos -> caretMoved(pos));
+            d.mtime = Files.lastModified(FsPath.of(path));
+            ed.document.onChange(ch -> markEdited());
             ed.keyPre = e -> editorKey(e);
             ed.typedListener = c -> suggest.typed(c);
             ed.commandClick = e -> gotoDefinition();
@@ -1284,6 +1481,7 @@ public class IdeApp extends Panel {
         host.add(d.view());
         showDoc(tabs.docs.size() - 1);
         applyDiagnostics();
+        markEdited();
     }
 
     void docChanged() {
@@ -1332,6 +1530,9 @@ public class IdeApp extends Panel {
         }
         tabs.repaint();
         refreshState();
+        if (!restoring) {
+            saveSession();
+        }
     }
 
     void closeActive() {
@@ -1413,6 +1614,7 @@ public class IdeApp extends Panel {
         if (d.kind == 0) {
             Files.writeString(FsPath.of(d.path), d.editor.getText());
             d.editor.document.markSaved();
+            d.mtime = Files.lastModified(FsPath.of(d.path));
             IdeComplete.touch();
         } else {
             saveDesigner(d);
@@ -2038,8 +2240,21 @@ public class IdeApp extends Panel {
         }
     }
 
+    /** ⌘Q: asks about unsaved documents; false cancels the quit. */
+    boolean confirmQuit() {
+        int i = 0;
+        while (i < tabs.docs.size()) {
+            if (!confirmDoc(tabs.docs.get(i))) {
+                return false;
+            }
+            i = i + 1;
+        }
+        return true;
+    }
+
     /** Called when the window is asked to close: returns false to veto. */
     boolean confirmExit() {
+        saveSession();
         int i = 0;
         while (i < tabs.docs.size()) {
             if (!confirmDoc(tabs.docs.get(i))) {

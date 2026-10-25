@@ -167,6 +167,71 @@ public class IdeDemo {
         }
     }
 
+    static void typeKeys(CodeEditor e, String s, boolean viaText) {
+        int i = 0;
+        while (i < s.length()) {
+            if (viaText) {
+                UiTest.typeText(e, s.substring(i, i + 1), false);
+            } else {
+                UiTest.keyPress(e, s.charAt(i));
+            }
+            i = i + 1;
+        }
+    }
+
+    static void report(String what) {
+        IdeSuggest p = ide.suggest;
+        String s = what + ": ";
+        if (p.isOpen) {
+            s = s + p.shown.size() + " items:";
+            int i = 0;
+            while (i < p.shown.size() && i < 5) {
+                s = s + " " + p.shown.get(i).text;
+                i = i + 1;
+            }
+        } else {
+            s = s + "no popup";
+        }
+        log(s + "\n");
+    }
+
+    /** Types through the real key / text-input paths and checks that the list pops up on its own. */
+    static void autotypeStep() {
+        IdeDoc d = ide.activeDoc();
+        if (step == 1) {
+            ide.openFile(ide.project.dir + "/src/MainForm.java");
+            return;
+        }
+        CodeEditor e = d.editor;
+        if (step == 2) {
+            int at = e.getText().indexOf("buildUi();");
+            e.moveCaret(at + 10, 0);
+            UiTest.keyPress(e, 13);
+            typeKeys(e, "lblM", false);
+            report("key path 'lblM'");
+            String[] pre = new String[1];
+            ide.indexContext(d);
+            ArrayList<IdeItem> cs = IdeComplete.candidates(e.getText(), e.caret.offset, pre);
+            log("direct candidates=" + cs.size() + " pre=" + pre[0] + " word=" + e.wordBeforeCaret() + " inStr=" + e.inStringOrComment(e.caret.offset) + " typedListener=" + (e.typedListener != null) + "\n");
+        } else if (step == 3) {
+            ide.suggest.hide();
+            typeKeys(e, "x", false);
+            ide.suggest.hide();
+            e.moveCaret(e.document.getLength(), 0);
+            int at = e.getText().indexOf("lblM");
+            e.moveCaret(at, 0);
+            e.executeCommand(EditorCommand.SELECT_LINE);
+            typeKeys(e, "txtEditor.", true);
+            report("text path 'txtEditor.'");
+            ide.window.snapshot("/tmp/ide-autotype-dot.png");
+        } else if (step == 4) {
+            ide.suggest.hide();
+            typeKeys(e, "txtF", true);
+            report("text path 'txtF'");
+            ide.window.snapshot("/tmp/ide-autotype.png");
+        }
+    }
+
     static void log(String s) {
         logText = logText + s;
         Files.writeString(FsPath.of("/tmp/ide-edit.log"), logText);
@@ -243,6 +308,43 @@ public class IdeDemo {
             defStep();
             return;
         }
+        if (mode != null && mode.equals("restore")) {
+            if (step == 1) {
+                ide.restoreSession();
+            } else if (step == 2) {
+                log("restored: project=" + (ide.project == null ? "none" : ide.project.name) + " tabs=" + ide.tabs.docs.size()
+                        + " active=" + (ide.activeDoc() == null ? "-" : ide.activeDoc().title) + "\n");
+                ide.window.snapshot("/tmp/ide-restore.png");
+            }
+            return;
+        }
+        if (mode != null && mode.equals("extern")) {
+            if (step == 1) {
+                ide.openFile(ide.project.dir + "/src/MainForm.java");
+            } else if (step == 2) {
+                Files.writeString(FsPath.of(ide.project.dir + "/src/MainForm.java"), "// changed outside\n" + ide.activeDoc().editor.getText());
+            } else if (step == 4) {
+                log("extern: first line=[" + ide.activeDoc().editor.document.getLine(0) + "] dirty=" + ide.activeDoc().isDirty() + " status=" + ide.statusText + "\n");
+            }
+            return;
+        }
+        if (mode != null && mode.equals("check")) {
+            if (step == 1) {
+                ide.openFile(ide.project.dir + "/src/MainForm.java");
+            } else if (step == 3) {
+                log("clean: diag=" + ide.diagCount + "\n");
+                CodeEditor e = ide.activeDoc().editor;
+                e.goTo(12, 0);
+                e.insertText("        int q = \"s\"; undefinedCall();\n");
+            } else if (step == 6) {
+                log("with errors: diag=" + ide.diagCount + " problems=" + ide.problems.root.kids.size() + "\n");
+                ide.window.snapshot("/tmp/ide-check.png");
+                ide.activeDoc().editor.executeCommand(EditorCommand.UNDO);
+            } else if (step == 9) {
+                log("fixed: diag=" + ide.diagCount + "\n");
+            }
+            return;
+        }
         if (mode != null && mode.equals("tools2")) {
             tools2Step();
             return;
@@ -253,6 +355,10 @@ public class IdeDemo {
         }
         if (mode != null && mode.equals("complete")) {
             completeStep();
+            return;
+        }
+        if (mode != null && mode.equals("autotype")) {
+            autotypeStep();
             return;
         }
         if (mode != null && mode.equals("edit")) {
