@@ -511,6 +511,13 @@ public final class IdeServices {
     public List<CodeAction> codeActions(
             String path, String text, int version, Map<String, String> overlays, List<Diagnostic> diags
     ) {
+        return codeActions(path, text, version, overlays, diags, -1);
+    }
+
+    /** Like {@link #codeActions(String, String, int, Map, List)}; {@code onLine0 >= 0} limits inspection fixes to that line. */
+    public List<CodeAction> codeActions(
+            String path, String text, int version, Map<String, String> overlays, List<Diagnostic> diags, int onLine0
+    ) {
         List<CodeAction> out = new ArrayList<>();
         Compilation comp = analyzeCached(path, text, version, overlays);
         SemanticModel model = comp == null ? null : comp.semanticModel();
@@ -553,6 +560,7 @@ public final class IdeServices {
                 }
             }
         }
+        addInspectionFixes(out, path, text, useDiags, onLine0);
         // Add import for uniquely resolved missing types
         for (Diagnostic d : useDiags) {
             if (d.message() == null || d.location() == null) {
@@ -585,6 +593,80 @@ public final class IdeServices {
             }
         }
         return out;
+    }
+
+    private static final java.util.regex.Pattern STRING_EQ = java.util.regex.Pattern.compile(
+            "(\"(?:[^\"\\\\]|\\\\.)*\"|[A-Za-z_][\\w.]*(?:\\([^()]*\\))?)\\s*(==|!=)\\s*"
+                    + "(\"(?:[^\"\\\\]|\\\\.)*\"|[A-Za-z_][\\w.]*(?:\\([^()]*\\))?)");
+    private static final java.util.regex.Pattern LOCAL_DECL = java.util.regex.Pattern.compile(
+            "\\s*(?:final\\s+)?[A-Za-z_][\\w.<>\\[\\], ?]*\\s+([A-Za-z_]\\w*)\\s*(?:=\\s*[^;()]*)?;\\s*(?://.*)?");
+
+    /** Quick fixes for the JNWxxx inspections: simple deletions / rewrites plus "suppress this warning". */
+    private static void addInspectionFixes(List<CodeAction> out, String path, String text,
+            List<Diagnostic> diags, int onLine0) {
+        String[] lines = text.replace("\r\n", "\n").split("\n", -1);
+        Set<String> seen = new LinkedHashSet<>();
+        for (Diagnostic d : diags) {
+            if (d.code() == null || !d.code().startsWith("JNW") || d.location() == null
+                    || !sameFile(d.location().file(), path)) {
+                continue;
+            }
+            int ln = d.location().line() - 1;
+            if (ln < 0 || ln >= lines.length || (onLine0 >= 0 && ln != onLine0)) {
+                continue;
+            }
+            String line = lines[ln];
+            String code = d.code();
+            String trimmed = line.trim();
+            boolean wholeLineFix = false;
+            if (code.equals("JNW010") && trimmed.endsWith(";") && !trimmed.contains("{")) {
+                wholeLineFix = true;
+                if (seen.add("del" + ln)) {
+                    out.add(deleteLine(path, lines, ln, "删除自赋值语句"));
+                }
+            } else if (code.equals("JNW001") && LOCAL_DECL.matcher(line).matches()
+                    && !trimmed.startsWith("return") && !trimmed.startsWith("throw")) {
+                wholeLineFix = true;
+                if (seen.add("del" + ln)) {
+                    out.add(deleteLine(path, lines, ln, "删除未使用的变量"));
+                }
+            } else if (code.equals("JNW007")) {
+                java.util.regex.Matcher m = STRING_EQ.matcher(line);
+                while (m.find()) {
+                    boolean lit = m.group(1).startsWith("\"") || m.group(3).startsWith("\"");
+                    if (!lit && !d.message().contains("==")) {
+                        continue;
+                    }
+                    String a = m.group(1);
+                    String b = m.group(3);
+                    if (a.startsWith("\"") && !b.startsWith("\"")) {
+                        String t = a;
+                        a = b;
+                        b = t;
+                    }
+                    String repl = (m.group(2).equals("!=") ? "!" : "") + a + ".equals(" + b + ")";
+                    if (seen.add("eq" + ln)) {
+                        out.add(new CodeAction("改用 equals 比较字符串", "quickfix",
+                                List.of(new TextEdit(path, ln, m.start(), ln, m.end(), repl))));
+                    }
+                    break;
+                }
+            }
+            if (!line.contains("noinspect") && seen.add("sup" + ln + code)) {
+                out.add(new CodeAction("抑制此警告（// noinspect: " + code + "）", "quickfix",
+                        List.of(new TextEdit(path, ln, line.length(), ln, line.length(), " // noinspect: " + code))));
+            }
+        }
+    }
+
+    private static CodeAction deleteLine(String path, String[] lines, int ln, String title) {
+        int endLine = ln + 1;
+        int endCol = 0;
+        if (endLine >= lines.length) {
+            endLine = ln;
+            endCol = lines[ln].length();
+        }
+        return new CodeAction(title, "quickfix", List.of(new TextEdit(path, ln, 0, endLine, endCol, "")));
     }
 
     private static Set<String> collectUsedTypeSimpleNames(SemanticModel model, String path) {

@@ -17,6 +17,8 @@ class IdeItem {
     ArrayList<IdeItem> kids = new ArrayList<IdeItem>();
     IdeItem parent;
     int tag = 0;
+    /** Text edits of a quick fix, five entries per edit: startLine, startCol, endLine, endCol, newText. */
+    ArrayList<String> edits = new ArrayList<String>();
 
     IdeItem(String t, String ic, String k) {
         text = t;

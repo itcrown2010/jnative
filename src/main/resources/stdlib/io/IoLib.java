@@ -98,6 +98,12 @@ class ProcNative {
     @Native(symbol = "jnative_proc_spawn_s")
     static native NativePtr spawn(String file, String argvJoined, int argc, String cwd);
 
+    @Native(symbol = "jnative_proc_spawn_pipe_s")
+    static native NativePtr spawnPipe(String file, String argvJoined, int argc, String cwd);
+
+    @Native(symbol = "jnative_proc_write_s")
+    static native int writeFd(int fd, String data);
+
     @Native(symbol = "jnative_proc_wait")
     static native int waitPid(int pid);
 
@@ -813,6 +819,7 @@ class ProcessBuilder {
     ArrayList<String> args;
     String directory;
     HashMap<String, String> environment;
+    int stdinPipe;
 
     ProcessBuilder(String executable) {
         file = executable;
@@ -824,6 +831,12 @@ class ProcessBuilder {
 
     ProcessBuilder argument(String a) {
         args.add(a);
+        return this;
+    }
+
+    /** Gives the child a stdin pipe (see Process.writeStdin) instead of inheriting this process's stdin. */
+    ProcessBuilder pipeStdin() {
+        stdinPipe = 1;
         return this;
     }
 
@@ -842,7 +855,9 @@ class ProcessBuilder {
             joined = joined + args.get(i);
             i = i + 1;
         }
-        NativePtr desc = ProcNative.spawn(file, joined, args.size(), directory);
+        NativePtr desc = stdinPipe != 0
+                ? ProcNative.spawnPipe(file, joined, args.size(), directory)
+                : ProcNative.spawn(file, joined, args.size(), directory);
         if (desc == NativePtr.NULL) {
             return null;
         }
@@ -856,6 +871,7 @@ class Process {
     int pid;
     int stdoutFd;
     int stderrFd;
+    int stdinFd = -1;
     int alive;
 
     Process(int p, int outFd, int errFd) {
@@ -887,7 +903,11 @@ class Process {
         int pid = IoUtil.parseInt(parts.get(0));
         int outFd = IoUtil.parseInt(parts.get(1));
         int errFd = IoUtil.parseInt(parts.get(2));
-        return new Process(pid, outFd, errFd);
+        Process proc = new Process(pid, outFd, errFd);
+        if (parts.size() >= 4) {
+            proc.stdinFd = IoUtil.parseInt(parts.get(3));
+        }
+        return proc;
     }
 
     String readStdout(int maxBytes) {
@@ -914,6 +934,22 @@ class Process {
             return "";
         }
         return s;
+    }
+
+    /** Writes text (ASCII/UTF-8) to the child's stdin; only for processes started with pipeStdin(). False on error. */
+    boolean writeStdin(String text) {
+        if (stdinFd < 0) {
+            return false;
+        }
+        return ProcNative.writeFd(stdinFd, text) >= 0;
+    }
+
+    /** Closes the child's stdin (signals EOF to it). */
+    void closeStdin() {
+        if (stdinFd >= 0) {
+            ProcNative.closeFd(stdinFd);
+            stdinFd = -1;
+        }
     }
 
     /**
@@ -951,6 +987,7 @@ class Process {
             alive = 0;
             ProcNative.closeFd(stdoutFd);
             ProcNative.closeFd(stderrFd);
+            closeStdin();
         }
         return code;
     }
@@ -960,6 +997,7 @@ class Process {
         alive = 0;
         ProcNative.closeFd(stdoutFd);
         ProcNative.closeFd(stderrFd);
+        closeStdin();
         return code;
     }
 

@@ -165,6 +165,9 @@ public class IdeApp extends Panel {
     Panel host;
     IdeFindBar findBar;
     IdeSuggest suggest;
+    IdeHint hint;
+    IdeLsp lsp = new IdeLsp();
+    int lspRestarts = 0;
     IdeQuick quick;
     IdeWelcome welcome;
     Canvas bottomHead;
@@ -242,6 +245,8 @@ public class IdeApp extends Panel {
         findBar = new IdeFindBar(this);
         suggest = new IdeSuggest(this);
         host.add(suggest);
+        hint = new IdeHint(this);
+        host.add(hint);
         welcome = new IdeWelcome(this);
         add(welcome);
 
@@ -306,6 +311,8 @@ public class IdeApp extends Panel {
                 quick.close();
             } else if (findBar.shown) {
                 findBar.close();
+            } else if (hint.isOpen) {
+                hint.hide();
             } else {
                 suggest.hide();
             }
@@ -314,12 +321,195 @@ public class IdeApp extends Panel {
 
     /** Key pre-filter of every code editor: completion list first, then Esc closes the find bar. */
     void editorKey(KeyEvent e) {
+        if (e.keyCode == KeyCode.ESCAPE && !suggest.isOpen && hint.isOpen) {
+            e.consume();
+            hint.hide();
+            return;
+        }
         if (e.keyCode == KeyCode.ESCAPE && !suggest.isOpen && findBar.shown) {
             e.consume();
             findBar.close();
             return;
         }
+        if (e.altDown != 0 && e.metaDown == 0 && e.ctrlDown == 0 && e.keyCode == KeyCode.ENTER) {
+            e.consume();
+            quickFix();
+            return;
+        }
+        if (e.ctrlDown != 0 && e.metaDown == 0 && e.altDown == 0) {
+            if (e.keyCode == 80) {
+                e.consume();
+                paramInfo();
+                return;
+            }
+            if (e.keyCode == 81) {
+                e.consume();
+                quickDoc();
+                return;
+            }
+        }
         suggest.keyPre(e);
+    }
+
+    // ---------------------------------------------------------------- language service
+
+    /** Starts (or restarts, when the project changed or the process died) the language service. */
+    boolean ensureLsp() {
+        if (project == null) {
+            return false;
+        }
+        if (lsp.running() && lsp.root.equals(project.dir)) {
+            return true;
+        }
+        if (lsp.dead && lsp.root.equals(project.dir) && lspRestarts >= 3) {
+            return false;
+        }
+        if (lsp.dead && lsp.root.equals(project.dir)) {
+            lspRestarts = lspRestarts + 1;
+        } else {
+            lspRestarts = 0;
+        }
+        return lsp.start(project.dir);
+    }
+
+    /** ⌃P: parameter info for the call around the caret. */
+    void paramInfo() {
+        IdeDoc d = activeDoc();
+        if (d == null || d.kind != 0) {
+            return;
+        }
+        hint.triggerParams(d.editor, d.path);
+    }
+
+    /** ⌃Q: quick documentation (signature, return type, owner) of the symbol at the caret. */
+    void quickDoc() {
+        IdeDoc d = activeDoc();
+        if (d == null || d.kind != 0) {
+            return;
+        }
+        suggest.hide();
+        hint.quickDoc(d.editor, d.path);
+    }
+
+    void typedHook(int code) {
+        suggest.typed(code);
+        hintTyped(code);
+    }
+
+    /** ⌥Enter: quick fixes for the problems at the caret line (remove / rewrite / suppress / add import). */
+    void quickFix() {
+        IdeDoc d = activeDoc();
+        if (d == null || d.kind != 0 || d.path.length() == 0) {
+            return;
+        }
+        if (!ensureLsp()) {
+            setStatus("语言服务未启动，无法提供快速修复");
+            return;
+        }
+        CodeEditor ed = d.editor;
+        lsp.sync(d.path, ed.getText());
+        TextPosition p = ed.document.offsetToPosition(ed.caret.offset);
+        int line = p.line;
+        String path = d.path;
+        String range = ",\"range\":{\"start\":{\"line\":" + line + ",\"character\":" + p.column
+                + "},\"end\":{\"line\":" + line + ",\"character\":" + p.column + "}},\"context\":{\"diagnostics\":[]}";
+        lsp.requestAt("textDocument/codeAction", path, line, p.column, range, r -> gotQuickFixes(d, r));
+    }
+
+    void gotQuickFixes(IdeDoc d, JsonValue r) {
+        if (r == null || !r.isArray() || r.asArray().size() == 0) {
+            setStatus("此处没有可用的快速修复");
+            return;
+        }
+        ArrayList<IdeItem> items = new ArrayList<IdeItem>();
+        JsonArray arr = r.asArray();
+        int i = 0;
+        while (i < arr.size()) {
+            JsonObject a = arr.get(i).asObject();
+            IdeItem it = new IdeItem(a.getString("title", ""), "cm", "");
+            JsonValue ev = a.get("edit");
+            if (ev != null && ev.isObject()) {
+                JsonValue cv = ev.asObject().get("changes");
+                if (cv != null && cv.isObject() && cv.asObject().keys.size() > 0) {
+                    JsonValue list = cv.asObject().get(cv.asObject().keys.get(0));
+                    if (list != null && list.isArray()) {
+                        int k = 0;
+                        while (k < list.asArray().size()) {
+                            JsonObject te = list.asArray().get(k).asObject();
+                            JsonObject rg = te.get("range").asObject();
+                            JsonObject st = rg.get("start").asObject();
+                            JsonObject en = rg.get("end").asObject();
+                            it.edits.add("" + st.getInt("line", 0));
+                            it.edits.add("" + st.getInt("character", 0));
+                            it.edits.add("" + en.getInt("line", 0));
+                            it.edits.add("" + en.getInt("character", 0));
+                            it.edits.add(te.getString("newText", ""));
+                            k = k + 1;
+                        }
+                    }
+                }
+            }
+            if (it.edits.size() > 0) {
+                items.add(it);
+            }
+            i = i + 1;
+        }
+        if (items.size() == 0) {
+            setStatus("此处没有可用的快速修复");
+            return;
+        }
+        quick.open("快速修复（Enter 应用）", items, it -> applyQuickFix(d, it));
+    }
+
+    void applyQuickFix(IdeDoc d, IdeItem it) {
+        CodeEditor ed = d.editor;
+        int n = it.edits.size() / 5;
+        ArrayList<Integer> starts = new ArrayList<Integer>();
+        ArrayList<Integer> lens = new ArrayList<Integer>();
+        ArrayList<String> news = new ArrayList<String>();
+        int k = 0;
+        while (k < n) {
+            int a = ed.document.positionToOffset(DsUtil.parseInt(it.edits.get(k * 5), 0), DsUtil.parseInt(it.edits.get(k * 5 + 1), 0));
+            int b = ed.document.positionToOffset(DsUtil.parseInt(it.edits.get(k * 5 + 2), 0), DsUtil.parseInt(it.edits.get(k * 5 + 3), 0));
+            starts.add(a);
+            lens.add(b - a);
+            news.add(it.edits.get(k * 5 + 4));
+            k = k + 1;
+        }
+        ed.undo.closeGroup();
+        int done = 0;
+        while (done < n) {
+            int best = -1;
+            int j = 0;
+            while (j < n) {
+                if (starts.get(j) >= 0 && (best < 0 || starts.get(j) > starts.get(best))) {
+                    best = j;
+                }
+                j = j + 1;
+            }
+            ed.applyEdit(starts.get(best), lens.get(best), news.get(best));
+            starts.set(best, -1);
+            done = done + 1;
+        }
+        ed.undo.closeGroup();
+        markEdited();
+        setStatus("已应用：" + it.text);
+    }
+
+    /** After a typed character: "(" and "," open parameter info; while it is open it follows the caret. */
+    void hintTyped(int code) {
+        IdeDoc d = activeDoc();
+        if (d == null || d.kind != 0 || d.path.length() == 0 || !(d.path.endsWith(".java") || d.path.endsWith(".jn"))) {
+            return;
+        }
+        CodeEditor ed = d.editor;
+        if (code == 40 || code == 44) {
+            if (ed.inStringOrComment(ed.caret.offset) == 0) {
+                hint.triggerParams(ed, d.path);
+            }
+        } else if (hint.isOpen && hint.mode == 0) {
+            hint.triggerParams(ed, d.path);
+        }
     }
 
     void focusEditor() {
@@ -403,6 +593,9 @@ public class IdeApp extends Panel {
         edit.addSeparator();
         item(edit, "代码补全", 75, 0, () -> completeDialog());
         item(edit, "转到定义", 68, 0, () -> gotoDefinition());
+        item(edit, "快速修复（⌥Enter）", 0, 0, () -> quickFix());
+        item(edit, "参数信息（⌃P）", 0, 0, () -> paramInfo());
+        item(edit, "快速文档（⌃Q）", 0, 0, () -> quickDoc());
         item(edit, "后退", 37, 2, () -> navBack());
         item(edit, "前进", 39, 2, () -> navForward());
         bar.add(edit);
@@ -1468,7 +1661,7 @@ public class IdeApp extends Panel {
             d.mtime = Files.lastModified(FsPath.of(path));
             ed.document.onChange(ch -> markEdited());
             ed.keyPre = e -> editorKey(e);
-            ed.typedListener = c -> suggest.typed(c);
+            ed.typedListener = c -> typedHook(c);
             ed.commandClick = e -> gotoDefinition();
             ed.onMouse(e -> {
                 if (e.eventType == 1) {
@@ -1476,6 +1669,9 @@ public class IdeApp extends Panel {
                 }
             });
             d.editor = ed;
+            if (project != null && (path.endsWith(".java") || path.endsWith(".jn")) && ensureLsp()) {
+                lsp.sync(path, text);
+            }
         }
         tabs.docs.add(d);
         host.add(d.view());
@@ -1490,6 +1686,16 @@ public class IdeApp extends Panel {
     }
 
     void caretMoved(TextPosition p) {
+        if (hint.isOpen) {
+            if (hint.mode == 1) {
+                hint.hide();
+            } else {
+                IdeDoc hd = activeDoc();
+                if (hd != null && hd.kind == 0 && hd.editor == hint.editor && hd.path.length() > 0) {
+                    hint.triggerParams(hd.editor, hd.path);
+                }
+            }
+        }
         caretText = "行 " + (p.line + 1) + "，列 " + (p.column + 1);
         status.repaint();
         tabs.repaint();
@@ -1505,6 +1711,7 @@ public class IdeApp extends Panel {
         }
         vis(welcome, tabs.docs.size() == 0);
         suggest.hide();
+        hint.hide();
         IdeDoc d = activeDoc();
         findBar.sync();
         layoutDocs();
@@ -1568,6 +1775,9 @@ public class IdeApp extends Panel {
         Component v = d.view();
         if (d.designer != null) {
             d.designer.dispose();
+        }
+        if (d.kind == 0 && d.path.length() > 0) {
+            lsp.closeDoc(d.path);
         }
         tabs.docs.remove(idx);
         host.remove(v);
@@ -1746,6 +1956,7 @@ public class IdeApp extends Panel {
             }
             return;
         }
+        hint.hide();
         suggest.open(e, all, pre[0]);
         if (!suggest.isOpen) {
             suggest.hide();
@@ -2249,6 +2460,7 @@ public class IdeApp extends Panel {
             }
             i = i + 1;
         }
+        lsp.stop();
         return true;
     }
 
@@ -2263,6 +2475,7 @@ public class IdeApp extends Panel {
             i = i + 1;
         }
         stopAll();
+        lsp.stop();
         return true;
     }
 }

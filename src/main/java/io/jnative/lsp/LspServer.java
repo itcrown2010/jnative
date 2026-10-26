@@ -61,8 +61,17 @@ public final class LspServer {
     public static void main(String[] args) throws Exception {
         LspLog.info("starting (stdio) version=" + io.jnative.Main.VERSION
                 + " (extension expects matching jnative.jar)");
-        new LspServer(System.in, System.out).run();
+        LspServer server = new LspServer(System.in, System.out);
+        for (String a : args) {
+            if ("--ascii".equals(a)) {
+                server.asciiOnly = true; // clients that cannot count UTF-8 bytes (Studio): keep every message 7-bit
+            }
+        }
+        server.run();
     }
+
+    /** When set, every non-ASCII character in outgoing JSON is written as a \\uXXXX escape. */
+    private boolean asciiOnly = false;
 
     public void run() throws IOException {
         BufferedInputStream bin = new BufferedInputStream(in);
@@ -687,8 +696,26 @@ public final class LspServer {
         }
         String path = uriToPath(uri);
         try {
+            int atLine = -1;
+            int ri = body.indexOf("\"range\"");
+            if (ri >= 0) {
+                int li = body.indexOf("\"line\":", ri);
+                if (li >= 0) {
+                    int k = li + 7;
+                    while (k < body.length() && body.charAt(k) == ' ') {
+                        k++;
+                    }
+                    int e = k;
+                    while (e < body.length() && Character.isDigit(body.charAt(e))) {
+                        e++;
+                    }
+                    if (e > k) {
+                        atLine = Integer.parseInt(body.substring(k, e));
+                    }
+                }
+            }
             List<IdeServices.CodeAction> actions = ide.codeActions(
-                    path, doc.text, doc.version, openOverlays(), List.of());
+                    path, doc.text, doc.version, openOverlays(), List.of(), atLine);
             StringBuilder sb = new StringBuilder("[");
             boolean first = true;
             for (IdeServices.CodeAction a : actions) {
@@ -914,6 +941,18 @@ public final class LspServer {
     }
 
     private void writeRaw(String json) throws IOException {
+        if (asciiOnly) {
+            StringBuilder esc = new StringBuilder(json.length() + 16);
+            for (int i = 0; i < json.length(); i++) {
+                char c = json.charAt(i);
+                if (c > 126) {
+                    esc.append(String.format(Locale.ROOT, "\\u%04x", (int) c));
+                } else {
+                    esc.append(c);
+                }
+            }
+            json = esc.toString();
+        }
         byte[] bytes = json.getBytes(StandardCharsets.UTF_8);
         synchronized (writeLock) {
             String header = "Content-Length: " + bytes.length + "\r\n\r\n";

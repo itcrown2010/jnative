@@ -22,6 +22,16 @@ char *jnative_proc_spawn_s(
         int32_t argc,
         const char *cwd);
 
+/** Like jnative_proc_spawn_s but the child's stdin is a pipe; returns "pid\\nout\\nerr\\nstdinFd". */
+char *jnative_proc_spawn_pipe_s(
+        const char *file,
+        const char *argv_joined,
+        int32_t argc,
+        const char *cwd);
+
+/** Writes all of data to fd; returns bytes written or -1. */
+int32_t jnative_proc_write_s(int32_t fd, const char *data);
+
 int32_t jnative_proc_wait(int32_t pid);
 int32_t jnative_proc_kill(int32_t pid);
 char *jnative_proc_read_string(int32_t fd, int32_t max_bytes);

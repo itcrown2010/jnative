@@ -45,37 +45,46 @@ static char **split_argv_lines(const char *joined, int32_t argc, char **out_blob
     return argv;
 }
 
-char *jnative_proc_spawn_s(
+static char *spawn_impl(
         const char *file,
         const char *argv_joined,
         int32_t argc,
-        const char *cwd
+        const char *cwd,
+        int with_stdin
 ) {
     if (file == NULL || argv_joined == NULL || argc <= 0) {
         return NULL;
     }
     int outp[2];
     int errp[2];
+    int inp[2] = {-1, -1};
     if (pipe(outp) != 0 || pipe(errp) != 0) {
         return NULL;
     }
-    char *blob = NULL;
-    char **argv = split_argv_lines(argv_joined, argc, &blob);
-    if (argv == NULL) {
+    if (with_stdin && pipe(inp) != 0) {
         close(outp[0]);
         close(outp[1]);
         close(errp[0]);
         close(errp[1]);
         return NULL;
     }
-    pid_t pid = fork();
-    if (pid < 0) {
+    char *blob = NULL;
+    char **argv = split_argv_lines(argv_joined, argc, &blob);
+    pid_t pid = -1;
+    if (argv != NULL) {
+        pid = fork();
+    }
+    if (argv == NULL || pid < 0) {
         free(blob);
         free(argv);
         close(outp[0]);
         close(outp[1]);
         close(errp[0]);
         close(errp[1]);
+        if (with_stdin) {
+            close(inp[0]);
+            close(inp[1]);
+        }
         return NULL;
     }
     if (pid == 0) {
@@ -86,6 +95,11 @@ char *jnative_proc_spawn_s(
         }
         dup2(outp[1], STDOUT_FILENO);
         dup2(errp[1], STDERR_FILENO);
+        if (with_stdin) {
+            dup2(inp[0], STDIN_FILENO);
+            close(inp[0]);
+            close(inp[1]);
+        }
         close(outp[0]);
         close(outp[1]);
         close(errp[0]);
@@ -97,16 +111,75 @@ char *jnative_proc_spawn_s(
     free(argv);
     close(outp[1]);
     close(errp[1]);
-    char *desc = (char *)malloc(64);
+    if (with_stdin) {
+        close(inp[0]);
+        /* writing to a dead child must fail with EPIPE, not kill the IDE */
+        signal(SIGPIPE, SIG_IGN);
+    }
+    char *desc = (char *)malloc(96);
     if (desc == NULL) {
         close(outp[0]);
         close(errp[0]);
+        if (with_stdin) {
+            close(inp[1]);
+        }
         kill(pid, SIGTERM);
         waitpid(pid, NULL, 0);
         return NULL;
     }
-    snprintf(desc, 64, "%d\n%d\n%d", (int)pid, outp[0], errp[0]);
+    if (with_stdin) {
+        snprintf(desc, 96, "%d\n%d\n%d\n%d", (int)pid, outp[0], errp[0], inp[1]);
+    } else {
+        snprintf(desc, 96, "%d\n%d\n%d", (int)pid, outp[0], errp[0]);
+    }
     return desc;
+}
+
+char *jnative_proc_spawn_s(
+        const char *file,
+        const char *argv_joined,
+        int32_t argc,
+        const char *cwd
+) {
+    return spawn_impl(file, argv_joined, argc, cwd, 0);
+}
+
+char *jnative_proc_spawn_pipe_s(
+        const char *file,
+        const char *argv_joined,
+        int32_t argc,
+        const char *cwd
+) {
+    return spawn_impl(file, argv_joined, argc, cwd, 1);
+}
+
+/* Writes the whole NUL-terminated string to fd (retrying on EINTR / short writes).
+ * Returns the number of bytes written, or -1 on error (e.g. the child closed its stdin). */
+int32_t jnative_proc_write_s(int32_t fd, const char *data) {
+    if (fd < 0 || data == NULL) {
+        return -1;
+    }
+    size_t len = strlen(data);
+    size_t done = 0;
+    while (done < len) {
+        ssize_t n = write(fd, data + done, len - done);
+        if (n < 0) {
+            if (errno == EINTR) {
+                continue;
+            }
+            if (errno == EAGAIN) {
+                struct pollfd pf;
+                pf.fd = fd;
+                pf.events = POLLOUT;
+                pf.revents = 0;
+                poll(&pf, 1, 100);
+                continue;
+            }
+            return -1;
+        }
+        done += (size_t)n;
+    }
+    return (int32_t)done;
 }
 
 int32_t jnative_proc_wait(int32_t pid) {

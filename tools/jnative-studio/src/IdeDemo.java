@@ -232,6 +232,56 @@ public class IdeDemo {
         }
     }
 
+    /** Language-service check: parameter info while typing "(", quick documentation, inspections. */
+    static void hintStep() {
+        IdeDoc d = ide.activeDoc();
+        if (step == 1) {
+            ide.openFile(ide.project.dir + "/src/Main.java");
+            return;
+        }
+        CodeEditor e = d.editor;
+        if (step == 2) {
+            int at = e.getText().indexOf("add(1");
+            e.moveCaret(at + 4, 0);
+            UiTest.keyPress(e, 13);
+            typeKeys(e, "add(", true);
+            log("after add( : open=" + ide.hint.isOpen + " lsp=" + ide.lsp.running() + "\n");
+        } else if (step == 3) {
+            log("hint open=" + ide.hint.isOpen + " sig=" + ide.hint.sig + "\n");
+            ide.window.snapshot("/tmp/ide-hint-params.png");
+            typeKeys(e, "1, ", true);
+        } else if (step == 4) {
+            log("hint2 open=" + ide.hint.isOpen + " sig=" + ide.hint.sig + " " + ide.hint.hlA + "-" + ide.hint.hlB + "\n");
+            ide.window.snapshot("/tmp/ide-hint-params2.png");
+            ide.hint.hide();
+            int at = e.getText().indexOf("Math.sqrt") + 7;
+            e.moveCaret(at, 0);
+            ide.quickDoc();
+        } else if (step == 5) {
+            log("doc open=" + ide.hint.isOpen + " mode=" + ide.hint.mode + " doc=" + ide.hint.doc + "\n");
+            ide.window.snapshot("/tmp/ide-hint-doc.png");
+            ide.hint.hide();
+            e.setText(Files.readString(FsPath.of(d.path)));
+            e.moveCaret(e.document.positionToOffset(11, 12), 0);
+            ide.quickFix();
+        } else if (step == 6) {
+            String s = "fix open=" + ide.quick.isOpen + " items=" + ide.quick.shown.size();
+            int i = 0;
+            while (i < ide.quick.shown.size()) {
+                s = s + " | " + ide.quick.shown.get(i).text;
+                i = i + 1;
+            }
+            log(s + "\n");
+            ide.window.snapshot("/tmp/ide-hint-fix.png");
+            if (ide.quick.shown.size() > 0) {
+                ide.applyQuickFix(d, ide.quick.shown.get(0));
+                ide.quick.close();
+            }
+        } else if (step == 7) {
+            log("line12=" + e.document.getLine(11) + "\n");
+        }
+    }
+
     static void log(String s) {
         logText = logText + s;
         Files.writeString(FsPath.of("/tmp/ide-edit.log"), logText);
@@ -355,6 +405,10 @@ public class IdeDemo {
         }
         if (mode != null && mode.equals("complete")) {
             completeStep();
+            return;
+        }
+        if (mode != null && mode.equals("hint")) {
+            hintStep();
             return;
         }
         if (mode != null && mode.equals("autotype")) {

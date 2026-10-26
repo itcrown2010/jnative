@@ -71,6 +71,31 @@ class IdeServicesTest {
     }
 
     @Test
+    void inspectionQuickFixes() {
+        String src = """
+                public class Main {
+                    public static void main(String[] args) {
+                        int unused = 3;
+                        String t = "x";
+                        if (t == "y") {
+                            System.out.println("same");
+                        }
+                    }
+                }
+                """;
+        List<IdeServices.CodeAction> all = ide.codeActions("Main.java", src, 1, Map.of(), List.of(), -1);
+        List<String> titles = all.stream().map(IdeServices.CodeAction::title).toList();
+        assertTrue(titles.contains("删除未使用的变量"), titles.toString());
+        assertTrue(titles.contains("改用 equals 比较字符串"), titles.toString());
+        assertTrue(titles.stream().anyMatch(x -> x.startsWith("抑制此警告")), titles.toString());
+        IdeServices.CodeAction eq = all.stream().filter(a -> a.title().startsWith("改用")).findFirst().orElseThrow();
+        assertTrue(eq.edits().get(0).newText().equals("t.equals(\"y\")"), eq.edits().get(0).newText());
+        List<IdeServices.CodeAction> onLine = ide.codeActions("Main.java", src, 1, Map.of(), List.of(), 2);
+        assertTrue(onLine.stream().allMatch(a -> a.edits().get(0).startLine0() == 2), "only line 2 fixes");
+        assertTrue(onLine.size() >= 2, onLine.toString());
+    }
+
+    @Test
     void crossFileDefinitionInMultiCuProject() {
         Path main = Path.of("examples/multi-cu-resolve/app/src/Main.jn").toAbsolutePath().normalize();
         if (!main.toFile().isFile()) {

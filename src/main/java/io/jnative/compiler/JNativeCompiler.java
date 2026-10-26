@@ -69,6 +69,7 @@ public final class JNativeCompiler {
         }
         // Lenient: IDE completion needs a typed model even when the buffer has errors.
         MultiUnitFrontend.Result fe = MultiUnitFrontend.analyzeProgram(program, reporter, true);
+        runInspections(fe, program, java.util.Set.of(userPath), reporter);
         long parseMs = (System.nanoTime() - t0) / 1_000_000L;
         CompilationUnit ast = fe == null ? null : fe.flattened();
         // Multi-CU keeps real paths; no stdlib line-offset remap needed.
@@ -83,6 +84,19 @@ public final class JNativeCompiler {
         boolean ok = diags.stream().noneMatch(d -> d.severity() == io.jnative.diagnostics.Diagnostic.Severity.ERROR);
         SyntaxTree tree = new SyntaxTree(fileName, unit.sourceText(), ast, diags, version);
         return new Compilation(version, tree, typed, model, diags, ok, parseMs, semMs);
+    }
+
+    /** IDE-only static inspections (warnings) over the parsed user units; skipped while there are errors. */
+    private static void runInspections(MultiUnitFrontend.Result fe, ProgramSources program,
+                                       java.util.Set<String> userPaths, DiagnosticReporter reporter) {
+        if (fe == null || fe.program() == null || reporter.hasErrors()) {
+            return;
+        }
+        java.util.Map<String, String> texts = new java.util.HashMap<>();
+        for (SourceUnit u : program.units()) {
+            texts.put(u.path(), u.sourceText());
+        }
+        io.jnative.inspect.Inspections.run(fe.program().units(), texts, userPaths, reporter);
     }
 
     /** Analyze a path on disk (frontend only). */
@@ -115,6 +129,11 @@ public final class JNativeCompiler {
             return new Compilation(version, null, null, null, reporter.diagnostics(), false, 0, 0);
         }
         MultiUnitFrontend.Result fe = MultiUnitFrontend.analyzeProgram(program, reporter, true);
+        java.util.Set<String> userPaths = new java.util.HashSet<>();
+        for (SourceUnit u : units) {
+            userPaths.add(u.path());
+        }
+        runInspections(fe, program, userPaths, reporter);
         long parseMs = (System.nanoTime() - t0) / 1_000_000L;
         List<io.jnative.diagnostics.Diagnostic> diags = reporter.diagnostics();
         if (fe == null || fe.typed() == null) {

@@ -40,6 +40,40 @@ class EndToEndTest {
     }
 
     @Test
+    void jsonParserDecodesUnicodeEscapes() throws Exception {
+        assertNative("""
+                import jnative.json.*;
+                public class JsonEsc {
+                    public static void main(String[] args) {
+                        JsonObject v = (JsonObject) JsonParser.parse("{\\"a\\":\\"x \\\\u2014 y \\\\u00e9 \\\\u4e2d \\\\r\\\\/\\"}");
+                        String s = v.get("a").asString();
+                        System.out.println(s.length());
+                        System.out.println(s.charAt(2) == 0x2014);
+                    }
+                }
+                """, "JsonEsc", "12\ntrue\n");
+    }
+
+    @Test
+    void childProcessStdinPipe() throws Exception {
+        assertNative("""
+                import jnative.io.*;
+                public class PipeCat {
+                    public static void main(String[] args) {
+                        ProcessBuilder pb = new ProcessBuilder("/bin/cat");
+                        pb.pipeStdin();
+                        Process p = pb.start();
+                        p.writeStdin("ping\\n");
+                        p.closeStdin();
+                        String out = p.readStdout(1000);
+                        p.waitFor();
+                        System.out.print(out);
+                    }
+                }
+                """, "PipeCat", "ping\n");
+    }
+
+    @Test
     void arithmetic() throws Exception {
         assertNative("""
                 public class Arithmetic {

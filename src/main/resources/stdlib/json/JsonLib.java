@@ -370,6 +370,29 @@ class JsonParser {
         return arr;
     }
 
+    /** Value of the four hex digits at {@code at}, or -1 when they are not hex. */
+    int hex4(int at) {
+        int v = 0;
+        int k = 0;
+        while (k < 4) {
+            int c = src.charAt(at + k);
+            int d = -1;
+            if (c >= 48 && c <= 57) {
+                d = c - 48;
+            } else if (c >= 97 && c <= 102) {
+                d = c - 87;
+            } else if (c >= 65 && c <= 70) {
+                d = c - 55;
+            }
+            if (d < 0) {
+                return -1;
+            }
+            v = v * 16 + d;
+            k = k + 1;
+        }
+        return v;
+    }
+
     String parseString() {
         if (pos >= n || src.charAt(pos) != 34) {
             return "";
@@ -392,6 +415,20 @@ class JsonParser {
                     out = out + "\n";
                 } else if (n2 == 116) {
                     out = out + "\t";
+                } else if (n2 == 114) {
+                    out = out + "\r";
+                } else if (n2 == 98) {
+                    out = out + String.valueOf((char) 8);
+                } else if (n2 == 102) {
+                    out = out + String.valueOf((char) 12);
+                } else if (n2 == 117 && pos + 5 < n) {
+                    int cu = hex4(pos + 2);
+                    if (cu >= 0) {
+                        out = out + String.valueOf((char) cu);
+                        pos = pos + 4;
+                    } else {
+                        out = out + "u";
+                    }
                 } else {
                     out = out + src.substring(pos + 1, pos + 2);
                 }
