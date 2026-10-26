@@ -755,6 +755,33 @@ void jn_cond_wait(void *cp, void *mp) {
     jn_leave_native();
 }
 
+/*
+ * Timed wait. Returns 1 if woken (signal / broadcast / spurious), 0 on timeout.
+ * Callers must re-check their predicate in a loop and recompute the remaining time.
+ */
+int jn_cond_timedwait(void *cp, void *mp, int64_t ms) {
+    JNCond *c = (JNCond *)cp;
+    JNMutex *m = (JNMutex *)mp;
+    struct timespec ts;
+    if (ms < 0) {
+        ms = 0;
+    }
+    clock_gettime(CLOCK_REALTIME, &ts);
+    ts.tv_sec += (time_t)(ms / 1000);
+    ts.tv_nsec += (long)(ms % 1000) * 1000000L;
+    if (ts.tv_nsec >= 1000000000L) {
+        ts.tv_sec += 1;
+        ts.tv_nsec -= 1000000000L;
+    }
+    jn_enter_native();
+    m->locked = 0;
+    int rc = pthread_cond_timedwait(&c->cv, &m->mu, &ts);
+    m->locked = 1;
+    m->owner = pthread_self();
+    jn_leave_native();
+    return rc == ETIMEDOUT ? 0 : 1;
+}
+
 void jn_cond_signal(void *p) {
     JNCond *c = (JNCond *)p;
     pthread_cond_signal(&c->cv);

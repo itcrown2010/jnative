@@ -210,6 +210,17 @@ public final class StdlibIncluder {
                 && !declaresType(sourceText, "JnFormat");
     }
 
+    private static final java.util.regex.Pattern CONCURRENT_API = java.util.regex.Pattern.compile(
+            "jnative\\.concurrent|\\bExecutorService\\b|\\bExecutors\\b|\\bTaskFuture\\b"
+                    + "|\\bCountDownLatch\\b|(?<![A-Za-z0-9_])Semaphore\\b|\\bReentrantLock\\b"
+                    + "|\\bCyclicBarrier\\b|\\bBlockingQueue\\b|\\bExecutionException\\b"
+                    + "|\\bCancellationException\\b");
+
+    /** Thread pools, task futures, latches, semaphores, locks, barriers, blocking queues. */
+    public static boolean needsConcurrent(String sourceText) {
+        return sourceText != null && CONCURRENT_API.matcher(sourceText).find();
+    }
+
     public static boolean needsCollections(String sourceText) {
         if (sourceText == null) {
             return false;
@@ -220,6 +231,7 @@ public final class StdlibIncluder {
                 || sourceText.contains("HashMap")
                 || sourceText.contains("HashSet")
                 || sourceText.contains("ArrayDeque")
+                || sourceText.contains("ThreadPoolExecutor")
                 || sourceText.contains("StringBuilder")
                 || sourceText.contains("Iterable<")
                 || sourceText.contains("Iterator<")
@@ -809,7 +821,8 @@ public final class StdlibIncluder {
                 || wantTime;
         boolean wantMath = needsMath(userSource);
         boolean wantTlsEarly = needsTls(userSource) || needsHttp(userSource) || needsHttp2(userSource) || wantWeb;
-        if (needsCollections(userSource) || wantUi || wantGraphics || wantEditor || wantJson || wantIo || wantStudio
+        boolean wantConcurrent = needsConcurrent(userSource);
+        if (needsCollections(userSource) || wantConcurrent || wantUi || wantGraphics || wantEditor || wantJson || wantIo || wantStudio
                 || wantAsync || wantDatabase || wantCrypto || wantRpc || wantTime || wantTlsEarly || needsNet(userSource)) {
             resources.add("stdlib/collections/BoxingLib.java");
             resources.add("stdlib/collections/CollectionsLib.java");
@@ -839,6 +852,9 @@ public final class StdlibIncluder {
         }
         if (wantAsync) {
             resources.add("stdlib/async/AsyncLib.java");
+        }
+        if (wantConcurrent) {
+            resources.add("stdlib/concurrent/ConcurrentLib.java");
         }
         if (wantDatabase) {
             resources.add("stdlib/db/DbLib.java");

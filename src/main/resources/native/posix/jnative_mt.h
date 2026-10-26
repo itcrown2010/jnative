@@ -112,6 +112,7 @@ int jn_mutex_owner_check(void *m); /* 1 if current thread owns */
 void *jn_cond_create(void);
 void jn_cond_destroy(void *c);
 void jn_cond_wait(void *c, void *m);
+int jn_cond_timedwait(void *c, void *m, int64_t ms); /* 1 = woken, 0 = timed out */
 void jn_cond_signal(void *c);
 void jn_cond_broadcast(void *c);
 

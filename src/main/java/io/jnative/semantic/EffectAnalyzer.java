@@ -169,7 +169,7 @@ public final class EffectAnalyzer {
         }
         if ("Condition".equals(cls)) {
             return switch (name) {
-                case "await" -> FunctionEffects.blocks();
+                case "await", "awaitMillis" -> FunctionEffects.blocks();
                 case "signal", "signalAll" -> FunctionEffects.none();
                 default -> null;
             };

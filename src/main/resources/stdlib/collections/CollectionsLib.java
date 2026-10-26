@@ -4661,7 +4661,13 @@ class JnMaps {
 
 }
 
-/** Blocking work queue + fixed workers (0.22). Avoids builtin Runnable class. */
+/**
+ * Blocking work queue + fixed workers.
+ *
+ * <p>Lifecycle: RUNNING(0) → SHUTDOWN(1, drains queued tasks) → STOP(2, drops queued tasks).
+ * Worker threads survive task exceptions: the failure is counted ({@link #failedCount}),
+ * remembered ({@link #lastError}) and reported on stderr, then the worker takes the next task.
+ */
 interface PoolTask {
     void run();
 }
@@ -4670,49 +4676,80 @@ interface Executor {
     void execute(PoolTask task);
 }
 
+/** Thrown by timed waits (futures, latches, pools) when the deadline passes. */
+class TimeoutException extends RuntimeException {
+    TimeoutException(String message) {
+        super(message);
+    }
+}
+
+/** Thrown when a pool refuses a task (shut down, or bounded queue full with the REJECT policy). */
+class RejectedExecutionException extends RuntimeException {
+    RejectedExecutionException(String message) {
+        super(message);
+    }
+}
+
 class ThreadPoolExecutor implements Executor {
+    /** Bounded-queue overflow policies. */
+    static final int REJECT_THROW = 0;
+    static final int REJECT_CALLER_RUNS = 1;
+    static final int REJECT_BLOCK = 2;
+    static final int REJECT_DISCARD = 3;
+
     ArrayDeque<PoolTask> queue;
     Mutex lock;
     Condition notEmpty;
+    Condition notFull;
+    Condition stateChanged;
     int workerCount;
     int running;
     int shutdownFlag;
     int daemon;
+    int capacity;
+    int rejectPolicy;
+    int activeCount;
+    int liveWorkers;
+    long completedCount;
+    long failedCount;
+    long rejectedCount;
+    Exception lastError;
+    int quiet;
     Thread[] workers;
 
     ThreadPoolExecutor(int workers) {
-        this.daemon = 0;
-        queue = new ArrayDeque<PoolTask>();
-        lock = new Mutex();
-        notEmpty = new Condition();
-        workerCount = workers;
-        if (workerCount < 1) {
-            workerCount = 1;
-        }
-        running = 0;
-        shutdownFlag = 0;
-        this.workers = new Thread[workerCount];
-        int i = 0;
-        while (i < workerCount) {
-            ThreadPoolWorker w = new ThreadPoolWorker();
-            w.pool = this;
-            this.workers[i] = w;
-            w.start();
-            i = i + 1;
-        }
+        setup(workers, 0, 0, 0);
     }
 
     ThreadPoolExecutor(int workers, int daemonFlag) {
+        setup(workers, daemonFlag, 0, 0);
+    }
+
+    /**
+     * @param capacity    max queued (not yet running) tasks; 0 = unbounded
+     * @param rejectPolicy one of REJECT_THROW / REJECT_CALLER_RUNS / REJECT_BLOCK / REJECT_DISCARD
+     */
+    ThreadPoolExecutor(int workers, int daemonFlag, int capacity, int rejectPolicy) {
+        setup(workers, daemonFlag, capacity, rejectPolicy);
+    }
+
+    private void setup(int workers, int daemonFlag, int capacity, int rejectPolicy) {
         this.daemon = daemonFlag;
+        this.capacity = capacity;
+        this.rejectPolicy = rejectPolicy;
         queue = new ArrayDeque<PoolTask>();
         lock = new Mutex();
         notEmpty = new Condition();
+        notFull = new Condition();
+        stateChanged = new Condition();
         workerCount = workers;
         if (workerCount < 1) {
             workerCount = 1;
         }
         running = 0;
         shutdownFlag = 0;
+        activeCount = 0;
+        liveWorkers = workerCount;
         this.workers = new Thread[workerCount];
         int i = 0;
         while (i < workerCount) {
@@ -4735,19 +4772,115 @@ class ThreadPoolExecutor implements Executor {
         }
         lock.lock();
         if (shutdownFlag != 0) {
+            rejectedCount = rejectedCount + 1;
             lock.unlock();
-            throw new RuntimeException("ThreadPoolExecutor is shut down");
+            throw new RejectedExecutionException("ThreadPoolExecutor is shut down");
+        }
+        if (capacity > 0 && queue.size() >= capacity) {
+            if (rejectPolicy == 2) {
+                while (queue.size() >= capacity && shutdownFlag == 0) {
+                    notFull.await(lock);
+                }
+                if (shutdownFlag != 0) {
+                    rejectedCount = rejectedCount + 1;
+                    lock.unlock();
+                    throw new RejectedExecutionException("ThreadPoolExecutor is shut down");
+                }
+            } else if (rejectPolicy == 1) {
+                lock.unlock();
+                task.run();
+                return;
+            } else if (rejectPolicy == 3) {
+                rejectedCount = rejectedCount + 1;
+                lock.unlock();
+                return;
+            } else {
+                rejectedCount = rejectedCount + 1;
+                lock.unlock();
+                throw new RejectedExecutionException("ThreadPoolExecutor queue is full");
+            }
         }
         queue.addLast(task);
         notEmpty.signal();
         lock.unlock();
     }
 
+    /** Stop accepting tasks; already queued tasks still run. */
     void shutdown() {
         lock.lock();
-        shutdownFlag = 1;
+        if (shutdownFlag < 1) {
+            shutdownFlag = 1;
+        }
         notEmpty.signalAll();
+        notFull.signalAll();
+        stateChanged.signalAll();
         lock.unlock();
+    }
+
+    /** Stop accepting tasks and drop queued ones; returns the dropped tasks. Running tasks finish. */
+    ArrayList<PoolTask> shutdownNow() {
+        ArrayList<PoolTask> dropped = new ArrayList<PoolTask>();
+        lock.lock();
+        shutdownFlag = 2;
+        while (queue.size() > 0) {
+            dropped.add(queue.removeFirst());
+        }
+        notEmpty.signalAll();
+        notFull.signalAll();
+        stateChanged.signalAll();
+        lock.unlock();
+        return dropped;
+    }
+
+    boolean isShutdown() {
+        lock.lock();
+        boolean r = shutdownFlag != 0;
+        lock.unlock();
+        return r;
+    }
+
+    /** True once shut down and every worker thread has exited. */
+    boolean isTerminated() {
+        lock.lock();
+        boolean r = shutdownFlag != 0 && liveWorkers == 0;
+        lock.unlock();
+        return r;
+    }
+
+    /** Wait until terminated (shutdown() must have been called) or timeout; true if terminated. */
+    boolean awaitTermination(long timeoutMs) {
+        long deadline = PoolClockNative.monoMillis() + timeoutMs;
+        lock.lock();
+        boolean done = shutdownFlag != 0 && liveWorkers == 0;
+        while (!done) {
+            long left = deadline - PoolClockNative.monoMillis();
+            if (left <= 0) {
+                lock.unlock();
+                return false;
+            }
+            stateChanged.awaitMillis(lock, left);
+            done = shutdownFlag != 0 && liveWorkers == 0;
+        }
+        lock.unlock();
+        return true;
+    }
+
+    /** Wait until no task is queued or running (pool stays usable); true if idle before timeout. */
+    boolean awaitIdle(long timeoutMs) {
+        long deadline = PoolClockNative.monoMillis() + timeoutMs;
+        lock.lock();
+        boolean idle = queue.size() == 0 && activeCount == 0;
+        while (!idle) {
+            long left = deadline - PoolClockNative.monoMillis();
+            if (left <= 0) {
+                lock.unlock();
+                return false;
+            }
+            stateChanged.awaitMillis(lock, left);
+            idle = queue.size() == 0 && activeCount == 0;
+        }
+        lock.unlock();
+        return true;
     }
 
     void join() {
@@ -4758,12 +4891,69 @@ class ThreadPoolExecutor implements Executor {
         }
     }
 
+    int queuedCount() {
+        lock.lock();
+        int n = queue.size();
+        lock.unlock();
+        return n;
+    }
+
+    int activeWorkers() {
+        lock.lock();
+        int n = activeCount;
+        lock.unlock();
+        return n;
+    }
+
+    long completedTasks() {
+        lock.lock();
+        long n = completedCount;
+        lock.unlock();
+        return n;
+    }
+
+    long failedTasks() {
+        lock.lock();
+        long n = failedCount;
+        lock.unlock();
+        return n;
+    }
+
+    long rejectedTasks() {
+        lock.lock();
+        long n = rejectedCount;
+        lock.unlock();
+        return n;
+    }
+
+    Exception lastFailure() {
+        lock.lock();
+        Exception e = lastError;
+        lock.unlock();
+        return e;
+    }
+
+    /** Suppress the stderr report for failed tasks (failures are still counted). */
+    void setQuiet(boolean q) {
+        if (q) {
+            quiet = 1;
+        } else {
+            quiet = 0;
+        }
+    }
+
     PoolTask takeTask() {
         lock.lock();
         int waiting = 1;
         while (waiting != 0) {
+            if (shutdownFlag == 2) {
+                lock.unlock();
+                return null;
+            }
             if (queue.size() > 0) {
                 PoolTask t = queue.removeFirst();
+                activeCount = activeCount + 1;
+                notFull.signal();
                 lock.unlock();
                 return t;
             }
@@ -4776,11 +4966,39 @@ class ThreadPoolExecutor implements Executor {
         lock.unlock();
         return null;
     }
+
+    void taskFinished(Exception failure) {
+        lock.lock();
+        activeCount = activeCount - 1;
+        if (failure == null) {
+            completedCount = completedCount + 1;
+        } else {
+            failedCount = failedCount + 1;
+            lastError = failure;
+        }
+        stateChanged.signalAll();
+        lock.unlock();
+    }
+
+    void workerExited() {
+        lock.lock();
+        liveWorkers = liveWorkers - 1;
+        stateChanged.signalAll();
+        lock.unlock();
+    }
 }
 
 class ThreadPoolNative {
     @Native(symbol = "jnative_thread_set_daemon")
     static native void setDaemon();
+
+    @Native(symbol = "jnative_stderr_write")
+    static native void errWrite(String s, int newline);
+}
+
+class PoolClockNative {
+    @Native(symbol = "jnative_web_mono_millis")
+    static native long monoMillis();
 }
 
 class ThreadPoolWorker extends Thread {
@@ -4796,8 +5014,22 @@ class ThreadPoolWorker extends Thread {
             if (t == null) {
                 alive = 0;
             } else {
-                t.run();
+                Exception failure = null;
+                try {
+                    t.run();
+                } catch (Exception ex) {
+                    failure = ex;
+                }
+                if (failure != null && pool.quiet == 0) {
+                    String msg = failure.getMessage();
+                    if (msg == null) {
+                        msg = "";
+                    }
+                    ThreadPoolNative.errWrite("Uncaught exception in pool task: " + msg, 1);
+                }
+                pool.taskFinished(failure);
             }
         }
+        pool.workerExited();
     }
 }

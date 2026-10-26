@@ -55,6 +55,15 @@ public record InterfaceType(InterfaceSymbol interfaceSymbol) implements JType {
             }
             return ct.classSymbol().implementsInterface(interfaceSymbol);
         }
+        // Box<Integer> → Task (generic class implementing a non-generic interface).
+        if (other instanceof ParameterizedType pt) {
+            if (pt.raw() instanceof ClassSymbol cs) {
+                return cs.implementsInterface(interfaceSymbol);
+            }
+            if (pt.raw() instanceof InterfaceSymbol is) {
+                return is.isSubtypeOf(interfaceSymbol);
+            }
+        }
         return false;
     }
 

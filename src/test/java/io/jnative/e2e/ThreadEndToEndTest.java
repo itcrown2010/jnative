@@ -237,6 +237,101 @@ class ThreadEndToEndTest {
         assertTrue(run(src).contains("1"));
     }
 
+    @Test
+    void extendedAtomicOpsAreAtomic() throws Exception {
+        String src = """
+                class Worker extends Thread {
+                    public void run() {
+                        int i = 0;
+                        while (i < 1000) {
+                            Main.a.addAndGet(3);
+                            Main.a.getAndAdd(2);
+                            Main.a.decrementAndGet();
+                            Main.a.getAndDecrement();
+                            Main.l.addAndGet(3L);
+                            Main.l.getAndAdd(2L);
+                            Main.l.decrementAndGet();
+                            Main.l.getAndDecrement();
+                            i = i + 1;
+                        }
+                    }
+                }
+                public class Main {
+                    static AtomicInt a = new AtomicInt(0);
+                    static AtomicLong l = new AtomicLong(0);
+                    public static void main(String[] args) {
+                        Worker[] ws = new Worker[4];
+                        int i = 0;
+                        while (i < 4) {
+                            ws[i] = new Worker();
+                            ws[i].start();
+                            i = i + 1;
+                        }
+                        i = 0;
+                        while (i < 4) {
+                            ws[i].join();
+                            i = i + 1;
+                        }
+                        System.out.println("a=" + a.get() + " l=" + l.get());
+                        AtomicInt x = new AtomicInt(5);
+                        System.out.println("old=" + x.getAndSet(9) + " now=" + x.get()
+                                + " add=" + x.addAndGet(-4) + " getAndAdd=" + x.getAndAdd(10)
+                                + " end=" + x.get());
+                        AtomicLong y = new AtomicLong(1L);
+                        System.out.println("lold=" + y.getAndSet(7L) + " lnow=" + y.get());
+                        AtomicBool b = new AtomicBool(false);
+                        System.out.println("bold=" + b.getAndSet(true) + " bnow=" + b.get()
+                                + " bold2=" + b.getAndSet(false) + " bnow2=" + b.get());
+                    }
+                }
+                """;
+        String out = run(src);
+        assertTrue(out.contains("a=12000 l=12000"), out);
+        assertTrue(out.contains("old=5 now=9 add=5 getAndAdd=5 end=15"), out);
+        assertTrue(out.contains("lold=1 lnow=7"), out);
+        assertTrue(out.contains("bold=false bnow=true bold2=true bnow2=false"), out);
+    }
+
+    @Test
+    void conditionAwaitMillisTimesOutAndWakes() throws Exception {
+        String src = """
+                class Signaller extends Thread {
+                    public void run() {
+                        Thread.sleep(150);
+                        Main.m.lock();
+                        Main.ready = 1;
+                        Main.c.signalAll();
+                        Main.m.unlock();
+                    }
+                }
+                public class Main {
+                    static Mutex m = new Mutex();
+                    static Condition c = new Condition();
+                    static int ready = 0;
+                    public static void main(String[] args) {
+                        m.lock();
+                        boolean first = c.awaitMillis(m, 40);
+                        // still the owner after a timed-out wait
+                        m.unlock();
+                        System.out.println("timeout=" + first);
+                        Signaller s = new Signaller();
+                        s.start();
+                        m.lock();
+                        boolean woken = false;
+                        while (ready == 0) {
+                            woken = c.awaitMillis(m, 5000);
+                        }
+                        m.unlock();
+                        s.join();
+                        System.out.println("woken=" + woken + " ready=" + ready);
+                    }
+                }
+                """;
+        String out = run(src);
+        assertTrue(out.contains("timeout=false"), out);
+        assertTrue(out.contains("woken=true ready=1"), out);
+    }
+
     private String run(String source) throws Exception {
         Path exe = compile(source);
         Process p = new ProcessBuilder(exe.toString())

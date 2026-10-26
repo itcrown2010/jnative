@@ -61,12 +61,6 @@ class PollNative {
     static native int setNonblocking(int fd, int nb);
 }
 
-class TimeoutException extends RuntimeException {
-    TimeoutException(String message) {
-        super(message);
-    }
-}
-
 interface LoopTask {
     void run();
 }

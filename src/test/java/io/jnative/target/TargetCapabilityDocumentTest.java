@@ -125,4 +125,36 @@ public class TargetCapabilityDocumentTest {
                 d.code().equals(DiagnosticCodes.BACKEND_UNSUPPORTED)
                         && d.message().toLowerCase().contains("async")));
     }
+
+    @Test
+    void wasmRejectsThreadPoolAndConcurrencyPrimitives() {
+        String[][] cases = {
+                {"ExecutorService ex = Executors.newFixedThreadPool(2);", "ExecutorService"},
+                {"ExecutorService ex = new ExecutorService(2);", "ExecutorService"},
+                {"ThreadPoolExecutor p = new ThreadPoolExecutor(2);", "ThreadPoolExecutor"},
+                {"CountDownLatch l = new CountDownLatch(1);", "primitives"},
+                {"Semaphore s = new Semaphore(1);", "primitives"},
+                {"ReentrantLock l = new ReentrantLock();", "primitives"},
+                {"BlockingQueue<Integer> q = new BlockingQueue<Integer>(4);", "primitives"},
+                {"Mutex m = new Mutex();", "Mutex"},
+        };
+        for (String[] c : cases) {
+            String src = "public class W { public static void main(String[] a) { " + c[0] + " } }\n";
+            List<Diagnostic> diags = TargetCapabilityChecker.checkSourceText("W.jn", src, "wasm32-browser");
+            assertTrue(diags.stream().anyMatch(d -> d.code().equals(DiagnosticCodes.TARGET_API)
+                            && d.message().contains(c[1])),
+                    () -> c[0] + " should be rejected on wasm32-browser: " + diags);
+            assertTrue(TargetCapabilityChecker.checkSourceText("W.jn", src, "native").isEmpty(),
+                    () -> c[0] + " must stay allowed on native");
+        }
+    }
+
+    @Test
+    void asyncSemaphoreNotMistakenForThreadSemaphore() {
+        List<Diagnostic> diags = TargetCapabilityChecker.checkSourceText(
+                "W.jn",
+                "public class W { void m(EventLoop l) { AsyncSemaphore s = new AsyncSemaphore(l, 1); } }\n",
+                "native");
+        assertTrue(diags.isEmpty(), diags::toString);
+    }
 }

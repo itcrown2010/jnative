@@ -47,6 +47,7 @@ Legend for Yes/Partial/No columns:
 | Runtime | GC (GC2) | Yes | Yes | Partial | Yes | Experimental | `Gc*EndToEndTest`; wasm single-thread |
 | Runtime | Threads (`extends Thread`) | Yes | Yes | Yes | Yes | Experimental | native only; `ThreadEndToEndTest` |
 | Runtime | Synchronization (`Mutex`, atomics) | Yes | Yes | Yes | Yes | Experimental | Mutex + AtomicInt in thread e2e |
+| Runtime | Thread pools / concurrency library (`ExecutorService`, `TaskFuture`, `CountDownLatch`, `Semaphore`, `ReentrantLock`, `CyclicBarrier`, `BlockingQueue`) | Yes | Yes | Yes | No (rejected by capability checker) | Experimental | native only; `ConcurrentEndToEndTest` |
 | Runtime | No JVM at runtime | Yes | Yes | Yes | Yes | Stable | AOT native / wasm |
 
 ## SDK

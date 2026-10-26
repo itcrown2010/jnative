@@ -4240,6 +4240,8 @@ public final class IrGenerator {
                 builder.call("jnative_cond_await", IrType.VOID, List.of(args.get(0), args.get(1)), true);
                 yield new IrValue.Const(IrType.I32, 0);
             }
+            case "awaitMillis" -> builder.call("jnative_cond_await_millis", IrType.I1,
+                    List.of(args.get(0), args.get(1), castIfNeeded(args.get(2), IrType.I64)), true);
             case "signal" -> {
                 builder.call("jnative_cond_signal", IrType.VOID, List.of(args.get(0)), false);
                 yield new IrValue.Const(IrType.I32, 0);
@@ -4271,6 +4273,11 @@ public final class IrGenerator {
                     prefix + "cas", IrType.I1, List.of(args.get(0), args.get(1), args.get(2)), false);
             case "getAndIncrement" -> builder.call(prefix + "get_and_inc", ret, List.of(args.get(0)), false);
             case "incrementAndGet" -> builder.call(prefix + "inc_and_get", ret, List.of(args.get(0)), false);
+            case "getAndDecrement" -> builder.call(prefix + "get_and_dec", ret, List.of(args.get(0)), false);
+            case "decrementAndGet" -> builder.call(prefix + "dec_and_get", ret, List.of(args.get(0)), false);
+            case "getAndAdd" -> builder.call(prefix + "get_and_add", ret, List.of(args.get(0), args.get(1)), false);
+            case "addAndGet" -> builder.call(prefix + "add_and_get", ret, List.of(args.get(0), args.get(1)), false);
+            case "getAndSet" -> builder.call(prefix + "get_and_set", ret, List.of(args.get(0), args.get(1)), false);
             default -> throw new IllegalStateException("unknown atomic intrinsic " + ms.name());
         };
     }

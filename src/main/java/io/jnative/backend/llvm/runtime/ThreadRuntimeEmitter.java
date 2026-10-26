@@ -38,6 +38,7 @@ public final class ThreadRuntimeEmitter {
                 declare ptr @jn_cond_create()
                 declare void @jn_cond_destroy(ptr)
                 declare void @jn_cond_wait(ptr, ptr)
+                declare i32 @jn_cond_timedwait(ptr, ptr, i64)
                 declare void @jn_cond_signal(ptr)
                 declare void @jn_cond_broadcast(ptr)
 
@@ -205,6 +206,24 @@ public final class ThreadRuntimeEmitter {
                   ret void
                 }
 
+                define i1 @jnative_cond_await_millis(ptr %self, ptr %mutex, i64 %ms) {
+                entry:
+                  %cp = getelementptr i8, ptr %self, i64 8
+                  %c = load ptr, ptr %cp, align 8
+                  %mp = getelementptr i8, ptr %mutex, i64 8
+                  %m = load ptr, ptr %mp, align 8
+                  %ok = call i32 @jn_mutex_owner_check(ptr %m)
+                  %bad = icmp eq i32 %ok, 0
+                  br i1 %bad, label %err, label %go
+                err:
+                  call void @jnative_throw_illegal_monitor()
+                  ret i1 false
+                go:
+                  %woken = call i32 @jn_cond_timedwait(ptr %c, ptr %m, i64 %ms)
+                  %w = icmp ne i32 %woken, 0
+                  ret i1 %w
+                }
+
                 define void @jnative_cond_signal(ptr %self) {
                 entry:
                   %cp = getelementptr i8, ptr %self, i64 8
@@ -264,6 +283,41 @@ public final class ThreadRuntimeEmitter {
                   ret i32 %n
                 }
 
+                define i32 @jnative_atomic_int_get_and_add(ptr %self, i32 %d) {
+                entry:
+                  %vp = getelementptr i8, ptr %self, i64 8
+                  %old = atomicrmw add ptr %vp, i32 %d seq_cst
+                  ret i32 %old
+                }
+
+                define i32 @jnative_atomic_int_add_and_get(ptr %self, i32 %d) {
+                entry:
+                  %old = call i32 @jnative_atomic_int_get_and_add(ptr %self, i32 %d)
+                  %n = add i32 %old, %d
+                  ret i32 %n
+                }
+
+                define i32 @jnative_atomic_int_get_and_dec(ptr %self) {
+                entry:
+                  %vp = getelementptr i8, ptr %self, i64 8
+                  %old = atomicrmw sub ptr %vp, i32 1 seq_cst
+                  ret i32 %old
+                }
+
+                define i32 @jnative_atomic_int_dec_and_get(ptr %self) {
+                entry:
+                  %old = call i32 @jnative_atomic_int_get_and_dec(ptr %self)
+                  %n = sub i32 %old, 1
+                  ret i32 %n
+                }
+
+                define i32 @jnative_atomic_int_get_and_set(ptr %self, i32 %v) {
+                entry:
+                  %vp = getelementptr i8, ptr %self, i64 8
+                  %old = atomicrmw xchg ptr %vp, i32 %v seq_cst
+                  ret i32 %old
+                }
+
                 define void @jnative_atomic_long_init(ptr %self, i64 %v) {
                 entry:
                   %vp = getelementptr i8, ptr %self, i64 8
@@ -307,6 +361,41 @@ public final class ThreadRuntimeEmitter {
                   ret i64 %n
                 }
 
+                define i64 @jnative_atomic_long_get_and_add(ptr %self, i64 %d) {
+                entry:
+                  %vp = getelementptr i8, ptr %self, i64 8
+                  %old = atomicrmw add ptr %vp, i64 %d seq_cst
+                  ret i64 %old
+                }
+
+                define i64 @jnative_atomic_long_add_and_get(ptr %self, i64 %d) {
+                entry:
+                  %old = call i64 @jnative_atomic_long_get_and_add(ptr %self, i64 %d)
+                  %n = add i64 %old, %d
+                  ret i64 %n
+                }
+
+                define i64 @jnative_atomic_long_get_and_dec(ptr %self) {
+                entry:
+                  %vp = getelementptr i8, ptr %self, i64 8
+                  %old = atomicrmw sub ptr %vp, i64 1 seq_cst
+                  ret i64 %old
+                }
+
+                define i64 @jnative_atomic_long_dec_and_get(ptr %self) {
+                entry:
+                  %old = call i64 @jnative_atomic_long_get_and_dec(ptr %self)
+                  %n = sub i64 %old, 1
+                  ret i64 %n
+                }
+
+                define i64 @jnative_atomic_long_get_and_set(ptr %self, i64 %v) {
+                entry:
+                  %vp = getelementptr i8, ptr %self, i64 8
+                  %old = atomicrmw xchg ptr %vp, i64 %v seq_cst
+                  ret i64 %old
+                }
+
                 define void @jnative_atomic_bool_init(ptr %self, i1 %v) {
                 entry:
                   %vp = getelementptr i8, ptr %self, i64 8
@@ -339,6 +428,15 @@ public final class ThreadRuntimeEmitter {
                   %pair = cmpxchg ptr %vp, i8 %e, i8 %u seq_cst seq_cst
                   %ok = extractvalue { i8, i1 } %pair, 1
                   ret i1 %ok
+                }
+
+                define i1 @jnative_atomic_bool_get_and_set(ptr %self, i1 %v) {
+                entry:
+                  %vp = getelementptr i8, ptr %self, i64 8
+                  %b = zext i1 %v to i8
+                  %old = atomicrmw xchg ptr %vp, i8 %b seq_cst
+                  %r = icmp ne i8 %old, 0
+                  ret i1 %r
                 }
 
                 """);

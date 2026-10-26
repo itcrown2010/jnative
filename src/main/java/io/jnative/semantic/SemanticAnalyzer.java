@@ -933,6 +933,9 @@ public final class SemanticAnalyzer {
         condition.addConstructor(new ConstructorSymbol(condition, List.of(), true, SourceLocation.UNKNOWN));
         addInstanceFfiIntrinsic(condition, "await", VoidType.INSTANCE, List.of(
                 new ParameterSymbol("lock", mutex.asType(), SourceLocation.UNKNOWN)));
+        addInstanceFfiIntrinsic(condition, "awaitMillis", PrimitiveType.BOOLEAN, List.of(
+                new ParameterSymbol("lock", mutex.asType(), SourceLocation.UNKNOWN),
+                new ParameterSymbol("ms", PrimitiveType.LONG, SourceLocation.UNKNOWN)));
         addInstanceFfiIntrinsic(condition, "signal", VoidType.INSTANCE, List.of());
         addInstanceFfiIntrinsic(condition, "signalAll", VoidType.INSTANCE, List.of());
         condition.setLayout(ObjectLayoutBuilder.build(condition));
@@ -958,9 +961,17 @@ public final class SemanticAnalyzer {
         addInstanceFfiIntrinsic(cls, "compareAndSet", PrimitiveType.BOOLEAN, List.of(
                 new ParameterSymbol("expected", valueType, SourceLocation.UNKNOWN),
                 new ParameterSymbol("update", valueType, SourceLocation.UNKNOWN)));
+        addInstanceFfiIntrinsic(cls, "getAndSet", valueType, List.of(
+                new ParameterSymbol("value", valueType, SourceLocation.UNKNOWN)));
         if (!(valueType instanceof PrimitiveType p && p == PrimitiveType.BOOLEAN)) {
             addInstanceFfiIntrinsic(cls, "getAndIncrement", valueType, List.of());
             addInstanceFfiIntrinsic(cls, "incrementAndGet", valueType, List.of());
+            addInstanceFfiIntrinsic(cls, "getAndDecrement", valueType, List.of());
+            addInstanceFfiIntrinsic(cls, "decrementAndGet", valueType, List.of());
+            addInstanceFfiIntrinsic(cls, "getAndAdd", valueType, List.of(
+                    new ParameterSymbol("delta", valueType, SourceLocation.UNKNOWN)));
+            addInstanceFfiIntrinsic(cls, "addAndGet", valueType, List.of(
+                    new ParameterSymbol("delta", valueType, SourceLocation.UNKNOWN)));
         }
         cls.setLayout(ObjectLayoutBuilder.build(cls));
         cls.setVtable(new io.jnative.vtable.VTable(cls, List.of()));
