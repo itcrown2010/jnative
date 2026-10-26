@@ -102,6 +102,9 @@ class StockScan {
     static double[] w;
     static double bias = 0.0;
     static String validation = "null";
+    /** Universe size of a result restored from disk (the stock list itself is not kept across restarts). */
+    static int dispU = 0;
+    static int restored = 0;
     static double[] binCut;
     static double[] binPrec;
     static int[] binN;
@@ -129,6 +132,7 @@ class StockScan {
             binTp = new double[7];
             binTs = new double[7];
             binLoss = new int[7];
+            load();
         }
     }
 
@@ -192,6 +196,8 @@ class StockScan {
             hIdx = 3;
         }
         runId = runId + 1;
+        restored = 0;
+        dispU = 0;
         stopFlag = 0;
         hits = new ArrayList<String>();
         pos = 0;
@@ -223,6 +229,7 @@ class StockScan {
             phase = PHASE_DONE;
             msg = "已手动停止";
             finishedMs = System.currentTimeMillis();
+            persist();
         }
     }
 
@@ -251,6 +258,93 @@ class StockScan {
             msg = "内部错误，扫描已中止";
             finishedMs = System.currentTimeMillis();
             System.out.println("STOCK_SCAN_ERROR");
+        }
+    }
+
+
+    // ---------- persistence of the latest result ----------
+
+    /** Keeps the last finished result in data/_scan.txt so it is still on the page after a restart. */
+    static void persist() {
+        try {
+            if (hits == null || startedMs == 0L || hits.size() == 0) {
+                return;
+            }
+            StringBuilder sb = new StringBuilder();
+            sb.append("M\t" + runId + "\t" + StockUtil.num(theta, 4) + "\t" + StockUtil.num(pMin, 4) + "\t" + hold + "\t" + excl + "\t" + mGate + "\t" + source + "\t"
+                    + startedMs + "\t" + finishedMs + "\t" + uN + "\t" + scanned + "\t" + skipped + "\t" + failed + "\t" + gated + "\t" + StockUtil.num(lastBaseTest, 5)
+                    + "\t" + mDate + "\t" + mState + "\t" + StockUtil.num(mR1, 5) + "\t" + StockUtil.num(mR5, 5) + "\t" + StockUtil.num(mDist, 5) + "\n");
+            sb.append("V\t" + validation.replace("\n", " ").replace("\t", " ") + "\n");
+            int i = 0;
+            while (i < hits.size()) {
+                sb.append("H\t" + hits.get(i) + "\n");
+                i = i + 1;
+            }
+            File.writeString(StockStore.dataDir + "/_scan.txt", sb.toString());
+        } catch (Exception ex) {
+            System.out.println("STOCK_SCAN_SAVE_WARN");
+        }
+    }
+
+    static void load() {
+        try {
+            String path = StockStore.dataDir + "/_scan.txt";
+            if (!Files.exists(FsPath.of(path))) {
+                return;
+            }
+            String text = File.readString(path);
+            int st = 0;
+            int i = 0;
+            while (i <= text.length()) {
+                if (i == text.length() || text.charAt(i) == 10) {
+                    loadLine(text.substring(st, i));
+                    st = i + 1;
+                }
+                i = i + 1;
+            }
+            if (startedMs > 0L) {
+                phase = PHASE_DONE;
+                msg = "已恢复上次扫描结果（服务重启前）";
+                restored = 1;
+            }
+        } catch (Exception ex) {
+            System.out.println("STOCK_SCAN_LOAD_WARN");
+        }
+    }
+
+    static void loadLine(String ln) {
+        if (ln.length() < 3) {
+            return;
+        }
+        if (ln.charAt(0) == 'H') {
+            hits.add(ln.substring(2, ln.length()));
+        } else if (ln.charAt(0) == 'V') {
+            validation = ln.substring(2, ln.length());
+        } else if (ln.charAt(0) == 'M') {
+            ArrayList<String> f = StockNotify.splitTabs(ln);
+            if (f.size() < 21) {
+                return;
+            }
+            runId = StockUtil.parseInt(f.get(1), 0);
+            theta = StockUtil.parseDouble(f.get(2), theta);
+            pMin = StockUtil.parseDouble(f.get(3), pMin);
+            hold = StockUtil.parseInt(f.get(4), hold);
+            excl = StockUtil.parseInt(f.get(5), 0);
+            mGate = StockUtil.parseInt(f.get(6), 0);
+            source = f.get(7);
+            startedMs = StockUtil.parseLong(f.get(8), 0L);
+            finishedMs = StockUtil.parseLong(f.get(9), 0L);
+            dispU = StockUtil.parseInt(f.get(10), 0);
+            scanned = StockUtil.parseInt(f.get(11), 0);
+            skipped = StockUtil.parseInt(f.get(12), 0);
+            failed = StockUtil.parseInt(f.get(13), 0);
+            gated = StockUtil.parseInt(f.get(14), 0);
+            lastBaseTest = StockUtil.parseDouble(f.get(15), 0.0);
+            mDate = StockUtil.parseInt(f.get(16), 0);
+            mState = StockUtil.parseInt(f.get(17), -1);
+            mR1 = StockUtil.parseDouble(f.get(18), 0.0);
+            mR5 = StockUtil.parseDouble(f.get(19), 0.0);
+            mDist = StockUtil.parseDouble(f.get(20), 0.0);
         }
     }
 
@@ -1050,6 +1144,7 @@ class StockScan {
             phase = PHASE_DONE;
             msg = "扫描完成";
             finishedMs = System.currentTimeMillis();
+            persist();
             return;
         }
         int idx = pos;
@@ -1193,11 +1288,16 @@ class StockScan {
             el = (end - startedMs) / 1000L;
         }
         int total = uN;
+        int posOut = pos;
+        if (total == 0 && dispU > 0) {
+            total = dispU;
+            posOut = dispU;
+        }
         StringBuilder sb = new StringBuilder();
-        sb.append("{\"source\":\"" + source + "\",\"startedAt\":" + startedMs + ",\"finishedAt\":" + finishedMs + ",\"now\":" + now + ",\"phase\":" + phase + ",\"msg\":" + StockUtil.js(msg) + ",\"runId\":" + runId + ",\"universe\":" + total + ",\"pos\":" + pos
+        sb.append("{\"source\":\"" + source + "\",\"startedAt\":" + startedMs + ",\"finishedAt\":" + finishedMs + ",\"now\":" + now + ",\"phase\":" + phase + ",\"msg\":" + StockUtil.js(msg) + ",\"runId\":" + runId + ",\"universe\":" + total + ",\"pos\":" + posOut
                 + ",\"scanned\":" + scanned + ",\"failed\":" + failed + ",\"skipped\":" + skipped + ",\"theta\":" + StockUtil.num(theta, 4) + ",\"hold\":" + hold
                 + ",\"pMin\":" + StockUtil.num(pMin, 3) + ",\"elapsed\":" + el + ",\"trainLoaded\":" + trainLoaded + ",\"trainTotal\":" + TRAIN_STOCKS
-                + ",\"market\":" + marketJson() + ",\"gate\":" + mGate + ",\"gated\":" + gated + ",\"validation\":" + validation + ",\"hitsTotal\":" + hits.size() + ",\"marketOpen\":" + StockNotify.tradingNow() + ",\"hits\":[");
+                + ",\"market\":" + marketJson() + ",\"gate\":" + mGate + ",\"gated\":" + gated + ",\"validation\":" + validation + ",\"restored\":" + restored + ",\"hitsTotal\":" + hits.size() + ",\"marketOpen\":" + StockNotify.tradingNow() + ",\"hits\":[");
         int i = since;
         if (i < 0) {
             i = 0;

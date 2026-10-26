@@ -284,14 +284,15 @@ class StockLive {
                 st = i + 1;
                 if (c.length() > 0 && cnt < 24) {
                     StockSeries ser = StockStore.find(c);
-                    if (ser != null && ser.source.equals("sina")) {
+                    if ((ser != null && ser.source.equals("sina")) || (ser == null && StockFeed.resolve(c) != null)) {
                         LiveSnap n = snap(c);
                         if (n != null) {
                             if (cnt > 0) {
                                 sb.append(",");
                             }
                             sb.append("{\"code\":" + StockUtil.js(c) + ",\"price\":" + StockUtil.num(n.price, 3) + ",\"pct\":" + StockUtil.num(n.pct, 5)
-                                    + ",\"time\":" + n.timeStamp + ",\"status\":" + StockUtil.js(status(n)) + "}");
+                                    + ",\"prev\":" + StockUtil.num(n.prev, 3) + ",\"limitUp\":" + StockUtil.num(n.limitUp, 2) + ",\"limitDown\":" + StockUtil.num(n.limitDown, 2)
+                                    + ",\"open\":" + StockUtil.num(n.open, 3) + ",\"time\":" + n.timeStamp + ",\"status\":" + StockUtil.js(status(n)) + "}");
                             cnt = cnt + 1;
                         }
                     }

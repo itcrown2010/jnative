@@ -628,6 +628,262 @@ function loadAlerts(render) {
   }).catch(function () {});
 }
 
+/* ---------------- Paper trading ---------------- */
+var TR = { a: null, side: 'buy', type: 'limit', sub: 'orders', code: '', q: null, timer: null, orders: [], fills: [], eq: null, f: { price: '', qty: '', sl: '', tp: '', trail: '', risk: '1', stop: '5' }, msg: '', msgCls: '' };
+var OST = ['委托中', '已成交', '已撤销', '已拒绝', '已过期'];
+function fm(x, d) { d = d == null ? 2 : d; return (x == null || isNaN(x)) ? '-' : Number(x).toLocaleString('zh-CN', { minimumFractionDigits: d, maximumFractionDigits: d }); }
+function sg(x, d) { return (x > 0 ? '+' : '') + fm(x, d); }
+function pcs(x, d) { return (x == null || isNaN(x)) ? '-' : (x > 0 ? '+' : '') + (x * 100).toFixed(d == null ? 2 : d) + '%'; }
+function trCode() { return (TR.code || '').trim(); }
+function trPos(code) { var l = TR.a ? TR.a.positions : []; for (var i = 0; i < l.length; i++) { if (l[i].code === code || l[i].code.slice(2) === code.replace(/^(sh|sz|bj)/, '')) return l[i]; } return null; }
+function trNum(id) { var v = $(id) ? parseFloat($(id).value) : NaN; return isNaN(v) ? 0 : v; }
+
+function renderTrade() {
+  var root = $('tab-trade');
+  if (!TR.code && state.code && state.code.charAt(0) !== 'm' && /^(sh|sz|bj)?\d{6}$/.test(state.code)) TR.code = state.code;
+  root.innerHTML = '<div class="card"><h3>模拟账户 <span id="trMode"></span><span class="spacer"></span><button class="small ghost" id="trRefresh">刷新</button></h3><div id="trAcct" class="loading">加载中…</div></div>' +
+    '<div class="grid2"><div class="card" id="trTicket"></div><div class="card"><h3>持仓</h3><div id="trPos" class="loading">加载中…</div></div></div>' +
+    '<div class="card"><div class="toolbar" id="trSubs"></div><div id="trSub"></div></div>' +
+    '<div class="note">模拟交易按真实规则撮合：T+1、100 股整数倍（科创板 200 股起）、涨跌停不可成交、佣金（含最低 5 元）+ 印花税 + 过户费、市价单滑点。委托为当日有效，只在交易时段按实时价成交，收盘未成交自动作废。成交价取自数秒延迟的公开行情，只用于研究验证，不构成投资建议，也不会产生真实交易。</div>';
+  $('trRefresh').onclick = function () { trRefresh(true); };
+  seg('trSubs', [['orders', '委托'], ['fills', '成交记录'], ['perf', '资金曲线与绩效'], ['cfg', '账户设置']], TR.sub, function (v) { TR.sub = v; trSub(); });
+  drawTicket();
+  trRefresh(true);
+  if (!TR.timer) { TR.timer = setInterval(function () { if (state.tab === 'trade' && !document.hidden) trRefresh(false); }, 4000); }
+}
+function trRefresh(full) {
+  api('/api/trade/account').then(function (a) { TR.a = a; drawAcct(); drawPos(); updateEstimate(); if (full || TR.sub !== 'cfg') trSub(full); }).catch(function (e) { var el = $('trAcct'); if (el) el.innerHTML = '<div class="err">' + esc(e.message) + '</div>'; });
+  trQuote();
+}
+function drawAcct() {
+  var a = TR.a, el = $('trAcct'); if (!a || !el) return;
+  function cell(k, v, cls) { return '<div><span>' + k + '</span><b' + (cls ? ' class="' + cls + '"' : '') + '>' + v + '</b></div>'; }
+  el.className = '';
+  el.innerHTML = '<div class="kv">' + cell('总资产', fm(a.equity)) + cell('可用资金', fm(a.available)) + cell('持仓市值', fm(a.mv)) + cell('冻结资金', fm(a.frozen)) +
+    cell('累计盈亏', sg(a.pnl) + '（' + pcs(a.ret) + '）', sgn(a.pnl)) + cell('当日浮动盈亏', sg(a.dayPnl), sgn(a.dayPnl)) + cell('委托中', a.pending + ' 笔') + cell('初始资金', fm(a.initial, 0)) + '</div>' +
+    (a.last ? '<div class="note">最近成交：' + esc(a.last) + '</div>' : '');
+  $('trMode').innerHTML = a.cfg.anytime ? '<span class="st open" title="休市时也按最新价成交，仅用于演示">演示模式：休市也成交</span>' : '<span class="muted" style="font-size:12px">按真实交易时段撮合</span>';
+}
+function drawPos() {
+  var a = TR.a, el = $('trPos'); if (!a || !el) return;
+  el.className = '';
+  if (!a.positions.length) { el.innerHTML = '<div class="muted">暂无持仓。在左侧下单买入后会出现在这里。</div>'; return; }
+  el.innerHTML = '<table><tr><th>股票</th><th>持仓/可卖</th><th>成本</th><th>现价</th><th>市值</th><th>盈亏</th><th>止损/止盈</th><th></th></tr>' + a.positions.map(function (p) {
+    var rk = (p.sl ? '损 ' + fm(p.sl) : '') + (p.sl && (p.tp || p.trail) ? '<br>' : '') + (p.tp ? '盈 ' + fm(p.tp) : '') + (p.trail ? (p.tp ? ' ' : '') + '移 ' + (p.trail * 100).toFixed(1) + '%' : '');
+    return '<tr><td><a href="#" data-pick="' + esc(p.code) + '" style="color:' + ACC + '">' + esc(p.name) + '</a><div class="muted" style="font-size:11px">' + esc(p.code) + '</div></td><td>' + p.qty + '<div class="muted" style="font-size:11px">可卖 ' + p.free + '</div></td><td>' + fm(p.avgCost, 3) +
+      '</td><td class="' + sgn(p.price - p.prev) + '">' + fm(p.price) + '</td><td>' + fm(p.mv, 0) + '</td><td class="' + sgn(p.pnl) + '">' + sg(p.pnl, 0) + '<div style="font-size:11px">' + pcs(p.pnlPct) + '</div></td><td style="font-size:12px" class="muted">' + (rk || '未设置') +
+      '</td><td><button class="small" data-sell="' + esc(p.code) + '">卖出</button> <button class="small ghost" data-risk="' + esc(p.code) + '">风控</button></td></tr>';
+  }).join('') + '</table>';
+  Array.prototype.forEach.call(el.querySelectorAll('[data-pick]'), function (x) { x.onclick = function (e) { e.preventDefault(); trPick(x.getAttribute('data-pick'), 'buy'); }; });
+  Array.prototype.forEach.call(el.querySelectorAll('[data-sell]'), function (x) { x.onclick = function () { trPick(x.getAttribute('data-sell'), 'sell'); }; });
+  Array.prototype.forEach.call(el.querySelectorAll('[data-risk]'), function (x) { x.onclick = function () { riskDialog(trPos(x.getAttribute('data-risk'))); }; });
+}
+function trPick(code, side) {
+  TR.code = code; TR.side = side; TR.q = null; TR.f.price = ''; TR.f.qty = '';
+  if (side === 'sell') { var p = trPos(code); if (p) TR.f.qty = String(p.free); }
+  drawTicket(); trQuote();
+}
+
+function drawTicket() {
+  var el = $('trTicket'); if (!el) return;
+  var f = TR.f, buy = TR.side === 'buy';
+  el.innerHTML = '<h3>下单</h3><div class="toolbar"><input id="trCode" size="10" placeholder="股票代码" value="' + esc(TR.code) + '"><span id="trQ" class="muted">输入 6 位代码后回车</span></div>' +
+    '<div id="trBook"></div>' +
+    '<div class="toolbar"><span id="trSide"></span><span id="trType"></span></div>' +
+    '<div class="toolbar"><label class="muted">价格 <input id="trPrice" size="9" value="' + esc(f.price) + '"' + (TR.type === 'market' ? ' disabled placeholder="市价"' : '') + '></label>' +
+    '<button class="small ghost" id="trPm">-0.01</button><button class="small ghost" id="trPp">+0.01</button>' +
+    '<label class="muted">数量 <input id="trQty" size="8" value="' + esc(f.qty) + '"></label></div>' +
+    '<div class="toolbar" id="trFrac"></div>' +
+    (buy ? '<div class="toolbar"><span class="muted">买入后自动风控：</span><label class="muted">止损 <input id="trSl" size="3" value="' + esc(f.sl) + '">%</label><label class="muted">止盈 <input id="trTp" size="3" value="' + esc(f.tp) + '">%</label><label class="muted">移动止盈回撤 <input id="trTrail" size="3" value="' + esc(f.trail) + '">%</label></div>' +
+      '<div class="toolbar"><span class="muted">按风险定仓：单笔最多亏总资产的</span><input id="trRisk" size="3" value="' + esc(f.risk) + '"><span class="muted">%，止损幅度</span><input id="trStop" size="3" value="' + esc(f.stop) + '"><span class="muted">%</span><button class="small ghost" id="trSize">计算数量</button></div>' : '') +
+    '<div id="trEst" class="note"></div><div class="row" style="margin-top:8px"><button id="trGo" style="min-width:120px"></button><span id="trMsg"></span></div>';
+  seg('trSide', [['buy', '买入'], ['sell', '卖出']], TR.side, function (v) { TR.side = v; if (v === 'sell') { var p = trPos(trCode()); TR.f.qty = p ? String(p.free) : ''; } saveForm(); drawTicket(); });
+  seg('trType', [['limit', '限价'], ['market', '市价']], TR.type, function (v) { TR.type = v; saveForm(); drawTicket(); });
+  var fr = [['1/4', .25], ['1/3', 1 / 3], ['1/2', .5], ['全部', 1]];
+  $('trFrac').innerHTML = '<span class="muted">' + (buy ? '按可用资金' : '按可卖数量') + '</span>' + fr.map(function (x, i) { return '<button class="small ghost" data-fr="' + i + '">' + x[0] + '</button>'; }).join('');
+  Array.prototype.forEach.call($('trFrac').querySelectorAll('[data-fr]'), function (b) { b.onclick = function () { fillFraction(fr[parseInt(b.getAttribute('data-fr'), 10)][1]); }; });
+  var go = $('trGo'); go.textContent = buy ? '买入' : '卖出'; go.style.background = buy ? 'var(--up)' : 'var(--down)';
+  ['trPrice', 'trQty', 'trSl', 'trTp', 'trTrail', 'trRisk', 'trStop'].forEach(function (id) { if ($(id)) $(id).oninput = function () { saveForm(); updateEstimate(); }; });
+  $('trCode').onchange = function () { TR.code = $('trCode').value.trim(); TR.q = null; TR.f.price = ''; saveForm(); trQuote(); };
+  $('trCode').onkeydown = function (e) { if (e.key === 'Enter') $('trCode').onchange(); };
+  $('trPm').onclick = function () { stepPrice(-0.01); }; $('trPp').onclick = function () { stepPrice(0.01); };
+  if ($('trSize')) $('trSize').onclick = sizeByRisk;
+  go.onclick = submitOrder;
+  drawQuoteBook(); updateEstimate(); showMsg();
+}
+function saveForm() { var g = function (id, k) { if ($(id)) TR.f[k] = $(id).value; }; g('trPrice', 'price'); g('trQty', 'qty'); g('trSl', 'sl'); g('trTp', 'tp'); g('trTrail', 'trail'); g('trRisk', 'risk'); g('trStop', 'stop'); }
+function stepPrice(d) { var v = trNum('trPrice') || (TR.q ? TR.q.price : 0); $('trPrice').value = (Math.round((v + d) * 100) / 100).toFixed(2); saveForm(); updateEstimate(); }
+function trQuote() {
+  var c = trCode(); if (!c || !/^(sh|sz|bj)?\d{6}$/i.test(c)) { drawQuoteBook(); return; }
+  api('/api/quote?code=' + encodeURIComponent(c)).then(function (q) {
+    if (trCode() !== c) return;
+    var first = !TR.q || TR.q.code !== q.code;
+    TR.q = q;
+    if (first && !TR.f.price && $('trPrice')) { TR.f.price = fx(q.price, 2); $('trPrice').value = TR.f.price; }
+    drawQuoteBook(); updateEstimate();
+  }).catch(function (e) { TR.q = null; var el = $('trQ'); if (el) el.innerHTML = '<span class="err">' + esc(e.message) + '</span>'; });
+}
+function drawQuoteBook() {
+  var q = TR.q, el = $('trBook'), h = $('trQ'); if (!el || !h) return;
+  if (!q) { el.innerHTML = ''; return; }
+  while (q.ask.length < 3) q.ask.push([null, null]);
+  while (q.bid.length < 3) q.bid.push([null, null]);
+  var c = sgn(q.change);
+  h.innerHTML = '<b>' + esc(q.name) + '</b> <span class="muted">' + esc(q.code) + '</span> <b class="' + c + '" style="font-size:16px">' + fx(q.price, 2) + '</b> <span class="' + c + '">' + pcs(q.pct) + '</span> <span class="st ' + q.status + '">' + (STATUS[q.status] || q.status) + '</span>';
+  var lvl = ['一', '二', '三', '四', '五'], t = '<table class="book" style="width:100%"><tr>';
+  t += '<td colspan="3" class="muted">涨停 <span class="up">' + fx(q.limitUp, 2) + '</span>　跌停 <span class="down">' + fx(q.limitDown, 2) + '</span>　昨收 ' + fx(q.prevClose, 2) + '</td></tr><tr><td colspan="3"><div style="display:flex;gap:18px"><div>';
+  for (var i = 2; i >= 0; i--) t += '<div style="cursor:pointer" data-px="' + (q.ask[i][0] == null ? '' : fx(q.ask[i][0], 2)) + '"><span class="muted">卖' + lvl[i] + '</span> <span class="down">' + (q.ask[i][0] == null ? '-' : fx(q.ask[i][0], 2)) + '</span> <span class="muted">' + (q.ask[i][1] == null ? '' : q.ask[i][1]) + '</span></div>';
+  t += '</div><div>';
+  for (i = 0; i < 3; i++) t += '<div style="cursor:pointer" data-px="' + (q.bid[i][0] == null ? '' : fx(q.bid[i][0], 2)) + '"><span class="muted">买' + lvl[i] + '</span> <span class="up">' + (q.bid[i][0] == null ? '-' : fx(q.bid[i][0], 2)) + '</span> <span class="muted">' + (q.bid[i][1] == null ? '' : q.bid[i][1]) + '</span></div>';
+  el.innerHTML = t + '</div></div></td></tr></table>';
+  Array.prototype.forEach.call(el.querySelectorAll('[data-px]'), function (d) { d.onclick = function () { var v = d.getAttribute('data-px'); if (v && $('trPrice') && TR.type === 'limit') { $('trPrice').value = v; saveForm(); updateEstimate(); } }; });
+}
+function feeEst(amt, sell) {
+  var c = TR.a ? TR.a.cfg : { feeRate: 0.00025, minFee: 5, stampRate: 0.0005 };
+  return Math.max(c.minFee, amt * c.feeRate) + amt * 0.00001 + (sell ? amt * c.stampRate : 0);
+}
+function curPrice() { return TR.type === 'market' ? (TR.q ? TR.q.price : 0) : (trNum('trPrice') || (TR.q ? TR.q.price : 0)); }
+function fillFraction(fr) {
+  var px = curPrice(); if (!px) { showMsg('请先输入股票代码并等待行情', 'err'); return; }
+  var qty = 0, c = trCode();
+  if (TR.side === 'buy') {
+    if (!TR.a) return;
+    var cap = TR.a.available, mp = TR.a.cfg.maxPosPct, p = trPos(c), have = p ? p.mv : 0;
+    if (mp > 0 && mp < 1) cap = Math.min(cap, Math.max(0, TR.a.equity * mp - have));
+    var unit = (TR.q && /^(sh688|sh689)/.test(TR.q.code)) ? 1 : 100, buyPx = TR.type === 'market' ? px * 1.002 : px;
+    qty = Math.floor(cap * fr / (buyPx * 1.0006) / unit) * unit;
+    if (/^(sh688|sh689)/.test(TR.q ? TR.q.code : '') && qty < 200) qty = 0;
+  } else {
+    var ps = trPos(c); if (!ps) { showMsg('没有该股票的持仓', 'err'); return; }
+    qty = fr >= 1 ? ps.free : Math.floor(ps.free * fr / 100) * 100;
+  }
+  TR.f.qty = String(qty); if ($('trQty')) $('trQty').value = qty; updateEstimate();
+  showMsg(qty > 0 ? '' : (TR.side === 'buy' ? '可用资金或单只仓位上限不足以买入一手，请调大比例' : '没有可卖数量'), qty > 0 ? '' : 'err');
+}
+function sizeByRisk() {
+  var px = curPrice(), stop = trNum('trStop') / 100, risk = trNum('trRisk') / 100;
+  if (!px || !TR.a || stop <= 0 || risk <= 0) { showMsg('请先输入股票代码，并填写风险比例和止损幅度', 'err'); return; }
+  var value = TR.a.equity * risk / stop, unit = (TR.q && /^(sh688|sh689)/.test(TR.q.code)) ? 1 : 100;
+  var cap = TR.a.available, mp = TR.a.cfg.maxPosPct; if (mp > 0 && mp < 1) cap = Math.min(cap, TR.a.equity * mp);
+  value = Math.min(value, cap / 1.0006);
+  var qty = Math.floor(value / px / unit) * unit; if (unit === 1 && qty < 200) qty = 0;
+  TR.f.qty = String(qty); $('trQty').value = qty; $('trSl').value = (stop * 100).toFixed(1).replace(/\.0$/, ''); TR.f.sl = $('trSl').value; updateEstimate();
+  showMsg(qty > 0 ? '仓位 ' + fm(qty * px, 0) + ' 元（总资产 ' + (qty * px / TR.a.equity * 100).toFixed(1) + '%），止损触发时约亏 ' + fm(qty * px * stop, 0) + ' 元' : '按此风险算出的数量不足一手', qty > 0 ? '' : 'err');
+}
+function updateEstimate() {
+  var el = $('trEst'); if (!el) return;
+  var px = curPrice(), qty = parseInt($('trQty') ? $('trQty').value : '0', 10) || 0, sell = TR.side === 'sell';
+  var t = '';
+  if (px && qty > 0) { var amt = px * qty, fee = feeEst(amt, sell); t = '预计金额 ' + fm(amt) + ' 元，费用约 ' + fm(fee) + ' 元，' + (sell ? '到账约 ' + fm(amt - fee) : '共需约 ' + fm(amt + fee)) + ' 元'; }
+  var c = trCode(), p = trPos(c);
+  if (sell && p) t += (t ? '；' : '') + '可卖 ' + p.free + ' 股（持仓 ' + p.qty + '）';
+  if (!sell && TR.a) t += (t ? '；' : '') + '可用资金 ' + fm(TR.a.available);
+  el.textContent = t;
+}
+function showMsg(m, cls) { if (m !== undefined) { TR.msg = m; TR.msgCls = cls || ''; } var el = $('trMsg'); if (el) { el.textContent = TR.msg; el.className = TR.msgCls === 'err' ? 'err' : 'muted'; } }
+function submitOrder() {
+  saveForm();
+  var c = trCode(), qty = parseInt(TR.f.qty, 10) || 0;
+  if (!c) { showMsg('请输入股票代码', 'err'); return; }
+  if (qty <= 0) { showMsg('请输入数量', 'err'); return; }
+  var q = '/api/trade/order?code=' + encodeURIComponent(c) + '&side=' + TR.side + '&type=' + TR.type + '&qty=' + qty;
+  if (TR.type === 'limit') { var px = trNum('trPrice'); if (px <= 0) { showMsg('请输入限价', 'err'); return; } q += '&price=' + px; }
+  if (TR.side === 'buy') { q += '&slPct=' + (parseFloat(TR.f.sl) / 100 || 0) + '&tpPct=' + (parseFloat(TR.f.tp) / 100 || 0) + '&trailPct=' + (parseFloat(TR.f.trail) / 100 || 0); }
+  var closed = TR.q && TR.a && !TR.a.cfg.anytime && TR.q.status !== 'open' && TR.q.status !== 'auction';
+  if (closed) { if (!confirm('当前休市。是否预约为下一个开盘的委托？（开盘后自动撮合，资金会先冻结）')) return; q += '&queue=1'; }
+  $('trGo').disabled = true; showMsg('提交中…');
+  post(q).then(function (r) {
+    $('trGo').disabled = false;
+    var o = r.order;
+    showMsg(o.queued ? '已预约下一个开盘（编号 ' + o.id + '）' : r.filled ? '已成交：' + o.name + ' ' + (o.side === 1 ? '买入' : '卖出') + ' ' + o.qty + ' 股 @' + fx(o.fillPrice, 2) + '，费用 ' + fm(o.fee) : '委托已提交（编号 ' + o.id + '），等待成交', '');
+    TR.f.qty = ''; if ($('trQty')) $('trQty').value = '';
+    trRefresh(true);
+  }).catch(function (e) { $('trGo').disabled = false; showMsg(e.message, 'err'); });
+}
+function riskDialog(p) {
+  if (!p) return;
+  var d = document.createElement('div'); d.className = 'modal';
+  d.innerHTML = '<div class="dialog"><h3>风控：' + esc(p.name) + '（' + esc(p.code) + '）</h3><p class="muted">现价 ' + fm(p.price) + '，成本 ' + fm(p.avgCost, 3) + '。价格触及时服务端自动市价卖出（仅卖出可卖部分，T+1 当日买入的次日才生效）。填 0 表示取消。</p>' +
+    '<label>止损价 <input id="rkSl" value="' + (p.sl || 0) + '"></label><label>止盈价 <input id="rkTp" value="' + (p.tp || 0) + '"></label><label>移动止盈回撤 % <input id="rkTr" value="' + (p.trail ? (p.trail * 100).toFixed(1) : 0) + '"></label>' +
+    '<div class="muted" style="font-size:12px">移动止盈：从买入后的最高价回落该比例即卖出（最高价 ' + fm(p.high) + '）。</div><div id="rkMsg" class="err"></div><div class="row"><button id="rkOk">保存</button><button class="ghost" id="rkNo">取消</button></div></div>';
+  document.body.appendChild(d);
+  $('rkNo').onclick = function () { document.body.removeChild(d); };
+  $('rkOk').onclick = function () {
+    post('/api/trade/risk?code=' + encodeURIComponent(p.code) + '&sl=' + (parseFloat($('rkSl').value) || 0) + '&tp=' + (parseFloat($('rkTp').value) || 0) + '&trail=' + ((parseFloat($('rkTr').value) || 0) / 100)).then(function (a) { TR.a = a; document.body.removeChild(d); drawPos(); }).catch(function (e) { $('rkMsg').textContent = e.message; });
+  };
+}
+
+function trSub() {
+  var el = $('trSub'); if (!el) return;
+  if (TR.sub === 'orders') {
+    api('/api/trade/orders?limit=80').then(function (list) {
+      TR.orders = list; el = $('trSub'); if (!el || TR.sub !== 'orders') return;
+      var open = list.filter(function (o) { return o.status === 0; }), done = list.filter(function (o) { return o.status !== 0; });
+      el.innerHTML = '<h3 style="font-size:14px;margin:0 0 6px">委托中（' + open.length + '）</h3>' + ordTable(open, true) + '<h3 style="font-size:14px;margin:14px 0 6px">历史委托</h3>' + ordTable(done, false);
+      Array.prototype.forEach.call(el.querySelectorAll('[data-cx]'), function (b) { b.onclick = function () { post('/api/trade/cancel?id=' + b.getAttribute('data-cx')).then(function () { trRefresh(true); }).catch(function (e) { alert(e.message); }); }; });
+    });
+  } else if (TR.sub === 'fills') {
+    api('/api/trade/fills?limit=200').then(function (list) {
+      el = $('trSub'); if (!el || TR.sub !== 'fills') return;
+      el.innerHTML = list.length ? '<table><tr><th>时间</th><th>股票</th><th>方向</th><th>成交价</th><th>数量</th><th>金额</th><th>费用</th><th>已实现盈亏</th><th>来源</th></tr>' + list.map(function (f) {
+        return '<tr><td>' + fts(f.ts) + '</td><td>' + esc(f.name) + ' <span class="muted">' + esc(f.code) + '</span></td><td class="' + (f.side === 1 ? 'up' : 'down') + '">' + (f.side === 1 ? '买入' : '卖出') + '</td><td>' + fm(f.price) + '</td><td>' + f.qty + '</td><td>' + fm(f.amount) + '</td><td>' + fm(f.fee) + '</td><td class="' + sgn(f.pnl) + '">' + (f.pnl == null ? '-' : sg(f.pnl)) + '</td><td>' + esc(f.source) + '</td></tr>';
+      }).join('') + '</table>' : '<div class="muted">还没有成交。</div>';
+    });
+  } else if (TR.sub === 'perf') {
+    api('/api/trade/equity').then(function (d) { TR.eq = d; el = $('trSub'); if (!el || TR.sub !== 'perf') return; drawPerf(); });
+  } else {
+    drawCfg();
+  }
+}
+function ordTable(list, cancel) {
+  if (!list.length) return '<div class="muted">无。</div>';
+  return '<table><tr><th>时间</th><th>股票</th><th>方向</th><th>类型</th><th>委托价</th><th>数量</th><th>状态</th><th>成交价</th><th>来源</th><th>备注</th>' + (cancel ? '<th></th>' : '') + '</tr>' + list.map(function (o) {
+    return '<tr><td>' + fts(o.ts) + '</td><td>' + esc(o.name) + ' <span class="muted">' + esc(o.code) + '</span></td><td class="' + (o.side === 1 ? 'up' : 'down') + '">' + (o.side === 1 ? '买入' : '卖出') + '</td><td>' + (o.type ? '市价' : '限价') + '</td><td>' + (o.type ? '-' : fm(o.price)) + '</td><td>' + o.qty + '</td><td>' + (o.queued ? '预约开盘' : OST[o.status]) + '</td><td>' + (o.fillPrice ? fm(o.fillPrice) : '-') + '</td><td>' + esc(o.source) + '</td><td class="muted" style="font-size:12px">' + esc(o.note) + '</td>' + (cancel ? '<td><button class="small ghost" data-cx="' + o.id + '">撤单</button></td>' : '') + '</tr>';
+  }).join('') + '</table>';
+}
+function drawPerf() {
+  var d = TR.eq, el = $('trSub'); if (!d || !el) return;
+  var s = d.stats;
+  function cell(k, v, cls) { return '<div><span>' + k + '</span><b' + (cls ? ' class="' + cls + '"' : '') + '>' + v + '</b></div>'; }
+  el.innerHTML = '<canvas id="trCv"></canvas><div class="legend"><span><i style="background:' + ACC + '"></i>总资产（日终）</span><span><i style="background:' + MUT + '"></i>初始资金</span></div>' +
+    '<div class="kv" style="margin-top:10px">' + cell('累计收益', pcs(s.ret), sgn(s.ret)) + cell('最大回撤', s.maxDd == null ? '-' : '-' + (s.maxDd * 100).toFixed(2) + '%', s.maxDd > 0 ? 'down' : '') + cell('夏普比率（年化）', s.sharpe == null ? '至少 10 个交易日' : fx(s.sharpe, 2)) +
+    cell('已实现盈亏', sg(s.realized), sgn(s.realized)) + cell('胜率', s.winRate == null ? '-' : pct(s.winRate, 1)) + cell('盈亏比（均盈/均亏）', s.avgWin != null && s.avgLoss ? fx(s.avgWin / s.avgLoss, 2) : '-') + cell('盈利因子', s.profitFactor == null ? '-' : fx(s.profitFactor, 2)) +
+    cell('买入/卖出笔数', s.buys + ' / ' + s.sells) + cell('盈利/亏损笔数', s.wins + ' / ' + s.losses) + cell('累计费用', fm(s.fees)) + cell('累计成交额', fm(s.turnover, 0)) + cell('统计天数', s.days) + '</div>' +
+    '<div class="note">资金曲线按每个交易日收盘（15:05 后）记录总资产；当日未收盘时最后一个点为实时值。胜率、盈亏比基于每笔卖出的已实现盈亏（含买卖双边费用）。</div>';
+  var cv = $('trCv'), S = setup(cv, 260), g = S.g, W = S.w, H = S.h, x0 = 6, x1 = W - 70, y0 = 10, y1 = H - 22, pts = d.points;
+  var lo = d.initial, hi = d.initial; pts.forEach(function (p) { lo = Math.min(lo, p[1]); hi = Math.max(hi, p[1]); });
+  var pad = (hi - lo) * 0.1 || d.initial * 0.01; lo -= pad; hi += pad;
+  var Y = function (v) { return y1 - (v - lo) / (hi - lo) * (y1 - y0); }, X = function (i) { return pts.length > 1 ? x0 + i / (pts.length - 1) * (x1 - x0) : (x0 + x1) / 2; };
+  yAxis(g, x0, x1, y0, y1, lo, hi, 0, true);
+  g.strokeStyle = MUT; g.setLineDash([4, 4]); g.beginPath(); g.moveTo(x0, Y(d.initial)); g.lineTo(x1, Y(d.initial)); g.stroke(); g.setLineDash([]);
+  line(g, pts.map(function (p, i) { return [X(i), Y(p[1])]; }), ACC, 1.8);
+  g.fillStyle = ACC; pts.forEach(function (p, i) { g.beginPath(); g.arc(X(i), Y(p[1]), 2.5, 0, 6.3); g.fill(); });
+  g.fillStyle = MUT; g.textAlign = 'center'; g.textBaseline = 'bottom';
+  [0, Math.floor((pts.length - 1) / 2), pts.length - 1].forEach(function (i, k, a) { if (k > 0 && i === a[k - 1]) return; g.fillText(fdate(pts[i][0]).slice(2), Math.min(Math.max(X(i), 34), x1 - 28), H - 4); });
+}
+function drawCfg() {
+  var a = TR.a, el = $('trSub'); if (!a || !el) return;
+  var c = a.cfg;
+  el.innerHTML = '<div class="grid2"><div><h3 style="font-size:14px;margin:0 0 8px">交易成本与规则</h3>' +
+    '<label class="muted" style="display:flex;gap:10px;margin:8px 0;align-items:center">佣金率（万分之）<input id="cfFee" size="6" value="' + (c.feeRate * 10000).toFixed(2) + '"></label>' +
+    '<label class="muted" style="display:flex;gap:10px;margin:8px 0;align-items:center">最低佣金（元）<input id="cfMin" size="6" value="' + c.minFee + '"></label>' +
+    '<label class="muted" style="display:flex;gap:10px;margin:8px 0;align-items:center">印花税（千分之，仅卖出）<input id="cfStamp" size="6" value="' + (c.stampRate * 1000).toFixed(2) + '"></label>' +
+    '<label class="muted" style="display:flex;gap:10px;margin:8px 0;align-items:center">市价单滑点（基点）<input id="cfSlip" size="6" value="' + c.slipBps + '"></label>' +
+    '<label class="muted" style="display:flex;gap:10px;margin:8px 0;align-items:center">单只股票仓位上限（% 总资产，0=不限）<input id="cfMax" size="6" value="' + (c.maxPosPct * 100).toFixed(0) + '"></label>' +
+    '<label class="muted" style="display:flex;gap:10px;margin:8px 0;align-items:center"><input type="checkbox" id="cfAny"' + (c.anytime ? ' checked' : '') + '> 演示模式：休市时也按最新价成交（仅用于演示，会让 T+1 以外的时间规则失效）</label>' +
+    '<div class="row"><button id="cfSave">保存设置</button><span id="cfMsg" class="muted"></span></div></div>' +
+    '<div><h3 style="font-size:14px;margin:0 0 8px">重置账户</h3><p class="muted">清空持仓、委托、成交与资金曲线，并以新的初始资金重新开始。成本设置保留。</p>' +
+    '<label class="muted" style="display:flex;gap:10px;margin:8px 0;align-items:center">初始资金（元）<input id="cfCash" size="10" value="' + a.initial + '"></label><div class="row"><button class="ghost" id="cfReset">重置账户</button></div></div></div>';
+  $('cfSave').onclick = function () {
+    post('/api/trade/config?feeRate=' + (parseFloat($('cfFee').value) / 10000) + '&minFee=' + parseFloat($('cfMin').value) + '&stampRate=' + (parseFloat($('cfStamp').value) / 1000) + '&slipBps=' + parseFloat($('cfSlip').value) + '&maxPosPct=' + (parseFloat($('cfMax').value) / 100) + '&anytime=' + ($('cfAny').checked ? 1 : 0))
+      .then(function (r) { TR.a = r; drawAcct(); $('cfMsg').textContent = '已保存'; }).catch(function (e) { $('cfMsg').textContent = e.message; });
+  };
+  $('cfReset').onclick = function () {
+    if (!confirm('确定重置模拟账户？所有持仓、委托、成交和资金曲线将被清空。')) return;
+    post('/api/trade/reset?cash=' + parseFloat($('cfCash').value)).then(function (r) { TR.a = r; drawAcct(); drawPos(); trSub(); }).catch(function (e) { alert(e.message); });
+  };
+}
+
 /* ---------------- Shell: symbols, tabs, import ---------------- */
 function loadSymbols() {
   return api('/api/symbols').then(function (list) { state.symbols = list; drawSymbols(); });
@@ -708,7 +964,8 @@ function selectSymbol(code, tab) {
   var s = state.symbols.filter(function (x) { return x.code === code; })[0];
   if (s) {
     $('titleBar').innerHTML = '<h2>' + esc(s.name || s.code) + '</h2><span class="muted">' + esc(s.code) + '　' + s.bars + ' 根日线　' + fdate(s.first) + ' ~ ' + fdate(s.last) + '</span>' +
-      '<span class="' + sgn(s.chg) + '" style="font-size:18px">' + fx(s.close, 2) + '　' + pct(s.chg) + '</span>' + staleHtml(s) + '<span class="spacer"></span>' + (s.source === 'sina' ? '<button class="small ghost" id="btnUpd">更新数据</button> ' : '') + '<button class="small ghost" id="btnDel">删除数据</button>';
+      '<span class="' + sgn(s.chg) + '" style="font-size:18px">' + fx(s.close, 2) + '　' + pct(s.chg) + '</span>' + staleHtml(s) + '<span class="spacer"></span>' + (s.source === 'sina' ? '<button class="small" id="btnTrade">模拟交易</button> ' : '') + (s.source === 'sina' ? '<button class="small ghost" id="btnUpd">更新数据</button> ' : '') + '<button class="small ghost" id="btnDel">删除数据</button>';
+    if ($('btnTrade')) { $('btnTrade').onclick = function () { TR.code = s.code; TR.q = null; TR.f.price = ''; switchTab('trade'); }; }
     if ($('btnUpd')) { $('btnUpd').onclick = function () { refreshFeed(s.code); }; }
     $('btnDel').onclick = function () {
       if (!confirm('删除 ' + s.code + ' 的数据与本地CSV索引？（模拟数据重启后会重新生成）')) return;
@@ -720,13 +977,13 @@ function selectSymbol(code, tab) {
 function switchTab(t) {
   state.tab = t;
   Array.prototype.forEach.call(document.querySelectorAll('#tabs button'), function (b) { b.className = b.getAttribute('data-tab') === t ? 'on' : ''; });
-  ['chart', 'predict', 'backtest', 'watch', 'scan'].forEach(function (n) { $('tab-' + n).hidden = n !== t; });
-  if (!state.code && t !== 'watch' && t !== 'scan') return;
-  if (t === 'chart') renderChart(); else if (t === 'predict') renderPredict(); else if (t === 'backtest') renderBacktest(); else if (t === 'scan') renderScan(); else renderWatch();
+  ['chart', 'predict', 'backtest', 'watch', 'scan', 'trade'].forEach(function (n) { $('tab-' + n).hidden = n !== t; });
+  if (!state.code && t !== 'watch' && t !== 'scan' && t !== 'trade') return;
+  if (t === 'chart') renderChart(); else if (t === 'predict') renderPredict(); else if (t === 'backtest') renderBacktest(); else if (t === 'scan') renderScan(); else if (t === 'trade') renderTrade(); else renderWatch();
 }
 
 /* ---------------- Whole-market scan ---------------- */
-var SC = { since: 0, hits: [], runId: -1, timer: null, last: null, sortP: false, fresh: {} };
+var SC = { since: 0, hits: [], runId: -1, timer: null, last: null, fresh: {}, sortKey: 'p', sortDir: -1, q: '', hideFlag: false, quotes: {}, sel: {}, held: {}, qTimer: null };
 var PHASE_TXT = ['空闲', '获取股票列表', '训练模型', '扫描中', '已完成', '出错'];
 function renderScan() {
   var root = $('tab-scan');
@@ -736,20 +993,22 @@ function renderScan() {
     '<button id="scGo">开始扫描</button><button id="scStop" class="ghost" hidden>停止</button>' +
     '<label class="muted" title="去掉“前一天已涨≥5%”的股票：这类股票的规律最强也最难买到，排除后看模型是否还有预测力"><input type="checkbox" id="scExcl"> 排除前一日涨幅≥5%的股票</label>' +
     '<label class="muted" title="上证指数收在20日均线下方、且近5日下跌（“弱势”）时，不输出任何推荐：大盘弱的时候个股普遍跟着跌"><input type="checkbox" id="scGate"> 大盘弱势时不推荐</label>' +
-    '<label class="muted"><input type="checkbox" id="scSort"> 按概率排序</label></div><div id="scMkt"></div>' +
+    '</div><div id="scMkt"></div>' +
     '<div class="note">买入价按“信号日（收盘后扫描）的下一个交易日开盘价”计算（你只能 T+1 买入），最早再下一个交易日才能卖出（T+1 规则）。统计的是买入后 H 个交易日里任意一天的最高<b>收盘价</b>，你不可能每次都卖在最高点，所以请同时看下面的“持有到第 H 天收盘的平均收益”。H=1 即超短线：买入后第一个可卖日（次日）收盘价是否达到目标。已排除北交所 920、科创板 688 和 ST/*ST 股票；信号日收在涨停、或买入日开盘就在涨停（买不进）的样本不计入训练、检验和结果。</div>' +
     '<div id="scProg"></div>' +
     '<div class="toolbar" style="margin-top:8px"><label title="服务开着时，每个交易日 15:10 之后自动用上面的参数扫描一次，结束后把前 5 只推送到“自选与提醒”里配置的机器人；结果同样记入历史战绩"><input type="checkbox" id="scAuto"> 每个交易日收盘后（15:10）自动扫描并推送</label><span id="scAutoSt" class="muted"></span></div></div>' +
-    '<div class="card"><h3>扫描结果 <span id="scCount" class="muted" style="font-weight:400"></span></h3><div id="scRes"><div class="muted">点击“开始扫描”。发现一只就显示一只，不必等扫描结束。</div></div></div>' +
+    '<div class="card"><h3>扫描结果 <span id="scCount" class="muted" style="font-weight:400"></span></h3>' +
+    '<div class="toolbar"><input id="scQ" size="12" placeholder="筛选代码/名称" value="' + esc(SC.q) + '"><label class="muted" title="去掉前一日涨幅≥9.5%（次日开盘多半买不到）和 ST 的股票"><input type="checkbox" id="scHide"' + (SC.hideFlag ? ' checked' : '') + '> 隐藏风险标记</label>' +
+    '<button class="small ghost" id="scQuote">刷新实时价</button><span id="scQSt" class="muted"></span><span class="spacer"></span>' +
+    '<span class="muted">选前</span><input id="scTopN" size="2" value="5"><button class="small ghost" id="scTop">选中</button><button class="small ghost" id="scNone">清除</button><button class="small" id="scBuy">模拟买入选中…</button><button class="small ghost" id="scCsv">导出 CSV</button></div>' +
+    '<div id="scRes"><div class="muted">点击“开始扫描”。发现一只就显示一只，不必等扫描结束。</div></div></div>' +
     '<div class="card"><h3>这些概率靠不靠谱？（模型在没参与训练的最近约 250 个交易日上的检验）</h3><div id="scVal"><div class="muted">首次扫描会先训练模型，之后显示。</div></div></div>' +
     '<div class="card"><h3>历史战绩：每次扫描的结果，隔天自动核对真实涨跌 <button class="small ghost" id="trRef">刷新</button></h3><div id="scTrack"><div class="loading">加载中…</div></div></div>' +
-    '<div class="card"><h3>请务必看清</h3><div class="note" style="font-size:13px;line-height:1.7">' +
+    '<div class="card"><details><summary style="cursor:pointer;font-size:16px;font-weight:600">请务必看清（使用前必读）</summary><div class="note" style="font-size:13px;line-height:1.7;margin-top:8px">' +
     '① 这不是“保证大涨”的名单。模型是用约 300 只股票、近 4 年日线训练的统计模型，只给出“相对基准更高”的概率；上方检验表是它在训练外时期的真实命中率，请以此为准，不要看概率数字本身。<br>' +
     '② 模型的优势主要来自“近期波动大”“前一天已大涨”等规律，这类股票涨得多，跌得也多——请看检验表里“持有期末亏损≥5% 占比”和“持有到期平均收益”。<br>' +
     '③ 买入价取的是历史上真实的 T+1 开盘价（已含高开）；但如果 T+1 开盘就涨停，你实际买不到；也没有计入佣金、印花税、滑点。“任一天最高收盘”只是上限，你需要自己决定何时卖，持有到期的收益更接近现实。<br>' +
-    '④ 数据来自新浪公开接口，仅供个人研究与学习，不构成任何投资建议。</div></div>';
-  $('scSort').checked = SC.sortP;
-  $('scSort').onchange = function () { SC.sortP = this.checked; drawScanRows(); };
+    '④ 数据来自新浪公开接口，仅供个人研究与学习，不构成任何投资建议。</div></details></div>';
   $('scGo').onclick = function () {
     var pm = parseFloat($('scP').value); if (isNaN(pm) || pm < 2 || pm > 95) { toast('概率阈值请填 2–95 之间的数字'); return; }
     var btn = $('scGo'); if (btn.disabled) return;
@@ -760,6 +1019,14 @@ function renderScan() {
     }).catch(function (e) { btn.disabled = false; btn.textContent = '重新扫描'; toast('无法开始扫描：' + e.message); pollScan(); });
   };
   $('trRef').onclick = loadTrack; loadTrack();
+  $('scQ').oninput = function () { SC.q = this.value; drawScanRows(); };
+  $('scHide').onchange = function () { SC.hideFlag = this.checked; drawScanRows(); };
+  $('scQuote').onclick = function () { refreshScanQuotes(true); };
+  $('scTop').onclick = function () { var n = parseInt($('scTopN').value, 10) || 5; scanList().slice(0, n).forEach(function (h) { SC.sel[h.code] = 1; }); drawScanRows(); };
+  $('scNone').onclick = function () { SC.sel = {}; drawScanRows(); };
+  $('scBuy').onclick = function () { scanBuyDialog(selectedHits()); };
+  $('scCsv').onclick = exportScanCsv;
+  loadHeld();
   var saveAuto = function () {
     var pm = parseFloat($('scP').value); if (isNaN(pm) || pm < 2 || pm > 95) { toast('概率阈值请填 2–95 之间的数字'); $('scAuto').checked = false; return; }
     post('/api/scan/auto/set?on=' + ($('scAuto').checked ? 1 : 0) + '&theta=' + $('scTheta').value + '&h=' + $('scH').value + '&pmin=' + (pm / 100) + ($('scExcl').checked ? '&excl=1' : '') + ($('scGate').checked ? '&mg=1' : '')).then(drawAuto).catch(function (e) { toast(e.message); });
@@ -772,7 +1039,7 @@ function renderScan() {
     drawAuto(d);
   }).catch(function () {});
   $('scStop').onclick = function () { post('/api/scan/stop').then(function (d) { drawScanStatus(d); }); };
-  SC.since = 0; SC.hits = [];
+  SC.since = 0; SC.hits = []; SC.autoQ = 0;
   pollScan();
 }
 function drawAuto(d) {
@@ -786,7 +1053,7 @@ function pollScan() {
     if (SC.runId !== d.runId) { SC.runId = d.runId; SC.since = 0; SC.hits = []; SC.fresh = {}; if (d.hits.length === 0 && d.hitsTotal > 0) { pollScan(); return; } }
     d.hits.forEach(function (h) { SC.hits.push(h); SC.fresh[h.code] = Date.now(); });
     SC.since += d.hits.length; SC.last = d;
-    if ($('scProg')) { drawScanStatus(d); if (d.hits.length) drawScanRows(); }
+    if ($('scProg')) { drawScanStatus(d); if (d.hits.length) drawScanRows(); if (!SC.autoQ && SC.hits.length && d.phase >= 4) { SC.autoQ = 1; refreshScanQuotes(false); } }
     if (d.phase >= 1 && d.phase <= 3) SC.timer = setTimeout(pollScan, 1000);
     else if (d.hitsTotal > SC.since) SC.timer = setTimeout(pollScan, 200);
   }).catch(function (e) { if ($('scProg')) $('scProg').innerHTML = '<span class="err">' + esc(e.message) + '</span>'; SC.timer = setTimeout(pollScan, 3000); });
@@ -869,17 +1136,140 @@ function drawScanVal(v) {
     return '<tr><td>' + MK_NAME[r.s] + ' <span class="muted">' + MK_DESC[r.s] + '</span></td><td>' + r.n + '</td><td>' + pct(r.base, 1) + '</td><td class="' + sgn(r.end) + '">' + pct(r.end, 2) + '</td><td>' + r.hiN + '</td><td>' + (r.hiN ? pct(r.hiPrec, 1) : '-') + '</td><td class="' + sgn(r.hiEnd) + '">' + (r.hiN ? pct(r.hiEnd, 2) : '-') + '</td></tr>';
   }).join('') + '</table><div class="note">“大盘状态”按信号日收盘时的上证指数判定。若“弱势”行的收益明显更差，说明大盘不好时不该出手；若各行差不多，则说明这个简单的大盘判断没有帮助。注意：这只是用过去数据拆分，并不能预测明天大盘。</div>';
 }
+function loadHeld() {
+  api('/api/trade/account').then(function (a) { TR.a = a; SC.held = {}; a.positions.forEach(function (p) { SC.held[p.code] = p.qty; }); drawScanRows(); }).catch(function () {});
+}
+function scanList() {
+  var q = SC.q.trim().toLowerCase();
+  var list = SC.hits.filter(function (h) {
+    if (SC.hideFlag && (h.limitUp || /ST/.test(h.name))) return false;
+    if (q && h.code.toLowerCase().indexOf(q) < 0 && h.name.toLowerCase().indexOf(q) < 0) return false;
+    return true;
+  });
+  var k = SC.sortKey, d = SC.sortDir;
+  var val = function (h) {
+    var qq = SC.quotes[h.code];
+    switch (k) {
+      case 'code': return h.code; case 'name': return h.name; case 'chg': return h.chg; case 'p': return h.p;
+      case 'band': return h.band == null ? -1 : h.band; case 'tp': return h.band == null ? -9 : h.bandTp;
+      case 'now': return qq ? qq.pct : -9; case 'gap': return qq && h.price ? qq.price / h.price - 1 : -9;
+    }
+    return 0;
+  };
+  list.sort(function (a, b) { var x = val(a), y = val(b); if (x < y) return -d; if (x > y) return d; return b.p - a.p; });
+  return list;
+}
+function selectedHits() { return scanList().filter(function (h) { return SC.sel[h.code]; }); }
+function scanTh(key, label, left) {
+  var on = SC.sortKey === key;
+  return '<th data-sort="' + key + '" style="cursor:pointer;' + (left ? 'text-align:left;' : '') + '">' + label + (on ? (SC.sortDir < 0 ? ' ▼' : ' ▲') : '') + '</th>';
+}
+function quoteTag(h) {
+  var q = SC.quotes[h.code]; if (!q) return '<span class="muted">-</span>';
+  var tag = '';
+  if (q.limitUp > 0 && q.price >= q.limitUp - 0.001) tag = ' <span class="warn">涨停·难买</span>';
+  else if (q.limitDown > 0 && q.price <= q.limitDown + 0.001) tag = ' <span class="warn">跌停</span>';
+  return '<b class="' + sgn(q.pct) + '">' + fx(q.price, 2) + '</b> <span class="' + sgn(q.pct) + '">' + pct(q.pct) + '</span>' + tag;
+}
 function drawScanRows() {
   var el = $('scRes'); if (!el) return;
-  $('scCount').textContent = SC.hits.length ? '（已发现 ' + SC.hits.length + ' 只）' : '';
-  if (!SC.hits.length) { el.innerHTML = '<div class="muted">' + (SC.last && SC.last.phase === 4 ? '没有股票的预测概率达到所设阈值。这通常是正常的：大涨是小概率事件。可以降低“最低概率”再试。' : '暂无。扫描开始后，发现一只就显示一只。') + '</div>'; return; }
-  var list = SC.hits.slice(); if (SC.sortP) list.sort(function (a, b) { return b.p - a.p; });
-  var th = SC.last ? SC.last.theta : 0.05, now = Date.now();
-  el.innerHTML = '<table><tr><th>代码</th><th>名称</th><th>最新价</th><th>当日涨幅</th><th>预测概率</th><th>检验期同档实际命中率</th><th>同档止盈策略平均收益</th><th>数据日期</th><th></th></tr>' + list.map(function (h) {
+  var all = SC.hits.length, list = scanList();
+  $('scCount').textContent = all ? '（已发现 ' + all + ' 只' + (list.length !== all ? '，显示 ' + list.length + ' 只' : '') + (SC.last && SC.last.restored ? '，服务重启前的结果' : '') + '）' : '';
+  var nSel = selectedHits().length; $('scBuy').textContent = '模拟买入选中' + (nSel ? '（' + nSel + '）' : '') + '…';
+  if (!all) { el.innerHTML = '<div class="muted">' + (SC.last && SC.last.phase === 4 ? '没有股票的预测概率达到所设阈值。这通常是正常的：大涨是小概率事件。可以降低“最低概率”再试。' : '暂无。扫描开始后，发现一只就显示一只。') + '</div>'; return; }
+  if (!list.length) { el.innerHTML = '<div class="muted">没有符合筛选条件的股票。</div>'; return; }
+  var th = SC.last ? SC.last.theta : 0.05, now = Date.now(), pmax = 0; list.forEach(function (h) { if (h.p > pmax) pmax = h.p; });
+  el.innerHTML = '<div style="overflow-x:auto"><table><tr><th><input type="checkbox" id="scAll"' + (list.every(function (h) { return SC.sel[h.code]; }) ? ' checked' : '') + '></th>' + scanTh('code', '代码', 1) + scanTh('name', '名称', 1) + scanTh('now', '实时价 / 今日涨幅') + scanTh('gap', '较信号日收盘') + scanTh('chg', '信号日涨幅') + scanTh('p', '预测概率') + scanTh('band', '检验期同档命中率') + scanTh('tp', '同档止盈策略平均收益') + '<th>数据日期</th><th></th></tr>' + list.map(function (h) {
     var flag = h.limitUp ? ' <span class="warn">前日涨幅≥9.5%</span>' : (/ST/.test(h.name) ? ' <span class="warn">ST</span>' : '');
-    return '<tr' + (now - (SC.fresh[h.code] || 0) < 4000 ? ' class="hl"' : '') + '><td><a href="#" data-open="' + esc(h.code) + '" style="color:' + ACC + '">' + esc(h.code) + '</a></td><td>' + esc(h.name) + flag + '</td><td>' + fx(h.price, 2) + '</td><td class="' + sgn(h.chg) + '">' + pct(h.chg) + '</td><td><b>' + pct(h.p, 1) + '</b></td><td>' + (h.band == null ? '<span class="muted">无足够检验样本</span>' : pct(h.band, 1) + ' <span class="muted">(n=' + h.bandN + ')</span>') + '</td><td class="' + sgn(h.bandTs) + '">' + (h.band == null ? '-' : pct(h.bandTp, 2) + ' <span class="muted">/ 加止损 ' + pct(h.bandTs, 2) + '</span>') + '</td><td>' + fdate(h.asOf) + '</td><td><button class="small ghost" data-open="' + esc(h.code) + '">查看</button></td></tr>';
-  }).join('') + '</table><div class="note">“预测概率”= T+1 开盘买入后 ' + (SC.last ? SC.last.hold : '') + ' 个交易日内、任一天收盘价较买入价涨幅 ≥ ' + pct(th, 0) + ' 的概率。高亮行为刚发现的。</div>';
+    var held = SC.held[h.code] ? ' <span class="st open" title="模拟账户已持有 ' + SC.held[h.code] + ' 股">已持仓</span>' : '';
+    var q = SC.quotes[h.code], gap = q && h.price ? q.price / h.price - 1 : null;
+    return '<tr' + (now - (SC.fresh[h.code] || 0) < 4000 ? ' class="hl"' : '') + '><td><input type="checkbox" data-sel="' + esc(h.code) + '"' + (SC.sel[h.code] ? ' checked' : '') + '></td><td><a href="#" data-open="' + esc(h.code) + '" style="color:' + ACC + '">' + esc(h.code) + '</a></td><td>' + esc(h.name) + flag + held + '</td><td>' + quoteTag(h) + '</td><td class="' + sgn(gap) + '">' + (gap == null ? '-' : pct(gap, 2) + ' <span class="muted">(' + fx(h.price, 2) + ')</span>') + '</td><td class="' + sgn(h.chg) + '">' + pct(h.chg) + '</td><td><b>' + pct(h.p, 1) + '</b><div style="height:3px;background:' + ACC + ';width:' + Math.round(h.p / pmax * 60) + 'px;border-radius:2px;opacity:.7"></div></td><td>' + (h.band == null ? '<span class="muted">无足够检验样本</span>' : pct(h.band, 1) + ' <span class="muted">(n=' + h.bandN + ')</span>') + '</td><td class="' + sgn(h.bandTs) + '">' + (h.band == null ? '-' : pct(h.bandTp, 2) + ' <span class="muted">/ 加止损 ' + pct(h.bandTs, 2) + '</span>') + '</td><td>' + fdate(h.asOf) + '</td><td style="white-space:nowrap"><button class="small" data-buy="' + esc(h.code) + '">买入</button> <button class="small ghost" data-watch="' + esc(h.code) + '">+自选</button> <button class="small ghost" data-open="' + esc(h.code) + '">查看</button></td></tr>';
+  }).join('') + '</table></div><div class="note">“预测概率”= T+1 开盘买入后 ' + (SC.last ? SC.last.hold : '') + ' 个交易日内、任一天收盘价较买入价涨幅 ≥ ' + pct(th, 0) + ' 的概率。点表头可排序；“较信号日收盘”需先点“刷新实时价”，是按你<b>现在</b>能买到的价格看已经高开/回落了多少。高亮行为刚发现的。</div>';
   Array.prototype.forEach.call(el.querySelectorAll('[data-open]'), function (a) { a.onclick = function (e) { e.preventDefault(); openScanned(a.getAttribute('data-open')); }; });
+  Array.prototype.forEach.call(el.querySelectorAll('[data-sort]'), function (t) { t.onclick = function () { var k = t.getAttribute('data-sort'); if (SC.sortKey === k) SC.sortDir = -SC.sortDir; else { SC.sortKey = k; SC.sortDir = (k === 'code' || k === 'name') ? 1 : -1; } drawScanRows(); }; });
+  Array.prototype.forEach.call(el.querySelectorAll('[data-sel]'), function (c) { c.onchange = function () { if (c.checked) SC.sel[c.getAttribute('data-sel')] = 1; else delete SC.sel[c.getAttribute('data-sel')]; var n = selectedHits().length; $('scBuy').textContent = '模拟买入选中' + (n ? '（' + n + '）' : '') + '…'; }; });
+  if ($('scAll')) $('scAll').onchange = function () { var on = this.checked; list.forEach(function (h) { if (on) SC.sel[h.code] = 1; else delete SC.sel[h.code]; }); drawScanRows(); };
+  Array.prototype.forEach.call(el.querySelectorAll('[data-buy]'), function (b) { b.onclick = function () { var c = b.getAttribute('data-buy'); scanBuyDialog(SC.hits.filter(function (h) { return h.code === c; })); }; });
+  Array.prototype.forEach.call(el.querySelectorAll('[data-watch]'), function (b) { b.onclick = function () { addScanWatch(b.getAttribute('data-watch'), b); }; });
+}
+function addScanWatch(code, btn) {
+  btn.disabled = true;
+  var have = state.symbols.filter(function (x) { return x.code === code; })[0];
+  (have ? Promise.resolve({ code: code }) : post('/api/feed/add?code=' + encodeURIComponent(code))).then(function (r) {
+    return post('/api/watch/add?code=' + encodeURIComponent(r.code)).then(function () { btn.textContent = '已加入'; toast('已加入自选'); return loadSymbols(); });
+  }).catch(function (e) { btn.disabled = false; toast('加入失败：' + e.message); });
+}
+/** Live quotes for the rows on screen, 24 codes per request (the server fetches them one by one). */
+function refreshScanQuotes(manual) {
+  var list = scanList(); if (!list.length) return;
+  var codes = list.map(function (h) { return h.code; }), chunks = [];
+  if (!manual) codes = codes.slice(0, 24);
+  for (var i = 0; i < codes.length; i += 24) chunks.push(codes.slice(i, i + 24));
+  var done = 0, st = $('scQSt'), btn = $('scQuote');
+  if (btn) btn.disabled = true;
+  var next = function () {
+    if (!chunks.length) { if (st) st.textContent = '行情更新于 ' + fclock(Date.now()); if (btn) btn.disabled = false; drawScanRows(); return; }
+    var c = chunks.shift();
+    if (st) st.textContent = '获取实时价 ' + done + ' / ' + codes.length + '…';
+    api('/api/quotes?codes=' + encodeURIComponent(c.join(','))).then(function (r) { r.forEach(function (q) { SC.quotes[q.code] = q; }); done += c.length; next(); }).catch(function (e) { if (st) st.textContent = '行情获取失败：' + e.message; if (btn) btn.disabled = false; });
+  };
+  next();
+}
+function exportScanCsv() {
+  var list = scanList(); if (!list.length) { toast('没有可导出的结果'); return; }
+  var rows = ['代码,名称,信号日收盘,信号日涨幅,预测概率,检验期同档命中率,同档止盈策略平均收益,数据日期'];
+  list.forEach(function (h) { rows.push([h.code, h.name, h.price, (h.chg * 100).toFixed(2) + '%', (h.p * 100).toFixed(1) + '%', h.band == null ? '' : (h.band * 100).toFixed(1) + '%', h.band == null ? '' : (h.bandTp * 100).toFixed(2) + '%', h.asOf].join(',')); });
+  var a = document.createElement('a'); a.href = URL.createObjectURL(new Blob(['\ufeff' + rows.join('\n')], { type: 'text/csv;charset=utf-8' })); a.download = 'scan-' + (list[0].asOf || 'result') + '.csv'; a.click();
+}
+/** Order dialog for one or several scan hits: position size, stop-loss / take-profit, limit-at-last-price or market, queue for the next open when closed. */
+function scanBuyDialog(list) {
+  if (!list.length) { toast('请先勾选要买入的股票'); return; }
+  var codes = list.map(function (h) { return h.code; }).slice(0, 24);
+  Promise.all([api('/api/trade/account'), api('/api/quotes?codes=' + encodeURIComponent(codes.join(',')))]).then(function (rs) {
+    var a = rs[0]; TR.a = a; rs[1].forEach(function (q) { SC.quotes[q.code] = q; });
+    var th = SC.last ? SC.last.theta : 0.08;
+    var closed = a.cfg.anytime ? false : !rs[1].some(function (q) { return q.status === 'open' || q.status === 'auction'; });
+    var d = document.createElement('div'); d.className = 'modal';
+    d.innerHTML = '<div class="dialog" style="width:760px;max-width:96vw;max-height:90vh;overflow:auto"><h3>模拟买入 ' + list.length + ' 只（' + (list.length > 1 ? '批量' : esc(list[0].name)) + '）</h3>' +
+      '<div class="kv"><div><span>总资产</span><b>' + fm(a.equity, 0) + '</b></div><div><span>可用资金</span><b>' + fm(a.available, 0) + '</b></div><div><span>单只仓位上限</span><b>' + (a.cfg.maxPosPct > 0 && a.cfg.maxPosPct < 1 ? (a.cfg.maxPosPct * 100).toFixed(0) + '%' : '不限') + '</b></div></div>' +
+      '<div class="toolbar" style="margin-top:10px"><label class="muted">每只仓位 <input id="sbPct" size="3" value="5">% 总资产</label><label class="muted">止损 <input id="sbSl" size="3" value="5">%</label><label class="muted">止盈 <input id="sbTp" size="3" value="' + (th * 100).toFixed(0) + '">%</label><label class="muted">移动止盈回撤 <input id="sbTr" size="3" value="">%</label>' +
+      '<select id="sbType"><option value="limit">限价（现价）</option><option value="market">市价</option></select></div>' +
+      (closed ? '<div class="note" style="margin:0 0 6px"><label style="display:block"><input type="checkbox" id="sbQueue" checked style="flex:none"> 现在休市：<b>预约为下一个开盘的委托</b>（开盘后按 ' + 'T+1 开盘价附近成交，建议用市价；限价单以现价为上限，高开就买不到）。取消勾选则下单会被拒绝。</label></div>' : '') +
+      '<div id="sbPlan"></div><div id="sbMsg" style="margin:6px 0"></div><div class="row"><button id="sbOk">确认下单</button><button class="ghost" id="sbNo">关闭</button></div></div>';
+    document.body.appendChild(d);
+    var plan = [];
+    var calc = function () {
+      var pctV = (parseFloat($('sbPct').value) || 0) / 100, market = $('sbType').value === 'market', mp = a.cfg.maxPosPct, tot = 0;
+      plan = list.map(function (h) {
+        var q = SC.quotes[h.code], px = q ? q.price : h.price, ref = market ? px * 1.002 : px;
+        var cap = a.equity * pctV; if (mp > 0 && mp < 1) cap = Math.min(cap, a.equity * mp);
+        var unit = /^sh68/.test(h.code) ? 1 : 100, qty = Math.floor(cap / (ref * 1.0006) / unit) * unit; if (unit === 1 && qty < 200) qty = 0;
+        var bad = '';
+        if (!q) bad = '无实时行情'; else if (q.limitUp > 0 && q.price >= q.limitUp - 0.001 && !closed) bad = '涨停，买不进'; else if (qty <= 0) bad = '仓位不足一手';
+        var amt = bad ? 0 : qty * ref; tot += amt;
+        return { h: h, px: px, qty: qty, amt: amt, bad: bad };
+      });
+      var sl = parseFloat($('sbSl').value) || 0;
+      $('sbPlan').innerHTML = '<div style="overflow-x:auto"><table><tr><th>股票</th><th>参考价</th><th>数量</th><th>金额</th><th>占总资产</th><th>止损触发约亏</th><th></th></tr>' + plan.map(function (p) {
+        return '<tr><td>' + esc(p.h.name) + ' <span class="muted">' + esc(p.h.code) + '</span></td><td>' + fx(p.px, 2) + '</td><td>' + p.qty + '</td><td>' + fm(p.amt, 0) + '</td><td>' + pct(p.amt / a.equity, 1) + '</td><td>' + (sl > 0 ? fm(p.amt * sl / 100, 0) : '-') + '</td><td class="warn">' + esc(p.bad) + '</td></tr>';
+      }).join('') + '<tr><td><b>合计</b></td><td></td><td></td><td><b>' + fm(tot, 0) + '</b></td><td><b>' + pct(tot / a.equity, 1) + '</b></td><td>' + (sl > 0 ? '<b>' + fm(tot * sl / 100, 0) + '</b>' : '') + '</td><td class="' + (tot > a.available ? 'err' : 'muted') + '">' + (tot > a.available ? '超过可用资金' : '') + '</td></tr></table></div>';
+    };
+    ['sbPct', 'sbSl', 'sbType'].forEach(function (id) { $(id).oninput = calc; $(id).onchange = calc; }); calc();
+    $('sbNo').onclick = function () { document.body.removeChild(d); loadHeld(); };
+    $('sbOk').onclick = function () {
+      var todo = plan.filter(function (p) { return !p.bad; }); if (!todo.length) { $('sbMsg').innerHTML = '<span class="err">没有可下单的股票</span>'; return; }
+      $('sbOk').disabled = true; var res = [], market = $('sbType').value === 'market', queue = $('sbQueue') && $('sbQueue').checked;
+      var qs = '&slPct=' + ((parseFloat($('sbSl').value) || 0) / 100) + '&tpPct=' + ((parseFloat($('sbTp').value) || 0) / 100) + '&trailPct=' + ((parseFloat($('sbTr').value) || 0) / 100);
+      var next = function () {
+        var p = todo.shift();
+        if (!p) { $('sbMsg').innerHTML = res.join('<br>'); $('sbOk').disabled = false; $('sbOk').hidden = true; $('sbNo').textContent = '完成'; loadHeld(); return; }
+        post('/api/trade/order?code=' + encodeURIComponent(p.h.code) + '&side=buy&type=' + (market ? 'market' : 'limit') + '&qty=' + p.qty + (market ? '' : '&price=' + p.px) + qs + '&src=scan&queue=' + (queue ? 1 : 0) + '&note=' + encodeURIComponent('扫描 概率' + (p.h.p * 100).toFixed(0) + '%'))
+          .then(function (r) { res.push('<span class="muted">' + esc(p.h.name) + '：' + (r.filled ? '已成交 ' + r.order.qty + ' 股 @' + fx(r.order.fillPrice, 2) : (r.order.queued ? '已预约下一个开盘' : '已挂单')) + '</span>'); next(); })
+          .catch(function (e) { res.push('<span class="err">' + esc(p.h.name) + '：' + esc(e.message) + '</span>'); next(); });
+      };
+      next();
+    };
+  }).catch(function (e) { toast('无法准备下单：' + e.message); });
 }
 function openScanned(code) {
   var have = state.symbols.filter(function (x) { return x.code === code; })[0];
@@ -928,6 +1318,7 @@ function init() {
     if (hp.run && state.tab === 'backtest') { if (hp.run === 'all') { runCompare(); } else { $('btStrat').value = hp.run; $('btStrat').onchange(); runBacktest(); } }
     loadAlerts(false);
     setInterval(function () { loadAlerts(state.tab === 'watch'); }, 120000);
+    setInterval(function () { if (isTrading() && !document.hidden && state.tab === 'scan' && SC.hits.length && SC.autoQ) refreshScanQuotes(false); }, 20000);
     loadEvents(false);
     setInterval(function () { loadEvents(state.tab === 'watch'); }, 20000);
     setInterval(function () { if (isTrading() && !document.hidden && state.tab === 'chart') refreshLive(); }, 5000);

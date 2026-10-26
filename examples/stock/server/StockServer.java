@@ -28,6 +28,7 @@ public class StockServer {
         StockApi.init();
         StockNotify.init();
         StockTrack.init();
+        StockTrade.init();
         WebApp app = new WebApp();
         app.config.keepAliveMax = 1;
         app.config.readTimeoutMs = 0;
@@ -63,6 +64,15 @@ public class StockServer {
         app.get("/api/intraday", new StockRoute(17));
         app.get("/api/quotes", new StockRoute(18));
         app.get("/api/minute", new StockRoute(19));
+        app.get("/api/trade/account", new StockRoute(31));
+        app.get("/api/trade/orders", new StockRoute(32));
+        app.get("/api/trade/fills", new StockRoute(33));
+        app.post("/api/trade/order", new StockRoute(34));
+        app.post("/api/trade/cancel", new StockRoute(35));
+        app.post("/api/trade/reset", new StockRoute(36));
+        app.post("/api/trade/config", new StockRoute(37));
+        app.post("/api/trade/risk", new StockRoute(38));
+        app.get("/api/trade/equity", new StockRoute(39));
         app.staticFiles("/", publicDir);
         System.out.println("STOCK symbols=" + StockStore.all.size() + " data=" + dataDir + " public=" + publicDir);
         StockHttp.serve(app, port);
@@ -90,6 +100,7 @@ class StockHttp {
                 ws.serveConnection(conn);
             }
             StockNotify.tick();
+            StockTrade.tick();
             StockAuto.tick();
             long scanT0 = System.currentTimeMillis();
             while (StockScan.running() == 1 && System.currentTimeMillis() - scanT0 < 400L) {
@@ -114,6 +125,69 @@ class StockRoute implements WebHandler {
             ctx.status(400);
         }
         ctx.jsonString(json);
+    }
+
+    void handleTrade(WebContext ctx) {
+        if (kind == 31) {
+            ctx.jsonString(StockTrade.accountJson());
+        } else if (kind == 32) {
+            String scope = ctx.query("scope");
+            int lim = StockUtil.parseInt(ctx.query("limit"), 100);
+            if (lim < 1 || lim > 500) {
+                lim = 100;
+            }
+            int openOnly = 0;
+            if (scope != null && scope.equals("open")) {
+                openOnly = 1;
+            }
+            ctx.jsonString(StockTrade.ordersJson(openOnly, lim));
+        } else if (kind == 33) {
+            int lim2 = StockUtil.parseInt(ctx.query("limit"), 200);
+            if (lim2 < 1 || lim2 > 1000) {
+                lim2 = 200;
+            }
+            ctx.jsonString(StockTrade.fillsJson(lim2));
+        } else if (kind == 34) {
+            String sd = ctx.query("side");
+            int side = 0;
+            if (sd != null && sd.equals("buy")) {
+                side = 1;
+            } else if (sd != null && sd.equals("sell")) {
+                side = 2;
+            }
+            int type = 0;
+            String tp = ctx.query("type");
+            if (tp != null && tp.equals("market")) {
+                type = 1;
+            }
+            String srcName = "手动";
+            String srcQ = ctx.query("src");
+            if (srcQ != null && srcQ.equals("scan")) {
+                srcName = "扫描";
+            }
+            String note = ctx.query("note");
+            if (note == null) {
+                note = "";
+            }
+            if (note.length() > 80) {
+                note = note.substring(0, 80);
+            }
+            reply(ctx, StockTrade.place(ctx.query("code"), side, type, StockUtil.parseDouble(ctx.query("price"), 0.0), StockUtil.parseInt(ctx.query("qty"), 0),
+                    StockUtil.clamp(StockUtil.parseDouble(ctx.query("slPct"), 0.0), 0.0, 0.5), StockUtil.clamp(StockUtil.parseDouble(ctx.query("tpPct"), 0.0), 0.0, 5.0),
+                    StockUtil.clamp(StockUtil.parseDouble(ctx.query("trailPct"), 0.0), 0.0, 0.5), srcName, note, StockUtil.parseInt(ctx.query("queue"), 0)));
+        } else if (kind == 35) {
+            reply(ctx, StockTrade.cancel(StockUtil.parseInt(ctx.query("id"), -1)));
+        } else if (kind == 36) {
+            reply(ctx, StockTrade.reset(StockUtil.parseDouble(ctx.query("cash"), 1000000.0)));
+        } else if (kind == 37) {
+            reply(ctx, StockTrade.configure(ctx.query("feeRate"), ctx.query("minFee"), ctx.query("stampRate"), ctx.query("slipBps"), ctx.query("maxPosPct"),
+                    ctx.query("anytime")));
+        } else if (kind == 38) {
+            reply(ctx, StockTrade.setRisk(ctx.query("code"), StockUtil.parseDouble(ctx.query("sl"), 0.0), StockUtil.parseDouble(ctx.query("tp"), 0.0),
+                    StockUtil.parseDouble(ctx.query("trail"), 0.0)));
+        } else {
+            ctx.jsonString(StockTrade.equityJson());
+        }
     }
 
     public void handle(WebContext ctx) {
@@ -297,6 +371,10 @@ class StockRoute implements WebHandler {
                 lim = 30;
             }
             ctx.jsonString(StockApi.barsJson(ms, lim));
+            return;
+        }
+        if (kind >= 31 && kind <= 39) {
+            handleTrade(ctx);
             return;
         }
         if (kind == 11) {
