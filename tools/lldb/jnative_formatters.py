@@ -308,8 +308,29 @@ def _format_array(
         else:
             parts.append(_format_prim_elem(process, ea, kind))
     more = "" if length <= show else f", … (+{length - show})"
-    label = type_name or "array"
-    return f"{label}[{length}] {{{', '.join(parts)}{more}}}"
+    return f"{_array_label(type_name)}[{length}] {{{', '.join(parts)}{more}}}"
+
+
+_RT_ELEM = {
+    "i1": "boolean", "i8": "byte", "i16": "short", "i32": "int", "i64": "long",
+    "float": "float", "double": "double", "CString": "String", "String": "String",
+}
+
+
+def _array_label(type_name: Optional[str]) -> str:
+    """Runtime RTTI name (array.i32, array.CString, array.CDog) -> Java element type (int, String, Dog)."""
+    if not type_name:
+        return "Object"
+    if type_name.endswith("[]"):
+        return type_name[:-2]
+    if type_name.startswith("array."):
+        e = type_name[6:]
+        if e in _RT_ELEM:
+            return _RT_ELEM[e]
+        if e.startswith("C") and len(e) > 1 and e[1:2].isupper():
+            return e[1:]
+        return e
+    return type_name
 
 
 def _format_object(

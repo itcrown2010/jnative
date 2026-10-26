@@ -9,9 +9,10 @@ class DebugDemo {
 
     public static void main(String[] args) {
         int x = 10;
-        int y = 20;
+        int y = 80;
         int sum = add(x, y);
-        double surplus=Math.sqrt(9);
+    
+        double surplus=Math.sqrt(16);
         System.out.println(sum);
         System.out.println("hello");
         System.out.println(surplus);

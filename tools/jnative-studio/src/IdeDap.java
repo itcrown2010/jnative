@@ -14,9 +14,8 @@ interface IdeDapEvents {
 }
 
 /**
- * Client for a Debug Adapter Protocol server ({@code lldb-dap}). The adapter runs behind a tiny perl filter that
- * rewrites every message to 7-bit ASCII (non-ASCII as \\uXXXX, Content-Length corrected), so the framing here can
- * count characters instead of bytes. A timer pumps the pipes; handlers and events run on the UI thread.
+ * Client for a Debug Adapter Protocol server ({@code lldb-dap}). Frames use DAP Content-Length in UTF-8
+ * bytes ({@code String.utf8Length}); a timer pumps the pipes so handlers and events run on the UI thread.
  *
  * @author 张晓达
  */
@@ -44,6 +43,7 @@ public class IdeDap {
     IdeDapEvents events;
     ArrayList<Integer> pendingIds = new ArrayList<Integer>();
     ArrayList<IdeDapHandler> pendingHandlers = new ArrayList<IdeDapHandler>();
+    ArrayList<String> outq = new ArrayList<String>();
 
     /** Finds an lldb-dap executable (Xcode, Command Line Tools, Homebrew LLVM) or returns "". */
     static String findAdapter() {
@@ -68,6 +68,7 @@ public class IdeDap {
         events = ev;
         inbuf = "";
         nextSeq = 1;
+        outq = new ArrayList<String>();
         ProcessBuilder pb = new ProcessBuilder(adapter);
         pb.pipeStdin();
         proc = pb.start();
@@ -97,6 +98,7 @@ public class IdeDap {
         dead = true;
         pendingIds = new ArrayList<Integer>();
         pendingHandlers = new ArrayList<IdeDapHandler>();
+        outq = new ArrayList<String>();
     }
 
     int request(String command, String argsJson, IdeDapHandler h) {
@@ -112,11 +114,10 @@ public class IdeDap {
             pendingIds.add(id);
             pendingHandlers.add(h);
         }
-        pump();
         String json = "{\"seq\":" + id + ",\"type\":\"request\",\"command\":\"" + command + "\",\"arguments\":" + argsJson + "}";
-        boolean ok = proc.writeStdin("Content-Length: " + json.length() + "\r\n\r\n" + json);
-        if (!ok) {
-            dead = true;
+        outq.add("Content-Length: " + json.utf8Length() + "\r\n\r\n" + json);
+        if (busy == 0) {
+            pump();
         }
         return id;
     }
@@ -126,13 +127,28 @@ public class IdeDap {
             return;
         }
         busy = 1;
+        boolean eof = readIn();
+        drain();
+        flushOut();
+        busy = 0;
+        if (eof || proc.pollExit() != -1000) {
+            dead = true;
+            if (timer != null) {
+                timer.stop();
+            }
+            IdeDapEvents ev = events;
+            if (ev != null) {
+                ev.closed();
+            }
+        }
+    }
+
+    boolean readIn() {
         int rounds = 0;
-        boolean eof = false;
-        while (rounds < 80) {
+        while (rounds < 200) {
             String s = proc.readStdoutNb(65536, 0);
             if (s == null) {
-                eof = true;
-                break;
+                return true;
             }
             if (s.length() == 0) {
                 break;
@@ -152,23 +168,25 @@ public class IdeDap {
             }
             er = er + 1;
         }
-        drain();
-        busy = 0;
-        if (eof || proc.pollExit() != -1000) {
-            dead = true;
-            if (timer != null) {
-                timer.stop();
-            }
-            IdeDapEvents ev = events;
-            if (ev != null) {
-                ev.closed();
+        return false;
+    }
+
+    void flushOut() {
+        while (outq.size() > 0 && proc != null && !dead) {
+            readIn();
+            drain();
+            String msg = outq.get(0);
+            outq.remove(0);
+            if (!proc.writeStdin(msg)) {
+                dead = true;
+                return;
             }
         }
     }
 
     void drain() {
         int guard = 0;
-        while (guard < 200) {
+        while (guard < 2000) {
             int he = inbuf.indexOf("\r\n\r\n");
             if (he < 0) {
                 return;
@@ -183,11 +201,16 @@ public class IdeDap {
             int e2 = head.indexOf("\r", cl);
             String num = e2 < 0 ? head.substring(cl + 15) : head.substring(cl + 15, e2);
             int len = IdeLsp.parseInt(num.trim());
-            if (inbuf.length() < he + 4 + len) {
+            String rest = inbuf.substring(he + 4);
+            if (rest.utf8Length() < len) {
                 return;
             }
-            String body = inbuf.substring(he + 4, he + 4 + len);
-            inbuf = inbuf.substring(he + 4 + len);
+            int take = utf8PrefixChars(rest, len);
+            if (take < 0) {
+                return;
+            }
+            String body = rest.substring(0, take);
+            inbuf = rest.substring(take);
             handle(body);
             guard = guard + 1;
         }
@@ -204,10 +227,14 @@ public class IdeDap {
         }
         String type = o.getString("type", "");
         if (type.equals("event")) {
+            String name = o.getString("event", "");
+            if (name.equals("module") || name.equals("capabilities")) {
+                return;
+            }
             JsonValue b = o.get("body");
             JsonObject bo = b != null && b.isObject() ? b.asObject() : new JsonObject();
             if (events != null) {
-                events.event(o.getString("event", ""), bo);
+                events.event(name, bo);
             }
             return;
         }
@@ -225,6 +252,34 @@ public class IdeDap {
         JsonValue b = o.get("body");
         JsonObject bo = b != null && b.isObject() ? b.asObject() : new JsonObject();
         JsonValue sv = o.get("success");
-        h.done(sv.kind == JsonValue.BOOL_KIND && sv.asBoolean(), bo);
+        boolean success = sv.kind == JsonValue.BOOL_KIND && sv.asBoolean();
+        if (!success) {
+            bo.putString("message", o.getString("message", ""));
+        }
+        h.done(success, bo);
+    }
+
+    /**
+     * How many characters of {@code s} encode to exactly {@code byteLen} UTF-8 bytes.
+     * Returns -1 when the prefix would split a character (wait for more input).
+     */
+    static int utf8PrefixChars(String s, int byteLen) {
+        if (byteLen <= 0) {
+            return 0;
+        }
+        int lo = 0;
+        int hi = s.length();
+        while (lo < hi) {
+            int mid = (lo + hi) / 2;
+            if (s.substring(0, mid + 1).utf8Length() <= byteLen) {
+                lo = mid + 1;
+            } else {
+                hi = mid;
+            }
+        }
+        if (lo > 0 && s.substring(0, lo).utf8Length() == byteLen) {
+            return lo;
+        }
+        return -1;
     }
 }

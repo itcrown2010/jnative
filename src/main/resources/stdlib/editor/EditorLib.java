@@ -1971,6 +1971,18 @@ class CodeEditor extends Canvas {
     ArrayList<Integer> breakLines = new ArrayList<Integer>();
     /** Line the debugger is stopped at (highlighted with an arrow), or -1. */
     int execLine = -1;
+    /** Code folding is off by default (Studio turns it on): regions come from { } pairs and multi-line block comments. */
+    int foldingEnabled = 0;
+    ArrayList<int> foldStarts = new ArrayList<int>();
+    ArrayList<int> foldEnds = new ArrayList<int>();
+    /** Start lines the user collapsed. */
+    ArrayList<int> foldedStarts = new ArrayList<int>();
+    /** Merged hidden line ranges [hideFrom, hideTo], ascending. */
+    ArrayList<int> hideFrom = new ArrayList<int>();
+    ArrayList<int> hideTo = new ArrayList<int>();
+    int hiddenTotal = 0;
+    int foldsDirty = 1;
+    int foldPrevLines = 0;
     GutterListener gutterListener;
     /** Called for Cmd/Ctrl + click with the clicked offset (go to definition). */
     EventHandler<MouseEvent> commandClick;
@@ -2072,6 +2084,7 @@ class CodeEditor extends Canvas {
         CodeEditor self = this;
         document.onChange(ch -> {
             self.documentChanged(ch);
+            self.foldAfterChange(ch);
         });
     }
 
@@ -2097,6 +2110,12 @@ class CodeEditor extends Canvas {
         viewport.firstLine = 0;
         viewport.yOffset = 0;
         viewport.xOffset = 0;
+        foldedStarts = new ArrayList<int>();
+        hideFrom = new ArrayList<int>();
+        hideTo = new ArrayList<int>();
+        hiddenTotal = 0;
+        foldsDirty = 1;
+        foldPrevLines = document.getLineCount();
         watchDocument();
         rehighlightAll();
         refreshCaretInfo();
@@ -2468,12 +2487,392 @@ class CodeEditor extends Canvas {
         return gutterWidthFor() + 8;
     }
 
+    // ------------------------------------------------------------------ code folding
+
+    /** Display row of a line; a hidden line shares the row of its fold's first line. */
+    int rowOf(int line) {
+        if (hiddenTotal == 0) {
+            return line;
+        }
+        int hidden = 0;
+        int i = 0;
+        while (i < hideFrom.size()) {
+            int a = hideFrom.get(i);
+            if (a > line) {
+                break;
+            }
+            int b = hideTo.get(i);
+            if (line > b) {
+                hidden = hidden + (b - a + 1);
+            } else {
+                hidden = hidden + (line - a + 1);
+            }
+            i = i + 1;
+        }
+        return line - hidden;
+    }
+
+    int lineOfRow(int row) {
+        if (hiddenTotal == 0) {
+            return row;
+        }
+        int line = row;
+        int i = 0;
+        while (i < hideFrom.size()) {
+            if (line >= hideFrom.get(i)) {
+                line = line + (hideTo.get(i) - hideFrom.get(i) + 1);
+            } else {
+                break;
+            }
+            i = i + 1;
+        }
+        return line;
+    }
+
+    int visibleRowCount() {
+        return document.getLineCount() - hiddenTotal;
+    }
+
+    /** Index of the hidden range containing the line, or -1. */
+    int hiddenIndex(int line) {
+        if (hiddenTotal == 0) {
+            return -1;
+        }
+        int i = 0;
+        while (i < hideFrom.size()) {
+            if (line >= hideFrom.get(i) && line <= hideTo.get(i)) {
+                return i;
+            }
+            i = i + 1;
+        }
+        return -1;
+    }
+
+    /** End line of the fold region starting at the line, or -1. */
+    int foldEndAt(int line) {
+        if (foldingEnabled == 0) {
+            return -1;
+        }
+        ensureFolds();
+        int i = 0;
+        while (i < foldStarts.size()) {
+            int s = foldStarts.get(i);
+            if (s == line) {
+                return foldEnds.get(i);
+            }
+            if (s > line) {
+                break;
+            }
+            i = i + 1;
+        }
+        return -1;
+    }
+
+    int isFoldedAt(int line) {
+        if (foldedStarts.indexOf(line) >= 0 && hiddenTotal > 0) {
+            return 1;
+        }
+        return 0;
+    }
+
+    void addFoldRegion(ArrayList<int> best, int s, int e) {
+        if (e > s && s < best.size() && best.get(s) < e) {
+            best.set(s, e);
+        }
+    }
+
+    /** Recomputes the fold regions when the text changed. */
+    void ensureFolds() {
+        if (foldingEnabled == 0 || foldsDirty == 0) {
+            return;
+        }
+        foldsDirty = 0;
+        int n = document.getLineCount();
+        foldPrevLines = n;
+        ArrayList<int> best = new ArrayList<int>();
+        int k = 0;
+        while (k < n) {
+            best.add(-1);
+            k = k + 1;
+        }
+        ArrayList<int> stack = new ArrayList<int>();
+        int inBlock = 0;
+        int blockStart = 0;
+        int line = 0;
+        while (line < n) {
+            String t = document.getLine(line);
+            int len = t.length();
+            int i = 0;
+            while (i < len) {
+                int c = t.charAt(i);
+                if (inBlock != 0) {
+                    if (c == 42 && i + 1 < len && t.charAt(i + 1) == 47) {
+                        inBlock = 0;
+                        i = i + 1;
+                        addFoldRegion(best, blockStart, line);
+                    }
+                } else if (c == 47 && i + 1 < len && t.charAt(i + 1) == 47) {
+                    break;
+                } else if (c == 47 && i + 1 < len && t.charAt(i + 1) == 42) {
+                    inBlock = 1;
+                    blockStart = line;
+                    i = i + 1;
+                } else if (c == 34 || c == 39) {
+                    int q = c;
+                    i = i + 1;
+                    while (i < len && t.charAt(i) != q) {
+                        if (t.charAt(i) == 92) {
+                            i = i + 1;
+                        }
+                        i = i + 1;
+                    }
+                } else if (c == 123) {
+                    stack.add(line);
+                } else if (c == 125) {
+                    if (stack.size() > 0) {
+                        int s0 = stack.get(stack.size() - 1);
+                        stack.removeAt(stack.size() - 1);
+                        addFoldRegion(best, s0, line);
+                    }
+                }
+                i = i + 1;
+            }
+            line = line + 1;
+        }
+        foldStarts = new ArrayList<int>();
+        foldEnds = new ArrayList<int>();
+        line = 0;
+        while (line < n) {
+            if (best.get(line) >= 0) {
+                foldStarts.add(line);
+                foldEnds.add(best.get(line));
+            }
+            line = line + 1;
+        }
+        ArrayList<int> keep = new ArrayList<int>();
+        int f = 0;
+        while (f < foldedStarts.size()) {
+            int fs = foldedStarts.get(f);
+            if (fs < n && best.get(fs) >= 0) {
+                keep.add(fs);
+            }
+            f = f + 1;
+        }
+        foldedStarts = keep;
+        rebuildHidden();
+    }
+
+    void rebuildHidden() {
+        hideFrom = new ArrayList<int>();
+        hideTo = new ArrayList<int>();
+        hiddenTotal = 0;
+        int lastEnd = -1;
+        int i = 0;
+        while (i < foldedStarts.size()) {
+            int s = foldedStarts.get(i);
+            int e = foldEndAtRaw(s);
+            i = i + 1;
+            if (e < 0 || s <= lastEnd) {
+                continue;
+            }
+            hideFrom.add(s + 1);
+            hideTo.add(e);
+            hiddenTotal = hiddenTotal + (e - s);
+            lastEnd = e;
+        }
+    }
+
+    int foldEndAtRaw(int line) {
+        int i = 0;
+        while (i < foldStarts.size()) {
+            if (foldStarts.get(i) == line) {
+                return foldEnds.get(i);
+            }
+            i = i + 1;
+        }
+        return -1;
+    }
+
+    void addFolded(int s) {
+        if (foldedStarts.indexOf(s) >= 0) {
+            return;
+        }
+        int at = 0;
+        while (at < foldedStarts.size() && foldedStarts.get(at) < s) {
+            at = at + 1;
+        }
+        foldedStarts.addAt(at, s);
+    }
+
+    /** Collapses or expands the region that starts at the line. */
+    void toggleFold(int line) {
+        if (foldingEnabled == 0) {
+            return;
+        }
+        ensureFolds();
+        int idx = foldedStarts.indexOf(line);
+        if (idx >= 0) {
+            foldedStarts.removeAt(idx);
+        } else if (foldEndAtRaw(line) >= 0) {
+            addFolded(line);
+        } else {
+            return;
+        }
+        rebuildHidden();
+        TextPosition p = document.offsetToPosition(caret.offset);
+        int hi = hiddenIndex(p.line);
+        if (hi >= 0) {
+            int sl = hideFrom.get(hi) - 1;
+            int off = document.lineToOffset(sl) + document.lineLength(sl);
+            caret.offset = off;
+            selection.anchor = off;
+            selection.active = off;
+            fireCaret();
+            fireSelection();
+        }
+        setScrollPx(scrollPx());
+        repaint();
+    }
+
+    /** Folds / unfolds the innermost region around the caret line. */
+    void toggleFoldAtCaret() {
+        if (foldingEnabled == 0) {
+            return;
+        }
+        ensureFolds();
+        TextPosition p = document.offsetToPosition(caret.offset);
+        int line = p.line;
+        if (isFoldedAt(line) != 0) {
+            toggleFold(line);
+            return;
+        }
+        int best = -1;
+        int i = 0;
+        while (i < foldStarts.size()) {
+            int s = foldStarts.get(i);
+            if (s <= line && foldEnds.get(i) >= line && foldEnds.get(i) > s) {
+                best = s;
+            }
+            if (s > line) {
+                break;
+            }
+            i = i + 1;
+        }
+        if (best >= 0) {
+            toggleFold(best);
+        }
+    }
+
+    /** Collapses every region nested inside another one (the outermost class body stays open). */
+    void foldAll() {
+        if (foldingEnabled == 0) {
+            return;
+        }
+        ensureFolds();
+        foldedStarts = new ArrayList<int>();
+        int top = -1;
+        int i = 0;
+        while (i < foldStarts.size()) {
+            int s = foldStarts.get(i);
+            if (s > top) {
+                top = foldEnds.get(i);
+            } else {
+                foldedStarts.add(s);
+            }
+            i = i + 1;
+        }
+        rebuildHidden();
+        revealFoldsFor(document.offsetToLine(caret.offset));
+        setScrollPx(scrollPx());
+        repaint();
+    }
+
+    void unfoldAll() {
+        foldedStarts = new ArrayList<int>();
+        rebuildHidden();
+        repaint();
+    }
+
+    /** Expands every collapsed region that hides the line (navigation, find, errors). */
+    void revealFoldsFor(int line) {
+        if (hiddenTotal == 0) {
+            return;
+        }
+        int guard = 0;
+        while (hiddenIndex(line) >= 0 && guard < 50) {
+            int hi = hiddenIndex(line);
+            int s = hideFrom.get(hi) - 1;
+            int idx = foldedStarts.indexOf(s);
+            if (idx < 0) {
+                break;
+            }
+            foldedStarts.removeAt(idx);
+            rebuildHidden();
+            guard = guard + 1;
+        }
+    }
+
+    /** Called after every document change: keeps collapsed regions attached to their lines or expands them. */
+    void foldAfterChange(DocumentChange ch) {
+        if (foldingEnabled == 0) {
+            return;
+        }
+        int newCount = document.getLineCount();
+        int inserted = 0;
+        String txt = ch.insertedText;
+        if (txt != null) {
+            int k = 0;
+            while (k < txt.length()) {
+                if (txt.charAt(k) == 10) {
+                    inserted = inserted + 1;
+                }
+                k = k + 1;
+            }
+        }
+        int removed = foldPrevLines - newCount + inserted;
+        foldPrevLines = newCount;
+        foldsDirty = 1;
+        if (foldedStarts.size() == 0) {
+            return;
+        }
+        if (removed < 0) {
+            foldedStarts = new ArrayList<int>();
+            rebuildHidden();
+            return;
+        }
+        int l0 = document.offsetToLine(ch.offset);
+        ArrayList<int> next = new ArrayList<int>();
+        int i = 0;
+        while (i < foldedStarts.size()) {
+            int s = foldedStarts.get(i);
+            int e = foldEndAtRaw(s);
+            i = i + 1;
+            if (e < 0) {
+                continue;
+            }
+            if (l0 + removed < s) {
+                next.add(s + inserted - removed);
+            } else if (l0 > e) {
+                next.add(s);
+            } else if (l0 == s && removed == 0 && inserted == 0) {
+                next.add(s);
+            }
+        }
+        foldedStarts = next;
+        ensureFoldsNow();
+    }
+
+    void ensureFoldsNow() {
+        foldsDirty = 1;
+        ensureFolds();
+    }
+
     int scrollPx() {
         return viewport.firstLine * lineH + viewport.yOffset;
     }
 
     int contentHeight() {
-        return document.getLineCount() * lineH;
+        return visibleRowCount() * lineH;
     }
 
     int maxScrollY() {
@@ -2553,7 +2952,7 @@ class CodeEditor extends Canvas {
 
     int hitTest(int x, int y) {
         ensureMetrics();
-        int line = (y + scrollPx()) / lineH;
+        int line = lineOfRow((y + scrollPx()) / lineH);
         if (y + scrollPx() < 0) {
             line = 0;
         }
@@ -2586,7 +2985,8 @@ class CodeEditor extends Canvas {
             return;
         }
         TextPosition p = document.offsetToPosition(caret.offset);
-        int y = p.line * lineH;
+        revealFoldsFor(p.line);
+        int y = rowOf(p.line) * lineH;
         int sp = scrollPx();
         if (y < sp) {
             setScrollPx(y);
@@ -2616,14 +3016,14 @@ class CodeEditor extends Canvas {
     int caretPixelY() {
         ensureMetrics();
         TextPosition p = document.offsetToPosition(caret.offset);
-        return p.line * lineH - scrollPx();
+        return rowOf(p.line) * lineH - scrollPx();
     }
 
     /** Pixel y of the top of the line containing an arbitrary offset (same coordinate space as caretPixelY). */
     int offsetPixelY(int offset) {
         ensureMetrics();
         TextPosition p = document.offsetToPosition(offset);
-        return p.line * lineH - scrollPx();
+        return rowOf(p.line) * lineH - scrollPx();
     }
 
     /** Pixel x of an arbitrary offset (same coordinate space as caretPixelX). */
@@ -2646,7 +3046,8 @@ class CodeEditor extends Canvas {
     /** Scrolls so that the line is visible, centring it when it is far away. */
     void revealLine(int line) {
         ensureMetrics();
-        int y = line * lineH;
+        revealFoldsFor(line);
+        int y = rowOf(line) * lineH;
         int sp = scrollPx();
         if (y < sp || y + lineH > sp + height) {
             setScrollPx(y - height / 2 + lineH);
@@ -3496,6 +3897,16 @@ class CodeEditor extends Canvas {
             if (cmd == EditorCommand.MOVE_DOWN) {
                 lineNo = p.line + 1;
             }
+            if (hiddenTotal > 0 && lineNo >= 0 && lineNo < document.getLineCount()) {
+                int hi = hiddenIndex(lineNo);
+                if (hi >= 0) {
+                    if (cmd == EditorCommand.MOVE_DOWN) {
+                        lineNo = hideTo.get(hi) + 1;
+                    } else {
+                        lineNo = hideFrom.get(hi) - 1;
+                    }
+                }
+            }
             if (lineNo < 0) {
                 moveCaret(0, shiftSelecting);
             } else if (lineNo >= document.getLineCount()) {
@@ -3507,17 +3918,19 @@ class CodeEditor extends Canvas {
         } else if (cmd == EditorCommand.PAGE_UP || cmd == EditorCommand.PAGE_DOWN) {
             int keep = caret.preferredColumn;
             int vis = visibleLines() - 1;
-            lineNo = p.line - vis;
+            int r0 = rowOf(p.line);
+            int r1 = r0 - vis;
             if (cmd == EditorCommand.PAGE_DOWN) {
-                lineNo = p.line + vis;
+                r1 = r0 + vis;
             }
-            if (lineNo < 0) {
-                lineNo = 0;
+            if (r1 < 0) {
+                r1 = 0;
             }
-            if (lineNo >= document.getLineCount()) {
-                lineNo = document.getLineCount() - 1;
+            if (r1 >= visibleRowCount()) {
+                r1 = visibleRowCount() - 1;
             }
-            setScrollPx(scrollPx() + (lineNo - p.line) * lineH);
+            lineNo = lineOfRow(r1);
+            setScrollPx(scrollPx() + (r1 - r0) * lineH);
             moveCaret(document.positionToOffset(lineNo, keep), shiftSelecting);
             caret.preferredColumn = keep;
         } else if (cmd == EditorCommand.DELETE_BACKWARD) {
@@ -3651,7 +4064,7 @@ class CodeEditor extends Canvas {
         if (diagnostics.size() > 0) {
             ensureMetrics();
             int docY = event.y + scrollPx();
-            if (docY >= 0 && docY / lineH < document.getLineCount()) {
+            if (docY >= 0 && docY / lineH < visibleRowCount()) {
                 int off = hitTest(event.x, event.y);
                 int i = 0;
                 while (i < diagnostics.size()) {
@@ -3763,7 +4176,24 @@ class CodeEditor extends Canvas {
         }
         int off = hitTest(mx, my);
         int line = document.offsetToLine(off);
-        if (gutterListener != null && mx < 18 && showLineNumbers != 0 && my + scrollPx() < document.getLineCount() * lineH) {
+        if (foldingEnabled != 0 && showLineNumbers != 0 && mx >= gutterWidthFor() - 16 && mx < gutterWidthFor()
+                && my + scrollPx() < visibleRowCount() * lineH) {
+            if (foldEndAt(line) >= 0) {
+                mouseDownFlag = 0;
+                toggleFold(line);
+                return;
+            }
+        }
+        if (foldingEnabled != 0 && mx >= textLeft() && isFoldedAt(line) != 0 && my + scrollPx() < visibleRowCount() * lineH) {
+            String ft = document.getLine(line);
+            double fx = textLeft() - viewport.xOffset + colToX(ft, ft.length()) + 8;
+            if (mx >= fx && mx <= fx + foldPlaceholderWidth()) {
+                mouseDownFlag = 0;
+                toggleFold(line);
+                return;
+            }
+        }
+        if (gutterListener != null && mx < 18 && showLineNumbers != 0 && my + scrollPx() < visibleRowCount() * lineH) {
             mouseDownFlag = 0;
             gutterListener.clicked(line);
             return;
@@ -4554,6 +4984,7 @@ class CodeEditor extends Canvas {
         viewport.height = height;
         int gw = gutterWidthFor();
         refreshMaxCols();
+        ensureFolds();
         setScrollPx(scrollPx());
         setScrollX(viewport.xOffset);
         g.setColor(theme.background);
@@ -4561,7 +4992,7 @@ class CodeEditor extends Canvas {
         g.setFont(font);
         int first = viewport.firstLine;
         int yOff = viewport.yOffset;
-        int lines = document.getLineCount();
+        int lines = visibleRowCount();
         int last = first + (height + yOff) / lineH;
         if (last >= lines) {
             last = lines - 1;
@@ -4576,9 +5007,10 @@ class CodeEditor extends Canvas {
             compPx = colToX(compositionText, compositionText.length());
         }
         g.setClip(gw, 0, width - gw, height);
-        int line = first;
-        while (line <= last) {
-            int y = (line - first) * lineH - yOff;
+        int row = first;
+        while (row <= last) {
+            int line = lineOfRow(row);
+            int y = (row - first) * lineH - yOff;
             String text = document.getLine(line);
             int lineOff = document.lineToOffset(line);
             int lineEnd = lineOff + text.length();
@@ -4626,6 +5058,13 @@ class CodeEditor extends Canvas {
                 splitCol = caretPos.column;
             }
             paintLineText(g, text, line, y, splitCol, compPx);
+            if (foldingEnabled != 0 && foldedStarts.size() > 0 && isFoldedAt(line) != 0) {
+                double fx = tl - viewport.xOffset + colToX(text, text.length()) + 8;
+                g.setColor(theme.selection);
+                g.fillRect(fx, y + 2, foldPlaceholderWidth(), lineH - 4);
+                g.setColor(theme.lineNumber);
+                g.drawText("...", fx + 4, y + 2);
+            }
             if (compositionActive != 0 && line == caretPos.line) {
                 double cx0 = tl - viewport.xOffset + colToX(text, caretPos.column);
                 g.setColor(theme.background);
@@ -4671,10 +5110,10 @@ class CodeEditor extends Canvas {
                 }
                 di = di + 1;
             }
-            line = line + 1;
+            row = row + 1;
         }
         if (caret.visible != 0 && caret.blinkOn != 0) {
-            int cy = caretPos.line * lineH - scrollPx();
+            int cy = rowOf(caretPos.line) * lineH - scrollPx();
             if (cy > 0 - lineH && cy < height) {
                 String lineText = document.getLine(caretPos.line);
                 double cx = tl - viewport.xOffset + colToX(lineText, caretPos.column);
@@ -4690,9 +5129,10 @@ class CodeEditor extends Canvas {
         if (showLineNumbers != 0 && gw > 0) {
             g.setColor(theme.gutterBackground);
             g.fillRect(0, 0, gw, height);
-            line = first;
-            while (line <= last) {
-                int y = (line - first) * lineH - yOff;
+            row = first;
+            while (row <= last) {
+                int line = lineOfRow(row);
+                int y = (row - first) * lineH - yOff;
                 String num = "" + (line + 1);
                 if (line == caretPos.line) {
                     g.setColor(theme.gutterCurrent);
@@ -4709,20 +5149,39 @@ class CodeEditor extends Canvas {
                     g.setColor(new Color(37, 99, 235));
                     g.drawText(">", 4, y + 2);
                 }
-                line = line + 1;
+                if (foldingEnabled != 0 && foldEndAt(line) >= 0) {
+                    paintFoldMarker(g, gw - 9, y + lineH / 2, isFoldedAt(line));
+                }
+                row = row + 1;
             }
             g.setColor(theme.indentGuide);
             g.drawLine(gw - 1, 0, gw - 1, height);
         }
         paintScrollbars(g);
         int imeX = (int) (tl - viewport.xOffset + colToX(document.getLine(caretPos.line), caretPos.column));
-        int imeY = caretPos.line * lineH - scrollPx();
+        int imeY = rowOf(caretPos.line) * lineH - scrollPx();
         if ((imeX != lastImeX || imeY != lastImeY) && nativeId > 0) {
             lastImeX = imeX;
             lastImeY = imeY;
             UiNative.canvasSetImeRect(nativeId, imeX, imeY, lineH);
         }
         EditorMetrics.layoutsCreated = EditorMetrics.layoutsCreated + EditorMetrics.visibleLinesPainted;
+    }
+
+    double foldPlaceholderWidth() {
+        return charW * 3 + 8;
+    }
+
+    /** Small chevron in the gutter: pointing right when the region is collapsed, down when open. */
+    void paintFoldMarker(Graphics g, int cx, int cy, int folded) {
+        g.setColor(theme.lineNumber);
+        if (folded != 0) {
+            g.drawLine(cx - 2, cy - 4, cx + 2, cy);
+            g.drawLine(cx + 2, cy, cx - 2, cy + 4);
+        } else {
+            g.drawLine(cx - 4, cy - 2, cx, cy + 2);
+            g.drawLine(cx, cy + 2, cx + 4, cy - 2);
+        }
     }
 
     void paintScrollbars(Graphics g) {

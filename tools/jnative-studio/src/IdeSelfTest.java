@@ -41,6 +41,15 @@ public class IdeSelfTest {
         IdeCls c = t.get("Foo");
         check("index class", c == null ? "null" : c.base + ":" + c.members.size(), "Bar:2");
 
+        String imp = "import jnative.ui.Button;\nimport java.util.List;\nimport java.util.ArrayList;\nimport java.util.ArrayList;\n"
+                + "import jnative.io.*;\nimport static java.lang.Math.max;\n\n/** List */\nclass A {\n  ArrayList<String> a; Button b = null; // List\n"
+                + "  String s = \"max\";\n}\n";
+        String impWant = "import java.util.ArrayList;\nimport jnative.io.*;\nimport jnative.ui.Button;\n\n/** List */\nclass A {\n"
+                + "  ArrayList<String> a; Button b = null; // List\n  String s = \"max\";\n}\n";
+        check("optimize imports", IdeImports.optimize(imp), impWant);
+        check("optimize imports idempotent", IdeImports.optimize(impWant), impWant);
+        check("no imports", IdeImports.optimize("class A {}\n"), "class A {}\n");
+
         System.out.println(fails == 0 ? "ALL OK" : "FAILED " + fails);
         return fails;
     }

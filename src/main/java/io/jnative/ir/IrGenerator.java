@@ -145,15 +145,20 @@ public final class IrGenerator {
         if (emitSourceDebug) {
             module.debugInfo().setEnabled(true);
             String abs = locationMapper.userFile();
-            if (abs != null && !abs.isEmpty()) {
-                java.nio.file.Path p = java.nio.file.Path.of(abs);
-                java.nio.file.Path parent = p.getParent();
-                module.debugInfo().setCompileUnit(
-                        parent == null ? "" : parent.toString(),
-                        p.getFileName().toString());
-            } else {
-                module.debugInfo().setCompileUnit("", unit.fileName());
+            if (abs == null || abs.isEmpty()) {
+                abs = firstUserSourceFile(typed);
             }
+            if (abs == null || abs.isEmpty()) {
+                abs = unit.fileName();
+            }
+            if (abs == null || abs.isBlank() || "<program>".equals(abs) || "<source>".equals(abs)) {
+                abs = "program.java";
+            }
+            java.nio.file.Path p = java.nio.file.Path.of(abs);
+            java.nio.file.Path parent = p.getParent();
+            module.debugInfo().setCompileUnit(
+                    parent == null ? "" : parent.toString(),
+                    p.getFileName() == null ? abs : p.getFileName().toString());
         }
         builder = new IrBuilder(module);
 
@@ -1417,9 +1422,12 @@ public final class IrGenerator {
             builder.store(new IrValue.Param(p.name(), irType), local);
         }
 
+        methodEndLocation = method.body() == null || !emitSourceDebug
+                ? SourceLocation.UNKNOWN : mapLoc(method.body().endLocation());
         lowerStatement(method.body());
 
         if (!builder.block().isTerminated()) {
+            attributeReturnToClosingBrace();
             if (ms.isAsync()) {
                 IrValue def = defaultValue(IrType.from(ms.logicalReturnType()));
                 builder.emit(new IrInstruction.AsyncComplete(def, IrType.from(ms.logicalReturnType())));
@@ -1432,10 +1440,40 @@ public final class IrGenerator {
         }
         currentFunction = null;
         asyncFrame = null;
+        methodEndLocation = SourceLocation.UNKNOWN;
     }
+
+    /** Closing brace of the method being lowered (debug builds only). */
+    private SourceLocation methodEndLocation = SourceLocation.UNKNOWN;
 
     private SourceLocation mapLoc(SourceLocation loc) {
         return locationMapper.map(loc);
+    }
+
+    /** First user .java/.jn path on a class symbol — used as the DWARF compile-unit file. */
+    private static String firstUserSourceFile(TypedCompilationUnit typed) {
+        if (typed == null) {
+            return "";
+        }
+        for (ClassSymbol cls : typed.classes().values()) {
+            if (cls == null || cls.isBuiltin()) {
+                continue;
+            }
+            SourceLocation loc = cls.location();
+            if (loc == null || loc.file() == null) {
+                continue;
+            }
+            String file = loc.file();
+            if (file.isBlank() || "<program>".equals(file) || "<source>".equals(file)) {
+                continue;
+            }
+            String norm = file.replace('\\', '/');
+            if (norm.contains("/stdlib/") || norm.contains("/src/main/resources/stdlib/")) {
+                continue;
+            }
+            return file;
+        }
+        return "";
     }
 
     /** Stable Java type name for DWARF / LLDB (null for primitives). */
@@ -1714,16 +1752,30 @@ public final class IrGenerator {
             return;
         }
         if (r.value() == null) {
+            attributeReturnToClosingBrace();
             builder.retVoid();
         } else {
             IrValue value = lowerExpression(r.value());
             JType retJt = currentMethod != null ? currentMethod.returnType() : null;
             if (retJt != null) {
-                builder.ret(convertTo(value, remapType(typed.expressionTypes().get(r.value())), retJt));
+                IrValue converted = convertTo(value, remapType(typed.expressionTypes().get(r.value())), retJt);
+                attributeReturnToClosingBrace();
+                builder.ret(converted);
             } else {
-                builder.ret(lambdaReturnValue(value, typed.expressionTypes().get(r.value()),
-                        builder.function().returnType()));
+                IrValue boxed = lambdaReturnValue(value, typed.expressionTypes().get(r.value()),
+                        builder.function().returnType());
+                builder.ret(boxed);
             }
+        }
+    }
+
+    /**
+     * Like clang: the {@code ret} (and the epilogue the backend builds for it) belongs to the method's closing
+     * brace, so a debugger steps from {@code return x;} onto {@code }} while the frame is still intact.
+     */
+    private void attributeReturnToClosingBrace() {
+        if (emitSourceDebug && methodEndLocation != SourceLocation.UNKNOWN) {
+            builder.setLocation(methodEndLocation);
         }
     }
 

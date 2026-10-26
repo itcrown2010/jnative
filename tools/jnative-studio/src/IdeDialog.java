@@ -25,8 +25,18 @@ public class IdeDialog {
         return l;
     }
 
-    /** Single text input. The handler gets the trimmed text on OK. */
+    /** Single text input. The handler gets the trimmed text on OK (empty text is ignored). */
     static void input(Window owner, String title, String prompt, String initial, IdeStringHandler h) {
+        inputText(owner, title, prompt, initial, false, h);
+    }
+
+    /** Like {@link #input} but an empty answer is accepted (to clear a value). */
+    static void inputOrEmpty(Window owner, String title, String prompt, String initial, IdeStringHandler h) {
+        inputText(owner, title, prompt, initial, true, h);
+    }
+
+    static void inputText(Window owner, String title, String prompt, String initial, boolean allowEmpty,
+            IdeStringHandler h) {
         Window w = new Window(title, 440, 168);
         w.setDialogStyle(owner);
         Panel p = new Panel();
@@ -42,7 +52,7 @@ public class IdeDialog {
         cancel.setBounds(340, 108, 80, 32);
         ok.onClick(() -> {
             String t = tf.getText().trim();
-            if (t.length() == 0) {
+            if (t.length() == 0 && !allowEmpty) {
                 return;
             }
             w.close();
@@ -84,7 +94,7 @@ public class IdeDialog {
             }
         });
         label(p, "项目模板", 20, 150, 200);
-        SegmentedControl tpl = new SegmentedControl("窗体应用\t空白窗体\t控制台程序");
+        SegmentedControl tpl = new SegmentedControl("窗体应用\t空白窗体\t控制台程序\t控制台 + 测试");
         tpl.setSelectedIndex(template);
         p.add(tpl);
         tpl.setBounds(20, 174, 480, 30);

@@ -419,6 +419,100 @@ public class IdeDemo {
             defStep();
             return;
         }
+        if (mode != null && mode.equals("tools")) {
+            if (step == 1) {
+                IdeDialog.template = 3;
+                ide.createProject("/tmp/ide-projects", "ToolsDemo");
+            } else if (step == 2) {
+                ide.createFromTemplate(ide.project.dir + "/src", 4, "BrokenTest");
+                String bp = ide.project.dir + "/tests/BrokenTest.java";
+                String t = Files.readString(FsPath.of(bp)).replace("checkEquals(\"1 + 1\", 2, 1 + 1);", "checkEquals(\"1 + 1\", 3, 1 + 1);");
+                Files.writeString(FsPath.of(bp), t);
+                ide.tests.runAll();
+            } else if (step == 7) {
+                log("tests: pass=" + ide.tests.count(2) + " fail=" + ide.tests.count(3) + " compile=" + ide.tests.count(4) + " running=" + ide.tests.running + "\n");
+                ide.window.snapshot("/tmp/ide-tests.png");
+                ide.showBottomTab(5);
+            } else if (step == 8) {
+                ide.term.input = "echo hello term; pwd; ls";
+                ide.term.submit();
+            } else if (step == 10) {
+                ide.term.input = "cd tests && pwd";
+                ide.term.submit();
+            } else if (step == 12) {
+                ide.window.snapshot("/tmp/ide-term.png");
+                log("term lines=" + ide.term.lines.size() + " cwd=" + ide.term.cwd + "\n");
+                ide.openFile(ide.project.dir + "/tests/MainTest.java");
+                ide.runCurrentFile();
+            } else if (step == 18) {
+                ide.showBottomTab(0);
+                log("config=" + ide.state.curName() + " main=" + ide.state.curMain() + " status=" + ide.statusText + "\n");
+                ide.window.snapshot("/tmp/ide-runfile.png");
+                ide.runConfigs();
+            } else if (step == 19) {
+                ide.window.snapshot("/tmp/ide-configs.png");
+                ide.quick.close();
+                ide.newJavaFile(null);
+            } else if (step == 20) {
+                ide.window.snapshot("/tmp/ide-newfile.png");
+            }
+            return;
+        }
+        if (mode != null && mode.equals("fold")) {
+            if (step == 1) {
+                ide.openFile(ide.project.dir + "/tests/BrokenTest.java");
+            } else if (step == 2) {
+                CodeEditor e = ide.activeDoc().editor;
+                e.toggleFold(6);
+                e.toggleFold(15);
+                log("fold: hidden=" + e.hiddenTotal + " folded=" + e.foldedStarts.size() + " row(25)=" + e.rowOf(25) + " line(10)=" + e.lineOfRow(10) + "\n");
+                e.goTo(5, 0);
+            } else if (step == 3) {
+                CodeEditor e = ide.activeDoc().editor;
+                e.executeCommand(EditorCommand.MOVE_DOWN);
+                e.executeCommand(EditorCommand.MOVE_DOWN);
+                TextPosition p = e.document.offsetToPosition(e.caret.offset);
+                log("after 2x down: line=" + p.line + "\n");
+                ide.window.snapshot("/tmp/ide-fold1.png");
+            } else if (step == 4) {
+                CodeEditor e = ide.activeDoc().editor;
+                e.goTo(0, 0);
+                e.insertText("// top\n");
+                log("after insert above: folded=" + e.foldedStarts.size() + " hidden=" + e.hiddenTotal + "\n");
+                ide.window.snapshot("/tmp/ide-fold2.png");
+            } else if (step == 5) {
+                CodeEditor e = ide.activeDoc().editor;
+                e.foldAll();
+                log("foldAll: folded=" + e.foldedStarts.size() + " hidden=" + e.hiddenTotal + "\n");
+                ide.window.snapshot("/tmp/ide-fold3.png");
+            } else if (step == 6) {
+                CodeEditor e = ide.activeDoc().editor;
+                e.goTo(8, 0);
+                log("goTo hidden line: hidden=" + e.hiddenTotal + "\n");
+                e.unfoldAll();
+                log("unfold: hidden=" + e.hiddenTotal + "\n");
+            }
+            return;
+        }
+        if (mode != null && mode.equals("git")) {
+            if (step == 1) {
+                log("git: repo=" + ide.git.repo + " branch=" + ide.git.branch + " changes=" + ide.git.changeCount()
+                        + " status=[" + ide.git.statusText() + "]\n");
+                ide.openFile(ide.project.dir + "/DebugDemo.java");
+            } else if (step == 2) {
+                ide.git.showChanges();
+            } else if (step == 3) {
+                ide.window.snapshot("/tmp/ide-git.png");
+                ide.quick.close();
+                ide.git.diffCurrent();
+            } else if (step == 5) {
+                ide.window.snapshot("/tmp/ide-git-diff.png");
+                ide.searchEverywhere();
+            } else if (step == 6) {
+                ide.window.snapshot("/tmp/ide-search.png");
+            }
+            return;
+        }
         if (mode != null && mode.equals("restore")) {
             if (step == 1) {
                 ide.restoreSession();

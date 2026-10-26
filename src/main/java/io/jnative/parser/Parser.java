@@ -1402,8 +1402,8 @@ public final class Parser {
         } finally {
             popLocalScope();
         }
-        consume(TokenType.RBRACE, "expected '}'");
-        return new BlockStatement(statements, lbrace.location());
+        Token rbrace = consume(TokenType.RBRACE, "expected '}'");
+        return new BlockStatement(statements, lbrace.location(), rbrace.location());
     }
 
     /** Extra declarators of {@code int a = 1, b = 2;} beyond the first; spliced into the enclosing list. */

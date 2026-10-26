@@ -169,15 +169,25 @@ public class IdeApp extends Panel {
     IdeLsp lsp = new IdeLsp();
     int lspRestarts = 0;
     IdeQuick quick;
+    IdeGit git;
     IdeWelcome welcome;
     Canvas bottomHead;
     IdeTree output;
     IdeTree problems;
     IdeTree search;
     IdeTree debugTree;
+    IdeTree testTree;
+    IdeTests tests;
+    IdeTerm term;
+    static int NTABS = 6;
     IdeDebug dbg;
     ArrayList<String> bpPaths = new ArrayList<String>();
     ArrayList<Integer> bpLines = new ArrayList<Integer>();
+    ArrayList<String> bpConds = new ArrayList<String>();
+    IdeState state = new IdeState();
+    /** One-shot "run to cursor" target (cleared when hit). */
+    String tempBpPath = "";
+    int tempBpLine = -1;
     boolean debugAfterBuild = false;
     IdeProc checkProc;
     UiTimer checkTimer;
@@ -298,6 +308,15 @@ public class IdeApp extends Panel {
         debugTree.onExpand = it -> dbg.expand(it);
         add(debugTree);
         vis(debugTree, false);
+        tests = new IdeTests(this);
+        testTree = new IdeTree();
+        testTree.rowH = 22;
+        testTree.emptyText = "点击「生成 → 运行全部测试」运行 tests/ 下的测试";
+        testTree.onActivate = it -> tests.activate(it);
+        add(testTree);
+        vis(testTree, false);
+        term = new IdeTerm(this);
+        add(term);
 
         status = new Canvas();
         status.setHiDpi(true);
@@ -319,6 +338,7 @@ public class IdeApp extends Panel {
         add(splitH);
 
         quick = new IdeQuick(this);
+        git = new IdeGit(this);
         add(quick);
         checkTimer = new UiTimer(500, () -> checkTick());
         window.onKeyDown(e -> windowKey(e));
@@ -341,7 +361,7 @@ public class IdeApp extends Panel {
             }
         }
         if (e.metaDown == 0 && e.ctrlDown == 0 && e.altDown == 0 && e.keyCode == 116) {
-            debug();
+            debugOrContinue();
         }
     }
 
@@ -360,7 +380,7 @@ public class IdeApp extends Panel {
         if (e.metaDown == 0 && e.ctrlDown == 0 && e.altDown == 0) {
             if (e.keyCode == 116) {
                 e.consume();
-                debug();
+                debugOrContinue();
                 return;
             }
             if (e.keyCode == 120) {
@@ -748,7 +768,12 @@ public class IdeApp extends Panel {
         return b;
     }
 
+    ArrayList<String> actionNames = new ArrayList<String>();
+    ArrayList<Runnable> actionRuns = new ArrayList<Runnable>();
+
     MenuItem item(Menu m, String text, int key, int mods, Runnable r) {
+        actionNames.add(text);
+        actionRuns.add(r);
         MenuItem mi = new MenuItem(text, r);
         if (key > 0) {
             KeyCombination kc = KeyCombination.of(key).withPrimary();
@@ -768,6 +793,7 @@ public class IdeApp extends Panel {
         Menu file = new Menu("文件");
         item(file, "新建项目…", 78, 0, () -> newProject());
         item(file, "新建窗体…", 78, 1, () -> newForm(null));
+        item(file, "新建 Java 文件…", 78, 2, () -> newJavaFile(null));
         item(file, "打开项目…", 79, 0, () -> openProjectDialog());
         file.addSeparator();
         item(file, "保存", 83, 0, () -> saveActive());
@@ -785,10 +811,16 @@ public class IdeApp extends Panel {
         edit.addSeparator();
         item(edit, "在项目中查找…", 70, 1, () -> findInFiles());
         item(edit, "重新缩进代码", 73, 1, () -> formatDocument());
+        item(edit, "格式化代码（编译器格式化）", 76, 2, () -> formatWithLsp());
+        item(edit, "优化导入", 79, 2, () -> optimizeImports());
         item(edit, "重命名符号…", 82, 1, () -> renameSymbol());
+        item(edit, "折叠 / 展开当前区域", 189, 1, () -> foldToggle());
+        item(edit, "折叠全部嵌套区域", 189, 2, () -> foldAll(true));
+        item(edit, "展开全部", 187, 1, () -> foldAll(false));
         item(edit, "转到行…", 76, 0, () -> gotoLineDialog());
         item(edit, "转到文件…", 79, 1, () -> quickOpenFile());
         item(edit, "转到符号…", 84, 0, () -> quickSymbol());
+        item(edit, "随处搜索（文件 / 符号 / 动作）", 65, 1, () -> searchEverywhere());
         edit.addSeparator();
         item(edit, "代码补全", 75, 0, () -> completeDialog());
         item(edit, "转到定义", 68, 0, () -> gotoDefinition());
@@ -804,6 +836,9 @@ public class IdeApp extends Panel {
         item(view, "实时预览", 80, 0, () -> designerPreview());
         item(view, "显示/隐藏输出面板", 74, 0, () -> toggleBottom());
         item(view, "开关实时错误检查", 69, 1, () -> toggleLiveCheck());
+        item(view, "TODO / FIXME 列表", 0, 0, () -> todoList());
+        item(view, "终端", 0, 0, () -> showBottomTab(5));
+        item(view, "测试结果", 0, 0, () -> showBottomTab(4));
         view.addSeparator();
         item(view, "放大编辑器字号", 187, 0, () -> zoomEditors(1));
         item(view, "缩小编辑器字号", 189, 0, () -> zoomEditors(-1));
@@ -816,9 +851,18 @@ public class IdeApp extends Panel {
         item(bld, "生成项目", 66, 0, () -> build(false));
         item(bld, "运行", 82, 0, () -> build(true));
         item(bld, "停止", 190, 0, () -> stopAll());
+        bld.addSeparator();
+        item(bld, "运行配置…", 0, 0, () -> runConfigs());
+        item(bld, "运行当前文件", 82, 2, () -> runCurrentFile());
+        bld.addSeparator();
+        item(bld, "运行全部测试", 84, 1, () -> tests.runAll());
+        item(bld, "运行当前测试文件", 0, 0, () -> runCurrentTest());
+        bld.addSeparator();
+        item(bld, "运行参数…", 0, 0, () -> editRunArgs());
+        item(bld, "环境变量…", 0, 0, () -> editRunEnv());
         bar.add(bld);
         Menu debugMenu = new Menu("调试");
-        item(debugMenu, "开始调试（F5）", 0, 0, () -> debug());
+        item(debugMenu, "开始调试（F5）", 0, 0, () -> debugOrContinue());
         item(debugMenu, "重新生成并调试", 0, 0, () -> debugRebuild());
         item(debugMenu, "继续", 0, 0, () -> dbg.resume());
         item(debugMenu, "单步跳过（F10）", 0, 0, () -> dbg.stepOver());
@@ -827,8 +871,25 @@ public class IdeApp extends Panel {
         item(debugMenu, "暂停", 0, 0, () -> dbg.pause());
         item(debugMenu, "停止调试", 0, 0, () -> dbg.stop());
         debugMenu.addSeparator();
+        item(debugMenu, "运行到光标处", 0, 0, () -> runToCursor());
+        item(debugMenu, "求值表达式…", 0, 0, () -> evaluateExpression());
+        item(debugMenu, "添加监视…", 0, 0, () -> addWatch());
+        debugMenu.addSeparator();
         item(debugMenu, "切换断点（F9）", 0, 0, () -> toggleBpAtCaret());
+        item(debugMenu, "断点条件…", 0, 0, () -> breakpointCondition());
         bar.add(debugMenu);
+        Menu gitMenu = new Menu("Git");
+        item(gitMenu, "刷新状态", 0, 0, () -> git.refresh());
+        item(gitMenu, "更改的文件…", 0, 0, () -> git.showChanges());
+        item(gitMenu, "当前文件的差异", 0, 0, () -> git.diffCurrent());
+        item(gitMenu, "全部差异", 0, 0, () -> git.diffAll());
+        item(gitMenu, "提交…", 0, 0, () -> git.commit());
+        item(gitMenu, "还原当前文件", 0, 0, () -> git.revertCurrent());
+        gitMenu.addSeparator();
+        item(gitMenu, "提交历史", 0, 0, () -> git.log());
+        item(gitMenu, "拉取（pull --ff-only）", 0, 0, () -> git.pull());
+        item(gitMenu, "推送", 0, 0, () -> git.push());
+        bar.add(gitMenu);
         Menu help = new Menu("帮助");
         help.add(new MenuItem("设置…", () -> IdeDialog.settings(window, () -> welcome.repaint())));
         bar.add(help);
@@ -877,6 +938,8 @@ public class IdeApp extends Panel {
         vis(problems, bottomVisible && bottomTab == 1);
         vis(search, bottomVisible && bottomTab == 2);
         vis(debugTree, bottomVisible && bottomTab == 3);
+        vis(testTree, bottomVisible && bottomTab == 4);
+        vis(term, bottomVisible && bottomTab == 5);
         if (bottomVisible) {
             int by = top + centerH;
             bottomHead.setBounds(cx, by, cw, HEAD_H);
@@ -884,6 +947,8 @@ public class IdeApp extends Panel {
             problems.setBounds(cx, by + HEAD_H, cw, bh - HEAD_H);
             search.setBounds(cx, by + HEAD_H, cw, bh - HEAD_H);
             debugTree.setBounds(cx, by + HEAD_H, cw, bh - HEAD_H);
+            testTree.setBounds(cx, by + HEAD_H, cw, bh - HEAD_H);
+            term.setBounds(cx, by + HEAD_H, cw, bh - HEAD_H);
         }
         status.setBounds(0, height - ST_H, width, ST_H);
         splitV.setBounds(explorerW - 2, top, 5, bodyH);
@@ -918,7 +983,8 @@ public class IdeApp extends Panel {
         Ide.line(g, Ide.BORDER, explorerW + 0.5, TB_H, explorerW + 0.5, height - ST_H);
         Ide.line(g, Ide.BORDER, 0, TB_H + HEAD_H - 0.5, explorerW, TB_H + HEAD_H - 0.5);
         if (project != null) {
-            String t = project.name + "  ·  " + project.mainClass;
+            String t = project.name + "  ·  " + (project.altMain.length() > 0 ? state.curName() + "（" + Ide.baseName(project.altMain) + "）"
+                    : project.mainClass + (state.cfgNames.size() > 1 ? "（" + state.curName() + "）" : ""));
             int tw = Ide.textWidth(g, t, Ide.small());
             Ide.text(g, t, width - tw - 16, 15, Ide.small(), Ide.SUBTLE);
         }
@@ -931,15 +997,17 @@ public class IdeApp extends Panel {
         Ide.fill(g, Ide.PANEL_ALT, 0, 0, width, height);
         Ide.line(g, Ide.BORDER, 0, 0.5, width, 0.5);
         Ide.line(g, Ide.BORDER, 0, height - 0.5, width, height - 0.5);
-        String[] titles = new String[4];
+        String[] titles = new String[NTABS];
         titles[0] = "输出";
         titles[1] = "问题" + (diagCount + warnCount > 0 ? " (" + (diagCount + warnCount) + ")" : "");
         titles[2] = "搜索" + (search.root.kids.size() > 0 ? " (" + search.root.kids.size() + ")" : "");
         titles[3] = "调试" + (dbg != null && dbg.active ? (dbg.stopped ? " (暂停)" : " (运行)") : "");
+        titles[4] = "测试" + tests.summary();
+        titles[5] = "终端";
         bhEdges.clear();
         int x = 12;
         int t = 0;
-        while (t < 4) {
+        while (t < NTABS) {
             int w = Ide.textWidth(g, titles[t], Ide.bold()) + 20;
             bhEdges.add(x);
             if (bottomTab == t) {
@@ -957,7 +1025,7 @@ public class IdeApp extends Panel {
         Ide.text(g, "✕", width - 22, 7, Ide.ui(), Ide.SUBTLE);
         Ide.text(g, "清除", width - 70, 8, Ide.small(), Ide.SUBTLE);
         if (bottomTab == 3) {
-            String hint = dbg != null && dbg.stopped ? "F5 继续 · F10 逐行 · F11 步入 · F8 步出" : "点工具栏「继续 / 逐行 / 步入 / 步出」";
+            String hint = dbg != null && dbg.stopped ? "继续恢复运行 · F10 逐行 · F11 步入 · F8 步出" : "点工具栏「继续 / 逐行 / 步入 / 步出」";
             int hw = Ide.textWidth(g, hint, Ide.small());
             Ide.text(g, hint, width - 90 - hw, 8, Ide.small(), Ide.FAINT);
         }
@@ -969,7 +1037,13 @@ public class IdeApp extends Panel {
             return;
         }
         if (e.x > bottomHead.width - 80) {
-            IdeTree t = bottomTab == 0 ? output : (bottomTab == 1 ? problems : (bottomTab == 2 ? search : debugTree));
+            if (bottomTab == 5) {
+                term.lines.clear();
+                term.scrollLine = -1;
+                term.repaint();
+                return;
+            }
+            IdeTree t = bottomTab == 0 ? output : (bottomTab == 1 ? problems : (bottomTab == 2 ? search : (bottomTab == 4 ? testTree : debugTree)));
             if (bottomTab == 1 || bottomTab == 3) {
                 return;
             }
@@ -980,7 +1054,7 @@ public class IdeApp extends Panel {
             return;
         }
         int t = 0;
-        while (t < 4 && t + 1 < bhEdges.size()) {
+        while (t < NTABS && t + 1 < bhEdges.size()) {
             if (e.x >= bhEdges.get(t) && e.x < bhEdges.get(t + 1)) {
                 showBottomTab(t);
                 return;
@@ -1002,6 +1076,12 @@ public class IdeApp extends Panel {
             int tw = Ide.textWidth(g, caretText, Ide.small());
             Ide.textRow(g, caretText, rightEdge - tw, 0, height, Ide.small(), 0xFFFFFF);
             rightEdge = rightEdge - tw - 18;
+        }
+        String gt = git.statusText();
+        if (gt.length() > 0) {
+            int gw = Ide.textWidth(g, gt, Ide.small());
+            Ide.textRow(g, gt, rightEdge - gw, 0, height, Ide.small(), 0xFFFFFF);
+            rightEdge = rightEdge - gw - 18;
         }
         if (project != null) {
             String counts = "✖ " + diagCount + "   ⚠ " + warnCount;
@@ -1032,6 +1112,10 @@ public class IdeApp extends Panel {
         }
         layout();
         bottomHead.repaint();
+        if (t == 5) {
+            term.ensureStarted();
+            term.requestFocus();
+        }
     }
 
     // ---------------------------------------------------------------- project
@@ -1066,7 +1150,7 @@ public class IdeApp extends Panel {
             return;
         }
         openProject(p.dir);
-        if (IdeDialog.template == 2) {
+        if (IdeDialog.template >= 2) {
             openFile(p.dir + "/src/Main.java");
         } else {
             openFile(p.dir + "/src/MainForm.jnui");
@@ -1091,8 +1175,18 @@ public class IdeApp extends Panel {
             return;
         }
         project = p;
+        bpPaths = new ArrayList<String>();
+        bpLines = new ArrayList<Integer>();
+        bpConds = new ArrayList<String>();
+        state = new IdeState();
+        state.load(dir, bpPaths, bpLines, bpConds);
         IdeSettings.addRecent(dir);
+        git.reset();
+        term.shutdown();
+        term.lines.clear();
+        applyConfig();
         refreshExplorer();
+        git.refresh();
         diags.clear();
         diagCount = 0;
         warnCount = 0;
@@ -1131,6 +1225,13 @@ public class IdeApp extends Panel {
         IdeItem r = project.buildTree();
         restoreExpanded(r, open);
         explorer.setRoot(r);
+        git.decorate(r);
+    }
+
+    /** After a git command: reloads open files that git changed on disk. */
+    void reloadAfterGit() {
+        checkExternalChanges();
+        refreshExplorer();
     }
 
     void collectExpanded(IdeItem n, ArrayList<String> out) {
@@ -1170,7 +1271,7 @@ public class IdeApp extends Panel {
         btnStep.setEnabled(canStep);
         btnInto.setEnabled(canStep);
         btnOut.setEnabled(canStep);
-        btnStop.setEnabled(running || building || debugging);
+        btnStop.setEnabled(running || building || debugging || tests.running);
         btnSave.setEnabled(tabs != null && tabs.active >= 0);
         btnSwitch.setEnabled(tabs != null && tabs.active >= 0);
         status.repaint();
@@ -1202,7 +1303,7 @@ public class IdeApp extends Panel {
         }
         ContextMenu cm = new ContextMenu();
         cm.add(new MenuItem("新建窗体…", () -> newForm(it)));
-        cm.add(new MenuItem("新建 Java 类…", () -> newClass(it)));
+        cm.add(new MenuItem("新建 Java 文件…", () -> newJavaFile(it)));
         cm.add(new MenuItem("新建文件…", () -> newFile(it)));
         cm.add(new MenuItem("新建文件夹…", () -> newFolder(it)));
         cm.addSeparator();
@@ -1908,6 +2009,7 @@ public class IdeApp extends Panel {
         } else {
             d.kind = 0;
             CodeEditor ed = new CodeEditor();
+            ed.foldingEnabled = 1;
             ed.setHiDpi(true);
             ed.font = Font.mono(IdeSettings.fontSize);
             ed.setTheme(EditorTheme.light());
@@ -2092,6 +2194,7 @@ public class IdeApp extends Panel {
             saveDesigner(d);
         }
         tabs.repaint();
+        git.refresh();
     }
 
     void saveDesigner(IdeDoc d) {
@@ -2400,12 +2503,26 @@ public class IdeApp extends Panel {
         });
     }
 
-    void quickSymbol() {
+    void foldToggle() {
+        IdeDoc d = activeDoc();
+        if (d != null && d.kind == 0) {
+            d.editor.toggleFoldAtCaret();
+        }
+    }
+
+    void foldAll(boolean fold) {
         IdeDoc d = activeDoc();
         if (d == null || d.kind != 0) {
-            setStatus("请先打开一个代码文件");
             return;
         }
+        if (fold) {
+            d.editor.foldAll();
+        } else {
+            d.editor.unfoldAll();
+        }
+    }
+
+    ArrayList<IdeItem> symbolItems(IdeDoc d) {
         IdeTable t = new IdeTable();
         IdeComplete.indexText(d.editor.getText(), t, d.path);
         ArrayList<IdeItem> items = new ArrayList<IdeItem>();
@@ -2427,13 +2544,193 @@ public class IdeApp extends Panel {
             }
             i = i + 1;
         }
-        quick.open("转到符号…（类 / 方法 / 字段）", items, it -> {
+        return items;
+    }
+
+    void jumpToLine(int line1) {
+        IdeDoc cur = activeDoc();
+        if (cur != null && cur.kind == 0) {
+            navRecord();
+            cur.editor.goTo(line1 - 1, 0);
+            cur.editor.requestFocus();
+        }
+    }
+
+    void quickSymbol() {
+        IdeDoc d = activeDoc();
+        if (d == null || d.kind != 0) {
+            setStatus("请先打开一个代码文件");
+            return;
+        }
+        quick.open("转到符号…（类 / 方法 / 字段）", symbolItems(d), it -> jumpToLine(it.tag));
+    }
+
+    /** ⇧⌘A: one palette for project files, the symbols of the current file and every menu action. */
+    void searchEverywhere() {
+        ArrayList<IdeItem> items = new ArrayList<IdeItem>();
+        int i = 0;
+        while (i < actionNames.size()) {
+            String n = actionNames.get(i);
+            if (!n.startsWith("随处搜索")) {
+                IdeItem a = new IdeItem(n, "cm", "");
+                a.tag = i;
+                a.hint = "动作";
+                a.edits.add("act");
+                items.add(a);
+            }
+            i = i + 1;
+        }
+        IdeDoc d = activeDoc();
+        if (d != null && d.kind == 0) {
+            ArrayList<IdeItem> syms = symbolItems(d);
+            i = 0;
+            while (i < syms.size()) {
+                syms.get(i).edits.add("sym");
+                items.add(syms.get(i));
+                i = i + 1;
+            }
+        }
+        if (project != null) {
+            ArrayList<IdeItem> files = new ArrayList<IdeItem>();
+            collectFiles(project.dir, files, 0);
+            i = 0;
+            while (i < files.size()) {
+                files.get(i).edits.add("file");
+                items.add(files.get(i));
+                i = i + 1;
+            }
+        }
+        quick.open("随处搜索：文件、符号、动作…", items, it -> {
+            String kind = it.edits.size() > 0 ? it.edits.get(0) : "";
+            if (kind.equals("act")) {
+                actionRuns.get(it.tag).run();
+            } else if (kind.equals("sym")) {
+                jumpToLine(it.tag);
+            } else {
+                navRecord();
+                openFile(it.key);
+            }
+        });
+    }
+
+    // ---------------------------------------------------------------- TODO / imports / compiler formatter
+
+    void scanTodos(String dir, ArrayList<IdeItem> out, int depth) {
+        ArrayList<String> kids = Files.list(FsPath.of(dir));
+        int i = 0;
+        while (i < kids.size() && out.size() < 500) {
+            String n = kids.get(i);
+            String p = dir + "/" + n;
+            i = i + 1;
+            if (n.startsWith(".")) {
+                continue;
+            }
+            if (Files.isDirectory(FsPath.of(p))) {
+                if (depth < 8 && !n.endsWith(".app") && !n.equals("build") && !n.equals("node_modules")) {
+                    scanTodos(p, out, depth + 1);
+                }
+                continue;
+            }
+            if (!Ide.fileExt(n).equals("java")) {
+                continue;
+            }
+            int open = tabs.find(p);
+            String text = open >= 0 && tabs.docs.get(open).kind == 0 ? tabs.docs.get(open).editor.getText()
+                    : Files.readString(FsPath.of(p));
+            ArrayList<String> ls = DsGen.splitLines(text);
+            int ln = 0;
+            while (ln < ls.size()) {
+                String line = ls.get(ln);
+                int c = line.indexOf("//");
+                if (c < 0) {
+                    c = line.indexOf("/*");
+                }
+                if (c < 0) {
+                    c = line.indexOf(" * ");
+                }
+                if (c >= 0) {
+                    String tail = line.substring(c);
+                    if (tail.indexOf("TODO") >= 0 || tail.indexOf("FIXME") >= 0) {
+                        IdeItem it = new IdeItem(tail.trim(), "cm", p);
+                        it.tag = ln;
+                        it.hint = n + ":" + (ln + 1);
+                        out.add(it);
+                    }
+                }
+                ln = ln + 1;
+            }
+        }
+    }
+
+    void todoList() {
+        if (project == null) {
+            setStatus("请先打开项目");
+            return;
+        }
+        ArrayList<IdeItem> items = new ArrayList<IdeItem>();
+        scanTodos(project.dir, items, 0);
+        setStatus("找到 " + items.size() + " 条 TODO / FIXME");
+        quick.open("TODO / FIXME（" + items.size() + "）", items, it -> {
+            navRecord();
+            openFile(it.key);
             IdeDoc cur = activeDoc();
             if (cur != null && cur.kind == 0) {
-                navRecord();
-                cur.editor.goTo(it.tag - 1, 0);
+                cur.editor.goTo(it.tag, 0);
                 cur.editor.requestFocus();
             }
+        });
+    }
+
+    /** ⌥⌘O: removes unused / duplicate imports and sorts the rest. */
+    void optimizeImports() {
+        IdeDoc d = activeDoc();
+        if (d == null || d.kind != 0) {
+            return;
+        }
+        String old = d.editor.getText();
+        String neu = IdeImports.optimize(old);
+        if (neu.equals(old)) {
+            setStatus("导入已经是最优的");
+            return;
+        }
+        TextPosition cp = d.editor.document.offsetToPosition(d.editor.caret.offset);
+        int oldLines = d.editor.document.getLineCount();
+        applyTextDiff(d.editor, neu);
+        int delta = d.editor.document.getLineCount() - oldLines;
+        int line = Math.max(0, Math.min(cp.line + delta, d.editor.document.getLineCount() - 1));
+        d.editor.goTo(line, Math.min(cp.column, d.editor.document.getLine(line).length()));
+        setStatus("已优化导入");
+    }
+
+    /** ⌥⌘L: formats the whole file with the compiler's own formatter (LSP textDocument/formatting). */
+    void formatWithLsp() {
+        IdeDoc d = activeDoc();
+        if (d == null || d.kind != 0 || d.path.length() == 0) {
+            return;
+        }
+        if (!ensureLsp()) {
+            setStatus("语言服务未启动，改用重新缩进");
+            formatDocument();
+            return;
+        }
+        lsp.sync(d.path, d.editor.getText());
+        String params = "{\"textDocument\":{\"uri\":" + IdeLsp.jstr("file://" + d.path)
+                + "},\"options\":{\"tabSize\":4,\"insertSpaces\":true}}";
+        lsp.send("textDocument/formatting", params, r -> {
+            if (r == null || !r.isArray() || r.asArray().size() == 0) {
+                setStatus("格式已经是规范的（或格式化失败）");
+                return;
+            }
+            String neu = r.asArray().get(0).asObject().getString("newText", "");
+            if (neu.length() == 0 || neu.equals(d.editor.getText())) {
+                setStatus("格式已经是规范的");
+                return;
+            }
+            TextPosition cp = d.editor.document.offsetToPosition(d.editor.caret.offset);
+            applyTextDiff(d.editor, neu);
+            int line = Math.min(cp.line, d.editor.document.getLineCount() - 1);
+            d.editor.goTo(line, Math.min(cp.column, d.editor.document.getLine(line).length()));
+            setStatus("已格式化");
         });
     }
 
@@ -2558,7 +2855,7 @@ public class IdeApp extends Panel {
         p.onLine = ln -> buildLine(ln);
         p.onExit = code -> buildDone(code);
         buildProc = p;
-        if (!p.start(project.dir, IdeSettings.buildCommand())) {
+        if (!p.start(project.dir, IdeSettings.buildCommand(project))) {
             appendOutput("无法启动编译器进程", Ide.ERROR);
             buildProc = null;
             return;
@@ -2636,7 +2933,8 @@ public class IdeApp extends Panel {
         p.onLine = ln -> appendOutput(ln, Ide.TEXT);
         p.onExit = code -> runDone(code);
         runProc = p;
-        if (!p.start(project.dir, "JNATIVE_LINEBUF=1 exec '" + exe + "' 2>&1")) {
+        if (!p.start(project.dir, "JNATIVE_LINEBUF=1 " + state.shellEnv() + "exec " + IdeState.shq(exe)
+                + state.shellArgs() + " 2>&1")) {
             appendOutput("无法启动程序", Ide.ERROR);
             runProc = null;
             return;
@@ -2667,17 +2965,24 @@ public class IdeApp extends Panel {
         if (dbg.active) {
             dbg.stop();
         }
+        tests.stop();
     }
 
     // ---------------------------------------------------------------- debugger
 
-    /** F5: continue if paused; otherwise launch the current binary (rebuild only when it is missing). */
+    /** F5: continue when paused, otherwise start a session. */
+    void debugOrContinue() {
+        if (dbg.active && dbg.stopped) {
+            dbg.resume();
+            return;
+        }
+        debug();
+    }
+
+    /** Toolbar「调试」: always start a fresh session. Use「继续」to resume a pause. */
     void debug() {
         if (dbg.active) {
-            if (dbg.stopped) {
-                dbg.resume();
-            }
-            return;
+            dbg.stop();
         }
         if (project == null) {
             Dialogs.info(window, "请先打开或新建一个项目。");
@@ -2689,7 +2994,7 @@ public class IdeApp extends Panel {
             return;
         }
         saveAll();
-        if (Files.exists(FsPath.of(project.outputPath()))) {
+        if (debugBinaryReady()) {
             startDebug();
             return;
         }
@@ -2724,7 +3029,7 @@ public class IdeApp extends Panel {
         p.onLine = ln -> buildLine(ln);
         p.onExit = code -> buildDone(code);
         buildProc = p;
-        if (!p.start(project.dir, IdeSettings.buildDebugCommand())) {
+        if (!p.start(project.dir, IdeSettings.buildDebugCommand(project))) {
             appendOutput("无法启动编译器进程", Ide.ERROR);
             buildProc = null;
             debugAfterBuild = false;
@@ -2734,13 +3039,36 @@ public class IdeApp extends Panel {
         refreshState();
     }
 
+    /** True when the current output was built with --debug and is newer than the main source. */
+    boolean debugBinaryReady() {
+        if (project == null) {
+            return false;
+        }
+        String exe = project.outputPath();
+        if (!Files.exists(FsPath.of(exe))) {
+            return false;
+        }
+        if (!Files.exists(FsPath.of(exe + ".jn-debug.json")) && !Files.exists(FsPath.of(exe + ".dSYM"))) {
+            return false;
+        }
+        String src = project.mainSourcePath();
+        if (src.length() > 0 && Files.exists(FsPath.of(src))) {
+            if (Files.lastModified(FsPath.of(src)) > Files.lastModified(FsPath.of(exe))) {
+                return false;
+            }
+        }
+        return true;
+    }
+
     void startDebug() {
         String exe = project.outputPath();
         if (!Files.exists(FsPath.of(exe))) {
             appendOutput("找不到可执行文件：" + exe, Ide.ERROR);
+            showBottomTab(0);
             return;
         }
-        showBottomTab(3);
+        showBottomTab(0);
+        appendOutput("—— 调试 " + project.name + " ——", Ide.ACCENT);
         if (!dbg.launch(exe, project.dir)) {
             return;
         }
@@ -2751,6 +3079,8 @@ public class IdeApp extends Panel {
     void debugActivate(IdeItem it) {
         if (it.parent != null && it.parent.text.equals("调用栈")) {
             dbg.selectFrame(DsUtil.parseInt(it.key, 0));
+        } else if (it.parent != null && it.parent.text.equals("监视")) {
+            removeWatch(it.key);
         }
     }
 
@@ -2765,39 +3095,402 @@ public class IdeApp extends Panel {
     void gutterClick(IdeDoc d, int line) {
         toggleBreakpoint(d.path, line);
         applyBreaks(d);
+        saveState();
         if (dbg.active) {
             dbg.sendBreakpoints(d.path);
         }
     }
 
-    void toggleBreakpoint(String path, int line) {
+    void saveState() {
+        if (project != null) {
+            state.save(bpPaths, bpLines, bpConds);
+        }
+    }
+
+    int findBreakpoint(String path, int line) {
         int i = 0;
         while (i < bpPaths.size()) {
             if (bpPaths.get(i).equals(path) && bpLines.get(i) == line) {
-                bpPaths.remove(i);
-                bpLines.remove(i);
-                return;
+                return i;
             }
             i = i + 1;
         }
+        return -1;
+    }
+
+    void toggleBreakpoint(String path, int line) {
+        int i = findBreakpoint(path, line);
+        if (i >= 0) {
+            bpPaths.remove(i);
+            bpLines.remove(i);
+            bpConds.remove(i);
+            return;
+        }
         bpPaths.add(path);
         bpLines.add(line);
+        bpConds.add("");
     }
 
     void shiftBreaks(String path, int atLine, int delta) {
+        boolean moved = false;
         int i = 0;
         while (i < bpPaths.size()) {
             if (bpPaths.get(i).equals(path) && bpLines.get(i) > atLine) {
                 int n = bpLines.get(i) + delta;
+                moved = true;
                 if (n < 0) {
                     bpPaths.remove(i);
                     bpLines.remove(i);
+                    bpConds.remove(i);
                     continue;
                 }
                 bpLines.set(i, n);
             }
             i = i + 1;
         }
+        if (moved) {
+            saveState();
+        }
+    }
+
+    /** Sets (or clears, when empty) the condition of the breakpoint on the caret line, creating it when needed. */
+    void breakpointCondition() {
+        IdeDoc d = activeDoc();
+        if (d == null || d.kind != 0) {
+            return;
+        }
+        int line = d.editor.document.offsetToPosition(d.editor.caret.offset).line;
+        int idx = findBreakpoint(d.path, line);
+        String cur = idx >= 0 ? bpConds.get(idx) : "";
+        IdeDialog.inputOrEmpty(window, "断点条件", "第 " + (line + 1) + " 行 · 条件表达式（例如 x > 5，留空表示无条件）", cur, t -> {
+            int k = findBreakpoint(d.path, line);
+            if (k < 0) {
+                bpPaths.add(d.path);
+                bpLines.add(line);
+                bpConds.add(t);
+            } else {
+                bpConds.set(k, t);
+            }
+            applyBreaks(d);
+            saveState();
+            if (dbg.active) {
+                dbg.sendBreakpoints(d.path);
+            }
+            setStatus(t.length() > 0 ? "条件断点：" + t : "断点已设为无条件");
+        });
+    }
+
+    /** Run to cursor: a one-shot breakpoint on the caret line, then continue (or start debugging). */
+    void runToCursor() {
+        IdeDoc d = activeDoc();
+        if (d == null || d.kind != 0) {
+            return;
+        }
+        tempBpPath = d.path;
+        tempBpLine = d.editor.document.offsetToPosition(d.editor.caret.offset).line;
+        if (dbg.active && dbg.stopped) {
+            dbg.sendBreakpoints(d.path);
+            dbg.resume();
+        } else if (!dbg.active) {
+            debug();
+        } else {
+            dbg.sendBreakpoints(d.path);
+        }
+    }
+
+    // ---------------------------------------------------------------- run configuration
+
+    void editRunArgs() {
+        if (project == null) {
+            return;
+        }
+        IdeDialog.inputOrEmpty(window, "运行参数", "命令行参数（空格分隔，可用引号），用于运行和调试", state.args, t -> {
+            state.args = t;
+            saveState();
+            setStatus(t.length() > 0 ? "运行参数：" + t : "已清除运行参数");
+        });
+    }
+
+    void editRunEnv() {
+        if (project == null) {
+            return;
+        }
+        IdeDialog.inputOrEmpty(window, "环境变量", "KEY=值（空格分隔，可用引号），用于运行和调试", state.envText(), t -> {
+            state.setEnvText(t);
+            saveState();
+            setStatus(state.env.size() > 0 ? "已设置 " + state.env.size() + " 个环境变量" : "已清除环境变量");
+        });
+    }
+
+    // ---------------------------------------------------------------- run configurations
+
+    static String safeFileName(String s) {
+        StringBuilder sb = new StringBuilder();
+        int i = 0;
+        while (i < s.length()) {
+            char c = s.charAt(i);
+            boolean ok = (c >= 48 && c <= 57) || (c >= 65 && c <= 90) || (c >= 97 && c <= 122) || c == 95;
+            sb.append(ok ? c : '_');
+            i = i + 1;
+        }
+        return sb.toString();
+    }
+
+    /** Points the project at the current run configuration's entry file (or back at the project's own entry). */
+    void applyConfig() {
+        if (project == null || state == null) {
+            return;
+        }
+        String m = state.curMain();
+        if (m.length() > 0 && Files.exists(FsPath.of(m))) {
+            project.altMain = m;
+            Files.createDirectories(FsPath.of(project.dir + "/.jnative/build"));
+            project.altOut = project.dir + "/.jnative/build/run-" + state.cur + "-" + safeFileName(state.curName());
+        } else {
+            project.altMain = "";
+            project.altOut = "";
+        }
+        chrome.repaint();
+    }
+
+    void selectConfig(int i) {
+        state.select(i);
+        applyConfig();
+        saveState();
+        setStatus("运行配置：" + state.curName());
+    }
+
+    /** Files with a main method, as quick-pick items (the first entry means "the project's own entry"). */
+    ArrayList<IdeItem> mainFileItems() {
+        ArrayList<IdeItem> items = new ArrayList<IdeItem>();
+        IdeItem def = new IdeItem("项目入口（默认）", "cc", "");
+        def.hint = project.mainClass;
+        items.add(def);
+        ArrayList<IdeItem> all = new ArrayList<IdeItem>();
+        collectFiles(project.dir, all, 0);
+        int i = 0;
+        while (i < all.size()) {
+            IdeItem f = all.get(i);
+            if (f.key.endsWith(".java") && IdeTests.hasMain(f.key)) {
+                items.add(f);
+            }
+            i = i + 1;
+        }
+        return items;
+    }
+
+    void runConfigs() {
+        if (project == null) {
+            setStatus("请先打开项目");
+            return;
+        }
+        ArrayList<IdeItem> items = new ArrayList<IdeItem>();
+        int i = 0;
+        while (i < state.cfgNames.size()) {
+            boolean isCur = i == state.cur;
+            String main = state.cfgMains.get(i);
+            IdeItem it = new IdeItem((isCur ? "✓ " : "    ") + state.cfgNames.get(i), "cm", "");
+            String args = isCur ? state.args : state.cfgArgs.get(i);
+            it.hint = (main.length() == 0 ? "项目入口" : Ide.baseName(main)) + (args.length() > 0 ? " · " + args : "");
+            it.tag = i;
+            it.edits.add("sel");
+            items.add(it);
+            i = i + 1;
+        }
+        IdeItem n = new IdeItem("＋ 新建运行配置…", "cf", "");
+        n.edits.add("new");
+        items.add(n);
+        IdeItem e = new IdeItem("✎ 更改当前配置的入口文件…", "cf", "");
+        e.edits.add("main");
+        items.add(e);
+        if (state.cfgNames.size() > 1) {
+            IdeItem d = new IdeItem("✕ 删除当前配置（" + state.curName() + "）", "cf", "");
+            d.edits.add("del");
+            items.add(d);
+        }
+        quick.open("运行配置（Enter 选中；参数和环境变量在「生成」菜单里改）", items, it -> {
+            String kind = it.edits.get(0);
+            if (kind.equals("sel")) {
+                selectConfig(it.tag);
+            } else if (kind.equals("new")) {
+                IdeDialog.input(window, "新建运行配置", "配置名称", "配置 " + (state.cfgNames.size() + 1), nm -> newConfig(nm));
+            } else if (kind.equals("main")) {
+                pickMainFile(m -> {
+                    state.setCurMain(m);
+                    applyConfig();
+                    saveState();
+                    setStatus("入口文件：" + (m.length() == 0 ? "项目入口" : Ide.baseName(m)));
+                });
+            } else if (kind.equals("del")) {
+                if (Dialogs.confirm(window, "删除运行配置「" + state.curName() + "」？")) {
+                    state.deleteCurrent();
+                    applyConfig();
+                    saveState();
+                }
+            }
+        });
+    }
+
+    void pickMainFile(IdeStringHandler h) {
+        quick.open("选择入口文件（带 main 方法的 Java 文件）", mainFileItems(), it -> h.handle(it.key));
+    }
+
+    void newConfig(String name) {
+        String nm = name.trim();
+        if (nm.length() == 0 || nm.indexOf("|") >= 0 || state.cfgNames.indexOf(nm) >= 0) {
+            Dialogs.error(window, "配置名称为空、含有 | 或已存在");
+            return;
+        }
+        pickMainFile(m -> {
+            state.addConfig(nm, m);
+            applyConfig();
+            saveState();
+            setStatus("已创建运行配置：" + nm);
+        });
+    }
+
+    /** ⌥⌘R: runs the Java file in the active tab (it must have a main method) through its own configuration. */
+    void runCurrentFile() {
+        IdeDoc d = activeDoc();
+        if (project == null || d == null || d.kind != 0 || !d.path.endsWith(".java")) {
+            setStatus("请先打开一个带 main 方法的 Java 文件");
+            return;
+        }
+        if (d.isDirty()) {
+            saveDoc(d);
+        }
+        if (!IdeTests.hasMain(d.path)) {
+            setStatus(Ide.baseName(d.path) + " 没有 main 方法");
+            return;
+        }
+        String name = "文件：" + Ide.baseName(d.path);
+        int idx = state.cfgNames.indexOf(name);
+        if (idx >= 0) {
+            state.select(idx);
+            state.setCurMain(d.path);
+        } else {
+            state.addConfig(name, d.path);
+        }
+        applyConfig();
+        saveState();
+        build(true);
+    }
+
+    void runCurrentTest() {
+        IdeDoc d = activeDoc();
+        if (project == null || d == null || d.kind != 0 || !tests.isTestFile(d.path)) {
+            setStatus("当前文件不是测试（tests/ 下或名为 *Test.java，且有 main 方法）");
+            return;
+        }
+        tests.runFile(d.path);
+    }
+
+    // ---------------------------------------------------------------- file templates
+
+    void newJavaFile(IdeItem at) {
+        if (project == null) {
+            Dialogs.info(window, "请先打开或新建一个项目。");
+            return;
+        }
+        String dir = dirOf(at);
+        ArrayList<IdeItem> items = new ArrayList<IdeItem>();
+        String[] kinds = new String[6];
+        kinds[0] = "类";
+        kinds[1] = "接口";
+        kinds[2] = "枚举";
+        kinds[3] = "带 main 的程序";
+        kinds[4] = "测试程序（放在 tests/）";
+        kinds[5] = "记录风格的数据类（字段 + 构造器 + getter）";
+        int i = 0;
+        while (i < kinds.length) {
+            IdeItem it = new IdeItem(kinds[i], "cc", "");
+            it.tag = i;
+            items.add(it);
+            i = i + 1;
+        }
+        quick.open("新建 Java 文件：选择模板", items, it -> {
+            int k = it.tag;
+            String hint = k == 4 ? "CalcTest" : "MyClass";
+            IdeDialog.input(window, "新建 " + kinds[k], "名称", hint, n -> createFromTemplate(dir, k, n));
+        });
+    }
+
+    static String templateText(int kind, String name) {
+        StringBuilder sb = new StringBuilder();
+        if (kind == 1) {
+            sb.append("public interface " + name + " {\n    void run();\n}\n");
+        } else if (kind == 2) {
+            sb.append("public enum " + name + " {\n    FIRST,\n    SECOND;\n}\n");
+        } else if (kind == 3) {
+            sb.append("public class " + name + " {\n    public static void main(String[] args) {\n"
+                    + "        System.out.println(\"Hello from " + name + "\");\n    }\n}\n");
+        } else if (kind == 4) {
+            return IdeTests.testTemplate(name);
+        } else if (kind == 5) {
+            sb.append("public class " + name + " {\n    private final String name;\n    private final int value;\n\n"
+                    + "    public " + name + "(String name, int value) {\n        this.name = name;\n        this.value = value;\n    }\n\n"
+                    + "    public String getName() {\n        return name;\n    }\n\n"
+                    + "    public int getValue() {\n        return value;\n    }\n\n"
+                    + "    public String toString() {\n        return \"" + name + "(\" + name + \", \" + value + \")\";\n    }\n}\n");
+        } else {
+            sb.append("public class " + name + " {\n    " + name + "() {\n    }\n}\n");
+        }
+        return sb.toString();
+    }
+
+    void createFromTemplate(String dir, int kind, String n) {
+        String name = DsUtil.capitalize(n);
+        if (!DsUtil.isIdent(name) || DsUtil.isKeyword(name)) {
+            Dialogs.error(window, "类名无效：" + name);
+            return;
+        }
+        String target = dir;
+        if (kind == 4) {
+            target = project.dir + "/tests";
+            Files.createDirectories(FsPath.of(target));
+        }
+        String path = target + "/" + name + ".java";
+        if (Files.exists(FsPath.of(path))) {
+            Dialogs.error(window, "已存在同名文件：" + name + ".java");
+            return;
+        }
+        Files.writeString(FsPath.of(path), templateText(kind, name));
+        refreshExplorer();
+        openFile(path);
+        git.refresh();
+    }
+
+    // ---------------------------------------------------------------- watches and evaluation
+
+    void addWatch() {
+        if (project == null) {
+            return;
+        }
+        IdeDialog.input(window, "添加监视", "表达式（例如 x + y）", "", t -> {
+            if (state.watches.indexOf(t) < 0) {
+                state.watches.add(t);
+                saveState();
+            }
+            showBottomTab(3);
+            dbg.refreshWatches();
+        });
+    }
+
+    void removeWatch(String expr) {
+        int i = state.watches.indexOf(expr);
+        if (i >= 0) {
+            state.watches.remove(i);
+            saveState();
+            dbg.refreshWatches();
+        }
+    }
+
+    void evaluateExpression() {
+        if (!dbg.active || !dbg.stopped) {
+            Dialogs.info(window, "程序暂停在断点时才能求值。");
+            return;
+        }
+        IdeDialog.input(window, "求值表达式", "在当前栈帧求值（例如 x * 2 或 add(1, 2)）", "", t -> dbg.evaluate(t));
     }
 
     void applyBreaks(IdeDoc d) {
@@ -2838,23 +3531,6 @@ public class IdeApp extends Panel {
             }
             i = i + 1;
         }
-    }
-
-    String formattersPath() {
-        String c = IdeSettings.compiler;
-        String root = "";
-        if (c.endsWith("/target/classes")) {
-            root = c.substring(0, c.length() - 15);
-        } else if (c.endsWith("/target/jnative.jar")) {
-            root = c.substring(0, c.length() - 19);
-        }
-        if (root.length() > 0) {
-            String p = root + "/tools/lldb/jnative_formatters.py";
-            if (Files.exists(FsPath.of(p))) {
-                return p;
-            }
-        }
-        return "";
     }
 
     void appendProgramOutput(String text, boolean err) {
@@ -2956,6 +3632,7 @@ public class IdeApp extends Panel {
             }
             i = i + 1;
         }
+        term.shutdown();
         lsp.stop();
         return true;
     }
@@ -2971,6 +3648,7 @@ public class IdeApp extends Panel {
             i = i + 1;
         }
         stopAll();
+        term.shutdown();
         lsp.stop();
         return true;
     }

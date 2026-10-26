@@ -135,6 +135,28 @@ class IdeSettings {
         return "";
     }
 
+    /** tools/lldb/jnative_formatters.py of the JNative checkout the compiler lives in, or "". */
+    static String lldbFormatters() {
+        String dir = compiler;
+        int guard = 0;
+        while (dir.length() > 1 && guard < 6) {
+            String f = dir + "/tools/lldb/jnative_formatters.py";
+            if (Files.exists(FsPath.of(f))) {
+                return f;
+            }
+            dir = Ide.dirName(dir);
+            guard = guard + 1;
+        }
+        String home = Env.get("JNATIVE_HOME");
+        if (home != null && home.length() > 0) {
+            String f = home + "/tools/lldb/jnative_formatters.py";
+            if (Files.exists(FsPath.of(f))) {
+                return f;
+            }
+        }
+        return "";
+    }
+
     static boolean hasCompiler() {
         return compiler.length() > 0;
     }
@@ -156,15 +178,39 @@ class IdeSettings {
         return javaCmd + " -cp '" + compiler + "' io.jnative.Main build --project . 2>&1";
     }
 
-    /** Debug build: DWARF + -O0. Cleans the incremental cache so a previous release build cannot be reused. */
-    static String buildDebugCommand() {
-        String cmd;
-        if (compiler.endsWith(".jar")) {
-            cmd = javaCmd + " -jar '" + compiler + "' build --project . --debug -O0 2>&1";
-        } else {
-            cmd = javaCmd + " -cp '" + compiler + "' io.jnative.Main build --project . --debug -O0 2>&1";
+    /** Build for Run: the whole project, or just the file of an active run configuration. */
+    static String buildCommand(IdeProject project) {
+        if (project == null || project.altMain.length() == 0) {
+            return buildCommand();
         }
-        return "rm -rf .jnative && " + cmd;
+        return compileFileCommand(project.altMain, project.altOut);
+    }
+
+    /** Compiles one source file into out (normal optimization). */
+    static String compileFileCommand(String src, String out) {
+        if (compiler.endsWith(".jar")) {
+            return javaCmd + " -jar '" + compiler + "' '" + src + "' -o '" + out + "' 2>&1";
+        }
+        return javaCmd + " -cp '" + compiler + "' io.jnative.Main '" + src + "' -o '" + out + "' 2>&1";
+    }
+
+    /**
+     * Debug build of the project's main source file only ({@code --debug -O0}).
+     * A whole-project rebuild of a demo folder would compile every sibling program.
+     */
+    static String buildDebugCommand(IdeProject project) {
+        String src = project == null ? "" : project.mainSourcePath();
+        String out = project == null ? "" : (project.altMain.length() > 0 ? project.altOut : project.output);
+        if (src.length() == 0 || out.length() == 0) {
+            if (compiler.endsWith(".jar")) {
+                return javaCmd + " -jar '" + compiler + "' build --project . --debug -O0 2>&1";
+            }
+            return javaCmd + " -cp '" + compiler + "' io.jnative.Main build --project . --debug -O0 2>&1";
+        }
+        if (compiler.endsWith(".jar")) {
+            return javaCmd + " -jar '" + compiler + "' '" + src + "' --debug -O0 -o '" + out + "' 2>&1";
+        }
+        return javaCmd + " -cp '" + compiler + "' io.jnative.Main '" + src + "' --debug -O0 -o '" + out + "' 2>&1";
     }
 }
 
@@ -227,7 +273,14 @@ class IdeProject {
         return p;
     }
 
+    /** Run configuration override: a single source file with its own output binary (empty = the project's entry). */
+    String altMain = "";
+    String altOut = "";
+
     String outputPath() {
+        if (altMain.length() > 0) {
+            return altOut;
+        }
         if (output.startsWith("/")) {
             return output;
         }
@@ -236,6 +289,34 @@ class IdeProject {
 
     String srcRoot() {
         return dir + "/" + srcDirs.get(0);
+    }
+
+    /** Absolute path of {@code mainClass}.java / {@code .jn}, or "" if it is not on disk. */
+    String mainSourcePath() {
+        if (altMain.length() > 0) {
+            return altMain;
+        }
+        String[] names = new String[2];
+        names[0] = mainClass + ".java";
+        names[1] = mainClass + ".jn";
+        int n = 0;
+        while (n < names.length) {
+            String atRoot = dir + "/" + names[n];
+            if (Files.exists(FsPath.of(atRoot))) {
+                return atRoot;
+            }
+            int i = 0;
+            while (i < srcDirs.size()) {
+                String src = srcDirs.get(i);
+                String p = src.equals(".") ? dir + "/" + names[n] : dir + "/" + src + "/" + names[n];
+                if (Files.exists(FsPath.of(p))) {
+                    return p;
+                }
+                i = i + 1;
+            }
+            n = n + 1;
+        }
+        return "";
     }
 
     /** Creates a new project (dir/name) from the Hello template; returns it or null on failure. */
@@ -266,8 +347,12 @@ class IdeProject {
         sb.append("}\n");
         Files.writeString(FsPath.of(dir + "/jnative.project"), sb.toString());
         Files.writeString(FsPath.of(dir + "/.gitignore"), ".jnative/\n");
-        if (IdeDialog.template == 2) {
+        if (IdeDialog.template >= 2) {
             Files.writeString(FsPath.of(dir + "/src/Main.java"), consoleMain(name));
+            if (IdeDialog.template == 3) {
+                Files.createDirectories(FsPath.of(dir + "/tests"));
+                Files.writeString(FsPath.of(dir + "/tests/MainTest.java"), IdeTests.testTemplate("MainTest"));
+            }
             return open(dir);
         }
         DsDoc d = IdeDialog.template == 1 ? DsDoc.blank("MainForm") : DsSample.hello("MainForm");
