@@ -122,9 +122,13 @@ final class LlvmDiBuilder {
             return null;
         }
         int varId = localVarId(lv);
-        SourceLocation loc = lv.location();
+        // The dbg.declare calls sit in the entry block; the instructions that follow them without a location of
+        // their own (frame setup, root slots) inherit this line. Using the declaration line would make every
+        // declaration line also resolve to the function prologue, so breakpoints on `String s = ...` stopped at
+        // function entry. Attribute them to the function's own line instead.
+        SourceLocation loc = info.functionLocation(currentFunction);
         if (loc == null || loc.line() <= 0) {
-            loc = info.functionLocation(currentFunction);
+            loc = lv.location();
         }
         int locId = locationId(loc, currentFunction);
         return "  call void @llvm.dbg.declare(metadata ptr " + llvmLocalName
@@ -403,6 +407,21 @@ final class LlvmDiBuilder {
         int id = locationId(loc, f);
         locations.put(inst, id);
         return id;
+    }
+
+    /**
+     * {@code , !dbg !N} for the function's own line: entry-block setup (allocas, root slots, frame push) is attributed
+     * to the function header so declaration lines never map to the prologue.
+     */
+    String prologueSuffix() {
+        if (!enabled() || currentFunction == null || !info.hasFunctionDebug(currentFunction)) {
+            return "";
+        }
+        SourceLocation loc = info.functionLocation(currentFunction);
+        if (loc == null || loc.line() <= 0) {
+            return "";
+        }
+        return ", !dbg !" + locationId(loc, currentFunction);
     }
 
     String locationSuffixFor(IrInstruction inst) {

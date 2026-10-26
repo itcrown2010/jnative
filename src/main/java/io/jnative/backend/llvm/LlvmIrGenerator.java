@@ -52,6 +52,8 @@ public final class LlvmIrGenerator {
     private final Set<String> entryEmittedStackObjects = new HashSet<>();
     private LlvmDiBuilder di;
     private IrInstruction currentInst;
+    /** True while emitting the entry-block prologue: instructions get the function's line, not their statement's. */
+    private boolean inPrologue;
 
     public String generate(IrModule module) {
         sb.setLength(0);
@@ -578,6 +580,7 @@ public final class LlvmIrGenerator {
             sb.append(block.name()).append(":\n");
             if (first) {
                 first = false;
+                inPrologue = true;
                 // Emit allocas / stackallocs / stack-managed objects first
                 for (IrInstruction inst : block.instructions()) {
                     if (inst instanceof IrInstruction.Alloca
@@ -621,6 +624,7 @@ public final class LlvmIrGenerator {
                 if (!"jnative_clinit".equals(f.name()) && !f.omitSafepoints()) {
                     line("  call void @jn_safepoint_poll()");
                 }
+                inPrologue = false;
                 for (IrInstruction inst : block.instructions()) {
                     if (inst instanceof IrInstruction.Alloca
                             || inst instanceof IrInstruction.StackAlloc) {
@@ -1578,7 +1582,8 @@ public final class LlvmIrGenerator {
     }
 
     private void line(String s) {
-        String suffix = currentInst == null ? "" : di.locationSuffixFor(currentInst);
+        String suffix = inPrologue ? di.prologueSuffix()
+                : (currentInst == null ? "" : di.locationSuffixFor(currentInst));
         // Avoid double-attaching if the line already carries !dbg
         if (!suffix.isEmpty() && s.contains("!dbg")) {
             suffix = "";

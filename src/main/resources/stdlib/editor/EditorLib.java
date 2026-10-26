@@ -1969,6 +1969,13 @@ class CodeEditor extends Canvas {
     TypedListener typedListener;
     /** Breakpoint markers (0-based lines) drawn in the gutter. */
     ArrayList<Integer> breakLines = new ArrayList<Integer>();
+    /** Bookmarked lines (0-based): a blue tab at the left edge of the gutter. */
+    ArrayList<Integer> bookmarkLines = new ArrayList<Integer>();
+    /**
+     * Per-line change marks drawn as a thin bar at the right edge of the gutter (version-control style):
+     * 1 added, 2 modified, 3 lines were deleted just above. Shorter than the document is fine (missing = 0).
+     */
+    ArrayList<int> lineMarks = new ArrayList<int>();
     /** Line the debugger is stopped at (highlighted with an arrow), or -1. */
     int execLine = -1;
     /** Code folding is off by default (Studio turns it on): regions come from { } pairs and multi-line block comments. */
@@ -5145,9 +5152,26 @@ class CodeEditor extends Canvas {
                     g.setColor(new Color(224, 62, 62));
                     g.fillEllipse(5, y + (lineH - 11) / 2.0, 11, 11);
                 }
+                if (bookmarkLines.size() > 0 && bookmarkLines.indexOf(line) >= 0) {
+                    g.setColor(new Color(59, 130, 246));
+                    g.fillRoundRect(0, y + 2, 4, lineH - 4, 2);
+                }
                 if (line == execLine) {
                     g.setColor(new Color(37, 99, 235));
                     g.drawText(">", 4, y + 2);
+                }
+                if (line < lineMarks.size() && lineMarks.get(line) != 0) {
+                    int mk = lineMarks.get(line);
+                    if (mk == 1) {
+                        g.setColor(new Color(46, 160, 67));
+                        g.fillRect(gw - 5, y, 3, lineH);
+                    } else if (mk == 2) {
+                        g.setColor(new Color(59, 130, 246));
+                        g.fillRect(gw - 5, y, 3, lineH);
+                    } else {
+                        g.setColor(new Color(224, 62, 62));
+                        g.fillRect(gw - 9, y - 1, 8, 2);
+                    }
                 }
                 if (foldingEnabled != 0 && foldEndAt(line) >= 0) {
                     paintFoldMarker(g, gw - 9, y + lineH / 2, isFoldedAt(line));

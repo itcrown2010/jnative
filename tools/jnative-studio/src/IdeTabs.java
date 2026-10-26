@@ -23,6 +23,12 @@ class IdeDoc {
     long mtime = 0;
     /** Line count at the last edit (breakpoint markers follow inserted / removed lines). */
     int lines = 0;
+    /** Last committed text for the git gutter: 0 not loaded, 1 loading, 2 loaded, 3 not tracked / no repository. */
+    int baseState = 0;
+    ArrayList<String> baseLines = new ArrayList<String>();
+    /** Editor document version the gutter marks were computed for (-1 = none yet). */
+    int diffVersion = -1;
+    IdeProc baseProc;
 
     boolean isDirty() {
         if (kind == 1) {
@@ -156,7 +162,7 @@ public class IdeTabs extends Canvas {
             double cx = x + w - 15;
             double cy = height / 2.0;
             if (i == hoverClose) {
-                Ide.rfill(g, 0xDADDE3, cx - 8, cy - 8, 16, 16, 4);
+                Ide.rfill(g, Ide.SEL_IDLE, cx - 8, cy - 8, 16, 16, 4);
             }
             if (d.isDirty() && i != hoverClose) {
                 Ide.rfill(g, Ide.TEXT, cx - 3.5, cy - 3.5, 7, 7, 3.5);

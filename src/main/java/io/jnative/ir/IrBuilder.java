@@ -113,8 +113,19 @@ public final class IrBuilder {
         attachDebug(allocaInst);
         module.debugInfo().recordLocal(
                 function, allocaInst, local, identifier, currentLocation, isParameter, argIndex,
-                javaTypeName);
+                javaTypeName, isParameter ? 0 : scopeEndLine);
         return local;
+    }
+
+    /** Line of the closing brace of the block being lowered (0 outside blocks); recorded for locals declared in it. */
+    private int scopeEndLine;
+
+    public int scopeEndLine() {
+        return scopeEndLine;
+    }
+
+    public void setScopeEndLine(int line) {
+        this.scopeEndLine = line;
     }
 
     public IrValue.Local local(String identifier) {

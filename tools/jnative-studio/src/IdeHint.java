@@ -144,6 +144,26 @@ public class IdeHint extends Canvas {
         app.lsp.requestAt("textDocument/hover", path, p.line, p.column, "", r -> gotDoc(my, r));
     }
 
+    /** A debugger value tooltip ("name = value") anchored at the hovered word. */
+    void hoverValue(CodeEditor ed, int wordA, int wordB, String text) {
+        if (ed != app.hoverEd || wordA != app.hoverWA) {
+            return;
+        }
+        editor = ed;
+        paramsActive = false;
+        seq = seq + 1;
+        quiet = false;
+        hoverA = wordA;
+        hoverB = wordB;
+        anchor = wordA;
+        doc = new ArrayList<String>();
+        doc.add(text.length() > 400 ? text.substring(0, 400) + "…" : text);
+        sig = doc.get(0);
+        hovering = true;
+        mode = 1;
+        show();
+    }
+
     void gotDoc(int my, JsonValue r) {
         if (my != seq) {
             return;
@@ -282,7 +302,7 @@ public class IdeHint extends Canvas {
 
     void paintHint(Graphics g) {
         g.setAntialias(true);
-        Ide.fill(g, 0xFFFFE8, 0, 0, width, height);
+        Ide.fill(g, Ide.HINT_BG, 0, 0, width, height);
         Ide.rstroke(g, Ide.BORDER, 0.5, 0.5, width - 1, height - 1, 6);
         Font mono = Ide.mono();
         Font boldMono = new Font("native:mono", 12, FontStyle.BOLD);
@@ -294,13 +314,13 @@ public class IdeHint extends Canvas {
                 String pre = sig.substring(0, hlA);
                 String mid = sig.substring(hlA, hlB);
                 String post = sig.substring(hlB);
-                Ide.textRow(g, pre, x, 4, rowH, mono, 0x5B6270);
+                Ide.textRow(g, pre, x, 4, rowH, mono, Ide.SUBTLE);
                 x = x + Ide.textWidth(g, pre, mono);
-                Ide.textRow(g, mid, x, 4, rowH, boldMono, 0x0B1F3A);
+                Ide.textRow(g, mid, x, 4, rowH, boldMono, Ide.TEXT);
                 x = x + Ide.textWidth(g, mid, boldMono);
-                Ide.textRow(g, post, x, 4, rowH, mono, 0x5B6270);
+                Ide.textRow(g, post, x, 4, rowH, mono, Ide.SUBTLE);
             } else {
-                Ide.textRow(g, sig, x, 4, rowH, mono, 0x5B6270);
+                Ide.textRow(g, sig, x, 4, rowH, mono, Ide.SUBTLE);
             }
             if (sigCount > 1) {
                 String more = "1/" + sigCount;
@@ -311,7 +331,7 @@ public class IdeHint extends Canvas {
             int i = 0;
             while (i < doc.size()) {
                 String ln = Ide.ellipsize(g, doc.get(i), i == 0 ? mono : Ide.ui(), width - 20);
-                Ide.textRow(g, ln, 10, 5 + i * 22, 22, i == 0 ? boldMono : Ide.ui(), i == 0 ? 0x0B1F3A : Ide.TEXT);
+                Ide.textRow(g, ln, 10, 5 + i * 22, 22, i == 0 ? boldMono : Ide.ui(), Ide.TEXT);
                 i = i + 1;
             }
         }

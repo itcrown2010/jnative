@@ -1010,7 +1010,7 @@ public class DsSurface extends Panel {
 
     void paintBg(Graphics g) {
         g.setAntialias(true);
-        Ide.fill(g, 0xE4E7EC, 0, 0, width, height);
+        Ide.fill(g, Ide.WELL, 0, 0, width, height);
         if (showGrid) {
             Ide.rgba(g, 0x9AA1AD, 70);
             int gx = hostX() % 16;
@@ -1037,9 +1037,9 @@ public class DsSurface extends Panel {
             s = s + 1;
         }
         // title bar
-        Ide.rfill(g, 0xEEEFF2, hx, hy - TITLE, fw, TITLE + 8, 9);
-        Ide.fill(g, 0xFFFFFF, hx, hy, fw, fh);
-        Ide.line(g, 0xD0D3D9, hx, hy - 0.5, hx + fw, hy - 0.5);
+        Ide.rfill(g, Ide.FORM_HEAD, hx, hy - TITLE, fw, TITLE + 8, 9);
+        Ide.fill(g, Ide.FORM, hx, hy, fw, fh);
+        Ide.line(g, Ide.FORM_LINE, hx, hy - 0.5, hx + fw, hy - 0.5);
         Ide.rgb(g, 0xFF5F57);
         g.fillEllipse(hx + 12, hy - TITLE + 9, 12, 12);
         Ide.rgb(g, 0xFEBC2E);
@@ -1050,7 +1050,7 @@ public class DsSurface extends Panel {
         Font f = Ide.ui();
         int tw = Ide.textWidth(g, title, f);
         Ide.textRow(g, title, hx + (fw - tw) / 2.0, hy - TITLE, TITLE, f, Ide.SUBTLE);
-        Ide.rstroke(g, 0xC9CCD3, hx, hy - TITLE, fw, fh + TITLE, 8);
+        Ide.rstroke(g, Ide.FORM_LINE, hx, hy - TITLE, fw, fh + TITLE, 8);
         // size badge
         String size = fw + " × " + fh + (deviceW > 0 ? "  (设备预览)" : "");
         Ide.textRow(g, size, hx, hy + fh + 4, 18, Ide.small(), Ide.FAINT);

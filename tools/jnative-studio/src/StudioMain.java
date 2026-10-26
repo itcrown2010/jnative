@@ -15,6 +15,8 @@ public class StudioMain {
 
     static void runIde(String openDir, boolean demo) {
         Application app = new Application();
+        IdeSettings.load();
+        Ide.applyTheme(IdeSettings.theme);
         Window w = new Window("JNative Studio", 1440, 900);
         w.setMinSize(960, 600);
         IdeApp ide = new IdeApp(w);

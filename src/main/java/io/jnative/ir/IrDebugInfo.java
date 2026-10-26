@@ -27,8 +27,22 @@ public final class IrDebugInfo {
             boolean isParameter,
             int argIndex,
             /** Optional Java type name (e.g. {@code Person}, {@code String}, {@code int[]}). */
-            String javaTypeName
+            String javaTypeName,
+            /** Source line of the closing brace of the declaring block, or 0 when unknown (parameters). */
+            int scopeEndLine
     ) {
+        public LocalVar(
+                IrFunction function,
+                IrValue.Local slot,
+                String sourceName,
+                SourceLocation location,
+                boolean isParameter,
+                int argIndex,
+                String javaTypeName
+        ) {
+            this(function, slot, sourceName, location, isParameter, argIndex, javaTypeName, 0);
+        }
+
         public LocalVar(
                 IrFunction function,
                 IrValue.Local slot,
@@ -132,11 +146,25 @@ public final class IrDebugInfo {
             int argIndex,
             String javaTypeName
     ) {
+        recordLocal(function, allocaInst, slot, sourceName, location, isParameter, argIndex, javaTypeName, 0);
+    }
+
+    public void recordLocal(
+            IrFunction function,
+            IrInstruction allocaInst,
+            IrValue.Local slot,
+            String sourceName,
+            SourceLocation location,
+            boolean isParameter,
+            int argIndex,
+            String javaTypeName,
+            int scopeEndLine
+    ) {
         if (!enabled || function == null || slot == null || sourceName == null) {
             return;
         }
         LocalVar lv = new LocalVar(
-                function, slot, sourceName, location, isParameter, argIndex, javaTypeName);
+                function, slot, sourceName, location, isParameter, argIndex, javaTypeName, scopeEndLine);
         locals.add(lv);
         if (allocaInst != null) {
             allocaLocals.put(allocaInst, lv);

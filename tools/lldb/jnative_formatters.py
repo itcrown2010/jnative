@@ -5,7 +5,7 @@ JNative LLDB formatters — memory-only inspection (no inferior method calls).
 
 Layouts (see StringRuntimeEmitter / ArrayRuntimeEmitter / ClassMetadata):
   Object:  { ClassMeta* @0, fields... }
-  String:  { ClassMeta* @0, i32 length @8, i8 data... @16 }  (UTF-8 inline)
+  String:  { ClassMeta* @0, i32 length @8, u16 data... @16 }  (UTF-16 code units, inline)
   Array:   { ClassMeta* @0, i32 length @8, elements @16 }
   ClassMeta name C-string pointer @ offset 32
 
@@ -238,12 +238,13 @@ def _format_string(
         return "<unreadable String>"
     if length < 0:
         return f"<corrupt String length={length}>"
-    show = min(length, max_str, MAX_READ)
-    data = _read_bytes(process, addr + sdata_off, show)
+    # length counts UTF-16 code units (2 bytes each); max_str is a unit budget
+    show = min(length, max_str, MAX_READ // 2)
+    data = _read_bytes(process, addr + sdata_off, show * 2)
     if data is None:
         return f"<unreadable String length={length}>"
     try:
-        text = data.decode("utf-8", errors="replace")
+        text = data.decode("utf-16-le", errors="replace")
     except Exception:
         text = repr(data)
     # Escape for display

@@ -85,6 +85,36 @@ public final class DebugCatalogEmitter {
                     .append(",\"elemSize\":").append(elemSize)
                     .append("}");
         }
+        sb.append("\n  ],\n");
+        // Declaration line / scope end line of every local: debuggers list all locals of a function, Studio hides the
+        // ones that are not declared yet (or whose block already ended) at the current line.
+        sb.append("  \"locals\": [\n");
+        first = true;
+        for (Map.Entry<io.jnative.ir.IrFunction, java.util.List<io.jnative.ir.IrDebugInfo.LocalVar>> e
+                : module.debugInfo().localsByFunction().entrySet()) {
+            StringBuilder vars = new StringBuilder();
+            for (io.jnative.ir.IrDebugInfo.LocalVar lv : e.getValue()) {
+                if (lv.isParameter() || lv.location() == null || lv.location().line() <= 0
+                        || lv.sourceName().startsWith("gctmp.")) {
+                    continue;
+                }
+                if (vars.length() > 0) {
+                    vars.append(",");
+                }
+                vars.append("{\"n\":\"").append(escape(lv.sourceName())).append("\",\"l\":")
+                        .append(lv.location().line()).append(",\"e\":").append(lv.scopeEndLine()).append("}");
+            }
+            if (vars.length() == 0) {
+                continue;
+            }
+            if (!first) {
+                sb.append(",\n");
+            }
+            first = false;
+            sb.append("    {\"fn\":\"").append(escape(e.getKey().name())).append("\",\"name\":\"")
+                    .append(escape(module.debugInfo().functionDisplayName(e.getKey()))).append("\",\"vars\":[")
+                    .append(vars).append("]}");
+        }
         sb.append("\n  ]\n");
         sb.append("}\n");
         Files.writeString(out, sb.toString(), StandardCharsets.UTF_8);

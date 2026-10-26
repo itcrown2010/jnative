@@ -11,6 +11,9 @@ public class IdeState {
     String args = "";
     ArrayList<String> env = new ArrayList<String>();
     ArrayList<String> watches = new ArrayList<String>();
+    /** Bookmarks: file + 0-based line, persisted as {@code bm=path|line}. */
+    ArrayList<String> bmPaths = new ArrayList<String>();
+    ArrayList<Integer> bmLines = new ArrayList<Integer>();
 
     // Run configurations. args / env above are the working copy of the current one (cur); the arrays hold the rest.
     ArrayList<String> cfgNames = new ArrayList<String>();
@@ -30,6 +33,8 @@ public class IdeState {
         args = "";
         env = new ArrayList<String>();
         watches = new ArrayList<String>();
+        bmPaths = new ArrayList<String>();
+        bmLines = new ArrayList<Integer>();
         cfgNames = new ArrayList<String>();
         cfgMains = new ArrayList<String>();
         cfgArgs = new ArrayList<String>();
@@ -55,6 +60,13 @@ public class IdeState {
                     env.add(v);
                 } else if (k.equals("watch") && v.length() > 0) {
                     watches.add(v);
+                } else if (k.equals("bm")) {
+                    int bar = v.lastIndexOf("|");
+                    int ln2 = bar > 0 ? DsUtil.parseInt(v.substring(bar + 1), -1) : -1;
+                    if (ln2 >= 0 && Files.exists(FsPath.of(v.substring(0, bar)))) {
+                        bmPaths.add(v.substring(0, bar));
+                        bmLines.add(ln2);
+                    }
                 } else if (k.equals("bp")) {
                     addBreakpoint(v, bpPaths, bpLines, bpConds);
                 } else if (k.equals("config")) {
@@ -223,6 +235,11 @@ public class IdeState {
         i = 0;
         while (i < watches.size()) {
             sb.append("watch=" + watches.get(i) + "\n");
+            i = i + 1;
+        }
+        i = 0;
+        while (i < bmPaths.size()) {
+            sb.append("bm=" + bmPaths.get(i) + "|" + bmLines.get(i) + "\n");
             i = i + 1;
         }
         i = 0;

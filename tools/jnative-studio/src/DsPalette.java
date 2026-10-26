@@ -172,8 +172,8 @@ public class DsPalette extends Canvas {
                         Ide.rfill(g, Ide.HOVER, 4, cy + 1, width - 8, h - 2, 5);
                     }
                     DsType t = rowMeta.get(i);
-                    Ide.rfill(g, 0xE9ECF2, 14, cy + 4, 20, 20, 5);
-                    Ide.rstroke(g, 0xCFD4DC, 14, cy + 4, 20, 20, 5);
+                    Ide.rfill(g, Ide.CHIP, 14, cy + 4, 20, 20, 5);
+                    Ide.rstroke(g, Ide.CHIP_LINE, 14, cy + 4, 20, 20, 5);
                     Font gf = Ide.ui();
                     int gw = Ide.textWidth(g, t.glyph, gf);
                     Ide.textRow(g, t.glyph, 14 + (20 - gw) / 2.0, cy + 4, 20, gf, Ide.ACCENT);

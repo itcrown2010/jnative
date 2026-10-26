@@ -30,10 +30,10 @@ class DsSwatch extends Canvas {
         if (rgb >= 0) {
             Ide.rfill(g, rgb, 1, 1, width - 2, height - 2, 4);
         } else {
-            Ide.rfill(g, 0xFFFFFF, 1, 1, width - 2, height - 2, 4);
+            Ide.rfill(g, Ide.CARD, 1, 1, width - 2, height - 2, 4);
             Ide.line(g, Ide.ERROR, 4, height - 4, width - 4, 4);
         }
-        Ide.rstroke(g, 0xB9BEC8, 1, 1, width - 2, height - 2, 4);
+        Ide.rstroke(g, Ide.FIELD_LINE, 1, 1, width - 2, height - 2, 4);
     }
 }
 
@@ -239,7 +239,7 @@ public class DsProps extends Panel {
         }
         int th = Math.max(30, height * height / totalH);
         int ty = (height - th) * scrollY / maxScroll;
-        Ide.rfill(g, dragBar ? 0x7A808C : 0xB9BEC8, 3, ty + 2, 5, th - 4, 3);
+        Ide.rfill(g, dragBar ? Ide.GRIP_HOT : Ide.GRIP, 3, ty + 2, 5, th - 4, 3);
     }
 
     void barDown(int y) {

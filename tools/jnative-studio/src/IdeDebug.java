@@ -21,6 +21,9 @@ public class IdeDebug implements IdeDapEvents {
     long launchAt = 0;
     boolean sawInitialized = false;
     JsonObject lastLocals = null;
+    /** Parsed `<exe>.jn-debug.json` "locals" section (function → declaration lines), loaded lazily per run. */
+    JsonArray declInfo = null;
+    String declInfoExe = "";
     ArrayList<String> watchResults = new ArrayList<String>();
     int autoSkips = 0;
     String lastFn = "";
@@ -96,6 +99,7 @@ public class IdeDebug implements IdeDapEvents {
 
     void end() {
         boolean was = active;
+        declInfo = null;
         active = false;
         stopped = false;
         launched = false;
@@ -336,6 +340,60 @@ public class IdeDebug implements IdeDapEvents {
         return low.endsWith(".java") || low.endsWith(".jn");
     }
 
+    JsonArray loadDeclInfo() {
+        if (declInfo != null && declInfoExe.equals(exe)) {
+            return declInfo;
+        }
+        declInfoExe = exe;
+        declInfo = new JsonArray();
+        String p = exe + ".jn-debug.json";
+        if (exe.length() > 0 && Files.exists(FsPath.of(p))) {
+            JsonValue root = Json.parse(Files.readString(FsPath.of(p)));
+            if (root.isObject() && root.asObject().get("locals").isArray()) {
+                declInfo = root.asObject().get("locals").asArray();
+            }
+        }
+        return declInfo;
+    }
+
+    /**
+     * Debuggers list every local of a function (the DWARF scope is the whole subprogram). A variable is only shown
+     * once its declaration line has been passed and while its block is still open; unknown variables are kept.
+     */
+    boolean inScope(String name) {
+        if (curFrame < 0 || curFrame >= frameNames.size()) {
+            return true;
+        }
+        JsonArray fns = loadDeclInfo();
+        String fn = frameNames.get(curFrame);
+        int line = frameLines.get(curFrame);
+        int i = 0;
+        while (i < fns.size()) {
+            JsonObject f = fns.get(i).asObject();
+            if (f.getString("fn", "").equals(fn) || f.getString("name", "").equals(fn)) {
+                boolean known = false;
+                JsonArray vars = f.get("vars").asArray();
+                int k = 0;
+                while (k < vars.size()) {
+                    JsonObject v = vars.get(k).asObject();
+                    if (v.getString("n", "").equals(name)) {
+                        known = true;
+                        int decl = v.getInt("l", 0);
+                        int end = v.getInt("e", 0);
+                        boolean declared = decl < line || (curFrame > 0 && decl <= line);
+                        if (declared && (end <= 0 || line <= end)) {
+                            return true;
+                        }
+                    }
+                    k = k + 1;
+                }
+                return !known;
+            }
+            i = i + 1;
+        }
+        return true;
+    }
+
     static boolean isTempVar(String name) {
         return name.startsWith("gctmp") || name.startsWith("__") || name.equals("this.addr");
     }
@@ -411,6 +469,10 @@ public class IdeDebug implements IdeDapEvents {
     }
 
     void fillVars(IdeItem parent, JsonObject b) {
+        fillVars(parent, b, false);
+    }
+
+    void fillVars(IdeItem parent, JsonObject b, boolean scoped) {
         JsonValue vv = b.get("variables");
         if (!vv.isArray()) {
             return;
@@ -419,7 +481,8 @@ public class IdeDebug implements IdeDapEvents {
         int i = 0;
         while (i < va.size()) {
             JsonObject vo = va.get(i).asObject();
-            if (!isTempVar(vo.getString("name", ""))) {
+            String vn = vo.getString("name", "");
+            if (!isTempVar(vn) && (!scoped || inScope(vn))) {
                 parent.add(varItem(vo));
             }
             i = i + 1;
@@ -483,6 +546,25 @@ public class IdeDebug implements IdeDapEvents {
         });
     }
 
+    /** Evaluates a hovered expression in the selected frame and shows "expr = value" in the hint popup. */
+    void hoverValue(CodeEditor ed, int wordA, int wordB, String expr) {
+        if (!active || !stopped || curFrame >= frameIds.size()) {
+            return;
+        }
+        int frame = frameIds.get(curFrame);
+        dap.request("evaluate", "{\"expression\":" + IdeLsp.jstr(expr) + ",\"frameId\":" + frame
+                + ",\"context\":\"hover\"}", (ok, r) -> {
+            if (!ok || !stopped || frame != frameIds.get(curFrame)) {
+                return;
+            }
+            String v = r.getString("result", "");
+            if (v.length() == 0) {
+                return;
+            }
+            app.hint.hoverValue(ed, wordA, wordB, expr + " = " + v);
+        });
+    }
+
     void buildTree(JsonObject locals) {
         lastLocals = locals;
         IdeItem root = new IdeItem("", "", "");
@@ -499,7 +581,7 @@ public class IdeDebug implements IdeDapEvents {
         IdeItem vr = root.add(new IdeItem("变量", "", ""));
         vr.expanded = true;
         if (locals != null) {
-            fillVars(vr, locals);
+            fillVars(vr, locals, true);
             if (vr.kids.size() == 0) {
                 vr.add(new IdeItem("（无局部变量）", "", ""));
             }

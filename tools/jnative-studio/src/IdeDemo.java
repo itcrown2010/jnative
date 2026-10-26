@@ -494,6 +494,136 @@ public class IdeDemo {
             }
             return;
         }
+        if (mode != null && mode.equals("dbgbp")) {
+            if (step == 1) {
+                ide.openFile(ide.project.dir + "/tests/BrokenTest.java");
+                ide.build(true);
+            } else if (step == 6) {
+                log("after run: json=" + Files.exists(FsPath.of(ide.project.outputPath() + ".jn-debug.json")) + "\n");
+                ide.debug();
+            } else if (step == 16) {
+                log("debug: active=" + ide.dbg.active + " stopped=" + ide.dbg.stopped + " frames=" + ide.dbg.frameNames.size()
+                        + (ide.dbg.frameLines.size() > 0 ? " line=" + ide.dbg.frameLines.get(0) : "") + "\n");
+                ide.window.snapshot("/tmp/ide-dbgbp.png");
+                int i = 0;
+                while (i < ide.output.root.kids.size()) {
+                    log("  | " + ide.output.root.kids.get(i).text + "\n");
+                    i = i + 1;
+                }
+                dumpVars(ide, "line26");
+                ide.dbg.stepOver();
+            } else if (step == 22) {
+                dumpVars(ide, "after1");
+                ide.dbg.stepOver();
+            } else if (step == 28) {
+                dumpVars(ide, "after2");
+                ide.dbg.stepOver();
+            } else if (step == 34) {
+                dumpVars(ide, "after3");
+                ide.dbg.stepOver();
+            } else if (step == 40) {
+                dumpVars(ide, "after4");
+                ide.dbg.stepOver();
+            } else if (step == 46) {
+                dumpVars(ide, "after5");
+            }
+            return;
+        }
+        if (mode != null && mode.equals("follow")) {
+            if (step == 1) {
+                ide.openFile(ide.project.dir + "/tests/BrokenTest.java");
+                log("before: config=" + ide.state.curName() + "\n");
+                ide.build(true);
+            } else if (step == 8) {
+                log("after: config=" + ide.state.curName() + " status=" + ide.statusText + "\n");
+                int i = 0;
+                while (i < ide.output.root.kids.size()) {
+                    log("  | " + ide.output.root.kids.get(i).text + "\n");
+                    i = i + 1;
+                }
+            }
+            return;
+        }
+        if (mode != null && mode.equals("dark")) {
+            if (step == 1) {
+                ide.openFile(ide.project.dir + "/src/MainForm.java");
+                ide.setAppearance(2, false);
+                ide.git.showChanges();
+            } else if (step == 3) {
+                ide.window.snapshot("/tmp/ide-dark1.png");
+                ide.quick.close();
+                ide.showBottomTab(2);
+                ide.openFile(ide.project.dir + "/src/MainForm.jnui");
+            } else if (step == 5) {
+                ide.window.snapshot("/tmp/ide-dark2.png");
+            } else if (step == 6) {
+                ide.setAppearance(1, false);
+            } else if (step == 8) {
+                ide.window.snapshot("/tmp/ide-light.png");
+            }
+            return;
+        }
+        if (mode != null && mode.equals("dbghover")) {
+            log("dbghover step " + step + "\n");
+            if (step == 1) {
+                ide.openFile(ide.project.dir + "/tests/BrokenTest.java");
+                log("opened\n");
+                ide.toggleBreakpoint(ide.activeDoc().path, 31);
+                log("toggled\n");
+                ide.applyBreaks(ide.activeDoc());
+                log("applied\n");
+                ide.build(true);
+                log("built\n");
+            } else if (step == 6) {
+                log("before debug\n");
+                ide.debug();
+                log("after debug active=" + ide.dbg.active + "\n");
+            } else if (step == 18) {
+                IdeDoc d = ide.activeDoc();
+                CodeEditor e = d.editor;
+                String ln = e.document.getLine(31);
+                int c = ln.indexOf("str2");
+                int a = e.document.positionToOffset(31, c);
+                ide.hoverEd = e;
+                ide.hoverWA = a;
+                ide.hoverWB = a + 4;
+                ide.hoverOff = a;
+                ide.hoverMs = 0;
+                ide.hoverAsked = false;
+                ide.hoverTick();
+                log("hover: stopped=" + ide.dbg.stopped + " line=" + (ide.dbg.frameLines.size() > 0 ? "" + ide.dbg.frameLines.get(0) : "?") + "\n");
+            } else if (step == 22) {
+                log("hover popup open=" + ide.hint.isOpen + " text=" + (ide.hint.doc.size() > 0 ? ide.hint.doc.get(0) : "") + "\n");
+                ide.window.snapshot("/tmp/ide-dbghover.png");
+            }
+            return;
+        }
+        if (mode != null && mode.equals("gutter")) {
+            if (step == 1) {
+                ide.openFile(ide.project.dir + "/tests/BrokenTest.java");
+            } else if (step == 3) {
+                CodeEditor e = ide.activeDoc().editor;
+                // delete line 31, insert two lines at 29, modify line 26 (bottom-up keeps the indexes valid)
+                e.document.replace(e.document.positionToOffset(30, 0), e.document.getLine(30).length() + 1, "");
+                e.document.insert(e.document.positionToOffset(28, 0), "        int a = 1;\n        int b = 2;\n");
+                e.document.replace(e.document.positionToOffset(25, 0), e.document.getLine(25).length(),
+                        "        checkEquals(\"changed\", 3, 1 + 2);");
+                e.goTo(33, 0);
+                ide.toggleBookmark();
+            } else if (step == 8) {
+                CodeEditor e = ide.activeDoc().editor;
+                String m = "";
+                int i = 0;
+                while (i < e.lineMarks.size()) {
+                    m = m + e.lineMarks.get(i);
+                    i = i + 1;
+                }
+                log("gutter: base=" + ide.activeDoc().baseState + " marks=" + m + " bookmarks=" + e.bookmarkLines.size() + "\n");
+                e.goTo(24, 0);
+                ide.window.snapshot("/tmp/ide-gutter.png");
+            }
+            return;
+        }
         if (mode != null && mode.equals("git")) {
             if (step == 1) {
                 log("git: repo=" + ide.git.repo + " branch=" + ide.git.branch + " changes=" + ide.git.changeCount()
@@ -666,5 +796,23 @@ public class IdeDemo {
         } else if (step == 9) {
             ide.stopAll();
         }
+    }
+
+    static void dumpVars(IdeApp ide, String tag) {
+        String t = tag + " line=" + (ide.dbg.frameLines.size() > 0 ? "" + ide.dbg.frameLines.get(0) : "?") + " vars:";
+        IdeItem r = ide.debugTree.root;
+        int i = 0;
+        while (i < r.kids.size()) {
+            IdeItem k = r.kids.get(i);
+            if (k.text.equals("变量")) {
+                int j = 0;
+                while (j < k.kids.size()) {
+                    t = t + " [" + k.kids.get(j).text + "]";
+                    j = j + 1;
+                }
+            }
+            i = i + 1;
+        }
+        log(t + "\n");
     }
 }

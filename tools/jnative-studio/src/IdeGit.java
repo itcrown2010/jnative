@@ -46,6 +46,52 @@ public class IdeGit {
         return paths.size();
     }
 
+    // ---------------------------------------------------------------- gutter (changes since the last commit)
+
+    /** Reads the HEAD version of a document's file (asynchronously); the gutter marks follow in {@link IdeApp#gutterTick}. */
+    void loadBase(IdeDoc d) {
+        String rel = "";
+        if (repo && app.project != null && d.path.startsWith(app.project.dir + "/")) {
+            rel = d.path.substring(app.project.dir.length() + 1);
+        }
+        if (rel.length() == 0 || rel.indexOf("'") >= 0) {
+            d.baseState = 3;
+            return;
+        }
+        d.baseState = 1;
+        ArrayList<String> got = new ArrayList<String>();
+        IdeProc pr = new IdeProc();
+        d.baseProc = pr;
+        pr.onLine = ln -> got.add(ln.endsWith("\r") ? ln.substring(0, ln.length() - 1) : ln);
+        pr.onExit = code -> {
+            if (d.baseProc != pr) {
+                return;
+            }
+            if (code == 0) {
+                d.baseLines = got;
+                d.baseState = 2;
+            } else {
+                d.baseState = 3;
+            }
+            d.diffVersion = -1;
+        };
+        if (!pr.start(app.project.dir, "GIT_OPTIONAL_LOCKS=0 git show 'HEAD:./" + rel + "' 2>/dev/null")) {
+            d.baseState = 3;
+        }
+    }
+
+    /** Forces every open document to re-read its committed text (after a commit, revert, pull...). */
+    void invalidateBases() {
+        int i = 0;
+        while (i < app.tabs.docs.size()) {
+            IdeDoc d = app.tabs.docs.get(i);
+            if (d.kind == 0 && d.baseState != 1) {
+                d.baseState = 0;
+            }
+            i = i + 1;
+        }
+    }
+
     // ---------------------------------------------------------------- status
 
     void refresh() {
@@ -106,6 +152,7 @@ public class IdeGit {
         decorate(app.explorer.root);
         app.explorer.repaint();
         app.status.repaint();
+        invalidateBases();
         if (again) {
             refresh();
         }

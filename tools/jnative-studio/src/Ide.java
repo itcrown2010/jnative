@@ -1,5 +1,6 @@
 import jnative.ui.*;
 import jnative.graphics.*;
+import jnative.editor.*;
 
 /**
  * Shared look & feel for the custom-drawn Studio widgets: colours, fonts and small drawing helpers.
@@ -23,6 +24,97 @@ public class Ide {
     static int WARN = 0xB7791F;
     static int OK = 0x2E9D4F;
     static int TOOLBAR = 0xF8F9FB;
+    /** Field / card surface, designer backdrop, scrollbar grip, palette chip, tooltip: the other themed colors. */
+    static int CARD = 0xFFFFFF;
+    static int WELL = 0xE4E7EC;
+    static int FIELD_LINE = 0xB9BEC8;
+    static int GRIP = 0xB9BEC8;
+    static int GRIP_HOT = 0x7A808C;
+    static int CHIP = 0xE9ECF2;
+    static int CHIP_LINE = 0xCFD4DC;
+    static int HINT_BG = 0xFFFFE8;
+    static int FORM = 0xFFFFFF;
+    static int FORM_HEAD = 0xEEEFF2;
+    static int FORM_LINE = 0xD0D3D9;
+    static boolean dark = false;
+
+    /** Applies the appearance (0 follow the system, 1 light, 2 dark) to the native controls and to the palette. */
+    static void applyTheme(int mode) {
+        Theme.setAppearanceMode(mode);
+        dark = Theme.isDarkEffective() == 1;
+        if (dark) {
+            BG = 0x1E1F22;
+            PANEL = 0x2B2D30;
+            PANEL_ALT = 0x26282B;
+            BORDER = 0x393B40;
+            TEXT = 0xDFE1E5;
+            SUBTLE = 0xA0A4AB;
+            FAINT = 0x6F737A;
+            ACCENT = 0x548AF7;
+            ACCENT_SOFT = 0x2E436E;
+            SEL = 0x2E436E;
+            SEL_IDLE = 0x393B40;
+            HOVER = 0x35373B;
+            ERROR = 0xF75464;
+            WARN = 0xE0A030;
+            OK = 0x5FB865;
+            TOOLBAR = 0x2B2D30;
+            CARD = 0x1E1F22;
+            WELL = 0x17181A;
+            FIELD_LINE = 0x4E5157;
+            GRIP = 0x5A5D63;
+            GRIP_HOT = 0x888C94;
+            CHIP = 0x393B40;
+            CHIP_LINE = 0x4E5157;
+            HINT_BG = 0x3C3F41;
+            FORM = 0x2B2D30;
+            FORM_HEAD = 0x3A3C41;
+            FORM_LINE = 0x4E5157;
+        } else {
+            BG = 0xF1F2F4;
+            PANEL = 0xFFFFFF;
+            PANEL_ALT = 0xF7F8FA;
+            BORDER = 0xD7DAE0;
+            TEXT = 0x1F2328;
+            SUBTLE = 0x6B7280;
+            FAINT = 0x9AA1AD;
+            ACCENT = 0x0A64D8;
+            ACCENT_SOFT = 0xDCE9FB;
+            SEL = 0xD3E3FB;
+            SEL_IDLE = 0xE4E6EB;
+            HOVER = 0xEBEEF3;
+            ERROR = 0xD13438;
+            WARN = 0xB7791F;
+            OK = 0x2E9D4F;
+            TOOLBAR = 0xF8F9FB;
+            CARD = 0xFFFFFF;
+            WELL = 0xE4E7EC;
+            FIELD_LINE = 0xB9BEC8;
+            GRIP = 0xB9BEC8;
+            GRIP_HOT = 0x7A808C;
+            CHIP = 0xE9ECF2;
+            CHIP_LINE = 0xCFD4DC;
+            HINT_BG = 0xFFFFE8;
+            FORM = 0xFFFFFF;
+            FORM_HEAD = 0xEEEFF2;
+            FORM_LINE = 0xD0D3D9;
+        }
+    }
+
+    /** Editor colors that match the current appearance. */
+    static EditorTheme editorTheme() {
+        EditorTheme t = dark ? EditorTheme.dark() : EditorTheme.light();
+        if (dark) {
+            t.background = new Color(30, 31, 34);
+            t.gutterBackground = new Color(30, 31, 34);
+            t.currentLine = new Color(39, 41, 46);
+            t.foreground = new Color(223, 225, 229);
+            t.lineNumber = new Color(110, 114, 122);
+            t.indentGuide = new Color(50, 52, 57);
+            t.selection = new Color(46, 67, 110);
+        }
+        return t;
+    }
 
     static Font fUi;
     static Font fUiBold;

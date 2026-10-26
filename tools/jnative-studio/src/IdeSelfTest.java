@@ -1,3 +1,5 @@
+import jnative.io.*;
+
 /**
  * GUI-free checks of Studio's text tools (`studio --selftest`): re-indent, identifier rename, completion index.
  *
@@ -50,7 +52,26 @@ public class IdeSelfTest {
         check("optimize imports idempotent", IdeImports.optimize(impWant), impWant);
         check("no imports", IdeImports.optimize("class A {}\n"), "class A {}\n");
 
+        check("diff same", diffStr("a\nb\nc", "a\nb\nc"), "000");
+        check("diff added", diffStr("a\nc", "a\nb\nc"), "010");
+        check("diff modified", diffStr("a\nb\nc", "a\nX\nc"), "020");
+        check("diff deleted", diffStr("a\nb\nc", "a\nc"), "03");
+        check("diff mixed", diffStr("a\nb\nc\nd\ne", "a\nB\nc\nnew\nd\ne"), "020100");
+        check("diff tail", diffStr("a\nb", "a\nb\nc\nd"), "0011");
+        check("diff empty base", diffStr("", "x\ny"), "11");
+
         System.out.println(fails == 0 ? "ALL OK" : "FAILED " + fails);
         return fails;
+    }
+
+    static String diffStr(String base, String cur) {
+        ArrayList<int> m = IdeDiff.marks(DsGen.splitLines(base), DsGen.splitLines(cur));
+        String r = "";
+        int i = 0;
+        while (i < m.size()) {
+            r = r + m.get(i);
+            i = i + 1;
+        }
+        return r;
     }
 }

@@ -12,6 +12,8 @@ class IdeSettings {
     static ArrayList<String> recent = new ArrayList<String>();
     static boolean loaded = false;
     static int fontSize = 13;
+    /** Appearance: 0 follow the system, 1 light, 2 dark. */
+    static int theme = 0;
     static boolean liveCheck = true;
     static String lastProject = "";
     static String sessionActive = "";
@@ -50,6 +52,8 @@ class IdeSettings {
                         session.add(v);
                     } else if (k.equals("liveCheck")) {
                         liveCheck = !v.equals("0");
+                    } else if (k.equals("theme")) {
+                        theme = Math.max(0, Math.min(2, DsUtil.parseInt(v, 0)));
                     } else if (k.equals("fontSize")) {
                         fontSize = Math.max(9, Math.min(32, DsUtil.parseInt(v, 13)));
                     } else if (k.equals("recent") && v.length() > 0) {
@@ -69,6 +73,7 @@ class IdeSettings {
         sb.append("java=" + javaCmd + "\n");
         sb.append("compiler=" + compiler + "\n");
         sb.append("fontSize=" + fontSize + "\n");
+        sb.append("theme=" + theme + "\n");
         sb.append("liveCheck=" + (liveCheck ? "1" : "0") + "\n");
         sb.append("lastProject=" + lastProject + "\n");
         sb.append("sessionActive=" + sessionActive + "\n");

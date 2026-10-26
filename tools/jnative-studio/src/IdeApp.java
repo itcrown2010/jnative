@@ -544,6 +544,24 @@ public class IdeApp extends Panel {
         if (DsUtil.isKeyword(w) || w.charAt(0) >= '0' && w.charAt(0) <= '9') {
             return;
         }
+        if (dbg.active && dbg.stopped) {
+            // while stopped, hovering a variable shows its value; method calls are never evaluated (side effects)
+            TextPosition hp = d.editor.document.offsetToPosition(hoverWA);
+            String ln = d.editor.document.getLine(hp.line);
+            int endCol = hp.column + (hoverWB - hoverWA);
+            boolean call = endCol < ln.length() && ln.charAt(endCol) == '(';
+            int startCol = hp.column;
+            while (startCol > 1 && ln.charAt(startCol - 1) == '.' && IdeSuggest.identChar(ln.charAt(startCol - 2))) {
+                startCol = startCol - 1;
+                while (startCol > 0 && IdeSuggest.identChar(ln.charAt(startCol - 1))) {
+                    startCol = startCol - 1;
+                }
+            }
+            if (!call) {
+                dbg.hoverValue(d.editor, hoverWA, hoverWB, ln.substring(startCol, endCol));
+                return;
+            }
+        }
         hint.hoverDoc(d.editor, d.path, hoverOff, hoverWA, hoverWB);
     }
 
@@ -828,6 +846,10 @@ public class IdeApp extends Panel {
         item(edit, "快速修复（⌥Enter）", 0, 0, () -> quickFix());
         item(edit, "参数信息（⌃P）", 0, 0, () -> paramInfo());
         item(edit, "快速文档（⌃Q）", 0, 0, () -> quickDoc());
+        item(edit, "切换书签", 66, 2, () -> toggleBookmark());
+        item(edit, "下一个书签", 74, 2, () -> gotoBookmark(1));
+        item(edit, "上一个书签", 75, 2, () -> gotoBookmark(-1));
+        item(edit, "书签列表…", 74, 1, () -> bookmarkList());
         item(edit, "后退", 37, 2, () -> navBack());
         item(edit, "前进", 39, 2, () -> navForward());
         bar.add(edit);
@@ -839,6 +861,10 @@ public class IdeApp extends Panel {
         item(view, "TODO / FIXME 列表", 0, 0, () -> todoList());
         item(view, "终端", 0, 0, () -> showBottomTab(5));
         item(view, "测试结果", 0, 0, () -> showBottomTab(4));
+        view.addSeparator();
+        item(view, "外观：跟随系统", 0, 0, () -> setAppearance(0, true));
+        item(view, "外观：浅色", 0, 0, () -> setAppearance(1, true));
+        item(view, "外观：深色", 0, 0, () -> setAppearance(2, true));
         view.addSeparator();
         item(view, "放大编辑器字号", 187, 0, () -> zoomEditors(1));
         item(view, "缩小编辑器字号", 189, 0, () -> zoomEditors(-1));
@@ -1839,7 +1865,9 @@ public class IdeApp extends Panel {
         if (delta != 0 && oldLines > 0) {
             int line = d.editor.document.offsetToPosition(ch.offset).line;
             shiftBreaks(d.path, line, delta);
+            shiftBookmarks(d.path, line, delta);
             applyBreaks(d);
+            applyBookmarks(d);
             if (dbg.active) {
                 dbg.sendBreakpoints(d.path);
             }
@@ -1857,6 +1885,232 @@ public class IdeApp extends Panel {
         }
     }
 
+    // ---------------------------------------------------------------- appearance
+
+    /** Switches between system / light / dark appearance; {@code persist} stores the choice in the settings. */
+    void setAppearance(int mode, boolean persist) {
+        if (persist) {
+            IdeSettings.theme = mode;
+            IdeSettings.save();
+        }
+        Ide.applyTheme(mode);
+        int i = 0;
+        while (i < tabs.docs.size()) {
+            IdeDoc d = tabs.docs.get(i);
+            if (d.kind == 0 && d.editor != null) {
+                d.editor.setTheme(Ide.editorTheme());
+            }
+            i = i + 1;
+        }
+        repaintDeep(this);
+        i = 0;
+        while (i < tabs.docs.size()) {
+            if (tabs.docs.get(i).kind == 1) {
+                repaintDeep(tabs.docs.get(i).designer);
+            }
+            i = i + 1;
+        }
+        setStatus(mode == 0 ? "外观：跟随系统" : (mode == 1 ? "外观：浅色" : "外观：深色"));
+    }
+
+    static void repaintDeep(Component c) {
+        if (c == null) {
+            return;
+        }
+        c.repaint();
+        if (c instanceof Container ct) {
+            int i = 0;
+            while (i < ct.childCount) {
+                repaintDeep(ct.children[i]);
+                i = i + 1;
+            }
+        }
+    }
+
+    /** Keeps the change marks of the active editor (green added, blue modified, red deleted) in sync with the text. */
+    void gutterTick() {
+        IdeDoc d = activeDoc();
+        if (d == null || d.kind != 0 || d.editor == null || project == null) {
+            return;
+        }
+        if (!git.repo) {
+            if (d.editor.lineMarks.size() > 0) {
+                d.editor.lineMarks = new ArrayList<int>();
+                d.editor.repaint();
+            }
+            return;
+        }
+        if (d.baseState == 0) {
+            git.loadBase(d);
+        }
+        if (d.baseState == 3) {
+            if (d.editor.lineMarks.size() > 0) {
+                d.editor.lineMarks = new ArrayList<int>();
+                d.editor.repaint();
+            }
+            return;
+        }
+        if (d.baseState != 2 || d.diffVersion == d.editor.document.version) {
+            return;
+        }
+        d.diffVersion = d.editor.document.version;
+        ArrayList<String> cur = DsGen.splitLines(d.editor.getText().replace("\r", ""));
+        if (cur.size() > 0 && cur.get(cur.size() - 1).length() == 0) {
+            cur.removeAt(cur.size() - 1);
+        }
+        d.editor.lineMarks = IdeDiff.marks(d.baseLines, cur);
+        d.editor.repaint();
+    }
+
+    // ---------------------------------------------------------------- bookmarks
+
+    void applyBookmarks(IdeDoc d) {
+        if (d.kind != 0 || d.editor == null) {
+            return;
+        }
+        d.editor.bookmarkLines.clear();
+        int i = 0;
+        while (i < state.bmPaths.size()) {
+            if (state.bmPaths.get(i).equals(d.path)) {
+                d.editor.bookmarkLines.add(state.bmLines.get(i));
+            }
+            i = i + 1;
+        }
+        d.editor.repaint();
+    }
+
+    int findBookmark(String path, int line) {
+        int i = 0;
+        while (i < state.bmPaths.size()) {
+            if (state.bmPaths.get(i).equals(path) && state.bmLines.get(i) == line) {
+                return i;
+            }
+            i = i + 1;
+        }
+        return -1;
+    }
+
+    /** ⌥⌘B: toggles a bookmark on the caret line. */
+    void toggleBookmark() {
+        IdeDoc d = activeDoc();
+        if (d == null || d.kind != 0 || d.path.length() == 0 || project == null) {
+            return;
+        }
+        int line = d.editor.document.offsetToPosition(d.editor.caret.offset).line;
+        int i = findBookmark(d.path, line);
+        if (i >= 0) {
+            state.bmPaths.remove(i);
+            state.bmLines.remove(i);
+            setStatus("已移除书签");
+        } else {
+            state.bmPaths.add(d.path);
+            state.bmLines.add(line);
+            setStatus("已添加书签（第 " + (line + 1) + " 行）");
+        }
+        applyBookmarks(d);
+        saveState();
+    }
+
+    void shiftBookmarks(String path, int atLine, int delta) {
+        boolean moved = false;
+        int i = 0;
+        while (i < state.bmPaths.size()) {
+            if (state.bmPaths.get(i).equals(path) && state.bmLines.get(i) > atLine) {
+                int n = state.bmLines.get(i) + delta;
+                moved = true;
+                if (n < 0) {
+                    state.bmPaths.remove(i);
+                    state.bmLines.remove(i);
+                    continue;
+                }
+                state.bmLines.set(i, n);
+            }
+            i = i + 1;
+        }
+        if (moved) {
+            saveState();
+        }
+    }
+
+    /** Jumps to the next (dir = 1) or previous (dir = -1) bookmark of the project, wrapping around. */
+    void gotoBookmark(int dir) {
+        int n = state.bmPaths.size();
+        if (n == 0) {
+            setStatus("没有书签（⌥⌘B 添加）");
+            return;
+        }
+        IdeDoc d = activeDoc();
+        int idx = -1;
+        if (d != null && d.kind == 0) {
+            int line = d.editor.document.offsetToPosition(d.editor.caret.offset).line;
+            int best = -1;
+            int bestLine = dir > 0 ? 1000000000 : -1;
+            int i = 0;
+            while (i < n) {
+                if (state.bmPaths.get(i).equals(d.path)) {
+                    int bl = state.bmLines.get(i);
+                    if (dir > 0 && bl > line && bl < bestLine) {
+                        best = i;
+                        bestLine = bl;
+                    } else if (dir < 0 && bl < line && bl > bestLine) {
+                        best = i;
+                        bestLine = bl;
+                    }
+                }
+                i = i + 1;
+            }
+            idx = best;
+            if (idx < 0) {
+                // no further bookmark in this file: continue with the first / last one of the list
+                idx = dir > 0 ? 0 : n - 1;
+                int k = findBookmark(d.path, line);
+                if (k >= 0 && n > 1) {
+                    idx = (k + dir + n) % n;
+                }
+            }
+        } else {
+            idx = dir > 0 ? 0 : n - 1;
+        }
+        showBookmark(idx);
+    }
+
+    void showBookmark(int idx) {
+        navRecord();
+        openFile(state.bmPaths.get(idx));
+        IdeDoc cur = activeDoc();
+        if (cur != null && cur.kind == 0) {
+            cur.editor.goTo(state.bmLines.get(idx), 0);
+            cur.editor.requestFocus();
+        }
+    }
+
+    void bookmarkList() {
+        if (state.bmPaths.size() == 0) {
+            setStatus("没有书签（⌥⌘B 添加）");
+            return;
+        }
+        ArrayList<IdeItem> items = new ArrayList<IdeItem>();
+        int i = 0;
+        while (i < state.bmPaths.size()) {
+            String path = state.bmPaths.get(i);
+            int ln = state.bmLines.get(i);
+            String text = "";
+            int open = tabs.find(path);
+            if (open >= 0 && tabs.docs.get(open).kind == 0) {
+                text = tabs.docs.get(open).editor.document.getLine(ln);
+            } else if (Files.exists(FsPath.of(path))) {
+                ArrayList<String> ls = DsGen.splitLines(Files.readString(FsPath.of(path)));
+                if (ln < ls.size()) {
+                    text = ls.get(ln);
+                }
+            }
+            IdeItem it = new IdeItem(Ide.baseName(path) + ":" + (ln + 1) + "   " + text.trim(), "cm", "" + i);
+            items.add(it);
+            i = i + 1;
+        }
+        quick.open("书签（" + items.size() + "）", items, it -> showBookmark(DsUtil.parseInt(it.key, 0)));
+    }
+
     /** Runs every half second: when the user paused typing, starts a frontend-only check of the project. */
     void checkTick() {
         tickCount = tickCount + 1;
@@ -1870,6 +2124,7 @@ public class IdeApp extends Panel {
         if (tickCount % 4 == 0) {
             checkExternalChanges();
         }
+        gutterTick();
         if (!checkPending || !IdeSettings.liveCheck || project == null || !IdeSettings.hasCompiler()) {
             return;
         }
@@ -2012,7 +2267,7 @@ public class IdeApp extends Panel {
             ed.foldingEnabled = 1;
             ed.setHiDpi(true);
             ed.font = Font.mono(IdeSettings.fontSize);
-            ed.setTheme(EditorTheme.light());
+            ed.setTheme(Ide.editorTheme());
             ed.setText(text);
             ed.document.markSaved();
             ed.onCaretChanged(pos -> caretMoved(pos));
@@ -2033,6 +2288,7 @@ public class IdeApp extends Panel {
             });
             d.editor = ed;
             applyBreaks(d);
+            applyBookmarks(d);
             if (project != null && (path.endsWith(".java") || path.endsWith(".jn")) && ensureLsp()) {
                 lsp.sync(path, text);
             }
@@ -2829,6 +3085,12 @@ public class IdeApp extends Panel {
             Dialogs.info(window, "请先打开或新建一个项目。");
             return;
         }
+        followActiveFile();
+        // this build is not a debug build: whatever debug sidecar the output has is about to become stale
+        String staleJson = project.outputPath() + ".jn-debug.json";
+        if (Files.exists(FsPath.of(staleJson))) {
+            Files.delete(FsPath.of(staleJson));
+        }
         if (!IdeSettings.hasCompiler()) {
             IdeDialog.settings(window, () -> {
                 status.repaint();
@@ -2848,7 +3110,7 @@ public class IdeApp extends Panel {
         refreshProblems();
         applyDiagnostics();
         showBottomTab(0);
-        appendOutput("—— 生成 " + project.name + " ——", Ide.ACCENT);
+        appendOutput("—— 生成 " + runLabel() + " ——", Ide.ACCENT);
         runAfterBuild = run;
         debugAfterBuild = false;
         IdeProc p = new IdeProc();
@@ -2922,13 +3184,18 @@ public class IdeApp extends Panel {
         refreshState();
     }
 
+    /** What Run / Debug acts on: the configuration's file, or the project. */
+    String runLabel() {
+        return project.altMain.length() > 0 ? Ide.baseName(project.altMain) : project.name;
+    }
+
     void runProgram() {
         String exe = project.outputPath();
         if (!Files.exists(FsPath.of(exe))) {
             appendOutput("找不到可执行文件：" + exe, Ide.ERROR);
             return;
         }
-        appendOutput("—— 运行 " + project.name + " ——", Ide.ACCENT);
+        appendOutput("—— 运行 " + runLabel() + " ——", Ide.ACCENT);
         IdeProc p = new IdeProc();
         p.onLine = ln -> appendOutput(ln, Ide.TEXT);
         p.onExit = code -> runDone(code);
@@ -2988,6 +3255,7 @@ public class IdeApp extends Panel {
             Dialogs.info(window, "请先打开或新建一个项目。");
             return;
         }
+        followActiveFile();
         if (IdeDap.findAdapter().length() == 0) {
             showBottomTab(0);
             appendOutput("找不到 lldb-dap：请安装 Xcode 或 Command Line Tools（xcode-select --install）", Ide.ERROR);
@@ -3022,7 +3290,7 @@ public class IdeApp extends Panel {
         refreshProblems();
         applyDiagnostics();
         showBottomTab(0);
-        appendOutput("—— 调试生成 " + project.name + "（--debug -O0）——", Ide.ACCENT);
+        appendOutput("—— 调试生成 " + runLabel() + "（--debug -O0）——", Ide.ACCENT);
         runAfterBuild = false;
         debugAfterBuild = true;
         IdeProc p = new IdeProc();
@@ -3048,7 +3316,8 @@ public class IdeApp extends Panel {
         if (!Files.exists(FsPath.of(exe))) {
             return false;
         }
-        if (!Files.exists(FsPath.of(exe + ".jn-debug.json")) && !Files.exists(FsPath.of(exe + ".dSYM"))) {
+        // only a --debug build writes the sidecar; a normal build also leaves a dSYM, but with no JNative sources in it
+        if (!Files.exists(FsPath.of(exe + ".jn-debug.json"))) {
             return false;
         }
         String src = project.mainSourcePath();
@@ -3068,7 +3337,7 @@ public class IdeApp extends Panel {
             return;
         }
         showBottomTab(0);
-        appendOutput("—— 调试 " + project.name + " ——", Ide.ACCENT);
+        appendOutput("—— 调试 " + runLabel() + " ——", Ide.ACCENT);
         if (!dbg.launch(exe, project.dir)) {
             return;
         }
@@ -3230,7 +3499,11 @@ public class IdeApp extends Panel {
         while (i < s.length()) {
             char c = s.charAt(i);
             boolean ok = (c >= 48 && c <= 57) || (c >= 65 && c <= 90) || (c >= 97 && c <= 122) || c == 95;
-            sb.append(ok ? c : '_');
+            if (ok) {
+                sb.append(c);
+            } else {
+                sb.append("_");
+            }
             i = i + 1;
         }
         return sb.toString();
@@ -3363,17 +3636,41 @@ public class IdeApp extends Panel {
             setStatus(Ide.baseName(d.path) + " 没有 main 方法");
             return;
         }
-        String name = "文件：" + Ide.baseName(d.path);
+        selectFileConfig(d.path);
+        build(true);
+    }
+
+    /** Switches to (or creates) the "文件：Name.java" configuration that runs the given file. */
+    void selectFileConfig(String path) {
+        String name = "文件：" + Ide.baseName(path);
         int idx = state.cfgNames.indexOf(name);
         if (idx >= 0) {
             state.select(idx);
-            state.setCurMain(d.path);
+            state.setCurMain(path);
         } else {
-            state.addConfig(name, d.path);
+            state.addConfig(name, path);
         }
         applyConfig();
         saveState();
-        build(true);
+    }
+
+    /**
+     * Run / Debug / Build follow the file you are looking at while the current configuration is one of the automatic
+     * "文件：…" ones: otherwise the output would belong to a file other than the one in the editor.
+     */
+    void followActiveFile() {
+        if (project == null || !state.curName().startsWith("文件：")) {
+            return;
+        }
+        IdeDoc d = activeDoc();
+        if (d == null || d.kind != 0 || !d.path.endsWith(".java") || d.path.equals(state.curMain())) {
+            return;
+        }
+        if (!IdeTests.hasMain(d.path)) {
+            return;
+        }
+        selectFileConfig(d.path);
+        setStatus("运行配置已切换到 " + Ide.baseName(d.path));
     }
 
     void runCurrentTest() {

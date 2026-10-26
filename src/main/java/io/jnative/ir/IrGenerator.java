@@ -1516,9 +1516,14 @@ public final class IrGenerator {
         }
         switch (stmt) {
             case BlockStatement b -> {
+                int savedScopeEnd = builder.scopeEndLine();
+                SourceLocation endLoc = emitSourceDebug ? mapLoc(b.endLocation()) : SourceLocation.UNKNOWN;
+                builder.setScopeEndLine(endLoc != null && endLoc != SourceLocation.UNKNOWN && endLoc.line() > 0
+                        ? endLoc.line() : 0);
                 for (Statement s : b.statements()) {
                     lowerStatement(s);
                 }
+                builder.setScopeEndLine(savedScopeEnd);
             }
             case VariableDeclaration v -> {
                 JType jt = resolveDeclType(v);
