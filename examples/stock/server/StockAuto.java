@@ -72,7 +72,24 @@ class StockAuto {
             init();
         }
         return "{\"on\":" + on + ",\"hold\":" + hold + ",\"theta\":" + StockUtil.num(theta, 4) + ",\"pmin\":" + StockUtil.num(pMin, 4) + ",\"excl\":" + excl + ",\"mg\":" + mg
-                + ",\"lastDay\":" + lastDay + ",\"running\":" + watchRun + ",\"msg\":" + StockUtil.js(lastMsg) + ",\"push\":" + pushable() + "}";
+                + ",\"next\":" + StockUtil.js(nextText()) + ",\"lastDay\":" + lastDay + ",\"running\":" + watchRun + ",\"msg\":" + StockUtil.js(lastMsg) + ",\"push\":" + pushable() + "}";
+    }
+
+    /** When the next automatic scan will start, in words. */
+    static String nextText() {
+        if (on == 0) {
+            return "";
+        }
+        long cst = StockFeed.nowCst();
+        long today = cst / 10000L;
+        long hm = cst % 10000L;
+        if (StockFeed.nowDow() < 5 && lastDay != today) {
+            if (hm < 1510L) {
+                return "今天 15:10";
+            }
+            return "马上（今天 15:10 已过，尚未自动扫描）";
+        }
+        return "下一个交易日 15:10";
     }
 
     static int pushable() {
@@ -106,6 +123,7 @@ class StockAuto {
             return;
         }
         StockScan.mGate = mg;
+        StockScan.nextSource = "auto";
         String er = StockScan.start(theta, pMin, excl, hold);
         if (er.length() == 0) {
             watchRun = StockScan.runId;

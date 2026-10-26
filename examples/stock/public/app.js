@@ -752,8 +752,12 @@ function renderScan() {
   $('scSort').onchange = function () { SC.sortP = this.checked; drawScanRows(); };
   $('scGo').onclick = function () {
     var pm = parseFloat($('scP').value); if (isNaN(pm) || pm < 2 || pm > 95) { toast('\u6982\u7387\u9608\u503c\u8bf7\u586b 2\u201395 \u4e4b\u95f4\u7684\u6570\u5b57'); return; }
+    var btn = $('scGo'); if (btn.disabled) return;
+    btn.disabled = true; btn.textContent = '\u6b63\u5728\u542f\u52a8\u2026';
     SC.since = 0; SC.hits = []; SC.fresh = {}; drawScanRows();
-    post('/api/scan/start?theta=' + $('scTheta').value + '&h=' + $('scH').value + '&pmin=' + (pm / 100) + ($('scExcl').checked ? '&excl=1' : '') + ($('scGate').checked ? '&mg=1' : '')).then(function (d) { SC.runId = d.runId; pollScan(); }).catch(function (e) { toast(e.message); });
+    post('/api/scan/start?theta=' + $('scTheta').value + '&h=' + $('scH').value + '&pmin=' + (pm / 100) + ($('scExcl').checked ? '&excl=1' : '') + ($('scGate').checked ? '&mg=1' : '')).then(function (d) {
+      btn.disabled = false; SC.runId = d.runId; SC.rate = null; drawScanStatus(d); toast('\u626b\u63cf\u5df2\u5f00\u59cb'); pollScan();
+    }).catch(function (e) { btn.disabled = false; btn.textContent = '\u91cd\u65b0\u626b\u63cf'; toast('\u65e0\u6cd5\u5f00\u59cb\u626b\u63cf\uff1a' + e.message); pollScan(); });
   };
   $('trRef').onclick = loadTrack; loadTrack();
   var saveAuto = function () {
@@ -774,7 +778,7 @@ function renderScan() {
 function drawAuto(d) {
   var el = $('scAutoSt'); if (!el) return;
   if (!d.on) { el.textContent = ''; return; }
-  el.textContent = '\u5df2\u5f00\u542f\uff1a\u4e70\u5165\u540e ' + d.hold + ' \u65e5\u5185 \u2265' + Math.round(d.theta * 100) + '%\u3001\u6982\u7387 \u2265' + Math.round(d.pmin * 100) + '%\uff1b' + (d.lastDay ? '\u4e0a\u6b21\u81ea\u52a8\u626b\u63cf ' + fdate(d.lastDay) + '\uff1b' : '\u5c1a\u672a\u81ea\u52a8\u626b\u63cf\u8fc7\uff1b') + (d.push ? '\u7ed3\u679c\u4f1a\u63a8\u9001\u5230\u4f60\u914d\u7f6e\u7684\u673a\u5668\u4eba' : '\u8fd8\u6ca1\u914d\u7f6e\u63a8\u9001\u673a\u5668\u4eba\uff08\u5728\u201c\u81ea\u9009\u4e0e\u63d0\u9192\u201d\u91cc\u8bbe\u7f6e\uff09\uff0c\u7ed3\u679c\u53ea\u8bb0\u5165\u5386\u53f2\u6218\u7ee9') + (d.running ? '\uff1b\u6b63\u5728\u626b\u63cf\u4e2d\u2026' : '');
+  el.textContent = '\u5df2\u5f00\u542f\uff1a\u4e70\u5165\u540e ' + d.hold + ' \u65e5\u5185 \u2265' + Math.round(d.theta * 100) + '%\u3001\u6982\u7387 \u2265' + Math.round(d.pmin * 100) + '%\uff1b' + (d.lastDay ? '\u4e0a\u6b21\u81ea\u52a8\u626b\u63cf ' + fdate(d.lastDay) + '\uff1b' : '\u5c1a\u672a\u81ea\u52a8\u626b\u63cf\u8fc7\uff1b') + (d.push ? '\u7ed3\u679c\u4f1a\u63a8\u9001\u5230\u4f60\u914d\u7f6e\u7684\u673a\u5668\u4eba' : '\u8fd8\u6ca1\u914d\u7f6e\u63a8\u9001\u673a\u5668\u4eba\uff08\u5728\u201c\u81ea\u9009\u4e0e\u63d0\u9192\u201d\u91cc\u8bbe\u7f6e\uff09\uff0c\u7ed3\u679c\u53ea\u8bb0\u5165\u5386\u53f2\u6218\u7ee9') + (d.running ? '\uff1b\u6b63\u5728\u626b\u63cf\u4e2d\u2026' : (d.next ? '\uff1b\u4e0b\u6b21\u81ea\u52a8\u626b\u63cf\uff1a' + d.next : ''));
 }
 function pollScan() {
   clearTimeout(SC.timer);
@@ -799,6 +803,13 @@ function drawMarket(d) {
   else if (m.state === 1 || m.state === 2) tail = '\u3000<span class="muted">\u5927\u76d8\u4e0d\u660e\u6717\uff0c\u4ed3\u4f4d\u5b9c\u8f7b\u3002</span>';
   el.innerHTML = '<div class="note" style="margin-top:8px">\u5927\u76d8\uff08\u4e0a\u8bc1\u6307\u6570 ' + fdate(m.date) + '\uff09\uff1a<b class="' + cls + '">' + MK_NAME[m.state] + '</b>\uff08' + MK_DESC[m.state] + '\uff09\uff1b\u5f53\u65e5 <span class="' + sgn(m.r1) + '">' + pct(m.r1, 2) + '</span>\uff0c5\u65e5 <span class="' + sgn(m.r5) + '">' + pct(m.r5, 2) + '</span>\uff0c\u8ddd20\u65e5\u7ebf <span class="' + sgn(m.dist) + '">' + pct(m.dist, 2) + '</span>' + tail + '</div>';
 }
+/** "10:05:32" for today, "10-25 15:12:00" for earlier days (epoch ms). */
+function fclock(ms) {
+  if (!ms) return '';
+  var t = new Date(ms), n = new Date(), z = function (x) { return (x < 10 ? '0' : '') + x; };
+  var hm = z(t.getHours()) + ':' + z(t.getMinutes()) + ':' + z(t.getSeconds());
+  return t.toDateString() === n.toDateString() ? hm : z(t.getMonth() + 1) + '-' + z(t.getDate()) + ' ' + hm;
+}
 function drawScanStatus(d) {
   var run = d.phase >= 1 && d.phase <= 3, pctDone = 0, line = '';
   if (d.phase === 2) pctDone = d.trainLoaded / d.trainTotal; else if (d.phase >= 3) pctDone = d.universe ? d.pos / d.universe : 0;
@@ -809,10 +820,13 @@ function drawScanStatus(d) {
     var dt = (Date.now() - SC.rate.t0) / 1000, dp = d.pos - SC.rate.pos0;
     if (dt > 8 && dp > 10) { var remS = dt / dp * (d.universe - d.pos); eta = '\uff0c\u9884\u8ba1\u8fd8\u9700\u7ea6 ' + Math.max(1, Math.round(remS / 60)) + ' \u5206\u949f'; }
   }
-  line = '<b>' + PHASE_TXT[d.phase] + '</b>\u3000' + esc(d.msg) + (d.phase >= 3 ? '\u3000\u5df2\u5904\u7406 ' + d.pos + ' / ' + d.universe + '\uff08\u6709\u6548 ' + d.scanned + '\uff0c\u505c\u724c/\u6570\u636e\u4e0d\u8db3 ' + d.skipped + '\uff0c\u5931\u8d25 ' + d.failed + '\uff09' : '') + '\u3000\u7528\u65f6 ' + Math.floor(d.elapsed / 60) + ' \u5206 ' + (d.elapsed % 60) + ' \u79d2' + eta;
+  var who = d.source === 'auto' ? '\u81ea\u52a8\u626b\u63cf' : '\u624b\u52a8\u626b\u63cf', when = '';
+  if (d.phase >= 1 && d.phase <= 3) when = '<span class="muted">\uff08' + who + '\uff0c' + fclock(d.startedAt) + ' \u5f00\u59cb\uff09</span>\u3000';
+  else if (d.phase >= 4) when = '<span class="muted">\uff08\u4e0a\u4e00\u6b21' + who + '\uff0c' + fclock(d.startedAt) + ' \u5f00\u59cb' + (d.finishedAt ? '\uff0c' + fclock(d.finishedAt) + (d.phase === 4 ? ' \u5b8c\u6210' : ' \u7ed3\u675f') : '') + '\uff09</span>\u3000';
+  line = '<b' + (d.phase === 5 ? ' style="color:var(--up)"' : '') + '>' + PHASE_TXT[d.phase] + '</b>\u3000' + when + esc(d.msg) + (d.phase >= 3 ? '\u3000\u5df2\u5904\u7406 ' + d.pos + ' / ' + d.universe + '\uff08\u6709\u6548 ' + d.scanned + '\uff0c\u505c\u724c/\u6570\u636e\u4e0d\u8db3 ' + d.skipped + '\uff0c\u5931\u8d25 ' + d.failed + '\uff09' : '') + '\u3000\u7528\u65f6 ' + Math.floor(d.elapsed / 60) + ' \u5206 ' + (d.elapsed % 60) + ' \u79d2' + eta;
   $('scProg').innerHTML = '<div class="meter" style="height:10px;background:#2a3441;margin:6px 0"><span style="display:block;height:10px;border-radius:5px;background:' + ACC + ';width:' + (pctDone * 100).toFixed(1) + '%"></span></div><div style="font-size:13px">' + line + '</div>' +
-    (d.marketOpen && d.phase >= 1 ? '<div class="warn" style="margin-top:4px">\u5f53\u524d\u5904\u4e8e\u4ea4\u6613\u65f6\u6bb5\uff1a\u672a\u6536\u76d8\u7684\u5f53\u65e5K\u7ebf\u5df2\u88ab\u5ffd\u7565\uff0c\u9884\u6d4b\u7684\u662f\u201c\u4eca\u5929\u201d\u800c\u4e0d\u662f\u201c\u660e\u5929\u201d\u3002\u5efa\u8bae\u6536\u76d8\u540e\uff0815:10 \u4ee5\u540e\uff09\u626b\u63cf\u3002</div>' : '');
-  $('scGo').hidden = run; $('scStop').hidden = !run; $('scGo').textContent = d.phase === 0 ? '\u5f00\u59cb\u626b\u63cf' : '\u91cd\u65b0\u626b\u63cf';
+    (d.phase === 5 ? '<div class="muted" style="margin-top:4px">\u626b\u63cf\u6ca1\u6709\u5b8c\u6210\uff0c\u70b9\u51fb\u201c\u91cd\u65b0\u626b\u63cf\u201d\u53ef\u91cd\u8bd5\uff08\u4f1a\u91cd\u65b0\u83b7\u53d6\u80a1\u7968\u5217\u8868\uff09\u3002</div>' : '') + (d.marketOpen && d.phase >= 1 ? '<div class="warn" style="margin-top:4px">\u5f53\u524d\u5904\u4e8e\u4ea4\u6613\u65f6\u6bb5\uff1a\u672a\u6536\u76d8\u7684\u5f53\u65e5K\u7ebf\u5df2\u88ab\u5ffd\u7565\uff0c\u9884\u6d4b\u7684\u662f\u201c\u4eca\u5929\u201d\u800c\u4e0d\u662f\u201c\u660e\u5929\u201d\u3002\u5efa\u8bae\u6536\u76d8\u540e\uff0815:10 \u4ee5\u540e\uff09\u626b\u63cf\u3002</div>' : '');
+  $('scGo').hidden = run; $('scStop').hidden = !run; if (!$('scGo').disabled) $('scGo').textContent = d.phase === 0 ? '\u5f00\u59cb\u626b\u63cf' : '\u91cd\u65b0\u626b\u63cf';
   $('scTheta').disabled = run; $('scH').disabled = run; $('scP').disabled = run; $('scExcl').disabled = run; $('scGate').disabled = run;
   drawMarket(d);
   if (d.phase === 4 && SC.trackedRun !== d.runId) { SC.trackedRun = d.runId; loadTrack(); }

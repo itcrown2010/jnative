@@ -29,6 +29,9 @@ class StockScan {
     static int runId = 0;
     static long startedMs = 0L;
     static long finishedMs = 0L;
+    /** Who started the current/last run: "manual" (the button) or "auto" (the after-close job); set by the caller before start(). */
+    static String nextSource = "manual";
+    static String source = "manual";
     static double theta = 0.05;
     static double pMin = 0.3;
     static int stopFlag = 0;
@@ -150,7 +153,14 @@ class StockScan {
     static String start(double th, double pm, int ex, int hd) {
         ensureInit();
         if (phase >= PHASE_UNIVERSE && phase <= PHASE_SCAN) {
-            return "a scan is already running";
+            return "已有一次扫描正在进行，请等它结束或先点“停止”";
+        }
+        source = nextSource;
+        nextSource = "manual";
+        if (phase == PHASE_ERROR) {
+            /* a failed run may have been caused by a bad stock list (e.g. fetched before the open): fetch it again */
+            uN = 0;
+            uDay = 0L;
         }
         tIdx = 0;
         double bestD = 9.0;
@@ -322,6 +332,11 @@ class StockScan {
                 continue;
             }
             double tr = numField(o, "trade");
+            if (StockUtil.isNan(tr) != 0 || tr <= 0.0) {
+                /* before the first trade of the day (pre-open / call auction) the quote has trade = 0: use the previous close
+                   so that every listed stock is not mistaken for suspended */
+                tr = numField(o, "settlement");
+            }
             uSym.add(sym);
             uName.add(nmU);
             if (StockUtil.isNan(tr) != 0) {
@@ -336,6 +351,22 @@ class StockScan {
 
     // ---------- phase 2: training ----------
     static void beginTrain() {
+        int usable = 0;
+        int ui = 0;
+        while (ui < uN) {
+            if (uTrade[ui] > 0.0) {
+                usable = usable + 1;
+            }
+            ui = ui + 1;
+        }
+        if (usable < 500) {
+            uN = 0;
+            uDay = 0L;
+            phase = PHASE_ERROR;
+            msg = "股票列表里几乎没有可用价格（" + usable + " / " + ui + "），数据源可能异常，请稍后重试";
+            finishedMs = System.currentTimeMillis();
+            return;
+        }
         try {
             fetchIndex();
         } catch (Exception ex) {
@@ -667,7 +698,13 @@ class StockScan {
         if (trainLoaded >= TRAIN_STOCKS || idx >= uN || sn >= CAP - 1100) {
             if (sn < 20000) {
                 phase = PHASE_ERROR;
-                msg = "训练样本不足（" + sn + "），请稍后重试";
+                if (trainLoaded == 0) {
+                    msg = "没有加载到任何训练用的历史行情（尝试了 " + trainTried + " 只），数据源可能异常，请稍后重试";
+                } else {
+                    msg = "训练样本不足（" + sn + "，只加载到 " + trainLoaded + " 只），请稍后重试";
+                }
+                uN = 0;
+                uDay = 0L;
                 finishedMs = System.currentTimeMillis();
                 return;
             }
@@ -1157,7 +1194,7 @@ class StockScan {
         }
         int total = uN;
         StringBuilder sb = new StringBuilder();
-        sb.append("{\"phase\":" + phase + ",\"msg\":" + StockUtil.js(msg) + ",\"runId\":" + runId + ",\"universe\":" + total + ",\"pos\":" + pos
+        sb.append("{\"source\":\"" + source + "\",\"startedAt\":" + startedMs + ",\"finishedAt\":" + finishedMs + ",\"now\":" + now + ",\"phase\":" + phase + ",\"msg\":" + StockUtil.js(msg) + ",\"runId\":" + runId + ",\"universe\":" + total + ",\"pos\":" + pos
                 + ",\"scanned\":" + scanned + ",\"failed\":" + failed + ",\"skipped\":" + skipped + ",\"theta\":" + StockUtil.num(theta, 4) + ",\"hold\":" + hold
                 + ",\"pMin\":" + StockUtil.num(pMin, 3) + ",\"elapsed\":" + el + ",\"trainLoaded\":" + trainLoaded + ",\"trainTotal\":" + TRAIN_STOCKS
                 + ",\"market\":" + marketJson() + ",\"gate\":" + mGate + ",\"gated\":" + gated + ",\"validation\":" + validation + ",\"hitsTotal\":" + hits.size() + ",\"marketOpen\":" + StockNotify.tradingNow() + ",\"hits\":[");

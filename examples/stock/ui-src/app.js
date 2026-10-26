@@ -752,8 +752,12 @@ function renderScan() {
   $('scSort').onchange = function () { SC.sortP = this.checked; drawScanRows(); };
   $('scGo').onclick = function () {
     var pm = parseFloat($('scP').value); if (isNaN(pm) || pm < 2 || pm > 95) { toast('概率阈值请填 2–95 之间的数字'); return; }
+    var btn = $('scGo'); if (btn.disabled) return;
+    btn.disabled = true; btn.textContent = '正在启动…';
     SC.since = 0; SC.hits = []; SC.fresh = {}; drawScanRows();
-    post('/api/scan/start?theta=' + $('scTheta').value + '&h=' + $('scH').value + '&pmin=' + (pm / 100) + ($('scExcl').checked ? '&excl=1' : '') + ($('scGate').checked ? '&mg=1' : '')).then(function (d) { SC.runId = d.runId; pollScan(); }).catch(function (e) { toast(e.message); });
+    post('/api/scan/start?theta=' + $('scTheta').value + '&h=' + $('scH').value + '&pmin=' + (pm / 100) + ($('scExcl').checked ? '&excl=1' : '') + ($('scGate').checked ? '&mg=1' : '')).then(function (d) {
+      btn.disabled = false; SC.runId = d.runId; SC.rate = null; drawScanStatus(d); toast('扫描已开始'); pollScan();
+    }).catch(function (e) { btn.disabled = false; btn.textContent = '重新扫描'; toast('无法开始扫描：' + e.message); pollScan(); });
   };
   $('trRef').onclick = loadTrack; loadTrack();
   var saveAuto = function () {
@@ -774,7 +778,7 @@ function renderScan() {
 function drawAuto(d) {
   var el = $('scAutoSt'); if (!el) return;
   if (!d.on) { el.textContent = ''; return; }
-  el.textContent = '已开启：买入后 ' + d.hold + ' 日内 ≥' + Math.round(d.theta * 100) + '%、概率 ≥' + Math.round(d.pmin * 100) + '%；' + (d.lastDay ? '上次自动扫描 ' + fdate(d.lastDay) + '；' : '尚未自动扫描过；') + (d.push ? '结果会推送到你配置的机器人' : '还没配置推送机器人（在“自选与提醒”里设置），结果只记入历史战绩') + (d.running ? '；正在扫描中…' : '');
+  el.textContent = '已开启：买入后 ' + d.hold + ' 日内 ≥' + Math.round(d.theta * 100) + '%、概率 ≥' + Math.round(d.pmin * 100) + '%；' + (d.lastDay ? '上次自动扫描 ' + fdate(d.lastDay) + '；' : '尚未自动扫描过；') + (d.push ? '结果会推送到你配置的机器人' : '还没配置推送机器人（在“自选与提醒”里设置），结果只记入历史战绩') + (d.running ? '；正在扫描中…' : (d.next ? '；下次自动扫描：' + d.next : ''));
 }
 function pollScan() {
   clearTimeout(SC.timer);
@@ -799,6 +803,13 @@ function drawMarket(d) {
   else if (m.state === 1 || m.state === 2) tail = '　<span class="muted">大盘不明朗，仓位宜轻。</span>';
   el.innerHTML = '<div class="note" style="margin-top:8px">大盘（上证指数 ' + fdate(m.date) + '）：<b class="' + cls + '">' + MK_NAME[m.state] + '</b>（' + MK_DESC[m.state] + '）；当日 <span class="' + sgn(m.r1) + '">' + pct(m.r1, 2) + '</span>，5日 <span class="' + sgn(m.r5) + '">' + pct(m.r5, 2) + '</span>，距20日线 <span class="' + sgn(m.dist) + '">' + pct(m.dist, 2) + '</span>' + tail + '</div>';
 }
+/** "10:05:32" for today, "10-25 15:12:00" for earlier days (epoch ms). */
+function fclock(ms) {
+  if (!ms) return '';
+  var t = new Date(ms), n = new Date(), z = function (x) { return (x < 10 ? '0' : '') + x; };
+  var hm = z(t.getHours()) + ':' + z(t.getMinutes()) + ':' + z(t.getSeconds());
+  return t.toDateString() === n.toDateString() ? hm : z(t.getMonth() + 1) + '-' + z(t.getDate()) + ' ' + hm;
+}
 function drawScanStatus(d) {
   var run = d.phase >= 1 && d.phase <= 3, pctDone = 0, line = '';
   if (d.phase === 2) pctDone = d.trainLoaded / d.trainTotal; else if (d.phase >= 3) pctDone = d.universe ? d.pos / d.universe : 0;
@@ -809,10 +820,13 @@ function drawScanStatus(d) {
     var dt = (Date.now() - SC.rate.t0) / 1000, dp = d.pos - SC.rate.pos0;
     if (dt > 8 && dp > 10) { var remS = dt / dp * (d.universe - d.pos); eta = '，预计还需约 ' + Math.max(1, Math.round(remS / 60)) + ' 分钟'; }
   }
-  line = '<b>' + PHASE_TXT[d.phase] + '</b>　' + esc(d.msg) + (d.phase >= 3 ? '　已处理 ' + d.pos + ' / ' + d.universe + '（有效 ' + d.scanned + '，停牌/数据不足 ' + d.skipped + '，失败 ' + d.failed + '）' : '') + '　用时 ' + Math.floor(d.elapsed / 60) + ' 分 ' + (d.elapsed % 60) + ' 秒' + eta;
+  var who = d.source === 'auto' ? '自动扫描' : '手动扫描', when = '';
+  if (d.phase >= 1 && d.phase <= 3) when = '<span class="muted">（' + who + '，' + fclock(d.startedAt) + ' 开始）</span>　';
+  else if (d.phase >= 4) when = '<span class="muted">（上一次' + who + '，' + fclock(d.startedAt) + ' 开始' + (d.finishedAt ? '，' + fclock(d.finishedAt) + (d.phase === 4 ? ' 完成' : ' 结束') : '') + '）</span>　';
+  line = '<b' + (d.phase === 5 ? ' style="color:var(--up)"' : '') + '>' + PHASE_TXT[d.phase] + '</b>　' + when + esc(d.msg) + (d.phase >= 3 ? '　已处理 ' + d.pos + ' / ' + d.universe + '（有效 ' + d.scanned + '，停牌/数据不足 ' + d.skipped + '，失败 ' + d.failed + '）' : '') + '　用时 ' + Math.floor(d.elapsed / 60) + ' 分 ' + (d.elapsed % 60) + ' 秒' + eta;
   $('scProg').innerHTML = '<div class="meter" style="height:10px;background:#2a3441;margin:6px 0"><span style="display:block;height:10px;border-radius:5px;background:' + ACC + ';width:' + (pctDone * 100).toFixed(1) + '%"></span></div><div style="font-size:13px">' + line + '</div>' +
-    (d.marketOpen && d.phase >= 1 ? '<div class="warn" style="margin-top:4px">当前处于交易时段：未收盘的当日K线已被忽略，预测的是“今天”而不是“明天”。建议收盘后（15:10 以后）扫描。</div>' : '');
-  $('scGo').hidden = run; $('scStop').hidden = !run; $('scGo').textContent = d.phase === 0 ? '开始扫描' : '重新扫描';
+    (d.phase === 5 ? '<div class="muted" style="margin-top:4px">扫描没有完成，点击“重新扫描”可重试（会重新获取股票列表）。</div>' : '') + (d.marketOpen && d.phase >= 1 ? '<div class="warn" style="margin-top:4px">当前处于交易时段：未收盘的当日K线已被忽略，预测的是“今天”而不是“明天”。建议收盘后（15:10 以后）扫描。</div>' : '');
+  $('scGo').hidden = run; $('scStop').hidden = !run; if (!$('scGo').disabled) $('scGo').textContent = d.phase === 0 ? '开始扫描' : '重新扫描';
   $('scTheta').disabled = run; $('scH').disabled = run; $('scP').disabled = run; $('scExcl').disabled = run; $('scGate').disabled = run;
   drawMarket(d);
   if (d.phase === 4 && SC.trackedRun !== d.runId) { SC.trackedRun = d.runId; loadTrack(); }
