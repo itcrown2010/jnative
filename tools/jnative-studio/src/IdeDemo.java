@@ -233,6 +233,46 @@ public class IdeDemo {
     }
 
     /** Language-service check: parameter info while typing "(", quick documentation, inspections. */
+    static void debugStep() {
+        if (step == 1) {
+            String main = ide.project.dir + "/src/Main.java";
+            if (!Files.exists(FsPath.of(main))) {
+                main = ide.project.dir + "/DebugDemo.java";
+            }
+            ide.openFile(main);
+            return;
+        }
+        CodeEditor e = ide.activeDoc().editor;
+        if (step == 2) {
+            int at = e.getText().indexOf("int result");
+            int line = e.document.offsetToPosition(at).line;
+            ide.gutterClick(ide.activeDoc(), line);
+            log("bp line=" + line + " count=" + ide.bpLines.size() + " marks=" + e.breakLines.size() + "\n");
+            ide.window.snapshot("/tmp/ide-debug-bp.png");
+            ide.startDebug();
+        } else if (step == 3 || step == 4 || step == 5 || step == 6) {
+            String extra = "";
+            int i = 0;
+            while (i < ide.output.root.kids.size() && i < 8) {
+                extra = extra + " / " + ide.output.root.kids.get(i).text;
+                i = i + 1;
+            }
+            log("wait" + step + " active=" + ide.dbg.active + " stopped=" + ide.dbg.stopped
+                    + " frames=" + ide.dbg.frameNames.size() + " reason=" + ide.dbg.stopReason + extra + "\n");
+        } else if (step == 7) {
+            log("stop frames=" + ide.dbg.frameNames.size() + " reason=" + ide.dbg.stopReason
+                    + " vars=" + ide.debugTree.rows.size() + "\n");
+            ide.window.snapshot("/tmp/ide-debug-stop.png");
+            if (ide.dbg.stopped) {
+                ide.dbg.stepOver();
+            }
+        } else if (step == 8) {
+            log("stepped stopped=" + ide.dbg.stopped + " reason=" + ide.dbg.stopReason + "\n");
+            ide.window.snapshot("/tmp/ide-debug-step.png");
+            ide.dbg.stop();
+        }
+    }
+
     static void hintStep() {
         IdeDoc d = ide.activeDoc();
         if (step == 1) {
@@ -279,6 +319,27 @@ public class IdeDemo {
             }
         } else if (step == 7) {
             log("line12=" + e.document.getLine(11) + "\n");
+            ide.hint.hide();
+            int at = e.getText().indexOf("Math.sqrt") + 7;
+            int px = e.offsetPixelX(at + 1);
+            int py = e.offsetPixelY(at) + e.lineHeightPx() / 2;
+            ide.hoverMoved(e, new MouseEvent(e, 5, px, py, 0));
+            ide.hoverMs = ide.hoverMs - 1000;
+        } else if (step == 8) {
+            log("hover open=" + ide.hint.isOpen + " hovering=" + ide.hint.hovering + " doc=" + ide.hint.doc + "\n");
+            ide.window.snapshot("/tmp/ide-hint-hover.png");
+            ide.hint.hide();
+            e.moveCaret(e.getText().indexOf("add(int") + 1, 0);
+            ide.findUsages();
+        } else if (step == 9) {
+            String s = "usages open=" + ide.quick.isOpen + " items=" + ide.quick.shown.size();
+            int i = 0;
+            while (i < ide.quick.shown.size()) {
+                s = s + " | " + ide.quick.shown.get(i).text;
+                i = i + 1;
+            }
+            log(s + "\n");
+            ide.window.snapshot("/tmp/ide-hint-usages.png");
         }
     }
 
@@ -409,6 +470,10 @@ public class IdeDemo {
         }
         if (mode != null && mode.equals("hint")) {
             hintStep();
+            return;
+        }
+        if (mode != null && mode.equals("debug")) {
+            debugStep();
             return;
         }
         if (mode != null && mode.equals("autotype")) {

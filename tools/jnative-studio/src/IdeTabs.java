@@ -21,6 +21,8 @@ class IdeDoc {
     boolean dirtyFlag = false;
     /** Modification time of the file when it was last read or written (detects external changes). */
     long mtime = 0;
+    /** Line count at the last edit (breakpoint markers follow inserted / removed lines). */
+    int lines = 0;
 
     boolean isDirty() {
         if (kind == 1) {

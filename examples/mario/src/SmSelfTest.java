@@ -358,6 +358,82 @@ public class SmSelfTest {
         steps(g, 130);
         check("world card hands over to play", g.state == SmGame.PLAYING ? 1 : 0, "state=" + g.state);
 
+        // piranha plants
+        g = fresh();
+        SmEnemy pl = g.makePlant(46);
+        pl.active = 1;
+        g.enemies.add(pl);
+        place(g, 30, 12);
+        steps(g, 30);
+        check("piranha plant stays hidden at first", g.plantVisible(pl) == 0 ? 1 : 0, "y=" + pl.y + " base=" + pl.baseY);
+        steps(g, 60);
+        check("piranha plant rises out of its pipe", pl.y < pl.baseY - 10 ? 1 : 0, "y=" + pl.y + " base=" + pl.baseY);
+        pl.phase = 2;
+        pl.timer = 50;
+        pl.y = pl.baseY - 24;
+        g.player.x = 46 * 16 + 10;
+        g.player.y = pl.baseY - 10;
+        g.player.vy = 0;
+        g.playerVsEnemies();
+        check("touching a raised plant hurts", g.player.state == 3 ? 1 : 0, "state=" + g.player.state);
+        g = fresh();
+        pl = g.makePlant(46);
+        pl.active = 1;
+        g.enemies.add(pl);
+        place(g, 46, 8);
+        g.player.x = 46 * 16 + 16 - g.player.w / 2.0;
+        g.player.y = 9 * 16 - g.player.h;
+        g.player.onGround = 1;
+        steps(g, 200);
+        check("plant does not rise while the hero stands on its pipe", pl.y >= pl.baseY - 4 && g.player.state == 0 ? 1 : 0, "y=" + pl.y + " state=" + g.player.state);
+        g = fresh();
+        pl = g.makePlant(46);
+        pl.active = 1;
+        pl.y = pl.baseY - 24;
+        g.enemies.add(pl);
+        g.killEnemy(pl, 200);
+        steps(g, 2);
+        check("a killed plant disappears", g.enemies.size() == 0 ? 1 : 0, "enemies=" + g.enemies.size());
+
+        // moving lift carries the hero
+        g = fresh();
+        g.levelIndex = 2;
+        g.loadLevel();
+        SmPlatform lf = g.platforms.get(0);
+        g.player.x = lf.x + 16;
+        g.player.y = lf.y - g.player.h;
+        g.player.vy = 0;
+        g.camX = (int) lf.x - 100;
+        double lx0 = g.player.x;
+        steps(g, 60);
+        check("a lift carries the hero along", g.player.x > lx0 + 30 && g.riding == lf && g.player.state == 0 ? 1 : 0, "x=" + g.player.x + " lift=" + lf.x);
+        hold(g, 75, 1);
+        steps(g, 3);
+        hold(g, 75, 0);
+        check("hero can jump off a lift", g.riding == null && g.player.y < lf.y - g.player.h - 3 ? 1 : 0, "y=" + g.player.y);
+
+        // hidden 1-UP block
+        g = fresh();
+        place(g, 73, 9);
+        g.player.y = 146;
+        g.player.vy = -3;
+        steps(g, 5);
+        check("hidden block reveals a 1-UP mushroom", g.level.get(73, 8) == 'u' && g.items.size() >= 1 && g.items.get(0).value == 1 ? 1 : 0, "tile=" + g.level.get(73, 8) + " items=" + g.items.size());
+        steps(g, 30);
+        int lives0 = g.lives;
+        SmItem up = null;
+        int ui = 0;
+        while (ui < g.items.size()) {
+            if (g.items.get(ui).value == 1) {
+                up = g.items.get(ui);
+            }
+            ui = ui + 1;
+        }
+        g.player.x = up.x;
+        g.player.y = up.y - 4;
+        steps(g, 2);
+        check("1-UP mushroom gives a life", g.lives == lives0 + 1 ? 1 : 0, "lives=" + g.lives);
+
         // damage removes fire and size
         g = fresh();
         g.player.setBig(1);
@@ -370,6 +446,10 @@ public class SmSelfTest {
         g.levelIndex = 1;
         g.loadLevel();
         check("level 2 is underground", g.level.theme == 1 && g.stageNo == 2 ? 1 : 0, "theme=" + g.level.theme);
+        g = fresh();
+        g.levelIndex = 2;
+        g.loadLevel();
+        check("level 3 is a night treetop course", g.level.theme == 2 && g.stageNo == 3 && g.level.get(20, 11) == 'T' ? 1 : 0, "theme=" + g.level.theme);
         g = fresh();
         g.player.setBig(1);
         g.player.fire = 1;
@@ -384,7 +464,7 @@ public class SmSelfTest {
         check("clearing 1-1 starts 1-2 with power kept", g.state == SmGame.PLAYING && g.levelIndex == 1 && g.player.fire == 1 ? 1 : 0,
                 "state=" + g.state + " level=" + g.levelIndex + " fire=" + g.player.fire);
         g = fresh();
-        g.levelIndex = 1;
+        g.levelIndex = 2;
         g.loadLevel();
         place(g, g.level.flagX - 1, 7);
         hold(g, 39, 1);

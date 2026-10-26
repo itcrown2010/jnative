@@ -850,6 +850,8 @@
         if (page.template === "helpTutorials") return renderHelpTutorials(host, page);
         if (page.template === "setupWizard") return renderSetupWizard(host, page);
         if (page.template === "openingStock") return renderOpeningStock(host, page);
+        if (page.template === "b1Master" && global.JnB1) return global.JnB1.renderMaster(host, page);
+        if (page.template === "b1Docs" && global.JnB1) return global.JnB1.renderDocs(host, page);
         host.innerHTML = '<div class="jn-error" role="alert">Unknown template: ' + JnUI.esc(page.template) + "</div>";
       } catch (e) {
         host.innerHTML = '<div class="jn-error" role="alert">Failed to render: ' + JnUI.esc(e.message) + "</div>";

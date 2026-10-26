@@ -25,6 +25,14 @@ public class SmLevel {
     int[] warpSrc = new int[4];
     int[] warpDst = new int[4];
     int warpCount;
+    // moving lifts
+    int[] liftAxis = new int[8];
+    double[] liftX = new double[8];
+    double[] liftY = new double[8];
+    double[] liftMin = new double[8];
+    double[] liftMax = new double[8];
+    double[] liftSpeed = new double[8];
+    int liftCount;
 
     // enemy spawns (tile coordinates, kind 0 goomba 1 koopa)
     int[] spawnX = new int[64];
@@ -61,7 +69,7 @@ public class SmLevel {
     }
 
     static int isSolid(char c) {
-        if (c == '.' || c == 'o' || c == 'F' || c == 'f') {
+        if (c == '.' || c == 'o' || c == 'F' || c == 'f' || c == 'h') {
             return 0;
         }
         return 1;
@@ -123,6 +131,23 @@ public class SmLevel {
                 h = h + 1;
             }
             i = i + 1;
+        }
+    }
+
+    /** Piranha plant living in the pipe whose left column is pipeX. */
+    void plant(int pipeX) {
+        enemy(pipeX, 0, 4);
+    }
+
+    void lift(int axis, double x, double y, double min, double max, double speed) {
+        if (liftCount < 8) {
+            liftAxis[liftCount] = axis;
+            liftX[liftCount] = x;
+            liftY[liftCount] = y;
+            liftMin[liftCount] = min;
+            liftMax[liftCount] = max;
+            liftSpeed[liftCount] = speed;
+            liftCount = liftCount + 1;
         }
     }
 
@@ -198,6 +223,7 @@ public class SmLevel {
         lv.pipe(28, 2);
         lv.pipe(38, 3);
         lv.pipe(46, 4);
+        lv.plant(46);
         lv.pipe(57, 4);
 
         lv.enemy(22, 12, 0);
@@ -244,7 +270,9 @@ public class SmLevel {
         lv.row(150, 0, 0, '.');
 
         lv.pipe(163, 2);
+        lv.plant(163);
         lv.pipe(179, 2);
+        lv.plant(179);
         lv.row(168, 1, 9, 'B');
         lv.row(169, 3, 9, '?');
         lv.row(172, 1, 9, 'B');
@@ -257,6 +285,7 @@ public class SmLevel {
         lv.row(186, 5, 8, 'o');
         lv.row(10, 3, 6, 'o');
         lv.row(76, 4, 8, 'o');
+        lv.set(73, 8, 'h');
 
         // final staircase and flag
         lv.stairsUp(190, 8);
@@ -273,11 +302,14 @@ public class SmLevel {
         return lv;
     }
 
-    static int LEVEL_COUNT = 2;
+    static int LEVEL_COUNT = 3;
 
     static SmLevel forIndex(int index) {
         if (index == 1) {
             return level2();
+        }
+        if (index == 2) {
+            return level3();
         }
         return level1();
     }
@@ -293,6 +325,67 @@ public class SmLevel {
         }
         set(x, 1, 'f');
         endX = (x + 5) * 16;
+    }
+
+    /** Floating tree-top platform: grass top with one dirt row below. */
+    void plat(int x0, int w, int top) {
+        row(x0, w, top, 'T');
+        row(x0, w, top + 1, 'D');
+    }
+
+    /** Level 1-3: tree-top platforms floating over a night sky; every miss is a fall. */
+    static SmLevel level3() {
+        SmLevel lv = new SmLevel(224);
+        lv.theme = 2;
+        lv.startX = 3;
+        lv.startY = 12;
+        lv.ground(0, 14);
+        lv.plat(18, 4, 11);
+        lv.plat(25, 3, 10);
+        lv.plat(31, 5, 9);
+        lv.row(32, 3, 6, 'o');
+        lv.plat(39, 3, 11);
+        lv.plat(45, 6, 10);
+        lv.enemy(47, 9, 0);
+        lv.enemy(49, 9, 0);
+        lv.plat(54, 3, 8);
+        lv.plat(60, 3, 10);
+        lv.plat(66, 9, 11);
+        lv.row(68, 3, 7, 'B');
+        lv.set(69, 7, 'M');
+        lv.enemy(68, 10, 0);
+        lv.enemy(71, 10, 0);
+        lv.enemy(73, 10, 1);
+        lv.plat(79, 3, 9);
+        lv.plat(85, 3, 7);
+        lv.row(85, 3, 4, 'o');
+        lv.plat(91, 4, 9);
+        lv.plat(98, 10, 11);
+        lv.enemy(100, 10, 1);
+        lv.enemy(104, 10, 0);
+        lv.enemy(106, 10, 0);
+        lv.row(100, 6, 7, 'o');
+        lv.plat(113, 3, 10);
+        lv.plat(119, 3, 8);
+        lv.set(120, 4, 'S');
+        lv.plat(125, 13, 11);
+        lv.enemy(127, 10, 0);
+        lv.enemy(129, 10, 0);
+        lv.enemy(131, 10, 1);
+        lv.enemy(134, 10, 0);
+        lv.enemy(136, 10, 0);
+        lv.row(129, 4, 7, 'B');
+        lv.set(130, 7, '?');
+        lv.set(131, 7, '?');
+        lv.lift(0, 139 * 16, 10 * 16, 139 * 16, 146 * 16, 0.8);
+        lv.lift(1, 148 * 16, 11 * 16, 7 * 16, 12 * 16, -0.6);
+        lv.plat(155, 4, 10);
+        lv.ground(160, 219);
+        lv.enemy(166, 12, 0);
+        lv.enemy(170, 12, 0);
+        lv.enemy(171, 12, 0);
+        lv.finish(200, 8);
+        return lv;
     }
 
     /** Level 1-2: underground cave with a low ceiling, brick tunnel, fire flower and a long finale. */
@@ -376,6 +469,7 @@ public class SmLevel {
         lv.enemy(147, 12, 1);
         lv.pipe(152, 2);
         lv.pipe(158, 3);
+        lv.plant(158);
         lv.row(160, 5, 8, 'o');
         lv.enemy(163, 12, 0);
         lv.enemy(168, 12, 0);

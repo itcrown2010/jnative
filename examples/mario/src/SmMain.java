@@ -35,6 +35,34 @@ public class SmMain {
             game.paint(tg);
             tg.end();
             card.save(args[1] + ".intro.png");
+            game.introLen = 0;
+            game.beginPlay();
+            SmEnemy plant = game.makePlant(46);
+            plant.active = 1;
+            plant.phase = 2;
+            plant.timer = 40;
+            plant.y = plant.baseY - 24;
+            game.enemies.add(plant);
+            game.player.setBig(1);
+            game.player.fire = 1;
+            game.player.x = 43 * 16;
+            game.player.y = 13 * 16 - game.player.h;
+            game.camX = 40 * 16;
+            tg = card.beginGraphics();
+            game.paint(tg);
+            tg.end();
+            card.save(args[1] + ".plant.png");
+            game.levelIndex = 2;
+            game.loadLevel();
+            game.beginPlay();
+            game.player.x = game.platforms.get(0).x + 12;
+            game.player.y = game.platforms.get(0).y - 16;
+            game.riding = game.platforms.get(0);
+            game.camX = 134 * 16;
+            tg = card.beginGraphics();
+            game.paint(tg);
+            tg.end();
+            card.save(args[1] + ".lift.png");
             return;
         }
         if (args.length >= 3 && args[0].equals("--headless")) {

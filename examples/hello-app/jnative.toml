@@ -1,0 +1,6 @@
+[package]
+name = "hello-app"
+namespace = "local"
+version = "0.1.0"
+license = "MIT"
+type = "source"

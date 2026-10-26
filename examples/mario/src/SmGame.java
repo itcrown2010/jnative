@@ -25,6 +25,8 @@ public class SmGame {
     ArrayList<SmEnemy> enemies = new ArrayList<SmEnemy>();
     ArrayList<SmItem> items = new ArrayList<SmItem>();
     ArrayList<SmFireball> fireballs = new ArrayList<SmFireball>();
+    ArrayList<SmPlatform> platforms = new ArrayList<SmPlatform>();
+    SmPlatform riding;
     int levelIndex;
     int warpTarget;
     int warpTopPx;
@@ -80,9 +82,61 @@ public class SmGame {
         }
     }
 
+    /** Piranha plant sitting in the pipe whose left column is pipeX (starts hidden). */
+    SmEnemy makePlant(int pipeX) {
+        SmEnemy e = new SmEnemy(4, 0, 0);
+        e.w = 12;
+        e.h = 24;
+        e.x = pipeX * 16 + 16 - 6;
+        e.baseY = level.pipeTop(pipeX) * 16;
+        e.y = e.baseY;
+        e.phase = 0;
+        e.timer = 60;
+        return e;
+    }
+
+    void updatePlant(SmEnemy e) {
+        e.anim = e.anim + 1;
+        double upY = e.baseY - 24;
+        if (e.phase == 0) {
+            e.y = e.baseY;
+            if (e.timer > 0) {
+                e.timer = e.timer - 1;
+            } else if (Math.abs(player.x + player.w / 2.0 - (e.x + 6)) > 30) {
+                e.phase = 1;
+            }
+        } else if (e.phase == 1) {
+            e.y = e.y - 1;
+            if (e.y <= upY) {
+                e.y = upY;
+                e.phase = 2;
+                e.timer = 55;
+            }
+        } else if (e.phase == 2) {
+            e.timer = e.timer - 1;
+            if (e.timer <= 0) {
+                e.phase = 3;
+            }
+        } else {
+            e.y = e.y + 1;
+            if (e.y >= e.baseY) {
+                e.y = e.baseY;
+                e.phase = 0;
+                e.timer = 70;
+            }
+        }
+    }
+
+    int plantVisible(SmEnemy e) {
+        if (e.kind == 4 && e.y < e.baseY - 4) {
+            return 1;
+        }
+        return 0;
+    }
+
     void beginPlay() {
         state = PLAYING;
-        SmAudio.musicStartTrack(level.theme);
+        SmAudio.musicStartTrack(trackHere());
     }
 
     void loadLevel() {
@@ -96,6 +150,13 @@ public class SmGame {
         enemies.clear();
         items.clear();
         fireballs.clear();
+        platforms.clear();
+        riding = null;
+        int pli = 0;
+        while (pli < level.liftCount) {
+            platforms.add(new SmPlatform(level.liftAxis[pli], level.liftX[pli], level.liftY[pli], level.liftMin[pli], level.liftMax[pli], level.liftSpeed[pli]));
+            pli = pli + 1;
+        }
         prevRun = 0;
         camX = 0;
         time = 400;
@@ -106,7 +167,12 @@ public class SmGame {
         clearTimer = 0;
         int i = 0;
         while (i < level.spawnCount) {
-            SmEnemy e = new SmEnemy(level.spawnKind[i], level.spawnX[i] * 16, level.spawnY[i] * 16);
+            SmEnemy e;
+            if (level.spawnKind[i] == 4) {
+                e = makePlant(level.spawnX[i]);
+            } else {
+                e = new SmEnemy(level.spawnKind[i], level.spawnX[i] * 16, level.spawnY[i] * 16);
+            }
             enemies.add(e);
             i = i + 1;
         }
@@ -287,7 +353,41 @@ public class SmGame {
                 SmAudio.musicStartTrack(trackHere());
             }
         }
+        int px = 0;
+        while (px < platforms.size()) {
+            platforms.get(px).move();
+            px = px + 1;
+        }
+        double feetBefore = player.y + player.h;
+        if (riding != null) {
+            if (onLift(riding) != 0) {
+                player.y = riding.y - player.h;
+                player.x = player.x + riding.vx;
+                player.onGround = 1;
+                feetBefore = riding.y;
+            } else {
+                riding = null;
+            }
+        }
         player.update(level, left, right, run, jump, jumpPressed, down);
+        if (player.vy < 0) {
+            riding = null;
+        } else {
+            int lj = 0;
+            while (lj < platforms.size()) {
+                SmPlatform pf = platforms.get(lj);
+                double feetAfter = player.y + player.h;
+                if (onLift(pf) != 0 && feetBefore <= pf.y + 6 && feetAfter >= pf.y && feetAfter <= pf.y + 14) {
+                    player.y = pf.y - player.h;
+                    player.vy = 0;
+                    player.onGround = 1;
+                    player.jumping = 0;
+                    player.stompCombo = 0;
+                    riding = pf;
+                }
+                lj = lj + 1;
+            }
+        }
 
         if (down != 0 && player.onGround != 0 && player.state == 0) {
             tryEnterPipe();
@@ -359,17 +459,22 @@ public class SmGame {
                 SmAudio.play(7);
             }
             knockEnemiesOn(tx, ty);
-        } else if (c == 'M' || c == 'S') {
+        } else if (c == 'M' || c == 'S' || c == 'h') {
             level.set(tx, ty, 'u');
             level.startBump(tx, ty);
             int mk = 0;
-            if (c == 'S') {
+            if (c == 'h') {
+                mk = 0;
+            } else if (c == 'S') {
                 mk = 6;
             } else if (player.big != 0) {
                 mk = 4;
             }
             SmItem m = new SmItem(mk, tx * 16 + 2, ty * 16);
             m.emerge = 16;
+            if (c == 'h') {
+                m.value = 1;
+            }
             m.startY = ty * 16 - 16;
             m.vx = 0;
             m.life = 1;
@@ -418,7 +523,7 @@ public class SmGame {
         int i = 0;
         while (i < enemies.size()) {
             SmEnemy e = enemies.get(i);
-            if (e.dead == 0 && e.squash == 0) {
+            if (e.dead == 0 && e.squash == 0 && e.kind != 4) {
                 double cx = e.x + e.w / 2.0;
                 if (Math.abs(cx - (tx * 16 + 8)) < 12 && Math.abs(e.y + e.h - ty * 16) < 4) {
                     killEnemy(e, 100);
@@ -598,6 +703,10 @@ public class SmGame {
     }
 
     void updateEnemy(SmEnemy e) {
+        if (e.kind == 4) {
+            updatePlant(e);
+            return;
+        }
         e.anim = e.anim + 1;
         if (e.squash > 0) {
             e.squash = e.squash - 1;
@@ -670,6 +779,13 @@ public class SmGame {
     }
 
     void killEnemy(SmEnemy e, int points) {
+        if (e.kind == 4) {
+            e.removed = 1;
+            addScore(points);
+            popup(e.x, e.y - 8, points);
+            SmAudio.play(5);
+            return;
+        }
         e.dead = 1;
         e.vy = -3.0;
         e.vx = 0.8;
@@ -699,6 +815,16 @@ public class SmGame {
             int stomp = 0;
             if (player.vy > 0.1 && feet - e.y < 10.0) {
                 stomp = 1;
+            }
+            if (e.kind == 4) {
+                if (plantVisible(e) != 0) {
+                    if (player.star > 0) {
+                        killEnemy(e, 200);
+                    } else {
+                        hurt();
+                    }
+                }
+                continue;
             }
             if (player.star > 0) {
                 killEnemy(e, 200);
@@ -943,7 +1069,13 @@ public class SmGame {
             return 1;
         }
         if (player.state == 0 && player.overlaps(m) != 0) {
-            collectMushroom();
+            if (m.value == 1) {
+                lives = lives + 1;
+                popup(player.x, player.y - 8, -1);
+                SmAudio.play(7);
+            } else {
+                collectMushroom();
+            }
             return 1;
         }
         return 0;
@@ -973,6 +1105,13 @@ public class SmGame {
             return 1;
         }
         if (level.bonusStart > 0 && player.x >= level.bonusStart * 16) {
+            return 1;
+        }
+        return 0;
+    }
+
+    int onLift(SmPlatform p) {
+        if (player.x + player.w > p.x + 2 && player.x < p.x + p.w - 2) {
             return 1;
         }
         return 0;
@@ -1161,7 +1300,7 @@ public class SmGame {
                 SmEnemy e = enemies.get(j);
                 if (e.active != 0 && e.dead == 0 && e.squash == 0 && f.overlaps(e) != 0) {
                     f.dead = 1;
-                    if (e.kind == 0 || e.kind == 1) {
+                    if (e.kind == 0 || e.kind == 1 || plantVisible(e) != 0) {
                         killEnemy(e, 200);
                     } else {
                         SmAudio.play(4);
@@ -1234,7 +1373,11 @@ public class SmGame {
         if (level != null && state != TITLE && dark() != 0) {
             g.setColor(new Color(0, 0, 0));
         } else {
-            g.setColor(new Color(92, 148, 252));
+            if (level != null && state != TITLE && level.theme == 2) {
+                g.setColor(new Color(20, 28, 92));
+            } else {
+                g.setColor(new Color(92, 148, 252));
+            }
         }
         g.fillRect(0, 0, SCREEN_W * S, SCREEN_H * S);
         if (state == TITLE) {
@@ -1250,6 +1393,8 @@ public class SmGame {
             drawText(g, "x  " + lives, 128 * S, 136 * S, bigFont);
             if (level.theme == 1) {
                 drawCentered(g, "UNDERGROUND", 176 * S, smallFont);
+            } else if (level.theme == 2) {
+                drawCentered(g, "TREETOPS", 176 * S, smallFont);
             }
             return;
         }
@@ -1285,6 +1430,8 @@ public class SmGame {
             }
         }
         if (paused != 0) {
+            g.setColor(new Color(0, 0, 0, 140));
+            g.fillRect(0, 0, SCREEN_W * S, SCREEN_H * S);
             drawCentered(g, "PAUSED", 112 * S, bigFont);
         }
     }
@@ -1319,15 +1466,23 @@ public class SmGame {
         int cam = camX;
         // repeating decoration pattern every 768 px
         int base = (cam / 768) * 768 - 768;
+        int night = 0;
+        if (level != null && state != TITLE && level.theme == 2) {
+            night = 1;
+        }
         int rep = 0;
         while (rep < 3) {
             int bx = base + rep * 768;
-            drawDeco(g, SmSprites.hill, bx + 0, 13 * 16 - 8 * 1, cam);
-            drawDeco(g, SmSprites.bush, bx + 176, 13 * 16 - 6, cam);
+            if (night == 0) {
+                drawDeco(g, SmSprites.hill, bx + 0, 13 * 16 - 8 * 1, cam);
+                drawDeco(g, SmSprites.bush, bx + 176, 13 * 16 - 6, cam);
+            }
             drawDeco(g, SmSprites.cloud, bx + 40, 24, cam);
             drawDeco(g, SmSprites.cloud, bx + 270, 40, cam);
-            drawDeco(g, SmSprites.hill, bx + 384, 13 * 16 - 8, cam);
-            drawDeco(g, SmSprites.bush, bx + 560, 13 * 16 - 6, cam);
+            if (night == 0) {
+                drawDeco(g, SmSprites.hill, bx + 384, 13 * 16 - 8, cam);
+                drawDeco(g, SmSprites.bush, bx + 560, 13 * 16 - 6, cam);
+            }
             drawDeco(g, SmSprites.cloud, bx + 520, 20, cam);
             drawDeco(g, SmSprites.cloud, bx + 690, 52, cam);
             rep = rep + 1;
@@ -1367,6 +1522,10 @@ public class SmGame {
                         if (level.theme == 1 || (level.bonusStart > 0 && tx >= level.bonusStart)) {
                             img = SmSprites.groundU;
                         }
+                    } else if (c == 'T') {
+                        img = SmSprites.treeTop;
+                    } else if (c == 'D') {
+                        img = SmSprites.treeDirt;
                     } else if (c == 'B') {
                         img = SmSprites.brick;
                         if (level.theme == 1 || (level.bonusStart > 0 && tx >= level.bonusStart)) {
@@ -1426,13 +1585,28 @@ public class SmGame {
         g.drawImage(SmSprites.flagCloth, (level.flagX * 16 - 8 - camX) * S, fy * S);
     }
 
+    Image mushroomImage(SmItem it) {
+        if (it.value == 1) {
+            return SmSprites.oneUp;
+        }
+        return SmSprites.mushroom;
+    }
+
     void paintItemsBehind(Graphics g) {
         int S = SmSprites.SCALE;
+        int pi = 0;
+        while (pi < enemies.size()) {
+            SmEnemy pe = enemies.get(pi);
+            if (pe.kind == 4 && pe.active != 0 && pe.y < pe.baseY) {
+                g.drawImage(SmSprites.plant[(pe.anim / 10) % 2], (int) (pe.x - 2 - camX) * S, (int) pe.y * S);
+            }
+            pi = pi + 1;
+        }
         int i = 0;
         while (i < items.size()) {
             SmItem it = items.get(i);
             if (it.kind == 0 && it.emerge > 0) {
-                g.drawImage(SmSprites.mushroom, (int) (it.x - 2 - camX) * S, (int) it.y * S);
+                g.drawImage(mushroomImage(it), (int) (it.x - 2 - camX) * S, (int) it.y * S);
             } else if (it.kind == 6 && it.emerge > 0) {
                 g.drawImage(SmSprites.starItem, (int) (it.x - 2 - camX) * S, (int) it.y * S);
             } else if (it.kind == 4 && it.emerge > 0) {
@@ -1444,15 +1618,25 @@ public class SmGame {
 
     void paintEntities(Graphics g) {
         int S = SmSprites.SCALE;
+        int qi = 0;
+        while (qi < platforms.size()) {
+            SmPlatform pq = platforms.get(qi);
+            g.drawImage(SmSprites.lift, (int) (pq.x - camX) * S, (int) pq.y * S);
+            qi = qi + 1;
+        }
         int i = 0;
         while (i < items.size()) {
             SmItem it = items.get(i);
             if (it.kind == 0 && it.emerge == 0) {
-                g.drawImage(SmSprites.mushroom, (int) (it.x - 2 - camX) * S, (int) it.y * S - 2 * S);
+                g.drawImage(mushroomImage(it), (int) (it.x - 2 - camX) * S, (int) it.y * S - 2 * S);
             } else if (it.kind == 1) {
                 g.drawImage(SmSprites.coin[(int) ((frame / 3) % 4)], (int) (it.x - 2 - camX) * S, (int) it.y * S);
             } else if (it.kind == 2) {
-                drawText(g, String.valueOf(it.value), (int) (it.x - camX) * S, (int) it.y * S, smallFont);
+                String label = String.valueOf(it.value);
+                if (it.value < 0) {
+                    label = "1UP";
+                }
+                drawText(g, label, (int) (it.x - camX) * S, (int) it.y * S, smallFont);
             } else if (it.kind == 3) {
                 g.drawImage(SmSprites.debris, (int) (it.x - camX) * S, (int) it.y * S);
             } else if (it.kind == 4 && it.emerge == 0) {
@@ -1479,7 +1663,7 @@ public class SmGame {
         i = 0;
         while (i < enemies.size()) {
             SmEnemy e = enemies.get(i);
-            if (e.active != 0) {
+            if (e.active != 0 && e.kind != 4) {
                 paintEnemy(g, e);
             }
             i = i + 1;

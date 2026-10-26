@@ -1,0 +1,6 @@
+// line comment
+class C {
+    /* block
+       comment */
+    String s = "a\nb\t\"c\\d";
+}

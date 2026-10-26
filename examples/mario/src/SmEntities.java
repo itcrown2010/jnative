@@ -32,6 +32,7 @@ class SmPlayer extends SmBody {
     int stateTimer;
 
     SmPlayer() {
+        canHit = 1;
         w = 12;
         h = 16;
     }
@@ -194,7 +195,7 @@ class SmPlayer extends SmBody {
 }
 
 class SmEnemy extends SmBody {
-    /** 0 goomba, 1 koopa (walking), 2 shell (still), 3 shell (sliding). */
+    /** 0 goomba, 1 koopa (walking), 2 shell (still), 3 shell (sliding), 4 piranha plant. */
     int kind;
     int active;
     int dir = -1;
@@ -205,6 +206,10 @@ class SmEnemy extends SmBody {
     int kickGrace;
     int removed;
     int combo;
+    /** Piranha plant cycle: 0 hidden, 1 rising, 2 up, 3 sinking. */
+    int phase;
+    int timer;
+    double baseY;
 
     SmEnemy(int k, double px, double py) {
         kind = k;
@@ -235,6 +240,50 @@ class SmItem extends SmBody {
         y = py;
         w = 12;
         h = 14;
+    }
+}
+
+class SmPlatform extends SmBody {
+    /** 0 moves horizontally between min and max, 1 vertically. */
+    int axis;
+    double min;
+    double max;
+
+    SmPlatform(int a, double px, double py, double lo, double hi, double speed) {
+        axis = a;
+        x = px;
+        y = py;
+        min = lo;
+        max = hi;
+        w = 48;
+        h = 8;
+        if (a == 0) {
+            vx = speed;
+        } else {
+            vy = speed;
+        }
+    }
+
+    void move() {
+        if (axis == 0) {
+            x = x + vx;
+            if (x < min) {
+                x = min;
+                vx = -vx;
+            } else if (x > max) {
+                x = max;
+                vx = -vx;
+            }
+        } else {
+            y = y + vy;
+            if (y < min) {
+                y = min;
+                vy = -vy;
+            } else if (y > max) {
+                y = max;
+                vy = -vy;
+            }
+        }
     }
 }
 

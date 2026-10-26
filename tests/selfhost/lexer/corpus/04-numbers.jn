@@ -1,0 +1,7 @@
+class N {
+    int i = 42;
+    long L = 7L;
+    float f = 1.5f;
+    double d = 2.5;
+    double e = 1e3;
+}

@@ -1,0 +1,11 @@
+class Ops {
+    void m(int a, int b) {
+        int c = a + b - a * b / 2 % 3;
+        boolean ok = a == b || a != b && a < b || a <= b || a > b || a >= b;
+        a++;
+        b--;
+        Object o = null;
+        Runnable r = () -> { };
+        Ops::m;
+    }
+}

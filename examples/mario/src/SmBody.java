@@ -18,6 +18,8 @@ public class SmBody {
     int bumpedHead;
     int bumpTx;
     int bumpTy;
+    /** 1 for bodies whose head can reveal hidden blocks. */
+    int canHit;
 
     static int tileOf(double p) {
         return (int) Math.floor(p / 16.0);
@@ -84,7 +86,7 @@ public class SmBody {
                 double bestDist = 1000.0;
                 int tx = tx0;
                 while (tx <= tx1) {
-                    if (lv.solidAt(tx, ty) != 0) {
+                    if (lv.solidAt(tx, ty) != 0 || (canHit != 0 && lv.get(tx, ty) == 'h')) {
                         double d = Math.abs((tx * 16 + 8) - (x + w / 2.0));
                         if (d < bestDist) {
                             bestDist = d;

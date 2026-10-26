@@ -145,6 +145,13 @@ class ErpDb {
         } catch (Exception ignored) {
             reconnect();
         }
+        ErpB1Schema.ensure();
+        try {
+            recordMigration("012_b1_master");
+        } catch (Exception ignored) {
+            reconnect();
+        }
+        ErpB1Schema.upgradeAll();
         if (tableExists("companies") == 0) {
             throw new RuntimeException("migrate failed: companies table missing after ensure");
         }
@@ -154,6 +161,8 @@ class ErpDb {
             requireTable("gl_accounts");
             requireTable("production_issues");
             requireTable("bank_cash_movements");
+            requireTable("mk_docs");
+            requireTable("tax_codes");
         }
         if (Erp.migrateFatal.length() > 0) {
             /* Necessary migration failures always block readiness — never clear fatals silently. */

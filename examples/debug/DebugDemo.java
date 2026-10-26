@@ -11,6 +11,9 @@ class DebugDemo {
         int x = 10;
         int y = 20;
         int sum = add(x, y);
+        double surplus=Math.sqrt(9);
         System.out.println(sum);
+        System.out.println("hello");
+        System.out.println(surplus);
     }
 }

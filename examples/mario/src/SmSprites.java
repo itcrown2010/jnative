@@ -53,6 +53,9 @@ public class SmSprites {
     static Image[] flower = new Image[2];
     static Image[] fireball = new Image[4];
     static Image spark;
+    static Image oneUp;
+    static Image lift;
+    static Image[] plant = new Image[2];
     static Image[] dust = new Image[2];
     static Image starItem;
     static Image[][] starSmallR = new Image[2][6];
@@ -62,6 +65,8 @@ public class SmSprites {
     static Image groundU;
     static Image brickU;
     static Image solidU;
+    static Image treeTop;
+    static Image treeDirt;
 
     static void setP(char c, int r, int g, int b) {
         palette[c] = GfxNative.packRgba(r, g, b, 255);
@@ -434,7 +439,7 @@ public class SmSprites {
             "....yyyyyyyy....",
             "................"
         }, 0);
-        mushroom = make(new String[]{
+        String[] mr = new String[]{
             "................",
             "................",
             ".....rrrrrr.....",
@@ -451,7 +456,26 @@ public class SmSprites {
             "....ccccccc.....",
             ".....ccccc......",
             "................"
-        }, 0);
+        };
+        mushroom = make(mr, 0);
+        oneUp = make(recolor(mr, 'r', 'g'), 0);
+        String[] lr = new String[]{
+            "kkkkkkkkkkkkkkkk",
+            "kaaaaaaaaaaaaaak",
+            "kyyyyyyyyyyyyyyk",
+            "kyyyyyyyyyyyyyyk",
+            "kYYYYYYYYYYYYYYk",
+            "kYYYYYYYYYYYYYYk",
+            "kkYYYYYYYYYYYYkk",
+            ".kkkkkkkkkkkkkk."
+        };
+        String[] wide = new String[8];
+        int li = 0;
+        while (li < 8) {
+            wide[li] = lr[li] + lr[li] + lr[li];
+            li = li + 1;
+        }
+        lift = make(wide, 0);
     }
 
     static void buildExtras() {
@@ -489,6 +513,58 @@ public class SmSprites {
         fireball[1] = make(recolor(fb, 'o', 'r'), 0);
         fireball[2] = make(recolor(recolor(fb, 'y', 'o'), 'o', 'r'), 1);
         fireball[3] = make(recolor(fb, 'y', 'a'), 2);
+        plant[0] = make(new String[]{
+            "................",
+            "....kkkkkkkk....",
+            "...krrrrrrrrk...",
+            "..krrwwrrwwrrk..",
+            ".krrwwwrrwwwrrk.",
+            ".krrwwwrrwwwrrk.",
+            ".krrrwrrrrwrrrk.",
+            ".krrrrrrrrrrrrk.",
+            ".kkkkkkkkkkkkkk.",
+            ".kwkwkwkwkwkwkk.",
+            "..krrrrrrrrrrk..",
+            "...kkkkkkkkkk...",
+            ".....kggggk.....",
+            ".....kgGggk.....",
+            "..kk.kggGgk.kk..",
+            ".kggkkgggkkggk..",
+            ".kgggggggggggk..",
+            "..kkkkgggkkkk...",
+            ".....kggGk......",
+            ".....kgGgk......",
+            ".....kgGgk......",
+            ".....kggGk......",
+            ".....kgGgk......",
+            ".....kgGgk......"
+        }, 0);
+        plant[1] = make(new String[]{
+            "................",
+            "....kkkkkkkk....",
+            "...krrrrrrrrk...",
+            "..krrwwrrwwrrk..",
+            ".krrwwwrrwwwrrk.",
+            ".krrwwwrrwwwrrk.",
+            ".krrrwrrrrwrrrk.",
+            ".krrrrrrrrrrrrk.",
+            ".krrrrrrrrrrrrk.",
+            ".krrrrrrrrrrrrk.",
+            "..krrrrrrrrrrk..",
+            "...kkkkkkkkkk...",
+            ".....kggggk.....",
+            ".....kgGggk.....",
+            "..kk.kggGgk.kk..",
+            ".kggkkgggkkggk..",
+            ".kgggggggggggk..",
+            "..kkkkgggkkkk...",
+            ".....kggGk......",
+            ".....kgGgk......",
+            ".....kgGgk......",
+            ".....kggGk......",
+            ".....kgGgk......",
+            ".....kgGgk......"
+        }, 0);
         starItem = make(new String[]{
             "................",
             ".......kk.......",
@@ -536,6 +612,42 @@ public class SmSprites {
             "..yooy..",
             ".y.oo.y.",
             "y..yy..y"
+        }, 0);
+        treeTop = make(new String[]{
+            "GGGGGGGGGGGGGGGG",
+            "gggggggggggggggg",
+            "ggggGgggggggGggg",
+            "GGGGGGGGGGGGGGGG",
+            "nnnnnnnnnnnnnnnn",
+            "nNnnnnnnnnnNnnnn",
+            "nnnnnnNnnnnnnnnn",
+            "nnnNnnnnnnnNnnnn",
+            "NNNNNNNNNNNNNNNN",
+            "nnnnnnnnnnnnnnnn",
+            "nnnnNnnnnnnnnnNn",
+            "nnnnnnnnnNnnnnnn",
+            "nNnnnnnnnnnnnnnn",
+            "nnnnnnnnnnnnNnnn",
+            "nnnnnnNnnnnnnnnn",
+            "NNNNNNNNNNNNNNNN"
+        }, 0);
+        treeDirt = make(new String[]{
+            "nnnnnnnnnnnnnnnn",
+            "nNnnnnnnnnnNnnnn",
+            "nnnnnnNnnnnnnnnn",
+            "nnnNnnnnnnnNnnnn",
+            "NNNNNNNNNNNNNNNN",
+            "nnnnnnnnnnnnnnnn",
+            "nnnnNnnnnnnnnnNn",
+            "nnnnnnnnnNnnnnnn",
+            "nNnnnnnnnnnnnnnn",
+            "nnnnnnnnnnnnNnnn",
+            "nnnnnnNnnnnnnnnn",
+            "nnnNnnnnnnnnnnnn",
+            "NNNNNNNNNNNNNNNN",
+            "nnnnnnnnnnnnnnnn",
+            "nnnnNnnnnnnnnnNn",
+            "NNNNNNNNNNNNNNNN"
         }, 0);
         groundU = make(recolor(recolor(recolor(new String[]{
             "nnnnnnnnnnnnnnnn",

@@ -1,0 +1,73 @@
+/**
+ * JNative Notes — minimal CLI note store (files note-<id>.txt in CWD).
+ * @author 张晓达
+ */
+public class Main {
+    static String pathFor(String id) {
+        return "note-" + id + ".txt";
+    }
+
+    static String indexPath() {
+        return "note-index.txt";
+    }
+
+    static void create(String id, String body) {
+        File.writeString(pathFor(id), body);
+        String prev = "";
+        if (File.exists(indexPath())) {
+            prev = File.readString(indexPath());
+        }
+        File.writeString(indexPath(), prev + id + "\n");
+        System.out.println("created " + id);
+    }
+
+    static void read(String id) {
+        String p = pathFor(id);
+        if (!File.exists(p)) {
+            System.out.println("missing " + id);
+            return;
+        }
+        System.out.println(File.readString(p));
+    }
+
+    static void deleteNote(String id) {
+        if (File.delete(pathFor(id))) {
+            System.out.println("deleted " + id);
+        } else {
+            System.out.println("missing " + id);
+        }
+    }
+
+    static void list() {
+        if (!File.exists(indexPath())) {
+            System.out.println("(empty)");
+            return;
+        }
+        System.out.println(File.readString(indexPath()));
+    }
+
+    public static void main(String[] args) {
+        if (args.length < 1) {
+            System.out.println("usage: notes create|read|list|delete ...");
+            return;
+        }
+        String cmd = args[0];
+        if (cmd.equals("create") && args.length >= 3) {
+            create(args[1], args[2]);
+            return;
+        }
+        if (cmd.equals("read") && args.length >= 2) {
+            read(args[1]);
+            return;
+        }
+        if (cmd.equals("list")) {
+            list();
+            return;
+        }
+        if (cmd.equals("delete") && args.length >= 2) {
+            deleteNote(args[1]);
+            return;
+        }
+        System.out.println("usage: notes create|read|list|delete ...");
+    }
+}

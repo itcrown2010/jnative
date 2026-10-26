@@ -56,6 +56,15 @@
     catalogs[loc] = dict || {};
   }
 
+  /** Merge extra keys into a locale catalog (used by feature modules such as JnB1). */
+  function extend(loc, dict) {
+    var cat = catalogs[loc] || (catalogs[loc] = {});
+    var k;
+    for (k in (dict || {})) {
+      if (Object.prototype.hasOwnProperty.call(dict, k)) cat[k] = dict[k];
+    }
+  }
+
   function setLocale(next) {
     if (!SUPPORTED[next]) next = DEFAULT_LOCALE;
     if (next === locale) {
@@ -192,6 +201,7 @@
   global.JnI18n = {
     STORAGE_KEY: STORAGE_KEY,
     register: register,
+    extend: extend,
     t: t,
     setLocale: setLocale,
     getLocale: getLocale,

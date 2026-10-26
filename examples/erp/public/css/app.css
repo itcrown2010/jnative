@@ -530,3 +530,23 @@ thead .jn-pin-right { z-index: 3; background: var(--jn-color-surface-2); }
   .jn-table-wrap, .jn-grid-scroll { overflow: auto; max-width: 100%; }
   .jn-tabbar { overflow-x: auto; white-space: nowrap; }
 }
+
+/* ---- JNative ERP One (SAP B1 style editors) ---- */
+.jn-modal.jn-b1-wide { width: min(1180px, 96vw); max-height: 94vh; }
+.jn-modal.jn-b1-doc { width: min(1280px, 98vw); }
+.jn-b1-tabs { margin-bottom: var(--jn-space-3); flex-wrap: wrap; }
+.jn-b1-footer { display: flex; align-items: center; gap: var(--jn-space-2); margin-top: var(--jn-space-4); padding-top: var(--jn-space-3); border-top: var(--jn-border); }
+.jn-b1-actions { gap: 6px; flex-wrap: wrap; margin-bottom: var(--jn-space-3); position: sticky; top: 0; z-index: 3; background: var(--jn-color-surface); padding: 4px 0; }
+.jn-b1-sect { font-weight: 700; margin: var(--jn-space-3) 0 6px; color: var(--jn-color-text-secondary); }
+.jn-b1-header .jn-field { margin-bottom: var(--jn-space-2); }
+.jn-b1-credit { margin: 4px 0 8px; font-size: var(--jn-font-size-sm); color: var(--jn-color-text-secondary); }
+.jn-b1-credit.blocked { color: var(--jn-color-danger); font-weight: 600; }
+.jn-b1-totals { display: flex; justify-content: flex-end; gap: var(--jn-space-6); margin-top: 12px; flex-wrap: wrap; }
+.jn-b1-totals span { color: var(--jn-color-text-muted); margin-right: 8px; }
+.jn-b1-totals .grand b { font-size: 1.15em; }
+.jn-b1-refs { margin-top: var(--jn-space-3); }
+.jn-b1-doc .jn-lines-editor { max-height: min(380px, 40vh); }
+.jn-b1-doc .jn-lines-editor .jn-table { min-width: 1080px; }
+.jn-b1-wide .jn-lines-editor .jn-table td { vertical-align: middle; }
+.jn-b1-newrow td { background: var(--jn-color-surface-2, #f7f9fb); }
+.jn-b1-wide .jn-modal-footer { display: none; }

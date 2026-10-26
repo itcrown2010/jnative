@@ -209,7 +209,7 @@
       self._csrf = data.csrfToken || "";
       try {
         sessionStorage.setItem("jn_auth", "1");
-        sessionStorage.setItem("jn_rpc_auth", "1");
+      sessionStorage.setItem("jn_rpc_auth", "1");
         sessionStorage.setItem("jn_user", JSON.stringify(self.user || {}));
         sessionStorage.setItem("jn_csrf", self._csrf);
         sessionStorage.removeItem("jn_demo_auth");
@@ -230,9 +230,9 @@
         self._cache = {};
         try {
           sessionStorage.removeItem("jn_auth");
-          sessionStorage.removeItem("jn_rpc_auth");
+      sessionStorage.removeItem("jn_rpc_auth");
           sessionStorage.removeItem("jn_user");
-          sessionStorage.removeItem("jn_csrf");
+      sessionStorage.removeItem("jn_csrf");
           sessionStorage.removeItem("jn_demo_auth");
         } catch (e) {}
       });

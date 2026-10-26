@@ -26,6 +26,10 @@ public class IdeHint extends Canvas {
     int reqId = 0;
     int seq = 0;
     boolean paramsActive = false;
+    boolean quiet = false;
+    boolean hovering = false;
+    int hoverA = 0;
+    int hoverB = 0;
 
     IdeHint(IdeApp a) {
         app = a;
@@ -117,12 +121,36 @@ public class IdeHint extends Canvas {
             col = col - 1;
         }
         anchor = ed.caret.offset;
+        hovering = false;
         app.setStatus("正在查询…");
         app.lsp.requestAt("textDocument/hover", path, p.line, col, "", r -> gotDoc(my, r));
     }
 
+    /** Mouse-hover documentation for the identifier covering {@code off} (silent when there is nothing to show). */
+    void hoverDoc(CodeEditor ed, String path, int off, int wordA, int wordB) {
+        if (!app.ensureLsp()) {
+            return;
+        }
+        editor = ed;
+        paramsActive = false;
+        seq = seq + 1;
+        int my = seq;
+        quiet = true;
+        hoverA = wordA;
+        hoverB = wordB;
+        app.lsp.sync(path, ed.getText());
+        TextPosition p = ed.document.offsetToPosition(off);
+        anchor = wordA;
+        app.lsp.requestAt("textDocument/hover", path, p.line, p.column, "", r -> gotDoc(my, r));
+    }
+
     void gotDoc(int my, JsonValue r) {
         if (my != seq) {
+            return;
+        }
+        if (quiet && (r == null || !r.isObject())) {
+            quiet = false;
+            hide();
             return;
         }
         if (r == null || !r.isObject()) {
@@ -155,11 +183,18 @@ public class IdeHint extends Canvas {
             i = i + 1;
         }
         if (doc.size() == 0) {
-            app.setStatus("光标处没有可显示的信息");
+            if (!quiet) {
+                app.setStatus("光标处没有可显示的信息");
+            }
+            quiet = false;
             hide();
             return;
         }
-        app.setStatus("");
+        if (!quiet) {
+            app.setStatus("");
+        }
+        hovering = quiet;
+        quiet = false;
         sig = doc.get(0);
         mode = 1;
         show();
@@ -181,6 +216,8 @@ public class IdeHint extends Canvas {
 
     void hide() {
         paramsActive = false;
+        hovering = false;
+        quiet = false;
         seq = seq + 1;
         if (!isOpen && visible == 0) {
             return;
@@ -215,7 +252,7 @@ public class IdeHint extends Canvas {
         w = Math.min(w, Math.min(hostW - 16, 720));
         w = Math.max(w, 120);
         int ex = editor.offsetPixelX(anchor);
-        int ey = editor.caretPixelY() + app.findBarHeight();
+        int ey = editor.offsetPixelY(anchor) + app.findBarHeight();
         int x = ex - 8;
         if (x + w > hostW - 8) {
             x = hostW - w - 8;

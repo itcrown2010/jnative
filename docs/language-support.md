@@ -75,14 +75,14 @@ Levels: L0–L4 per readiness audit.
 | generics (erase + primitive specialize) | SUPPORTED | L2 | See `generics.md` / `jnative-generics-iterable.md` |
 | `switch` / `case` | SUPPORTED | L2 | Classic statement; int + enum; `SwitchEnumEndToEndTest` |
 | `break` / `continue` | SUPPORTED | L2–L3 | `LoopControlEndToEndTest`; O0/O2/O3 |
-| labeled break/continue | **NOT SUPPORTED IN 1.0** | L0 | |
+| labeled break/continue | SUPPORTED | L2 | Nested loops, `break outer` / `continue outer` |
 | `return` | SUPPORTED | L3 | |
 | `try` / `catch` / `finally` | SUPPORTED | L2–L3 | Abrupt completions; see `exceptions.md`; `ExceptionEndToEndTest` |
 | try-with-resources | SUPPORTED | L2–L3 | Decl form; close-before-catch; suppressed; `ResourceEndToEndTest` |
 | `addSuppressed` / `getSuppressed` | SUPPORTED | L2 | On `Throwable`; TWR wiring |
 | `throw` | SUPPORTED | L3 | `throw null` → NPE |
 | multi-catch | **NOT SUPPORTED IN 1.0** | L0–L1 | Parse error |
-| checked `throws` enforcement | **NOT SUPPORTED IN 1.0** | L0 | `throws` not parsed |
+| `throws` clause | PARSED, NOT ENFORCED | L2 | Clause accepted on methods/constructors and ignored; checked exceptions are not verified |
 | TWR existing-variable form | **NOT SUPPORTED IN 1.0** | L0 | Decl form only |
 | WASM exceptions | SUPPORTED | L2 | Same pending+CFG as native; see `wasm32-browser-exceptions.md` |
 | ternary `?:` (expression) | SUPPORTED | L2 | `PrimitiveOpsEndToEndTest`; unused branch not evaluated |
@@ -104,7 +104,7 @@ Levels: L0–L4 per readiness audit.
 | bitwise `& \| ^ ~` | SUPPORTED | L2 | Integer + boolean non-short-circuit; `PrimitiveOpsEndToEndTest` |
 | shifts `<< >> >>>` | SUPPORTED | L2 | Distance masked 0x1f / 0x3f; ashr/lshr | 
 | compound assignment `+= -= *= /= %= &= \|= ^= <<= >>= >>>=` | SUPPORTED | L2 | Desugared in the parser to `a = (T)(a op b)` with Java's implicit narrowing (`char c += 2`, `int i += 2.9`, `byte b += 10`; `String +=`). The target is evaluated twice, so side-effecting targets (e.g. `a[i++] += 1`) are rejected with a diagnostic. `StdlibLangEndToEndTest` vs javac |
-| varargs `...` | **NOT SUPPORTED IN 1.0** | L0 | |
+| varargs `...` | SUPPORTED | L2 | `int... xs` with zero or more arguments |
 | primitive casts `(int)x` | SUPPORTED | L2 | Integer + float/double (NaN→0/saturate); boolean rejected; char zext |
 | reference cast / `instanceof` | SUPPORTED | L2–L3 | RuntimeError + Interface e2e |
 | string `+` | SUPPORTED | L2–L3 | |
@@ -185,8 +185,8 @@ Ship as hard errors or absence — **never** silent wrong codegen:
 3. enum bodies, ctor args, user members  
 4. hex floating-point literals (`0x1.0p0`) — hard error  
 5. octal integer literals (`017` is still read as decimal 17 — **differs from Java**)  
-6. varargs / records  
-7. labeled break  
+6. records, default/static interface methods, `Type::new`, `outer.new Inner()`  
+7. wildcard-typed for-each (`for (Number n : List<? extends Number>)`), `for (T x : list)` inside generic methods (loop variable lowered as int)  
 8. compound assignment on side-effecting targets (`a[i++] += 1`) — diagnostic  
 9. `final` fields (blank or initialized)  
 10. Wildcard capture / multi-bound generics / full Stream & concurrent collections  

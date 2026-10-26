@@ -1,0 +1,9 @@
+/**
+ * Dogfood target for JNative Studio Core.
+ * @author Zhang Xiaoda
+ */
+public class Main {
+    public static void main(String[] args) {
+        System.out.println("Hello from JNative Studio!");
+    }
+}

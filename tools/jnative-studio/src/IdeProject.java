@@ -155,6 +155,17 @@ class IdeSettings {
         }
         return javaCmd + " -cp '" + compiler + "' io.jnative.Main build --project . 2>&1";
     }
+
+    /** Debug build: DWARF + -O0. Cleans the incremental cache so a previous release build cannot be reused. */
+    static String buildDebugCommand() {
+        String cmd;
+        if (compiler.endsWith(".jar")) {
+            cmd = javaCmd + " -jar '" + compiler + "' build --project . --debug -O0 2>&1";
+        } else {
+            cmd = javaCmd + " -cp '" + compiler + "' io.jnative.Main build --project . --debug -O0 2>&1";
+        }
+        return "rm -rf .jnative && " + cmd;
+    }
 }
 
 /**

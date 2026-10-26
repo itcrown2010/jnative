@@ -68,6 +68,8 @@ public class IdeTree extends Canvas {
     IdeItemHandler onSelect;
     IdeItemHandler onActivate;
     IdeItemHandler onContext;
+    /** Called after an item was expanded (lazy children, e.g. debugger variables). */
+    IdeItemHandler onExpand;
 
     IdeTree() {
         setHiDpi(true);
@@ -272,6 +274,9 @@ public class IdeTree extends Canvas {
             it.expanded = !it.expanded;
             selected = it;
             rebuild();
+            if (it.expanded && onExpand != null) {
+                onExpand.handle(it);
+            }
             return;
         }
         selected = it;
@@ -292,6 +297,9 @@ public class IdeTree extends Canvas {
             if (it.kids.size() > 0 && onActivate == null) {
                 it.expanded = !it.expanded;
                 rebuild();
+                if (it.expanded && onExpand != null) {
+                    onExpand.handle(it);
+                }
             }
             if (onActivate != null) {
                 onActivate.handle(it);

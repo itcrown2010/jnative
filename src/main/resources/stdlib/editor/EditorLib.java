@@ -1925,6 +1925,11 @@ class LineTok {
     }
 }
 
+interface GutterListener {
+    /** The breakpoint strip at the left edge of the gutter was clicked on a (0-based) line. */
+    void clicked(int line);
+}
+
 interface TypedListener {
     /** A character was typed (code point), or 8 for backspace / 127 for delete. */
     void typed(int code);
@@ -1962,6 +1967,11 @@ class CodeEditor extends Canvas {
     /** Runs before the editor handles a key; consume() the event to take it over (popups). */
     EventHandler<KeyEvent> keyPre;
     TypedListener typedListener;
+    /** Breakpoint markers (0-based lines) drawn in the gutter. */
+    ArrayList<Integer> breakLines = new ArrayList<Integer>();
+    /** Line the debugger is stopped at (highlighted with an arrow), or -1. */
+    int execLine = -1;
+    GutterListener gutterListener;
     /** Called for Cmd/Ctrl + click with the clicked offset (go to definition). */
     EventHandler<MouseEvent> commandClick;
 
@@ -2606,6 +2616,13 @@ class CodeEditor extends Canvas {
     int caretPixelY() {
         ensureMetrics();
         TextPosition p = document.offsetToPosition(caret.offset);
+        return p.line * lineH - scrollPx();
+    }
+
+    /** Pixel y of the top of the line containing an arbitrary offset (same coordinate space as caretPixelY). */
+    int offsetPixelY(int offset) {
+        ensureMetrics();
+        TextPosition p = document.offsetToPosition(offset);
         return p.line * lineH - scrollPx();
     }
 
@@ -3746,6 +3763,11 @@ class CodeEditor extends Canvas {
         }
         int off = hitTest(mx, my);
         int line = document.offsetToLine(off);
+        if (gutterListener != null && mx < 18 && showLineNumbers != 0 && my + scrollPx() < document.getLineCount() * lineH) {
+            mouseDownFlag = 0;
+            gutterListener.clicked(line);
+            return;
+        }
         if (mx < gutterWidthFor() && showLineNumbers != 0) {
             int a = document.lineToOffset(line);
             int b = a + document.lineLength(line);
@@ -4564,6 +4586,10 @@ class CodeEditor extends Canvas {
                 g.setColor(theme.currentLine);
                 g.fillRect(gw, y, width - gw, lineH);
             }
+            if (line == execLine) {
+                g.setColor(new Color(255, 214, 90, 110));
+                g.fillRect(gw, y, width - gw, lineH);
+            }
             if (findQuery.length() > 0) {
                 paintMatches(g, text, y, findQuery, findCase, findWhole, theme.findMatch);
             }
@@ -4675,6 +4701,14 @@ class CodeEditor extends Canvas {
                 }
                 double nw = num.length() * charW;
                 g.drawText(num, gw - 14 - nw, y + 2);
+                if (breakLines.size() > 0 && breakLines.indexOf(line) >= 0) {
+                    g.setColor(new Color(224, 62, 62));
+                    g.fillEllipse(5, y + (lineH - 11) / 2.0, 11, 11);
+                }
+                if (line == execLine) {
+                    g.setColor(new Color(37, 99, 235));
+                    g.drawText(">", 4, y + 2);
+                }
                 line = line + 1;
             }
             g.setColor(theme.indentGuide);

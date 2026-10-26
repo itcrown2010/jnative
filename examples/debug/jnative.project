@@ -1,0 +1,18 @@
+{
+  "name": "DebugDemo",
+  "modules": {
+    "app": {
+      "kind": "app",
+      "src": "."
+    }
+  },
+  "targets": [
+    {
+      "name": "DebugDemo",
+      "triple": "native",
+      "module": "app",
+      "main": "DebugDemo",
+      "output": "DebugDemo"
+    }
+  ]
+}

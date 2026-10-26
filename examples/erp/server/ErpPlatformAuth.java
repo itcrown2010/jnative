@@ -36,6 +36,7 @@ class ErpPlatformAuth {
         seedPermission("ADMIN.AUDIT.READ", "Read audit");
         seedPermission("ADMIN.SETUP.MANAGE", "Run setup wizard");
         seedPermission("ADMIN.DEMO.RESET", "Reset demo book");
+        seedPermission("MASTER.DATA.MANAGE", "Manage master data (BP, items, tax, price lists)");
 
         long salesRole = ensureRole(companyId, "sales", "Sales", DataScope.OWN);
         long financeRole = ensureRole(companyId, "finance", "Finance", DataScope.COMPANY);
@@ -48,6 +49,9 @@ class ErpPlatformAuth {
         grant(salesRole, "SALES.ORDER.POST");
         grant(salesRole, "SALES.CUSTOMER.READ");
         grant(salesRole, "INVENTORY.BALANCE.READ");
+        grant(salesRole, "MASTER.DATA.MANAGE");
+        grant(financeRole, "MASTER.DATA.MANAGE");
+        grant(purchaseRole, "MASTER.DATA.MANAGE");
         grant(financeRole, "FINANCE.JOURNAL.READ");
         grant(financeRole, "FINANCE.JOURNAL.POST");
         grant(financeRole, "FINANCE.OPENING.POST");
@@ -97,6 +101,7 @@ class ErpPlatformAuth {
         grant(roleId, "ADMIN.AUDIT.READ");
         grant(roleId, "ADMIN.SETUP.MANAGE");
         grant(roleId, "ADMIN.DEMO.RESET");
+        grant(roleId, "MASTER.DATA.MANAGE");
     }
 
     static void seedPermission(String code, String name) {

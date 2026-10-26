@@ -158,6 +158,21 @@ public class ErpServer {
                 exitProcess(2);
             }
         }
+        if (args.length > 0 && args[0].equals("--b1-test")) {
+            Erp.loop = new EventLoop();
+            try {
+                ErpDb.setup(Erp.loop);
+                int pass = ErpB1LogicTest.runAll();
+                if (pass != 0) {
+                    exitProcess(0);
+                }
+                exitProcess(1);
+            } catch (Exception ex) {
+                System.out.println("FAIL b1 exception");
+                printEx(ex);
+                exitProcess(2);
+            }
+        }
         if (args.length > 0 && args[0].equals("--version")) {
             ErpProductConfig.load();
             System.out.println(ErpProductConfig.publicVersionJson());
@@ -299,148 +314,150 @@ public class ErpServer {
         app.get("/ready", new ErpReadyHandler());
         app.get("/version", new ErpVersionHandler());
 
-        app.futurePost("/api/auth/login", new ErpLoginHandler(Erp.loop));
-        app.futurePost("/api/auth/logout", new ErpLogoutHandler(Erp.loop));
-        app.futureGet("/api/auth/currentUser", new ErpMeHandler(Erp.loop));
-        app.futureGet("/api/auth/demo-available", new ErpDemoAvailableHandler(Erp.loop));
-        app.futurePost("/api/auth/demo-enter", new ErpDemoEnterHandler(Erp.loop));
+        app.futurePost("/api/auth/login", ErpLocked.wrap(new ErpLoginHandler(Erp.loop)));
+        app.futurePost("/api/auth/logout", ErpLocked.wrap(new ErpLogoutHandler(Erp.loop)));
+        app.futureGet("/api/auth/currentUser", ErpLocked.wrap(new ErpMeHandler(Erp.loop)));
+        app.futureGet("/api/auth/demo-available", ErpLocked.wrap(new ErpDemoAvailableHandler(Erp.loop)));
+        app.futurePost("/api/auth/demo-enter", ErpLocked.wrap(new ErpDemoEnterHandler(Erp.loop)));
 
-        app.futureGet("/api/erp/dashboard", new ErpDashboardHandler(Erp.loop));
-        app.futureGet("/api/erp/dashboard/summary", new ErpDashSummaryHandler(Erp.loop));
-        app.futureGet("/api/erp/finance/summary", new ErpFinanceSummaryHandler(Erp.loop));
-        app.futureGet("/api/erp/partners/:id/contacts", new ErpPartnerContactsHandler(Erp.loop));
-        app.futureGet("/api/erp/partners", new ErpPartnersHandler(Erp.loop));
-        app.futureGet("/api/erp/items", new ErpItemsHandler(Erp.loop));
-        app.futurePost("/api/erp/items", new ErpCreateItemHandler(Erp.loop));
-        app.futureGet("/api/erp/items/:id", new ErpGetItemHandler(Erp.loop));
-        app.futurePost("/api/erp/items/:id", new ErpUpdateItemHandler(Erp.loop));
-        app.futurePut("/api/erp/items/:id", new ErpUpdateItemHandler(Erp.loop));
-        app.futureGet("/api/erp/warehouses", new ErpWarehousesHandler(Erp.loop));
-        app.futureGet("/api/erp/inventory", new ErpInventoryHandler(Erp.loop));
-        app.futureGet("/api/erp/inventory/transactions", new ErpInventoryTxnsHandler(Erp.loop));
-        app.futureGet("/api/erp/inventory/costing", new ErpCostingBalancesHandler(Erp.loop));
-        app.futureGet("/api/erp/inventory/cost-events", new ErpCostingEventsHandler(Erp.loop));
-        app.futureGet("/api/erp/inventory/margin", new ErpCostingMarginHandler(Erp.loop));
-        app.futureGet("/api/erp/inventory/cost-integrity", new ErpCostingIntegrityHandler(Erp.loop));
-        app.futureGet("/api/erp/categories", new ErpCategoriesHandler(Erp.loop));
-        app.futureGet("/api/erp/units", new ErpUnitsHandler(Erp.loop));
-        app.futureGet("/api/erp/employees", new ErpEmployeesHandler(Erp.loop));
-        app.futureGet("/api/erp/departments", new ErpDepartmentsHandler(Erp.loop));
+        app.futureGet("/api/erp/dashboard", ErpLocked.wrap(new ErpDashboardHandler(Erp.loop)));
+        app.futureGet("/api/erp/dashboard/summary", ErpLocked.wrap(new ErpDashSummaryHandler(Erp.loop)));
+        app.futureGet("/api/erp/finance/summary", ErpLocked.wrap(new ErpFinanceSummaryHandler(Erp.loop)));
+        app.futureGet("/api/erp/partners/:id/contacts", ErpLocked.wrap(new ErpPartnerContactsHandler(Erp.loop)));
+        app.futureGet("/api/erp/partners", ErpLocked.wrap(new ErpPartnersHandler(Erp.loop)));
+        app.futureGet("/api/erp/items", ErpLocked.wrap(new ErpItemsHandler(Erp.loop)));
+        app.futurePost("/api/erp/items", ErpLocked.wrap(new ErpCreateItemHandler(Erp.loop)));
+        app.futureGet("/api/erp/items/:id", ErpLocked.wrap(new ErpGetItemHandler(Erp.loop)));
+        app.futurePost("/api/erp/items/:id", ErpLocked.wrap(new ErpUpdateItemHandler(Erp.loop)));
+        app.futurePut("/api/erp/items/:id", ErpLocked.wrap(new ErpUpdateItemHandler(Erp.loop)));
+        app.futureGet("/api/erp/warehouses", ErpLocked.wrap(new ErpWarehousesHandler(Erp.loop)));
+        app.futureGet("/api/erp/inventory", ErpLocked.wrap(new ErpInventoryHandler(Erp.loop)));
+        app.futureGet("/api/erp/inventory/transactions", ErpLocked.wrap(new ErpInventoryTxnsHandler(Erp.loop)));
+        app.futureGet("/api/erp/inventory/costing", ErpLocked.wrap(new ErpCostingBalancesHandler(Erp.loop)));
+        app.futureGet("/api/erp/inventory/cost-events", ErpLocked.wrap(new ErpCostingEventsHandler(Erp.loop)));
+        app.futureGet("/api/erp/inventory/margin", ErpLocked.wrap(new ErpCostingMarginHandler(Erp.loop)));
+        app.futureGet("/api/erp/inventory/cost-integrity", ErpLocked.wrap(new ErpCostingIntegrityHandler(Erp.loop)));
+        app.futureGet("/api/erp/categories", ErpLocked.wrap(new ErpCategoriesHandler(Erp.loop)));
+        app.futureGet("/api/erp/units", ErpLocked.wrap(new ErpUnitsHandler(Erp.loop)));
+        app.futureGet("/api/erp/employees", ErpLocked.wrap(new ErpEmployeesHandler(Erp.loop)));
+        app.futureGet("/api/erp/departments", ErpLocked.wrap(new ErpDepartmentsHandler(Erp.loop)));
 
-        app.futureGet("/api/erp/purchaseRequests", new ErpListPrHandler(Erp.loop));
-        app.futurePost("/api/erp/purchaseRequests", new ErpCreatePrHandler(Erp.loop));
-        app.futureGet("/api/erp/purchaseRequests/:id", new ErpGetPrHandler(Erp.loop));
-        app.futurePost("/api/erp/purchaseRequests/:id/approve", new ErpApprovePrHandler(Erp.loop));
+        app.futureGet("/api/erp/purchaseRequests", ErpLocked.wrap(new ErpListPrHandler(Erp.loop)));
+        app.futurePost("/api/erp/purchaseRequests", ErpLocked.wrap(new ErpCreatePrHandler(Erp.loop)));
+        app.futureGet("/api/erp/purchaseRequests/:id", ErpLocked.wrap(new ErpGetPrHandler(Erp.loop)));
+        app.futurePost("/api/erp/purchaseRequests/:id/approve", ErpLocked.wrap(new ErpApprovePrHandler(Erp.loop)));
 
-        app.futureGet("/api/erp/purchaseOrders", new ErpListPoHandler(Erp.loop));
-        app.futurePost("/api/erp/purchaseOrders", new ErpCreatePoHandler(Erp.loop));
-        app.futureGet("/api/erp/purchaseOrders/:id", new ErpGetPoHandler(Erp.loop));
-        app.futurePost("/api/erp/purchaseOrders/:id", new ErpUpdatePoHandler(Erp.loop));
-        app.futurePost("/api/erp/purchaseOrders/:id/submit", new ErpSubmitPoHandler(Erp.loop));
-        app.futurePost("/api/erp/purchaseOrders/:id/approve", new ErpApprovePoHandler(Erp.loop));
-        app.futurePost("/api/erp/purchaseOrders/:id/close", new ErpClosePoHandler(Erp.loop));
-        app.futurePost("/api/erp/purchaseOrders/:id/cancel", new ErpCancelPoHandler(Erp.loop));
-        app.futureGet("/api/erp/goodsReceipts", new ErpListGrHandler(Erp.loop));
-        app.futurePost("/api/erp/goodsReceipts", new ErpGrHandler(Erp.loop));
-        app.futurePost("/api/erp/goodsReceipts/:id/reverse", new ErpReverseGrHandler(Erp.loop));
-        app.futurePost("/api/erp/inventory/adjust", new ErpInvAdjustHandler(Erp.loop));
-        app.futurePost("/api/erp/inventory/count", new ErpInvCountHandler(Erp.loop));
-        app.futureGet("/api/erp/inventory/alerts", new ErpInvAlertsHandler(Erp.loop));
+        app.futureGet("/api/erp/purchaseOrders", ErpLocked.wrap(new ErpListPoHandler(Erp.loop)));
+        app.futurePost("/api/erp/purchaseOrders", ErpLocked.wrap(new ErpCreatePoHandler(Erp.loop)));
+        app.futureGet("/api/erp/purchaseOrders/:id", ErpLocked.wrap(new ErpGetPoHandler(Erp.loop)));
+        app.futurePost("/api/erp/purchaseOrders/:id", ErpLocked.wrap(new ErpUpdatePoHandler(Erp.loop)));
+        app.futurePost("/api/erp/purchaseOrders/:id/submit", ErpLocked.wrap(new ErpSubmitPoHandler(Erp.loop)));
+        app.futurePost("/api/erp/purchaseOrders/:id/approve", ErpLocked.wrap(new ErpApprovePoHandler(Erp.loop)));
+        app.futurePost("/api/erp/purchaseOrders/:id/close", ErpLocked.wrap(new ErpClosePoHandler(Erp.loop)));
+        app.futurePost("/api/erp/purchaseOrders/:id/cancel", ErpLocked.wrap(new ErpCancelPoHandler(Erp.loop)));
+        app.futureGet("/api/erp/goodsReceipts", ErpLocked.wrap(new ErpListGrHandler(Erp.loop)));
+        app.futurePost("/api/erp/goodsReceipts", ErpLocked.wrap(new ErpGrHandler(Erp.loop)));
+        app.futurePost("/api/erp/goodsReceipts/:id/reverse", ErpLocked.wrap(new ErpReverseGrHandler(Erp.loop)));
+        app.futurePost("/api/erp/inventory/adjust", ErpLocked.wrap(new ErpInvAdjustHandler(Erp.loop)));
+        app.futurePost("/api/erp/inventory/count", ErpLocked.wrap(new ErpInvCountHandler(Erp.loop)));
+        app.futureGet("/api/erp/inventory/alerts", ErpLocked.wrap(new ErpInvAlertsHandler(Erp.loop)));
 
-        app.futureGet("/api/erp/salesOrders", new ErpListSoHandler(Erp.loop));
-        app.futurePost("/api/erp/salesOrders", new ErpCreateSoHandler(Erp.loop));
-        app.futureGet("/api/erp/salesOrders/:id", new ErpGetSoHandler(Erp.loop));
-        app.futurePost("/api/erp/salesOrders/:id", new ErpUpdateSoHandler(Erp.loop));
-        app.futurePost("/api/erp/salesOrders/:id/submit", new ErpSubmitSoHandler(Erp.loop));
-        app.futurePost("/api/erp/salesOrders/:id/approve", new ErpApproveSoHandler(Erp.loop));
-        app.futurePost("/api/erp/salesOrders/:id/cancel", new ErpCancelSoHandler(Erp.loop));
-        app.futurePost("/api/erp/salesOrders/:id/close", new ErpCloseSoHandler(Erp.loop));
-        app.futureGet("/api/erp/deliveries", new ErpListDlHandler(Erp.loop));
-        app.futurePost("/api/erp/deliveries", new ErpDlHandler(Erp.loop));
-        app.futurePost("/api/erp/deliveries/:id/reverse", new ErpReverseDlHandler(Erp.loop));
-        app.futurePost("/api/erp/salesReturns", new ErpSalesReturnHandler(Erp.loop));
+        app.futureGet("/api/erp/salesOrders", ErpLocked.wrap(new ErpListSoHandler(Erp.loop)));
+        app.futurePost("/api/erp/salesOrders", ErpLocked.wrap(new ErpCreateSoHandler(Erp.loop)));
+        app.futureGet("/api/erp/salesOrders/:id", ErpLocked.wrap(new ErpGetSoHandler(Erp.loop)));
+        app.futurePost("/api/erp/salesOrders/:id", ErpLocked.wrap(new ErpUpdateSoHandler(Erp.loop)));
+        app.futurePost("/api/erp/salesOrders/:id/submit", ErpLocked.wrap(new ErpSubmitSoHandler(Erp.loop)));
+        app.futurePost("/api/erp/salesOrders/:id/approve", ErpLocked.wrap(new ErpApproveSoHandler(Erp.loop)));
+        app.futurePost("/api/erp/salesOrders/:id/cancel", ErpLocked.wrap(new ErpCancelSoHandler(Erp.loop)));
+        app.futurePost("/api/erp/salesOrders/:id/close", ErpLocked.wrap(new ErpCloseSoHandler(Erp.loop)));
+        app.futureGet("/api/erp/deliveries", ErpLocked.wrap(new ErpListDlHandler(Erp.loop)));
+        app.futurePost("/api/erp/deliveries", ErpLocked.wrap(new ErpDlHandler(Erp.loop)));
+        app.futurePost("/api/erp/deliveries/:id/reverse", ErpLocked.wrap(new ErpReverseDlHandler(Erp.loop)));
+        app.futurePost("/api/erp/salesReturns", ErpLocked.wrap(new ErpSalesReturnHandler(Erp.loop)));
 
-        app.futureGet("/api/erp/setup/wizard", new ErpWizardGetHandler(Erp.loop));
-        app.futurePost("/api/erp/setup/wizard/company", new ErpWizardCompanyHandler(Erp.loop));
-        app.futurePost("/api/erp/setup/wizard/currency", new ErpWizardCurrencyHandler(Erp.loop));
-        app.futurePost("/api/erp/setup/wizard/warehouse", new ErpWizardWarehouseHandler(Erp.loop));
-        app.futurePost("/api/erp/setup/wizard/numbering", new ErpWizardNumberingHandler(Erp.loop));
-        app.futurePost("/api/erp/setup/wizard/user", new ErpWizardUserHandler(Erp.loop));
-        app.futurePost("/api/erp/setup/wizard/advance", new ErpWizardAdvanceHandler(Erp.loop));
-        app.futurePost("/api/erp/setup/wizard/complete", new ErpWizardCompleteHandler(Erp.loop));
-        app.futurePost("/api/erp/setup/formal-company", new ErpCreateFormalCompanyHandler(Erp.loop));
+        app.futureGet("/api/erp/setup/wizard", ErpLocked.wrap(new ErpWizardGetHandler(Erp.loop)));
+        app.futurePost("/api/erp/setup/wizard/company", ErpLocked.wrap(new ErpWizardCompanyHandler(Erp.loop)));
+        app.futurePost("/api/erp/setup/wizard/currency", ErpLocked.wrap(new ErpWizardCurrencyHandler(Erp.loop)));
+        app.futurePost("/api/erp/setup/wizard/warehouse", ErpLocked.wrap(new ErpWizardWarehouseHandler(Erp.loop)));
+        app.futurePost("/api/erp/setup/wizard/numbering", ErpLocked.wrap(new ErpWizardNumberingHandler(Erp.loop)));
+        app.futurePost("/api/erp/setup/wizard/user", ErpLocked.wrap(new ErpWizardUserHandler(Erp.loop)));
+        app.futurePost("/api/erp/setup/wizard/advance", ErpLocked.wrap(new ErpWizardAdvanceHandler(Erp.loop)));
+        app.futurePost("/api/erp/setup/wizard/complete", ErpLocked.wrap(new ErpWizardCompleteHandler(Erp.loop)));
+        app.futurePost("/api/erp/setup/formal-company", ErpLocked.wrap(new ErpCreateFormalCompanyHandler(Erp.loop)));
 
-        app.futurePost("/api/erp/opening/stock", new ErpOpeningStockDraftHandler(Erp.loop));
-        app.futurePost("/api/erp/opening/stock/:id/post", new ErpOpeningStockPostHandler(Erp.loop));
-        app.futurePost("/api/erp/opening/ar", new ErpOpeningArHandler(Erp.loop));
-        app.futurePost("/api/erp/opening/ap", new ErpOpeningApHandler(Erp.loop));
+        app.futurePost("/api/erp/opening/stock", ErpLocked.wrap(new ErpOpeningStockDraftHandler(Erp.loop)));
+        app.futurePost("/api/erp/opening/stock/:id/post", ErpLocked.wrap(new ErpOpeningStockPostHandler(Erp.loop)));
+        app.futurePost("/api/erp/opening/ar", ErpLocked.wrap(new ErpOpeningArHandler(Erp.loop)));
+        app.futurePost("/api/erp/opening/ap", ErpLocked.wrap(new ErpOpeningApHandler(Erp.loop)));
 
-        app.futureGet("/api/erp/import/templates/partners", new ErpImportPartnerTemplateHandler(Erp.loop));
-        app.futureGet("/api/erp/import/templates/items", new ErpImportItemTemplateHandler(Erp.loop));
-        app.futurePost("/api/erp/import/partners/preview", new ErpImportPartnerPreviewHandler(Erp.loop));
-        app.futurePost("/api/erp/import/items/preview", new ErpImportItemPreviewHandler(Erp.loop));
-        app.futurePost("/api/erp/import/partners", new ErpImportPartnerHandler(Erp.loop));
-        app.futurePost("/api/erp/import/items", new ErpImportItemHandler(Erp.loop));
+        app.futureGet("/api/erp/import/templates/partners", ErpLocked.wrap(new ErpImportPartnerTemplateHandler(Erp.loop)));
+        app.futureGet("/api/erp/import/templates/items", ErpLocked.wrap(new ErpImportItemTemplateHandler(Erp.loop)));
+        app.futurePost("/api/erp/import/partners/preview", ErpLocked.wrap(new ErpImportPartnerPreviewHandler(Erp.loop)));
+        app.futurePost("/api/erp/import/items/preview", ErpLocked.wrap(new ErpImportItemPreviewHandler(Erp.loop)));
+        app.futurePost("/api/erp/import/partners", ErpLocked.wrap(new ErpImportPartnerHandler(Erp.loop)));
+        app.futurePost("/api/erp/import/items", ErpLocked.wrap(new ErpImportItemHandler(Erp.loop)));
 
-        app.futurePost("/api/erp/admin/demo/reset", new ErpDemoResetHandler(Erp.loop));
-        app.futureGet("/api/erp/help/tutorials", new ErpHelpTutorialsHandler(Erp.loop));
-        app.futureGet("/api/erp/book", new ErpBookInfoHandler(Erp.loop));
+        app.futurePost("/api/erp/admin/demo/reset", ErpLocked.wrap(new ErpDemoResetHandler(Erp.loop)));
+        app.futureGet("/api/erp/help/tutorials", ErpLocked.wrap(new ErpHelpTutorialsHandler(Erp.loop)));
+        app.futureGet("/api/erp/book", ErpLocked.wrap(new ErpBookInfoHandler(Erp.loop)));
 
-        app.futureGet("/api/erp/finance/accounts", new ErpFinanceAccountsHandler(Erp.loop));
-        app.futureGet("/api/erp/finance/journals", new ErpFinanceJournalsHandler(Erp.loop));
-        app.futureGet("/api/erp/finance/ar", new ErpFinanceArListHandler(Erp.loop));
-        app.futurePost("/api/erp/finance/ar", new ErpFinanceArCreateHandler(Erp.loop));
-        app.futurePost("/api/erp/finance/ar/:id/post", new ErpFinanceArPostHandler(Erp.loop));
-        app.futureGet("/api/erp/finance/ap", new ErpFinanceApListHandler(Erp.loop));
-        app.futurePost("/api/erp/finance/ap", new ErpFinanceApCreateHandler(Erp.loop));
-        app.futurePost("/api/erp/finance/ap/:id/post", new ErpFinanceApPostHandler(Erp.loop));
-        app.futureGet("/api/erp/finance/banks", new ErpFinanceBanksHandler(Erp.loop));
-        app.futureGet("/api/erp/finance/periods", new ErpFinancePeriodsHandler(Erp.loop));
-        app.futureGet("/api/erp/finance/incoming-payments", new ErpFinanceIncomingPayHandler(Erp.loop));
-        app.futurePost("/api/erp/finance/incoming-payments", new ErpFinanceIncomingPayPostHandler(Erp.loop));
-        app.futureGet("/api/erp/finance/outgoing-payments", new ErpFinanceOutgoingPayHandler(Erp.loop));
-        app.futurePost("/api/erp/finance/outgoing-payments", new ErpFinanceOutgoingPayPostHandler(Erp.loop));
-        app.futureGet("/api/erp/finance/trialBalance", new ErpFinanceTrialHandler(Erp.loop));
-        app.futureGet("/api/erp/finance/gl", new ErpFinanceGlHandler(Erp.loop));
-        app.futureGet("/api/erp/finance/arAgeing", new ErpFinanceArAgeingHandler(Erp.loop));
-        app.futureGet("/api/erp/finance/apAgeing", new ErpFinanceApAgeingHandler(Erp.loop));
-        app.futurePost("/api/erp/finance/receipts", new ErpSettlementReceiptCreateHandler(Erp.loop));
-        app.futurePost("/api/erp/finance/receipts/:id/post", new ErpSettlementReceiptPostHandler(Erp.loop));
-        app.futurePost("/api/erp/finance/receipts/allocate", new ErpSettlementReceiptAllocHandler(Erp.loop));
-        app.futurePost("/api/erp/finance/receipts/reverse-alloc", new ErpSettlementReceiptRevHandler(Erp.loop));
-        app.futurePost("/api/erp/finance/payments", new ErpSettlementPaymentCreateHandler(Erp.loop));
-        app.futurePost("/api/erp/finance/payments/:id/post", new ErpSettlementPaymentPostHandler(Erp.loop));
-        app.futurePost("/api/erp/finance/payments/allocate", new ErpSettlementPaymentAllocHandler(Erp.loop));
-        app.futurePost("/api/erp/finance/payments/reverse-alloc", new ErpSettlementPaymentRevHandler(Erp.loop));
-        app.futureGet("/api/erp/finance/party-statement", new ErpSettlementPartyHandler(Erp.loop));
-        app.futureGet("/api/erp/finance/settlement-integrity", new ErpSettlementIntegrityHandler(Erp.loop));
-        app.futureGet("/api/erp/finance/cash-movements", new ErpSettlementCashHandler(Erp.loop));
-        app.futureGet("/api/erp/finance/gl-events", new ErpGlEventsHandler(Erp.loop));
-        app.futurePost("/api/erp/finance/gl-events", new ErpGlEventPostHandler(Erp.loop));
-        app.futureGet("/api/erp/finance/gl-recon", new ErpGlReconHandler(Erp.loop));
-        app.futurePost("/api/erp/finance/journals/:id/approve", new ErpGlApproveHandler(Erp.loop));
-        app.futurePost("/api/erp/finance/journals/:id/post", new ErpGlPostApprovedHandler(Erp.loop));
-        app.futurePost("/api/erp/finance/journals/:id/reject", new ErpGlRejectHandler(Erp.loop));
-        app.futurePost("/api/erp/finance/journals/:id/reverse", new ErpGlReverseHandler(Erp.loop));
-        app.futurePost("/api/erp/finance/periods/:id/close", new ErpGlClosePeriodHandler(Erp.loop));
-        app.futurePost("/api/erp/finance/periods/:id/reopen", new ErpGlReopenPeriodHandler(Erp.loop));
-        app.futureGet("/api/erp/finance/periods/:id/close-blockers", new ErpGlCloseBlockersHandler(Erp.loop));
+        app.futureGet("/api/erp/finance/accounts", ErpLocked.wrap(new ErpFinanceAccountsHandler(Erp.loop)));
+        app.futureGet("/api/erp/finance/journals", ErpLocked.wrap(new ErpFinanceJournalsHandler(Erp.loop)));
+        app.futureGet("/api/erp/finance/ar", ErpLocked.wrap(new ErpFinanceArListHandler(Erp.loop)));
+        app.futurePost("/api/erp/finance/ar", ErpLocked.wrap(new ErpFinanceArCreateHandler(Erp.loop)));
+        app.futurePost("/api/erp/finance/ar/:id/post", ErpLocked.wrap(new ErpFinanceArPostHandler(Erp.loop)));
+        app.futureGet("/api/erp/finance/ap", ErpLocked.wrap(new ErpFinanceApListHandler(Erp.loop)));
+        app.futurePost("/api/erp/finance/ap", ErpLocked.wrap(new ErpFinanceApCreateHandler(Erp.loop)));
+        app.futurePost("/api/erp/finance/ap/:id/post", ErpLocked.wrap(new ErpFinanceApPostHandler(Erp.loop)));
+        app.futureGet("/api/erp/finance/banks", ErpLocked.wrap(new ErpFinanceBanksHandler(Erp.loop)));
+        app.futureGet("/api/erp/finance/periods", ErpLocked.wrap(new ErpFinancePeriodsHandler(Erp.loop)));
+        app.futureGet("/api/erp/finance/incoming-payments", ErpLocked.wrap(new ErpFinanceIncomingPayHandler(Erp.loop)));
+        app.futurePost("/api/erp/finance/incoming-payments", ErpLocked.wrap(new ErpFinanceIncomingPayPostHandler(Erp.loop)));
+        app.futureGet("/api/erp/finance/outgoing-payments", ErpLocked.wrap(new ErpFinanceOutgoingPayHandler(Erp.loop)));
+        app.futurePost("/api/erp/finance/outgoing-payments", ErpLocked.wrap(new ErpFinanceOutgoingPayPostHandler(Erp.loop)));
+        app.futureGet("/api/erp/finance/trialBalance", ErpLocked.wrap(new ErpFinanceTrialHandler(Erp.loop)));
+        app.futureGet("/api/erp/finance/gl", ErpLocked.wrap(new ErpFinanceGlHandler(Erp.loop)));
+        app.futureGet("/api/erp/finance/arAgeing", ErpLocked.wrap(new ErpFinanceArAgeingHandler(Erp.loop)));
+        app.futureGet("/api/erp/finance/apAgeing", ErpLocked.wrap(new ErpFinanceApAgeingHandler(Erp.loop)));
+        app.futurePost("/api/erp/finance/receipts", ErpLocked.wrap(new ErpSettlementReceiptCreateHandler(Erp.loop)));
+        app.futurePost("/api/erp/finance/receipts/:id/post", ErpLocked.wrap(new ErpSettlementReceiptPostHandler(Erp.loop)));
+        app.futurePost("/api/erp/finance/receipts/allocate", ErpLocked.wrap(new ErpSettlementReceiptAllocHandler(Erp.loop)));
+        app.futurePost("/api/erp/finance/receipts/reverse-alloc", ErpLocked.wrap(new ErpSettlementReceiptRevHandler(Erp.loop)));
+        app.futurePost("/api/erp/finance/payments", ErpLocked.wrap(new ErpSettlementPaymentCreateHandler(Erp.loop)));
+        app.futurePost("/api/erp/finance/payments/:id/post", ErpLocked.wrap(new ErpSettlementPaymentPostHandler(Erp.loop)));
+        app.futurePost("/api/erp/finance/payments/allocate", ErpLocked.wrap(new ErpSettlementPaymentAllocHandler(Erp.loop)));
+        app.futurePost("/api/erp/finance/payments/reverse-alloc", ErpLocked.wrap(new ErpSettlementPaymentRevHandler(Erp.loop)));
+        app.futureGet("/api/erp/finance/party-statement", ErpLocked.wrap(new ErpSettlementPartyHandler(Erp.loop)));
+        app.futureGet("/api/erp/finance/settlement-integrity", ErpLocked.wrap(new ErpSettlementIntegrityHandler(Erp.loop)));
+        app.futureGet("/api/erp/finance/cash-movements", ErpLocked.wrap(new ErpSettlementCashHandler(Erp.loop)));
+        app.futureGet("/api/erp/finance/gl-events", ErpLocked.wrap(new ErpGlEventsHandler(Erp.loop)));
+        app.futurePost("/api/erp/finance/gl-events", ErpLocked.wrap(new ErpGlEventPostHandler(Erp.loop)));
+        app.futureGet("/api/erp/finance/gl-recon", ErpLocked.wrap(new ErpGlReconHandler(Erp.loop)));
+        app.futurePost("/api/erp/finance/journals/:id/approve", ErpLocked.wrap(new ErpGlApproveHandler(Erp.loop)));
+        app.futurePost("/api/erp/finance/journals/:id/post", ErpLocked.wrap(new ErpGlPostApprovedHandler(Erp.loop)));
+        app.futurePost("/api/erp/finance/journals/:id/reject", ErpLocked.wrap(new ErpGlRejectHandler(Erp.loop)));
+        app.futurePost("/api/erp/finance/journals/:id/reverse", ErpLocked.wrap(new ErpGlReverseHandler(Erp.loop)));
+        app.futurePost("/api/erp/finance/periods/:id/close", ErpLocked.wrap(new ErpGlClosePeriodHandler(Erp.loop)));
+        app.futurePost("/api/erp/finance/periods/:id/reopen", ErpLocked.wrap(new ErpGlReopenPeriodHandler(Erp.loop)));
+        app.futureGet("/api/erp/finance/periods/:id/close-blockers", ErpLocked.wrap(new ErpGlCloseBlockersHandler(Erp.loop)));
 
-        app.futureGet("/api/erp/mfg/boms", new ErpMfgBomListHandler(Erp.loop));
-        app.futureGet("/api/erp/mfg/productionOrders", new ErpMfgPoListHandler(Erp.loop));
-        app.futureGet("/api/erp/mfg/wip", new ErpMfgWipHandler(Erp.loop));
-        app.futureGet("/api/erp/mfg/mrp/suggestions", new ErpMfgMrpSuggestionsHandler(Erp.loop));
+        app.futureGet("/api/erp/mfg/boms", ErpLocked.wrap(new ErpMfgBomListHandler(Erp.loop)));
+        app.futureGet("/api/erp/mfg/productionOrders", ErpLocked.wrap(new ErpMfgPoListHandler(Erp.loop)));
+        app.futureGet("/api/erp/mfg/wip", ErpLocked.wrap(new ErpMfgWipHandler(Erp.loop)));
+        app.futureGet("/api/erp/mfg/mrp/suggestions", ErpLocked.wrap(new ErpMfgMrpSuggestionsHandler(Erp.loop)));
 
-        app.futureGet("/api/erp/admin/users", new ErpAdminUsersHandler(Erp.loop));
-        app.futureGet("/api/erp/admin/roles", new ErpAdminRolesHandler(Erp.loop));
-        app.futureGet("/api/erp/admin/permissions", new ErpAdminPermsHandler(Erp.loop));
-        app.futureGet("/api/erp/admin/customFields", new ErpAdminCustomFieldsHandler(Erp.loop));
-        app.futureGet("/api/erp/admin/forms", new ErpAdminFormsHandler(Erp.loop));
-        app.futureGet("/api/erp/admin/workflows", new ErpAdminWorkflowsHandler(Erp.loop));
-        app.futureGet("/api/erp/admin/reports", new ErpAdminReportsHandler(Erp.loop));
-        app.futureGet("/api/erp/admin/importExport", new ErpAdminImportExportHandler(Erp.loop));
-        app.futureGet("/api/erp/admin/settings", new ErpAdminSettingsHandler(Erp.loop));
-        app.futureGet("/api/erp/admin/audit", new ErpAdminAuditHandler(Erp.loop));
+        app.futureGet("/api/erp/admin/users", ErpLocked.wrap(new ErpAdminUsersHandler(Erp.loop)));
+        app.futureGet("/api/erp/admin/roles", ErpLocked.wrap(new ErpAdminRolesHandler(Erp.loop)));
+        app.futureGet("/api/erp/admin/permissions", ErpLocked.wrap(new ErpAdminPermsHandler(Erp.loop)));
+        app.futureGet("/api/erp/admin/customFields", ErpLocked.wrap(new ErpAdminCustomFieldsHandler(Erp.loop)));
+        app.futureGet("/api/erp/admin/forms", ErpLocked.wrap(new ErpAdminFormsHandler(Erp.loop)));
+        app.futureGet("/api/erp/admin/workflows", ErpLocked.wrap(new ErpAdminWorkflowsHandler(Erp.loop)));
+        app.futureGet("/api/erp/admin/reports", ErpLocked.wrap(new ErpAdminReportsHandler(Erp.loop)));
+        app.futureGet("/api/erp/admin/importExport", ErpLocked.wrap(new ErpAdminImportExportHandler(Erp.loop)));
+        app.futureGet("/api/erp/admin/settings", ErpLocked.wrap(new ErpAdminSettingsHandler(Erp.loop)));
+        app.futureGet("/api/erp/admin/audit", ErpLocked.wrap(new ErpAdminAuditHandler(Erp.loop)));
+
+        ErpB1Handler.register(app, Erp.loop);
 
         System.out.println("JNative One " + ErpProductConfig.version
                 + " on http://" + ErpProductConfig.listenHost + ":"
@@ -553,6 +570,7 @@ class ErpLoginHandler implements AsyncWebHandler {
             }
             Session session = ErpAuth.load(ctx);
             session.rotateId();
+            ErpB1Master.seedOnLogin(user.companyId);
             session.setString("userId", CryptoParse.longToString(user.id));
             session.setString("companyId", CryptoParse.longToString(user.companyId));
             String csrf = "csrf-" + CryptoParse.longToString(user.id) + "-"
@@ -3782,6 +3800,7 @@ class ErpDemoEnterHandler implements AsyncWebHandler {
             }
             Session session = ErpAuth.load(ctx);
             session.rotateId();
+            ErpB1Master.seedOnLogin(user.companyId);
             session.setString("userId", CryptoParse.longToString(user.id));
             session.setString("companyId", CryptoParse.longToString(user.companyId));
             String csrf = "csrf-" + CryptoParse.longToString(user.id) + "-"
