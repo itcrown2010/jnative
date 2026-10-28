@@ -668,10 +668,11 @@ function drawPos() {
   var a = TR.a, el = $('trPos'); if (!a || !el) return;
   el.className = '';
   if (!a.positions.length) { el.innerHTML = '<div class="muted">\u6682\u65e0\u6301\u4ed3\u3002\u5728\u5de6\u4fa7\u4e0b\u5355\u4e70\u5165\u540e\u4f1a\u51fa\u73b0\u5728\u8fd9\u91cc\u3002</div>'; return; }
-  el.innerHTML = '<table><tr><th>\u80a1\u7968</th><th>\u6301\u4ed3/\u53ef\u5356</th><th>\u6210\u672c</th><th>\u73b0\u4ef7</th><th>\u5e02\u503c</th><th>\u76c8\u4e8f</th><th>\u6b62\u635f/\u6b62\u76c8</th><th></th></tr>' + a.positions.map(function (p) {
+  el.innerHTML = '<table><tr><th>\u80a1\u7968</th><th>\u6301\u4ed3/\u53ef\u5356</th><th>\u6210\u672c</th><th>\u73b0\u4ef7</th><th>\u5e02\u503c</th><th>\u76c8\u4e8f</th><th>\u5356\u51fa\u5b89\u6392</th><th></th></tr>' + a.positions.map(function (p) {
+    var ex = p.exitDay ? '<div>\u5230\u671f ' + fdate(p.exitDay).slice(5) + ' \u6536\u76d8\u5356</div>' : '';
     var rk = (p.sl ? '\u635f ' + fm(p.sl) : '') + (p.sl && (p.tp || p.trail) ? '<br>' : '') + (p.tp ? '\u76c8 ' + fm(p.tp) : '') + (p.trail ? (p.tp ? ' ' : '') + '\u79fb ' + (p.trail * 100).toFixed(1) + '%' : '');
     return '<tr><td><a href="#" data-pick="' + esc(p.code) + '" style="color:' + ACC + '">' + esc(p.name) + '</a><div class="muted" style="font-size:11px">' + esc(p.code) + '</div></td><td>' + p.qty + '<div class="muted" style="font-size:11px">\u53ef\u5356 ' + p.free + '</div></td><td>' + fm(p.avgCost, 3) +
-      '</td><td class="' + sgn(p.price - p.prev) + '">' + fm(p.price) + '</td><td>' + fm(p.mv, 0) + '</td><td class="' + sgn(p.pnl) + '">' + sg(p.pnl, 0) + '<div style="font-size:11px">' + pcs(p.pnlPct) + '</div></td><td style="font-size:12px" class="muted">' + (rk || '\u672a\u8bbe\u7f6e') +
+      '</td><td class="' + sgn(p.price - p.prev) + '">' + fm(p.price) + '</td><td>' + fm(p.mv, 0) + '</td><td class="' + sgn(p.pnl) + '">' + sg(p.pnl, 0) + '<div style="font-size:11px">' + pcs(p.pnlPct) + '</div></td><td style="font-size:12px" class="muted">' + (rk || (ex ? '' : '\u672a\u8bbe\u7f6e')) + ex +
       '</td><td><button class="small" data-sell="' + esc(p.code) + '">\u5356\u51fa</button> <button class="small ghost" data-risk="' + esc(p.code) + '">\u98ce\u63a7</button></td></tr>';
   }).join('') + '</table>';
   Array.prototype.forEach.call(el.querySelectorAll('[data-pick]'), function (x) { x.onclick = function (e) { e.preventDefault(); trPick(x.getAttribute('data-pick'), 'buy'); }; });
@@ -884,6 +885,217 @@ function drawCfg() {
   };
 }
 
+/* ---------------- Portfolio backtest & strategy engine ---------------- */
+var PF = { pool: 'all', manual: {}, strats: [], res: null, msg: '' };
+var PF_STRATS = [['ma_cross', '\u5747\u7ebf\u4ea4\u53c9'], ['rsi', 'RSI \u53cd\u8f6c'], ['macd', 'MACD \u91d1\u53c9'], ['boll', '\u5e03\u6797\u5e26\u56de\u5f52'], ['buy_hold', '\u4e70\u5165\u6301\u6709'], ['rules', '\u81ea\u5b9a\u4e49\u89c4\u5219']];
+var PF_TPL = [
+  ['', '\uff08\u9009\u62e9\u6a21\u677f\uff09', '', ''],
+  ['donchian', '\u7a81\u7834\uff1a\u521b 20 \u65e5\u65b0\u9ad8\u4e14\u653e\u91cf', 'close>hh(20)\nvolr(20)>1.2', 'close<ll(10)'],
+  ['mom', '\u52a8\u91cf\uff1a60 \u65e5\u6da8\u8d85 20% \u4e14\u7ad9\u4e0a 20 \u65e5\u7ebf', 'roc(60)>0.2\nclose>ma(20)', 'close<ma(20)'],
+  ['dip', '\u8d85\u8dcc\u53cd\u5f39\uff1a\u957f\u671f\u8d8b\u52bf\u5411\u4e0a\u65f6 RSI(6) \u4f4e\u4e8e 20', 'rsi(6)<20\nclose>ma(200)', 'rsi(6)>60'],
+  ['pull', '\u56de\u8e29\uff1a\u7ad9\u4e0a 60 \u65e5\u7ebf\u540e RSI(14) \u4f4e\u4e8e 40', 'close>ma(60)\nrsi(14)<40', 'close<ma(60)\nrsi(14)>70'],
+  ['vol', '\u653e\u91cf\u5927\u6da8\uff1a\u6da8\u8d85 3% \u4e14\u91cf\u6bd4\u8d85 2', 'chg>0.03\nvolr(20)>2\nclose>ma(20)', 'close<ma(10)'],
+  ['bbu', '\u5e03\u6797\u4e0a\u8f68\u7a81\u7834', 'close>>bbu(20)', 'close<bbm(20)']
+];
+function pfStocks() { return state.symbols.filter(function (x) { return x.source === 'sina' && /^(sh60|sh68|sz00|sz30|bj)\d+$/.test(x.code); }); }
+function pfCodes() {
+  var all = pfStocks();
+  if (PF.pool === 'watch') all = all.filter(function (x) { return x.watch; });
+  else if (PF.pool === 'manual') all = all.filter(function (x) { return PF.manual[x.code]; });
+  return all.map(function (x) { return x.code; });
+}
+function renderPortfolio() {
+  var root = $('tab-portfolio'), stocks = pfStocks(), nw = stocks.filter(function (x) { return x.watch; }).length;
+  root.innerHTML = '<div class="card"><h3>\u80a1\u7968\u6c60 <span id="pfPoolInfo" class="muted" style="font-weight:400"></span></h3>' +
+    '<div class="toolbar"><select id="pfPool"><option value="all">\u5168\u90e8\u672c\u5730 A \u80a1\uff08' + stocks.length + ' \u53ea\uff09</option><option value="watch">\u81ea\u9009\u80a1\uff08' + nw + ' \u53ea\uff09</option><option value="manual">\u624b\u52a8\u9009\u62e9</option></select><button class="small ghost" id="pfAdd">\u6279\u91cf\u6dfb\u52a0\u80a1\u7968\u2026</button></div>' +
+    '<div id="pfManual" hidden></div>' +
+    '<div class="note">\u53ea\u542b\u672c\u5730\u5df2\u4e0b\u8f7d\u65e5\u7ebf\u7684 A \u80a1\u3002\u80a1\u6c60\u662f\u4f60\u81ea\u5df1\u6311\u51fa\u6765\u7684\uff0c\u91cc\u9762\u591a\u534a\u662f\u540e\u6765\u6da8\u5f97\u597d\u7684\u80a1\u7968\uff0c\u56de\u6d4b\u5929\u7136\u504f\u4e50\u89c2\uff08\u5e78\u5b58\u8005\u504f\u5dee\uff09\uff1b\u57fa\u51c6\u7528\u201c\u540c\u4e00\u80a1\u7968\u6c60\u7b49\u6743\u6301\u6709\u201d\uff0c\u8dd1\u8d62\u5b83\u624d\u8bf4\u660e\u7b56\u7565\u672c\u8eab\u6709\u4ef7\u503c\u3002</div></div>' +
+    '<div class="card"><h3>\u7b56\u7565</h3>' +
+    '<div class="toolbar"><span class="muted">\u6211\u7684\u7b56\u7565</span><select id="pfSaved"></select><button class="small ghost" id="pfLoad">\u8f7d\u5165</button><button class="small ghost" id="pfSave">\u4fdd\u5b58\u5f53\u524d\u2026</button><button class="small ghost" id="pfDel">\u5220\u9664</button></div>' +
+    '<div class="toolbar"><span class="muted">\u7b56\u7565</span><select id="pfStrat">' + PF_STRATS.map(function (x) { return '<option value="' + x[0] + '">' + x[1] + '</option>'; }).join('') + '</select><span id="pfParams"></span></div>' +
+    '<div id="pfRules" hidden><div class="toolbar"><span class="muted">\u6a21\u677f</span><select id="pfTpl">' + PF_TPL.map(function (x) { return '<option value="' + x[0] + '">' + x[1] + '</option>'; }).join('') + '</select></div>' +
+    '<div class="grid2"><div><div class="muted">\u5165\u573a\u89c4\u5219\uff08\u5168\u90e8\u6ee1\u8db3\u624d\u4e70\u5165\uff0c\u4e00\u884c\u4e00\u6761\uff09</div><textarea id="pfEntry" rows="4" style="width:100%;font-family:monospace" placeholder="close>hh(20)\nvolr(20)>1.2"></textarea></div>' +
+    '<div><div class="muted">\u51fa\u573a\u89c4\u5219\uff08\u4efb\u4e00\u6ee1\u8db3\u5c31\u5356\u51fa\uff09</div><textarea id="pfExit" rows="4" style="width:100%;font-family:monospace" placeholder="close<ll(10)"></textarea></div></div>' +
+    '<details><summary class="muted" style="cursor:pointer">\u89c4\u5219\u5199\u6cd5</summary><div class="note" style="line-height:1.8">\u6bcf\u6761\u89c4\u5219\u662f\u4e24\u4e2a\u503c\u7684\u6bd4\u8f83\uff1a<code>close&gt;hh(20)</code>\u3002\u6bd4\u8f83\u7b26\uff1a<code>&gt; &lt; &gt;= &lt;=</code>\uff0c\u4ee5\u53ca <code>&gt;&gt;</code>\uff08\u4e0a\u7a7f\uff09\u3001<code>&lt;&lt;</code>\uff08\u4e0b\u7a7f\uff09\uff0c\u4f8b\u5982 <code>ma(10)&gt;&gt;ma(30)</code> \u662f\u91d1\u53c9\u5f53\u5929\u3002<br>' +
+    '\u53ef\u7528\u7684\u503c\uff1a\u6570\u5b57\uff1b<code>close open high low volume chg</code>\uff08chg=\u5f53\u65e5\u6da8\u8dcc\u5e45\uff09\uff1b<code>ma(n) ema(n) vma(n)</code> \u5747\u7ebf\uff1b<code>rsi(n)</code>\uff1b<code>roc(n)</code> n \u65e5\u6da8\u5e45\uff1b<code>volr(n)</code> \u91cf\u6bd4\uff08\u4eca\u65e5\u91cf/\u524d n \u65e5\u5747\u91cf\uff09\uff1b<code>hh(n) ll(n)</code> \u524d n \u65e5\u6700\u9ad8\u4ef7/\u6700\u4f4e\u4ef7\uff08\u4e0d\u542b\u4eca\u5929\uff09\uff1b<code>atrp(n)</code> \u6ce2\u5e45\u5360\u6bd4\uff1b<code>bbu(n) bbm(n) bbl(n)</code> \u5e03\u6797\u4e0a/\u4e2d/\u4e0b\u8f68\uff1b<code>macd dea hist</code>\uff1b<code>k(n) d(n) j(n)</code>\u3002<br>' +
+    '\u4fe1\u53f7\u6309\u5f53\u5929\u6536\u76d8\u7b97\u51fa\uff0c\u6b21\u65e5\u5f00\u76d8\u6210\u4ea4\uff0c\u89c4\u5219\u4e0d\u4f1a\u7528\u5230\u672a\u6765\u6570\u636e\u3002</div></details></div>' +
+    '<div class="toolbar"><label class="muted">\u521d\u59cb\u8d44\u91d1 <input id="pfCap" size="8" value="1000000"></label><label class="muted">\u6700\u591a\u6301\u4ed3 <input id="pfMax" size="2" value="5"> \u53ea</label>' +
+    '<label class="muted">\u5019\u9009\u6392\u5e8f <select id="pfRank"><option value="mom">\u8fd1 20 \u65e5\u6da8\u5e45\u9ad8\u8005\u4f18\u5148</option><option value="rev">\u8fd1 20 \u65e5\u8dcc\u5e45\u5927\u8005\u4f18\u5148</option><option value="">\u6309\u80a1\u7968\u987a\u5e8f</option></select></label></div>' +
+    '<div class="toolbar"><span class="muted">\u6bcf\u7b14\u6301\u4ed3\u7684\u98ce\u63a7\uff1a</span><label class="muted">\u6b62\u635f <input id="pfSl" size="3">%</label><label class="muted">\u6b62\u76c8 <input id="pfTp" size="3">%</label><label class="muted">\u79fb\u52a8\u6b62\u76c8\u56de\u64a4 <input id="pfTr" size="3">%</label><label class="muted">\u6700\u957f\u6301\u6709 <input id="pfMh" size="3"> \u4e2a\u4ea4\u6613\u65e5</label><label class="muted">\u8d77\u59cb\u65e5 <input id="pfFrom" size="8" placeholder="\u53ef\u9009 20200101"></label></div>' +
+    '<div class="row"><button id="pfRun">\u8fd0\u884c\u7ec4\u5408\u56de\u6d4b</button><button class="ghost" id="pfCmp">\u5bf9\u6bd4\u5168\u90e8\u7b56\u7565</button><span id="pfMsg" class="muted"></span></div>' +
+    '<div class="note">\u6210\u672c\uff1a\u4f63\u91d1 0.025%\uff08\u6700\u4f4e 5 \u5143\uff09\u53cc\u8fb9\u3001\u5370\u82b1\u7a0e 0.05%\uff08\u5356\u51fa\uff09\u3001\u6ed1\u70b9 0.05% \u53cc\u8fb9\uff1b\u6bcf\u7b14\u6309\u201c\u603b\u8d44\u4ea7 \u00f7 \u6700\u591a\u6301\u4ed3\u6570\u201d\u7684\u91d1\u989d\u4e70\u5165\uff0c\u53d6\u6574\u5230 100 \u80a1\uff1bT+1\uff0c\u4e70\u5165\u540e\u6b21\u65e5\u624d\u53ef\u80fd\u5356\u51fa\uff1b\u5f00\u76d8\u6da8\u505c\u4e70\u4e0d\u8fdb\u3001\u5f00\u76d8\u8dcc\u505c\u5356\u4e0d\u51fa\uff1b\u6b62\u635f/\u6b62\u76c8\u6309\u65e5\u5185\u6700\u4f4e/\u6700\u9ad8\u4ef7\u89e6\u53d1\uff08\u540c\u65e5\u90fd\u89e6\u53ca\u65f6\u5148\u7b97\u6b62\u635f\uff09\uff0c\u8df3\u7a7a\u65f6\u6309\u5f00\u76d8\u4ef7\u6210\u4ea4\u3002</div></div>' +
+    '<div id="pfBody"></div>';
+  $('pfPool').value = PF.pool;
+  $('pfPool').onchange = function () { PF.pool = this.value; drawPfManual(); };
+  $('pfAdd').onclick = pfAddDialog;
+  var syncStrat = function () {
+    var s = $('pfStrat').value, h = '';
+    if (s === 'ma_cross') h = '\u5feb <input id="p_fast" size="3" value="10"> \u6162 <input id="p_slow" size="3" value="30">';
+    if (s === 'rsi') h = '\u5468\u671f <input id="p_period" size="3" value="14"> \u4e70\u5165\u7ebf <input id="p_lo" size="3" value="30"> \u5356\u51fa\u7ebf <input id="p_hi" size="3" value="70">';
+    if (s === 'boll') h = '\u5468\u671f <input id="p_period" size="3" value="20"> \u500d\u6570 <input id="p_k" size="3" value="2">';
+    $('pfParams').innerHTML = h; $('pfRules').hidden = s !== 'rules';
+  };
+  $('pfStrat').onchange = syncStrat; syncStrat();
+  $('pfTpl').onchange = function () { var t = PF_TPL.filter(function (x) { return x[0] === $('pfTpl').value; })[0]; if (t && t[0]) { $('pfEntry').value = t[2]; $('pfExit').value = t[3]; } };
+  $('pfRun').onclick = pfRun; $('pfCmp').onclick = pfCompare;
+  $('pfLoad').onclick = function () { var n = $('pfSaved').value, st = PF.strats.filter(function (x) { return x.name === n; })[0]; if (st) { pfSetCfg(st.cfg); toast('\u5df2\u8f7d\u5165\uff1a' + n); } };
+  $('pfSave').onclick = function () {
+    var name = prompt('\u7b56\u7565\u540d\u79f0', $('pfSaved').value || ''); if (!name) return;
+    post('/api/pf/strats/save?name=' + encodeURIComponent(name) + '&cfg=' + encodeURIComponent(pfCfg())).then(function (l) { PF.strats = l; drawPfSaved(name); toast('\u5df2\u4fdd\u5b58'); }).catch(function (e) { toast(e.message); });
+  };
+  $('pfDel').onclick = function () { var n = $('pfSaved').value; if (!n || !confirm('\u5220\u9664\u7b56\u7565\u201c' + n + '\u201d\uff1f')) return; post('/api/pf/strats/delete?name=' + encodeURIComponent(n)).then(function (l) { PF.strats = l; drawPfSaved(''); }); };
+  api('/api/pf/strats').then(function (l) { PF.strats = l; drawPfSaved(''); });
+  drawPfManual();
+  if (PF.res) drawPf(PF.res);
+}
+function drawPfSaved(sel) {
+  var el = $('pfSaved'); if (!el) return;
+  el.innerHTML = '<option value="">\uff08\u672a\u9009\u62e9\uff09</option>' + PF.strats.map(function (x) { return '<option value="' + esc(x.name) + '">' + esc(x.name) + '</option>'; }).join('');
+  el.value = sel || '';
+}
+function drawPfManual() {
+  var all = pfStocks(), el = $('pfManual'); if (!el) return;
+  el.hidden = PF.pool !== 'manual';
+  if (PF.pool === 'manual') {
+    el.innerHTML = '<div style="max-height:160px;overflow:auto;display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:4px;margin-bottom:6px">' + all.map(function (x) { return '<label class="muted" style="display:flex;gap:6px;align-items:center"><input type="checkbox" data-pc="' + esc(x.code) + '"' + (PF.manual[x.code] ? ' checked' : '') + '>' + esc(x.name || x.code) + '</label>'; }).join('') + '</div>' +
+      '<button class="small ghost" id="pfAll">\u5168\u9009</button> <button class="small ghost" id="pfNone">\u6e05\u7a7a</button>';
+    Array.prototype.forEach.call(el.querySelectorAll('[data-pc]'), function (c) { c.onchange = function () { if (c.checked) PF.manual[c.getAttribute('data-pc')] = 1; else delete PF.manual[c.getAttribute('data-pc')]; drawPfInfo(); }; });
+    $('pfAll').onclick = function () { all.forEach(function (x) { PF.manual[x.code] = 1; }); drawPfManual(); };
+    $('pfNone').onclick = function () { PF.manual = {}; drawPfManual(); };
+  }
+  drawPfInfo();
+}
+function drawPfInfo() { var el = $('pfPoolInfo'); if (el) el.textContent = '\u672c\u6b21\u56de\u6d4b ' + pfCodes().length + ' \u53ea'; }
+function pfCfg() {
+  var s = $('pfStrat').value, q = 'strategy=' + s;
+  ['fast', 'slow', 'period', 'lo', 'hi', 'k'].forEach(function (k) { var el = $('p_' + k); if (el && el.value !== '') q += '&' + k + '=' + encodeURIComponent(el.value); });
+  if (s === 'rules') q += '&entry=' + encodeURIComponent($('pfEntry').value.trim()) + '&exit=' + encodeURIComponent($('pfExit').value.trim());
+  var num = function (id, k, div) { var v = parseFloat($(id).value); if (!isNaN(v) && v > 0) q += '&' + k + '=' + (v / (div || 1)); };
+  num('pfCap', 'capital'); num('pfMax', 'maxPos'); num('pfSl', 'sl', 100); num('pfTp', 'tp', 100); num('pfTr', 'trail', 100); num('pfMh', 'maxHold');
+  if ($('pfRank').value) q += '&rank=' + $('pfRank').value;
+  var f = parseInt($('pfFrom').value, 10); if (f > 19900101) q += '&from=' + f;
+  return q;
+}
+function pfSetCfg(q) {
+  var m = {}; q.split('&').forEach(function (kv) { var a = kv.split('='); if (a[0]) m[a[0]] = decodeURIComponent(a[1] || ''); });
+  $('pfStrat').value = m.strategy || 'ma_cross'; $('pfStrat').onchange();
+  ['fast', 'slow', 'period', 'lo', 'hi', 'k'].forEach(function (k) { if ($('p_' + k) && m[k] != null) $('p_' + k).value = m[k]; });
+  $('pfEntry').value = m.entry || ''; $('pfExit').value = m.exit || '';
+  $('pfCap').value = m.capital || '1000000'; $('pfMax').value = m.maxPos || '5';
+  $('pfSl').value = m.sl ? +(m.sl * 100).toFixed(2) : ''; $('pfTp').value = m.tp ? +(m.tp * 100).toFixed(2) : ''; $('pfTr').value = m.trail ? +(m.trail * 100).toFixed(2) : '';
+  $('pfMh').value = m.maxHold || ''; $('pfRank').value = m.rank || ''; $('pfFrom').value = m.from || '';
+}
+function pfName() {
+  var s = $('pfStrat').value; if (s !== 'rules') return PF_STRATS.filter(function (x) { return x[0] === s; })[0][1];
+  return $('pfSaved').value || '\u81ea\u5b9a\u4e49\u89c4\u5219';
+}
+function pfRun() {
+  var codes = pfCodes(); if (!codes.length) { toast('\u80a1\u7968\u6c60\u662f\u7a7a\u7684'); return; }
+  var btn = $('pfRun'); btn.disabled = true; $('pfMsg').textContent = '\u56de\u6d4b\u4e2d\u2026'; $('pfBody').innerHTML = '<div class="loading">\u9010\u65e5\u6a21\u62df ' + codes.length + ' \u53ea\u80a1\u7968\u7684\u7ec4\u5408\u2026</div>';
+  api('/api/pf/run?codes=' + encodeURIComponent(codes.join(',')) + '&' + pfCfg()).then(function (d) {
+    btn.disabled = false; $('pfMsg').textContent = ''; d.name = pfName(); PF.res = d; drawPf(d);
+  }).catch(function (e) { btn.disabled = false; $('pfMsg').textContent = ''; $('pfBody').innerHTML = '<div class="card"><div class="err">' + esc(e.message) + '</div></div>'; });
+}
+function pfCompare() {
+  var codes = pfCodes(); if (!codes.length) { toast('\u80a1\u7968\u6c60\u662f\u7a7a\u7684'); return; }
+  var base = pfCfg().replace(/^strategy=[^&]*/, '').replace(/&(fast|slow|period|lo|hi|k|entry|exit)=[^&]*/g, ''), list = PF_STRATS.slice();
+  if ($('pfStrat').value !== 'rules') list = list.filter(function (x) { return x[0] !== 'rules'; });
+  var btn = $('pfCmp'); btn.disabled = true; $('pfBody').innerHTML = '<div class="loading">\u9010\u4e2a\u8fd0\u884c\u7b56\u7565\u2026</div>';
+  var results = [], chain = Promise.resolve();
+  list.forEach(function (st) {
+    chain = chain.then(function () {
+      var q = 'strategy=' + st[0] + base;
+      if (st[0] === 'rules') q += '&entry=' + encodeURIComponent($('pfEntry').value.trim()) + '&exit=' + encodeURIComponent($('pfExit').value.trim());
+      return api('/api/pf/run?codes=' + encodeURIComponent(codes.join(',')) + '&' + q).then(function (d) { results.push({ n: st[0] === 'rules' ? (pfName()) : st[1], d: d }); }).catch(function () {});
+    });
+  });
+  chain.then(function () {
+    btn.disabled = false;
+    if (!results.length) { $('pfBody').innerHTML = '<div class="card"><div class="err">\u6240\u6709\u7b56\u7565\u90fd\u6ca1\u6709\u8dd1\u51fa\u7ed3\u679c</div></div>'; return; }
+    var series = [], lg = '', ci = 0, rows = '';
+    results.forEach(function (r) { var c = COLORS[ci++ % COLORS.length]; series.push({ d: r.d.curve.d, v: r.d.curve.s, c: c, n: r.n }); lg += '<span><i style="background:' + c + '"></i>' + esc(r.n) + '</span>'; var f = r.d.full, st = r.d.stats;
+      rows += '<tr><td>' + esc(r.n) + '</td><td class="' + sgn(f.totalReturn) + '">' + pct(f.totalReturn, 1) + '</td><td>' + pct(f.cagr, 1) + '</td><td>' + fx(f.sharpe, 2) + '</td><td class="down">' + pct(st.maxDrawdown, 1) + '</td><td class="' + sgn(r.d.recent.totalReturn) + '">' + pct(r.d.recent.totalReturn, 1) + '</td><td>' + st.trades + '</td><td>' + pct(st.winRate, 0) + '</td><td>' + fx(st.profitFactor, 2) + '</td><td>' + fx(st.turnover, 1) + '</td></tr>'; });
+    var b = results[0].d; series.push({ d: b.curve.d, v: b.curve.b, c: MUT, n: '\u7b49\u6743\u57fa\u51c6' }); lg += '<span><i style="background:' + MUT + '"></i>\u7b49\u6743\u6301\u6709\u80a1\u7968\u6c60</span>';
+    $('pfBody').innerHTML = '<div class="card"><h3>\u5168\u90e8\u7b56\u7565\u7684\u7ec4\u5408\u51c0\u503c\u5bf9\u6bd4</h3><canvas id="pfCv"></canvas><div class="legend">' + lg + '</div></div>' +
+      '<div class="card"><h3>\u6c47\u603b\uff08\u7b49\u6743\u57fa\u51c6\uff1a\u6536\u76ca ' + pct(b.full.benchTotalReturn, 1) + '\uff0c\u6700\u5927\u56de\u64a4 ' + pct(b.full.benchMaxDrawdown, 1) + '\uff09</h3><table><tr><th>\u7b56\u7565</th><th>\u5168\u533a\u95f4\u6536\u76ca</th><th>\u5e74\u5316</th><th>\u590f\u666e</th><th>\u6700\u5927\u56de\u64a4</th><th>\u540e30%\u6536\u76ca</th><th>\u4ea4\u6613\u6570</th><th>\u80dc\u7387</th><th>\u76c8\u5229\u56e0\u5b50</th><th>\u5e74\u5316\u6362\u624b</th></tr>' + rows + '</table>' +
+      '<div class="note">\u5404\u7b56\u7565\u7684\u8d77\u70b9\u4e0d\u540c\uff08\u53d6\u51b3\u4e8e\u6307\u6807\u9700\u8981\u591a\u5c11\u6839 K \u7ebf\u9884\u70ed\uff09\uff0c\u5bf9\u6bd4\u65f6\u8bf7\u7559\u610f\u3002\u6837\u672c\u5185\u597d\u770b\u7684\u7b56\u7565\u5f88\u53ef\u80fd\u662f\u8fc7\u62df\u5408\uff0c\u8bf7\u91cd\u70b9\u770b\u201c\u540e 30% \u6536\u76ca\u201d\u3002</div></div>';
+    drawEquity($('pfCv'), series, 0);
+  });
+}
+function pfAddDialog() {
+  var d = document.createElement('div'); d.className = 'modal';
+  d.innerHTML = '<div class="dialog"><h3>\u6279\u91cf\u6dfb\u52a0\u80a1\u7968</h3><p class="muted">\u8f93\u5165\u4ee3\u7801\uff08\u5982 600519\u3001000858\u3001sz300750\uff09\uff0c\u7528\u7a7a\u683c\u3001\u9017\u53f7\u6216\u6362\u884c\u5206\u9694\uff0c\u6700\u591a 40 \u53ea\u3002\u9010\u53ea\u4e0b\u8f7d\u65b0\u6d6a\u65e5\u7ebf\u5e76\u4fdd\u5b58\u5728\u672c\u5730\u3002</p><textarea id="paTxt" rows="5" style="width:100%"></textarea><div id="paMsg" class="muted" style="margin:6px 0"></div><div class="row"><button id="paGo">\u5f00\u59cb\u6dfb\u52a0</button><button class="ghost" id="paNo">\u5173\u95ed</button></div></div>';
+  document.body.appendChild(d);
+  $('paNo').onclick = function () { document.body.removeChild(d); };
+  $('paGo').onclick = function () {
+    var codes = $('paTxt').value.split(/[\s,\uff0c;\uff1b]+/).filter(function (x) { return x; }).slice(0, 40); if (!codes.length) return;
+    $('paGo').disabled = true; var ok = 0, bad = [], i = 0;
+    var next = function () {
+      if (i >= codes.length) { $('paMsg').textContent = '\u5b8c\u6210\uff1a\u6210\u529f ' + ok + ' \u53ea' + (bad.length ? '\uff0c\u5931\u8d25\uff1a' + bad.join('\u3001') : ''); $('paGo').disabled = false; loadSymbols().then(function () { if (state.tab === 'portfolio') { var keep = PF.res; renderPortfolio(); PF.res = keep; } }); return; }
+      var c = codes[i++]; $('paMsg').textContent = '\u4e0b\u8f7d ' + c + '\uff08' + i + ' / ' + codes.length + '\uff09\u2026';
+      post('/api/feed/add?code=' + encodeURIComponent(c)).then(function () { ok++; next(); }).catch(function () { bad.push(c); next(); });
+    };
+    next();
+  };
+}
+function pfMetricRow(label, m, st) {
+  return '<tr><td>' + label + '</td><td class="' + sgn(m.totalReturn) + '">' + pct(m.totalReturn, 1) + '</td><td>' + pct(m.cagr, 1) + '</td><td>' + pct(m.annVol, 1) + '</td><td>' + fx(m.sharpe, 2) + '</td><td class="down">' + pct(m.maxDrawdown, 1) + '</td><td class="muted">' + pct(m.benchTotalReturn, 1) + '</td><td class="muted">' + pct(m.benchMaxDrawdown, 1) + '</td></tr>';
+}
+function drawPf(d) {
+  var st = d.stats, f = d.full, series = [{ d: d.curve.d, v: d.curve.s, c: ACC, n: '\u7b56\u7565' }, { d: d.curve.d, v: d.curve.b, c: MUT, n: '\u7b49\u6743' }], lg = '<span><i style="background:' + ACC + '"></i>\u7b56\u7565\u51c0\u503c</span><span><i style="background:' + MUT + '"></i>\u7b49\u6743\u6301\u6709\u80a1\u7968\u6c60</span>';
+  if (d.curve.i) { series.push({ d: d.curve.d, v: d.curve.i, c: '#f59e0b', n: '\u4e0a\u8bc1' }); lg += '<span><i style="background:#f59e0b"></i>\u4e0a\u8bc1\u6307\u6570</span>'; }
+  function cell(k, v, cls, tip) { return '<div' + (tip ? ' title="' + esc(tip) + '"' : '') + '><span>' + k + '</span><b' + (cls ? ' class="' + cls + '"' : '') + '>' + v + '</b></div>'; }
+  var h = '<div class="card"><h3>' + esc(d.name || '') + ' \u00b7 \u80a1\u7968\u6c60 ' + d.pool + ' \u53ea \u00b7 \u6700\u591a\u6301\u4ed3 ' + d.maxPos + ' \u53ea <span class="muted" style="font-weight:400">' + fdate(d.startDate) + ' ~ ' + fdate(d.endDate) + '\uff0c' + d.days + ' \u4e2a\u4ea4\u6613\u65e5</span></h3><canvas id="pfEq"></canvas><div class="legend">' + lg + '<span>\u7ad6\u7ebf\uff1a\u524d 70% / \u540e 30% \u5206\u754c</span></div>' +
+    '<div class="muted" style="font-size:12px;margin-top:6px">\u56de\u64a4</div><canvas id="pfDd"></canvas></div>' +
+    '<div class="card"><h3>\u7ee9\u6548</h3><div class="kv">' + cell('\u671f\u672b\u8d44\u4ea7', fmN(st.endEquity), '') + cell('\u7d2f\u8ba1\u6536\u76ca', pct(st.totalReturn, 1), sgn(st.totalReturn)) + cell('\u5e74\u5316\u6536\u76ca', pct(f.cagr, 1), sgn(f.cagr)) + cell('\u6700\u5927\u56de\u64a4', pct(st.maxDrawdown, 1), 'down') + cell('\u590f\u666e\u6bd4\u7387', fx(f.sharpe, 2), '') + cell('\u5361\u739b\u6bd4\u7387', fx(st.calmar, 2), '', '\u5e74\u5316\u6536\u76ca \u00f7 \u6700\u5927\u56de\u64a4') +
+    cell('\u4ea4\u6613\u7b14\u6570', st.trades, '') + cell('\u80dc\u7387', pct(st.winRate, 1), '') + cell('\u5e73\u5747\u76c8\u5229 / \u4e8f\u635f', pct(st.avgWin, 1) + ' / ' + pct(st.avgLoss, 1), '') + cell('\u76c8\u5229\u56e0\u5b50', fx(st.profitFactor, 2), '', '\u603b\u76c8\u5229 \u00f7 \u603b\u4e8f\u635f') + cell('\u5e73\u5747\u6301\u6709', fx(st.avgHold, 1) + ' \u65e5', '') +
+    cell('\u5e73\u5747\u4ed3\u4f4d', pct(st.avgExposure, 0), '', '\u5e73\u5747\u6301\u80a1\u5e02\u503c\u5360\u603b\u8d44\u4ea7') + cell('\u5e73\u5747 / \u6700\u5927\u6301\u4ed3\u6570', fx(st.avgPositions, 1) + ' / ' + st.maxPositions, '') + cell('\u5e74\u5316\u6362\u624b', fx(st.turnover, 1) + ' \u500d', '') + cell('\u7d2f\u8ba1\u8d39\u7528', fmN(st.fees), '') + '</div>' +
+    '<table style="margin-top:10px"><tr><th>\u533a\u95f4</th><th>\u7b56\u7565\u6536\u76ca</th><th>\u5e74\u5316</th><th>\u5e74\u5316\u6ce2\u52a8</th><th>\u590f\u666e</th><th>\u6700\u5927\u56de\u64a4</th><th>\u57fa\u51c6\u6536\u76ca</th><th>\u57fa\u51c6\u56de\u64a4</th></tr>' + pfMetricRow('\u5168\u533a\u95f4', d.full) + pfMetricRow('\u524d 70%\uff08\u81f3 ' + fdate(d.splitDate) + '\uff09', d.early) + pfMetricRow('\u540e 30%\uff08' + fdate(d.splitDate) + ' \u8d77\uff09', d.recent) + '</table>' +
+    '<div class="note">\u82e5\u201c\u524d\u6bb5\u201d\u8fdc\u597d\u4e8e\u201c\u540e\u6bb5\u201d\uff0c\u6216\u7b56\u7565\u53ea\u5728\u4e2a\u522b\u80a1\u7968\u4e0a\u8d5a\u94b1\uff08\u89c1\u4e0b\u65b9\u4e2a\u80a1\u8d21\u732e\uff09\uff0c\u591a\u534a\u662f\u8fc7\u62df\u5408\u6216\u8fd0\u6c14\u3002\u57fa\u51c6\u662f\u540c\u4e00\u80a1\u7968\u6c60\u7684\u7b49\u6743\u6301\u6709\uff0c\u7b56\u7565\u7684\u4ef7\u503c\u5728\u4e8e\u76f8\u5bf9\u5b83\u7684\u8d85\u989d\u6536\u76ca\u548c\u66f4\u5c0f\u7684\u56de\u64a4\u3002</div></div>';
+  h += '<div class="card"><h3>\u6708\u5ea6\u6536\u76ca</h3>' + monthlyHtml(d.monthly) + '</div>';
+  var stocks = d.stocks.slice().sort(function (a, b) { return b.pnl - a.pnl; }), maxAbs = 1; stocks.forEach(function (x) { maxAbs = Math.max(maxAbs, Math.abs(x.pnl)); });
+  h += '<div class="card"><h3>\u4e2a\u80a1\u8d21\u732e</h3><div style="overflow-x:auto"><table><tr><th style="text-align:left">\u80a1\u7968</th><th>\u4ea4\u6613</th><th>\u80dc\u7387</th><th style="text-align:left">\u76c8\u4e8f\uff08\u5143\uff09</th></tr>' + stocks.map(function (x) {
+    var w = Math.round(Math.abs(x.pnl) / maxAbs * 120);
+    return '<tr><td style="text-align:left">' + esc(x.name) + ' <span class="muted">' + esc(x.code) + '</span>' + (x.open ? ' <span class="st open">\u6301\u4ed3\u4e2d</span>' : '') + '</td><td>' + x.trades + '</td><td>' + (x.trades ? pct(x.wins / x.trades, 0) : '-') + '</td><td style="text-align:left"><span class="' + sgn(x.pnl) + '">' + sg(x.pnl, 0) + '</span> <span style="display:inline-block;height:6px;width:' + w + 'px;background:' + (x.pnl >= 0 ? 'var(--up)' : 'var(--down)') + ';border-radius:3px;vertical-align:middle"></span></td></tr>';
+  }).join('') + '</table></div></div>';
+  var sig = d.signalNow || [];
+  h += '<div class="card"><h3>\u7b56\u7565\u5f53\u524d\u4fe1\u53f7 <span class="muted" style="font-weight:400">\uff08\u6700\u65b0\u4ea4\u6613\u65e5\u6536\u76d8\u540e\uff0c\u6301\u6709\u4fe1\u53f7\u4e3a\u5f00\u7684\u80a1\u7968\uff0c\u201c\u65b0\u4fe1\u53f7\u201d\u5373\u521a\u521a\u8f6c\u5f00\uff09</span></h3>' + (sig.length ? '<div class="toolbar"><button class="small" id="pfBuy">\u628a\u9009\u4e2d\u7684\u80a1\u7968\u52a0\u5165\u6a21\u62df\u4e70\u5165\u2026</button><span class="muted">\u6570\u91cf\u4e0e\u98ce\u63a7\u5728\u5f39\u7a97\u91cc\u8bbe\u7f6e</span></div><table><tr><th></th><th style="text-align:left">\u80a1\u7968</th><th>\u6536\u76d8\u4ef7</th><th>\u4fe1\u53f7</th><th>\u56de\u6d4b\u4e2d\u662f\u5426\u6301\u6709</th></tr>' + sig.map(function (x, i) {
+    return '<tr><td><input type="checkbox" data-ps="' + i + '"' + (x.fresh ? ' checked' : '') + '></td><td style="text-align:left">' + esc(x.name) + ' <span class="muted">' + esc(x.code) + '</span></td><td>' + fx(x.price, 2) + '</td><td>' + (x.fresh ? '<b class="up">\u65b0\u4fe1\u53f7</b>' : '\u6301\u7eed') + '</td><td>' + (x.held ? '\u662f' : '\u5426\uff08\u4ed3\u4f4d\u5df2\u6ee1\u6216\u672a\u6392\u4e0a\uff09') + '</td></tr>';
+  }).join('') + '</table>' : '<div class="muted">\u6700\u65b0\u4ea4\u6613\u65e5\u6ca1\u6709\u5904\u4e8e\u6301\u6709\u72b6\u6001\u7684\u80a1\u7968\u3002</div>') + '</div>';
+  if (d.openPositions.length) h += '<div class="card"><h3>\u56de\u6d4b\u671f\u672b\u6301\u4ed3</h3><table><tr><th style="text-align:left">\u80a1\u7968</th><th>\u4e70\u5165\u65e5</th><th>\u4e70\u5165\u4ef7</th><th>\u73b0\u4ef7</th><th>\u6570\u91cf</th><th>\u6d6e\u52a8\u76c8\u4e8f</th></tr>' + d.openPositions.map(function (p) { return '<tr><td style="text-align:left">' + esc(p.name) + ' <span class="muted">' + esc(p.code) + '</span></td><td>' + fdate(p.in) + '</td><td>' + fx(p.inPx, 2) + '</td><td>' + fx(p.px, 2) + '</td><td>' + p.shares + '</td><td class="' + sgn(p.pnl) + '">' + sg(p.pnl, 0) + ' (' + pct(p.ret, 1) + ')</td></tr>'; }).join('') + '</table></div>';
+  h += '<div class="card"><h3>\u6700\u8fd1 ' + Math.min(d.tradeList.length, 60) + ' \u7b14\u4ea4\u6613</h3><div style="overflow-x:auto"><table><tr><th style="text-align:left">\u80a1\u7968</th><th>\u4e70\u5165\u65e5</th><th>\u5356\u51fa\u65e5</th><th>\u4e70\u5165\u4ef7</th><th>\u5356\u51fa\u4ef7</th><th>\u6301\u6709</th><th>\u539f\u56e0</th><th>\u6536\u76ca</th><th>\u76c8\u4e8f</th></tr>' + d.tradeList.slice().reverse().slice(0, 60).map(function (t) {
+    return '<tr><td style="text-align:left">' + esc(t.name) + ' <span class="muted">' + esc(t.code) + '</span></td><td>' + fdate(t.in) + '</td><td>' + fdate(t.out) + '</td><td>' + fx(t.inPx, 2) + '</td><td>' + fx(t.outPx, 2) + '</td><td>' + t.days + '\u65e5</td><td>' + esc(t.why) + '</td><td class="' + sgn(t.ret) + '">' + pct(t.ret, 1) + '</td><td class="' + sgn(t.pnl) + '">' + sg(t.pnl, 0) + '</td></tr>';
+  }).join('') + '</table></div></div>';
+  if (d.skipped && d.skipped.length) h += '<div class="note">\u672a\u53c2\u4e0e\u7684\u80a1\u7968\uff1a' + d.skipped.map(esc).join('\uff1b') + '</div>';
+  $('pfBody').innerHTML = h;
+  drawEquity($('pfEq'), series, d.splitDate);
+  drawDd($('pfDd'), d.curve.d, d.curve.dd);
+  if ($('pfBuy')) $('pfBuy').onclick = function () {
+    var picks = [];
+    Array.prototype.forEach.call($('pfBody').querySelectorAll('[data-ps]'), function (c) { if (c.checked) { var x = sig[parseInt(c.getAttribute('data-ps'), 10)]; picks.push({ code: x.code, name: x.name, price: x.price, p: 0, note: '\u7b56\u7565 ' + (d.name || '') }); } });
+    scanBuyDialog(picks);
+  };
+}
+function fmN(x) { return fm(x, 0); }
+function monthlyHtml(list) {
+  var by = {}, years = [];
+  list.forEach(function (m) { var y = Math.floor(m[0] / 100), mo = m[0] % 100; if (!by[y]) { by[y] = { r: [], eq: 1 }; years.push(y); } by[y].r[mo - 1] = m[1]; by[y].eq *= 1 + m[1]; });
+  var cellc = function (r) { if (r == null) return '<td></td>'; var a = Math.min(0.65, Math.abs(r) * 4 + 0.08); return '<td style="background:' + (r >= 0 ? 'rgba(239,68,68,' : 'rgba(34,197,94,') + a.toFixed(2) + ');text-align:center">' + (r * 100).toFixed(1) + '</td>'; };
+  var h = '<div style="overflow-x:auto"><table class="mt"><tr><th>\u5e74\u4efd</th>';
+  for (var i = 1; i <= 12; i++) h += '<th>' + i + '\u6708</th>';
+  h += '<th>\u5168\u5e74</th></tr>';
+  years.forEach(function (y) { h += '<tr><td>' + y + '</td>'; for (var m = 0; m < 12; m++) h += cellc(by[y].r[m]); h += '<td class="' + sgn(by[y].eq - 1) + '"><b>' + ((by[y].eq - 1) * 100).toFixed(1) + '%</b></td></tr>'; });
+  return h + '</table></div><div class="note">\u5355\u4f4d %\uff0c\u7ea2\u6da8\u7eff\u8dcc\u3002</div>';
+}
+function drawDd(cv, ds, dd) {
+  var S = setup(cv, 110), g = S.g, W = S.w, H = S.h, x0 = 6, x1 = W - 56, y0 = 6, y1 = H - 6, lo = 0;
+  dd.forEach(function (v) { if (v < lo) lo = v; }); lo = Math.min(lo, -0.01);
+  var X = function (i) { return x0 + i / Math.max(1, dd.length - 1) * (x1 - x0); }, Y = function (v) { return y0 + (v / lo) * (y1 - y0); };
+  g.fillStyle = 'rgba(34,197,94,.25)'; g.beginPath(); g.moveTo(X(0), y0); dd.forEach(function (v, i) { g.lineTo(X(i), Y(v)); }); g.lineTo(X(dd.length - 1), y0); g.closePath(); g.fill();
+  g.strokeStyle = DOWN; g.lineWidth = 1.2; g.beginPath(); dd.forEach(function (v, i) { if (i === 0) g.moveTo(X(i), Y(v)); else g.lineTo(X(i), Y(v)); }); g.stroke();
+  g.fillStyle = MUT; g.textAlign = 'left'; g.textBaseline = 'middle'; g.fillText('0%', x1 + 4, y0 + 4); g.fillText((lo * 100).toFixed(0) + '%', x1 + 4, y1 - 4);
+}
+
 /* ---------------- Shell: symbols, tabs, import ---------------- */
 function loadSymbols() {
   return api('/api/symbols').then(function (list) { state.symbols = list; drawSymbols(); });
@@ -977,9 +1189,9 @@ function selectSymbol(code, tab) {
 function switchTab(t) {
   state.tab = t;
   Array.prototype.forEach.call(document.querySelectorAll('#tabs button'), function (b) { b.className = b.getAttribute('data-tab') === t ? 'on' : ''; });
-  ['chart', 'predict', 'backtest', 'watch', 'scan', 'trade'].forEach(function (n) { $('tab-' + n).hidden = n !== t; });
-  if (!state.code && t !== 'watch' && t !== 'scan' && t !== 'trade') return;
-  if (t === 'chart') renderChart(); else if (t === 'predict') renderPredict(); else if (t === 'backtest') renderBacktest(); else if (t === 'scan') renderScan(); else if (t === 'trade') renderTrade(); else renderWatch();
+  ['chart', 'predict', 'backtest', 'portfolio', 'watch', 'scan', 'trade'].forEach(function (n) { $('tab-' + n).hidden = n !== t; });
+  if (!state.code && t !== 'watch' && t !== 'scan' && t !== 'trade' && t !== 'portfolio') return;
+  if (t === 'chart') renderChart(); else if (t === 'predict') renderPredict(); else if (t === 'backtest') renderBacktest(); else if (t === 'scan') renderScan(); else if (t === 'trade') renderTrade(); else if (t === 'portfolio') renderPortfolio(); else renderWatch();
 }
 
 /* ---------------- Whole-market scan ---------------- */
@@ -990,13 +1202,14 @@ function renderScan() {
   root.innerHTML = '<div class="card"><h3>\u5168\u5e02\u573a\u626b\u63cf\uff1a\u627e\u51fa\u201cT+1 \u5f00\u76d8\u4e70\u5165\u540e\u3001\u672a\u6765\u51e0\u5929\u53ef\u80fd\u5927\u6da8\u201d\u7684 A \u80a1</h3>' +
     '<div class="toolbar"><span class="muted">\u4e70\u5165\u540e</span><select id="scH"><option value="1">1</option><option value="3">3</option><option value="5" selected>5</option><option value="10">10</option></select><span class="muted">\u4e2a\u4ea4\u6613\u65e5\u5185\uff0c\u4efb\u4e00\u5929\u6536\u76d8\u4ef7\u8f83\u4e70\u5165\u4ef7\u6da8\u5e45 \u2265</span><select id="scTheta"><option value="0.03">3%</option><option value="0.05">5%</option><option value="0.08" selected>8%</option><option value="0.10">10%</option><option value="0.15">15%</option></select>' +
     '<span class="muted">\u53ea\u663e\u793a\u9884\u6d4b\u6982\u7387 \u2265</span><input id="scP" size="4" value="30"><span class="muted">%</span>' +
-    '<button id="scGo">\u5f00\u59cb\u626b\u63cf</button><button id="scStop" class="ghost" hidden>\u505c\u6b62</button>' +
+    '<button id="scGo">\u5f00\u59cb\u626b\u63cf</button><button id="scStop" class="ghost" hidden>\u505c\u6b62</button><span id="scBestTag" class="muted"></span>' +
     '<label class="muted" title="\u53bb\u6389\u201c\u524d\u4e00\u5929\u5df2\u6da8\u22655%\u201d\u7684\u80a1\u7968\uff1a\u8fd9\u7c7b\u80a1\u7968\u7684\u89c4\u5f8b\u6700\u5f3a\u4e5f\u6700\u96be\u4e70\u5230\uff0c\u6392\u9664\u540e\u770b\u6a21\u578b\u662f\u5426\u8fd8\u6709\u9884\u6d4b\u529b"><input type="checkbox" id="scExcl"> \u6392\u9664\u524d\u4e00\u65e5\u6da8\u5e45\u22655%\u7684\u80a1\u7968</label>' +
     '<label class="muted" title="\u4e0a\u8bc1\u6307\u6570\u6536\u572820\u65e5\u5747\u7ebf\u4e0b\u65b9\u3001\u4e14\u8fd15\u65e5\u4e0b\u8dcc\uff08\u201c\u5f31\u52bf\u201d\uff09\u65f6\uff0c\u4e0d\u8f93\u51fa\u4efb\u4f55\u63a8\u8350\uff1a\u5927\u76d8\u5f31\u7684\u65f6\u5019\u4e2a\u80a1\u666e\u904d\u8ddf\u7740\u8dcc"><input type="checkbox" id="scGate"> \u5927\u76d8\u5f31\u52bf\u65f6\u4e0d\u63a8\u8350</label>' +
     '</div><div id="scMkt"></div>' +
-    '<div class="note">\u4e70\u5165\u4ef7\u6309\u201c\u4fe1\u53f7\u65e5\uff08\u6536\u76d8\u540e\u626b\u63cf\uff09\u7684\u4e0b\u4e00\u4e2a\u4ea4\u6613\u65e5\u5f00\u76d8\u4ef7\u201d\u8ba1\u7b97\uff08\u4f60\u53ea\u80fd T+1 \u4e70\u5165\uff09\uff0c\u6700\u65e9\u518d\u4e0b\u4e00\u4e2a\u4ea4\u6613\u65e5\u624d\u80fd\u5356\u51fa\uff08T+1 \u89c4\u5219\uff09\u3002\u7edf\u8ba1\u7684\u662f\u4e70\u5165\u540e H \u4e2a\u4ea4\u6613\u65e5\u91cc\u4efb\u610f\u4e00\u5929\u7684\u6700\u9ad8<b>\u6536\u76d8\u4ef7</b>\uff0c\u4f60\u4e0d\u53ef\u80fd\u6bcf\u6b21\u90fd\u5356\u5728\u6700\u9ad8\u70b9\uff0c\u6240\u4ee5\u8bf7\u540c\u65f6\u770b\u4e0b\u9762\u7684\u201c\u6301\u6709\u5230\u7b2c H \u5929\u6536\u76d8\u7684\u5e73\u5747\u6536\u76ca\u201d\u3002H=1 \u5373\u8d85\u77ed\u7ebf\uff1a\u4e70\u5165\u540e\u7b2c\u4e00\u4e2a\u53ef\u5356\u65e5\uff08\u6b21\u65e5\uff09\u6536\u76d8\u4ef7\u662f\u5426\u8fbe\u5230\u76ee\u6807\u3002\u5df2\u6392\u9664\u5317\u4ea4\u6240 920\u3001\u79d1\u521b\u677f 688 \u548c ST/*ST \u80a1\u7968\uff1b\u4fe1\u53f7\u65e5\u6536\u5728\u6da8\u505c\u3001\u6216\u4e70\u5165\u65e5\u5f00\u76d8\u5c31\u5728\u6da8\u505c\uff08\u4e70\u4e0d\u8fdb\uff09\u7684\u6837\u672c\u4e0d\u8ba1\u5165\u8bad\u7ec3\u3001\u68c0\u9a8c\u548c\u7ed3\u679c\u3002</div>' +
+    '<div class="note"><b>\u600e\u4e48\u7528\uff1a</b>\u4e0d\u7528\u8bbe\u4e70\u5165\u4ef7\u3001\u6b62\u76c8\u4ef7\u3001\u6b62\u635f\u4ef7\uff0c\u53ea\u8bb0\u4e24\u4e2a\u65f6\u95f4\u2014\u2014\u4fe1\u53f7\u65e5<b>\u6b21\u65e5\u5f00\u76d8</b>\u4e70\u5165\uff0c<b>\u6301\u6709\u6ee1 H \u4e2a\u4ea4\u6613\u65e5\u540e\u6536\u76d8\u524d\u5356\u51fa</b>\uff08\u4e70\u5165\u65f6\u52fe\u9009\u201c\u81ea\u52a8\u5356\u51fa\u201d\uff0c\u6a21\u62df\u76d8\u4f1a\u5230\u70b9\u66ff\u4f60\u5356\uff09\u3002\u539f\u56e0\uff1a\u68c0\u9a8c\u671f\u91cc\u6309\u671f\u6301\u6709\u7684\u5e73\u5747\u6536\u76ca\uff0c\u6bd4\u201c\u5230\u76ee\u6807\u5c31\u5356\u201d\u548c\u201c\u52a0\u6b62\u635f\u201d\u90fd\u9ad8\u3002\u53c2\u6570\u4e0d\u77e5\u9053\u600e\u4e48\u9009\uff0c\u5c31\u7528\u4e0b\u9762\u201c\u53c2\u6570\u600e\u4e48\u9009\u201d\u91cc\u7684\u201c\u7efc\u5408\u6700\u4f18\u201d\u3002<br>\u4e70\u5165\u4ef7\u6309\u201c\u4fe1\u53f7\u65e5\uff08\u6536\u76d8\u540e\u626b\u63cf\uff09\u7684\u4e0b\u4e00\u4e2a\u4ea4\u6613\u65e5\u5f00\u76d8\u4ef7\u201d\u8ba1\u7b97\uff08\u4f60\u53ea\u80fd T+1 \u4e70\u5165\uff09\uff0c\u6700\u65e9\u518d\u4e0b\u4e00\u4e2a\u4ea4\u6613\u65e5\u624d\u80fd\u5356\u51fa\uff08T+1 \u89c4\u5219\uff09\u3002\u7edf\u8ba1\u7684\u662f\u4e70\u5165\u540e H \u4e2a\u4ea4\u6613\u65e5\u91cc\u4efb\u610f\u4e00\u5929\u7684\u6700\u9ad8<b>\u6536\u76d8\u4ef7</b>\uff0c\u4f60\u4e0d\u53ef\u80fd\u6bcf\u6b21\u90fd\u5356\u5728\u6700\u9ad8\u70b9\uff0c\u6240\u4ee5\u8bf7\u540c\u65f6\u770b\u4e0b\u9762\u7684\u201c\u6301\u6709\u5230\u7b2c H \u5929\u6536\u76d8\u7684\u5e73\u5747\u6536\u76ca\u201d\u3002H=1 \u5373\u8d85\u77ed\u7ebf\uff1a\u4e70\u5165\u540e\u7b2c\u4e00\u4e2a\u53ef\u5356\u65e5\uff08\u6b21\u65e5\uff09\u6536\u76d8\u4ef7\u662f\u5426\u8fbe\u5230\u76ee\u6807\u3002\u5df2\u6392\u9664\u5317\u4ea4\u6240 920\u3001\u79d1\u521b\u677f 688 \u548c ST/*ST \u80a1\u7968\uff1b\u4fe1\u53f7\u65e5\u6536\u5728\u6da8\u505c\u3001\u6216\u4e70\u5165\u65e5\u5f00\u76d8\u5c31\u5728\u6da8\u505c\uff08\u4e70\u4e0d\u8fdb\uff09\u7684\u6837\u672c\u4e0d\u8ba1\u5165\u8bad\u7ec3\u3001\u68c0\u9a8c\u548c\u7ed3\u679c\u3002</div>' +
     '<div id="scProg"></div>' +
     '<div class="toolbar" style="margin-top:8px"><label title="\u670d\u52a1\u5f00\u7740\u65f6\uff0c\u6bcf\u4e2a\u4ea4\u6613\u65e5 15:10 \u4e4b\u540e\u81ea\u52a8\u7528\u4e0a\u9762\u7684\u53c2\u6570\u626b\u63cf\u4e00\u6b21\uff0c\u7ed3\u675f\u540e\u628a\u524d 5 \u53ea\u63a8\u9001\u5230\u201c\u81ea\u9009\u4e0e\u63d0\u9192\u201d\u91cc\u914d\u7f6e\u7684\u673a\u5668\u4eba\uff1b\u7ed3\u679c\u540c\u6837\u8bb0\u5165\u5386\u53f2\u6218\u7ee9"><input type="checkbox" id="scAuto"> \u6bcf\u4e2a\u4ea4\u6613\u65e5\u6536\u76d8\u540e\uff0815:10\uff09\u81ea\u52a8\u626b\u63cf\u5e76\u63a8\u9001</label><span id="scAutoSt" class="muted"></span></div></div>' +
+    '<div class="card"><h3>\u53c2\u6570\u600e\u4e48\u9009\uff1f\u8ba9\u7cfb\u7edf\u628a\u6240\u6709\u7ec4\u5408\u90fd\u5728\u201c\u6ca1\u53c2\u4e0e\u8bad\u7ec3\u7684\u6700\u8fd1\u4e00\u5e74\u201d\u4e0a\u8bd5\u4e00\u904d <button class="small" id="scAdvGo">\u8bc4\u4f30\u5168\u90e8\u53c2\u6570\u7ec4\u5408</button></h3><div id="scAdv"><div class="muted">\u52a0\u8f7d\u4e2d\u2026</div></div></div>' +
     '<div class="card"><h3>\u626b\u63cf\u7ed3\u679c <span id="scCount" class="muted" style="font-weight:400"></span></h3>' +
     '<div class="toolbar"><input id="scQ" size="12" placeholder="\u7b5b\u9009\u4ee3\u7801/\u540d\u79f0" value="' + esc(SC.q) + '"><label class="muted" title="\u53bb\u6389\u524d\u4e00\u65e5\u6da8\u5e45\u22659.5%\uff08\u6b21\u65e5\u5f00\u76d8\u591a\u534a\u4e70\u4e0d\u5230\uff09\u548c ST \u7684\u80a1\u7968"><input type="checkbox" id="scHide"' + (SC.hideFlag ? ' checked' : '') + '> \u9690\u85cf\u98ce\u9669\u6807\u8bb0</label>' +
     '<button class="small ghost" id="scQuote">\u5237\u65b0\u5b9e\u65f6\u4ef7</button><span id="scQSt" class="muted"></span><span class="spacer"></span>' +
@@ -1019,6 +1232,12 @@ function renderScan() {
     }).catch(function (e) { btn.disabled = false; btn.textContent = '\u91cd\u65b0\u626b\u63cf'; toast('\u65e0\u6cd5\u5f00\u59cb\u626b\u63cf\uff1a' + e.message); pollScan(); });
   };
   $('trRef').onclick = loadTrack; loadTrack();
+  $('scAdvGo').onclick = function () {
+    if (SC.last && SC.last.phase >= 1 && SC.last.phase <= 3) { toast('\u5df2\u6709\u4efb\u52a1\u5728\u8fd0\u884c'); return; }
+    $('scAdvGo').disabled = true;
+    post('/api/scan/advice/start' + ($('scExcl').checked ? '?excl=1' : '')).then(function (d) { $('scAdvGo').disabled = false; SC.last = d; drawScanStatus(d); toast('\u5f00\u59cb\u8bc4\u4f30\uff1a\u9996\u6b21\u9700\u8981\u5148\u52a0\u8f7d\u8bad\u7ec3\u6570\u636e\uff0c\u7ea6\u51e0\u5206\u949f'); pollScan(); }).catch(function (e) { $('scAdvGo').disabled = false; toast('\u65e0\u6cd5\u5f00\u59cb\uff1a' + e.message); });
+  };
+  loadAdvice();
   $('scQ').oninput = function () { SC.q = this.value; drawScanRows(); };
   $('scHide').onchange = function () { SC.hideFlag = this.checked; drawScanRows(); };
   $('scQuote').onclick = function () { refreshScanQuotes(true); };
@@ -1035,6 +1254,7 @@ function renderScan() {
   ['scH', 'scTheta', 'scP', 'scExcl', 'scGate'].forEach(function (id) { $(id).addEventListener('change', function () { if ($('scAuto').checked) saveAuto(); }); });
   api('/api/scan/auto').then(function (d) {
     $('scAuto').checked = !!d.on;
+    if (!d.on) { SC.useBest = 1; applyBest(); }
     if (d.on) { $('scH').value = d.hold; $('scTheta').value = d.theta.toFixed(2); $('scP').value = Math.round(d.pmin * 100); $('scExcl').checked = !!d.excl; $('scGate').checked = !!d.mg; }
     drawAuto(d);
   }).catch(function () {});
@@ -1078,6 +1298,21 @@ function fclock(ms) {
   return t.toDateString() === n.toDateString() ? hm : z(t.getMonth() + 1) + '-' + z(t.getDate()) + ' ' + hm;
 }
 function drawScanStatus(d) {
+  var advOn = !!(d.adv && d.adv.on);
+  if (SC.advWas && !advOn) loadAdvice();
+  SC.advWas = advOn;
+  if (advOn) {
+    var ap = d.phase === 1 ? Math.min(1, d.universe / 5600) * 0.1 : d.phase === 2 ? 0.1 + 0.4 * d.trainLoaded / d.trainTotal : 0.5 + 0.5 * d.adv.done / d.adv.total;
+    var el0 = Math.round((d.now - d.adv.startedAt) / 1000);
+    $('scProg').innerHTML = '<div class="muted">\u6b63\u5728\u8bc4\u4f30\u53c2\u6570\u7ec4\u5408\uff08\u89c1\u4e0b\u65b9\u201c\u53c2\u6570\u600e\u4e48\u9009\u201d\uff09\uff0c\u8bc4\u4f30\u671f\u95f4\u4e0d\u80fd\u5f00\u59cb\u626b\u63cf\u3002</div>';
+    $('scGo').hidden = true; $('scStop').hidden = false;
+    ['scTheta', 'scH', 'scP', 'scExcl', 'scGate'].forEach(function (id) { $(id).disabled = true; });
+    SC.advProg = { p: ap, txt: PHASE_TXT[d.phase] + '\uff1a' + d.msg + '\u3000\u7528\u65f6 ' + Math.floor(el0 / 60) + ' \u5206 ' + (el0 % 60) + ' \u79d2' };
+    drawAdvice();
+    return;
+  }
+  SC.advProg = null;
+  if ($('scAdvGo')) $('scAdvGo').disabled = d.phase >= 1 && d.phase <= 3;
   var run = d.phase >= 1 && d.phase <= 3, pctDone = 0, line = '';
   if (d.phase === 2) pctDone = d.trainLoaded / d.trainTotal; else if (d.phase >= 3) pctDone = d.universe ? d.pos / d.universe : 0;
   else if (d.phase === 1) pctDone = Math.min(1, d.universe / 5600);
@@ -1121,6 +1356,70 @@ function loadTrack() {
       '<div class="note">\u4e70\u5165\u4ef7 = \u4fe1\u53f7\u65e5\u4e0b\u4e00\u4e2a\u4ea4\u6613\u65e5\u7684\u5f00\u76d8\u4ef7\uff1b\u6da8\u5e45\u7528\u672a\u590d\u6743\u4ef7\u683c\u8ba1\u7b97\uff0c\u9047\u5230\u9664\u6743\u9664\u606f\u4f1a\u504f\u4f4e\u3002\u6837\u672c\u5c11\u4e8e\u51e0\u5341\u53ea\u65f6\uff0c\u547d\u4e2d\u7387\u53ea\u662f\u566a\u58f0\uff0c\u8bf7\u6301\u7eed\u7d2f\u8ba1\u3002</div>';
   }).catch(function () {});
 }
+var ADV = { d: null, p: 0.4 };
+function applyBest() {
+  var r = ADV.d && ADV.d.rec && ADV.d.rec[0]; if (!r || !$('scH') || !SC.useBest) return;
+  SC.useBest = 0;
+  $('scH').value = String(r.h); $('scTheta').value = r.theta.toFixed(2); $('scP').value = Math.round(r.p * 100);
+  if ($('scBestTag')) $('scBestTag').textContent = '\uff08\u5df2\u9884\u586b\u201c\u7efc\u5408\u6700\u4f18\u201d\uff1a' + r.h + ' \u65e5\u5185 \u2265' + Math.round(r.theta * 100) + '%\uff0c\u6982\u7387 \u2265' + Math.round(r.p * 100) + '%\uff0c\u6301\u6709\u6ee1 ' + r.h + ' \u4e2a\u4ea4\u6613\u65e5\u540e\u5356\u51fa\uff09';
+}
+function loadAdvice() {
+  api('/api/scan/advice').then(function (d) { if (d && d.rec && d.rec.length && !ADV.set) { ADV.p = d.rec[0].p; ADV.set = 1; } ADV.d = d; applyBest(); drawAdvice(); }).catch(function () { drawAdvice(); });
+}
+var ADV_KIND = { best: ['\u7efc\u5408\u6700\u4f18', '\u6309\u671f\u6301\u6709\u3001\u6263\u6389\u6210\u672c\u540e\uff0c\u6bcf\u7b14\u671f\u671b\u6536\u76ca\u6700\u9ad8'], safe: ['\u7a33\u5065\u578b', '\u547d\u4e2d\u7387\u6700\u9ad8\uff0c\u4e14\u6536\u76ca\u4e0d\u4f4e\u4e8e\u6700\u4f18\u7684 40%'], short: ['\u77ed\u7ebf\u578b', '\u53ea\u770b\u4e70\u5165\u540e 1\u20133 \u4e2a\u4ea4\u6613\u65e5'], many: ['\u673a\u4f1a\u591a\u578b', '\u68c0\u9a8c\u671f\u5e73\u5747\u6bcf\u5929\u81f3\u5c11\u6709 3 \u53ea\u5165\u9009\uff0c\u4fbf\u4e8e\u5206\u6563'] };
+function advApply(h, th, p) {
+  if (!$('scH')) return;
+  $('scH').value = String(h); $('scTheta').value = th.toFixed(2); $('scP').value = Math.round(p * 100);
+  ['scH', 'scTheta', 'scP'].forEach(function (id) { $(id).dispatchEvent(new Event('change')); });
+  toast('\u5df2\u586b\u5165\uff1a' + h + ' \u65e5\u5185 \u2265' + Math.round(th * 100) + '%\uff0c\u6982\u7387 \u2265' + Math.round(p * 100) + '%\u3002\u70b9\u201c\u5f00\u59cb\u626b\u63cf\u201d\u5373\u53ef');
+  window.scrollTo(0, 0);
+}
+function drawAdvice() {
+  var el = $('scAdv'); if (!el) return;
+  var a = ADV.d, html = '';
+  if (SC.advProg) html += '<div class="meter" style="height:10px;background:#2a3441;margin:6px 0"><span style="display:block;height:10px;border-radius:5px;background:' + ACC + ';width:' + (SC.advProg.p * 100).toFixed(1) + '%"></span></div><div style="font-size:13px;margin-bottom:8px">' + esc(SC.advProg.txt) + '</div>';
+  if (!a) { el.innerHTML = html + '<div class="muted">\u8fd8\u6ca1\u6709\u8bc4\u4f30\u8fc7\u3002\u70b9\u53f3\u4e0a\u89d2\u201c\u8bc4\u4f30\u5168\u90e8\u53c2\u6570\u7ec4\u5408\u201d\uff1a\u7cfb\u7edf\u4f1a\u5bf9\u201c\u4e70\u5165\u540e 1/3/5/10 \u4e2a\u4ea4\u6613\u65e5 \u00d7 \u76ee\u6807\u6da8\u5e45 3/5/8/10/15%\u201d\u5171 20 \u79cd\u7ec4\u5408\u5206\u522b\u8bad\u7ec3\u6a21\u578b\uff0c\u518d\u5728\u6700\u8fd1\u4e00\u5e74\uff08\u6ca1\u53c2\u4e0e\u8bad\u7ec3\uff09\u91cc\u7edf\u8ba1\u6bcf\u79cd\u7ec4\u5408\u5728\u4e0d\u540c\u6982\u7387\u95e8\u69db\u4e0b\u7684\u547d\u4e2d\u7387\u548c<b>\u6263\u9664\u4ea4\u6613\u6210\u672c\u540e\u7684\u6bcf\u7b14\u671f\u671b\u6536\u76ca</b>\uff0c\u7136\u540e\u544a\u8bc9\u4f60\u54ea\u7ec4\u6700\u503c\u5f97\u7528\u3002\u9996\u6b21\u9700\u5148\u52a0\u8f7d\u8bad\u7ec3\u6570\u636e\uff0c\u7ea6\u51e0\u5206\u949f\uff1b\u4e4b\u540e\u6bcf\u6b21\u7ea6 1 \u5206\u949f\u3002</div>'; return; }
+  var recs = a.rec || [];
+  html += '<div class="note" style="margin:0 0 8px">\u8bc4\u4f30\u4e8e ' + fclock(a.made) + '\uff1b\u68c0\u9a8c\u671f ' + fdate(a.from) + ' \u8d77\u5171 ' + a.days + ' \u4e2a\u4ea4\u6613\u65e5\uff1b' + (a.excl ? '\u5df2\u6392\u9664\u524d\u65e5\u6da8\u22655%\uff1b' : '') + '\u6bcf\u7b14\u5df2\u6263\u4ea4\u6613\u6210\u672c ' + pct(a.cost, 2) + '\uff08\u4f63\u91d1+\u5370\u82b1\u7a0e+\u6ed1\u70b9\u7684\u7c97\u7565\u4f30\u8ba1\uff09\u3002\u6bcf\u7b14\u6536\u76ca\u7684\u53e3\u5f84\uff1a<b>\u6b21\u65e5\u5f00\u76d8\u4e70\u5165\uff0c\u6301\u6709\u6ee1 H \u4e2a\u4ea4\u6613\u65e5\uff0c\u7b2c H \u5929\u6536\u76d8\u5356\u51fa</b>\uff08\u6700\u7b80\u5355\u3001\u4e0d\u7528\u76ef\u76d8\uff1b\u201c\u5230\u76ee\u6807\u5c31\u5356\u201d\u201c\u52a0\u6b62\u635f\u201d\u4e24\u79cd\u5356\u6cd5\u7684\u7ed3\u679c\u653e\u5728\u63d0\u793a\u91cc\u5bf9\u6bd4\uff09\u3002</div>';
+  if (!recs.length) html += '<div class="warn" style="margin:6px 0">\u5728\u68c0\u9a8c\u671f\u91cc\uff0c\u6ca1\u6709\u4efb\u4f55\u4e00\u79cd\u7ec4\u5408\u80fd\u505a\u5230\u201c\u6309\u671f\u6301\u6709\u6263\u8d39\u540e\u524d\u540e\u4e24\u534a\u6bb5\u90fd\u4e3a\u6b63\u3001\u4e14\u6837\u672c\u4e0d\u5c11\u4e8e 80\u201d\u3002\u8fd9\u8bf4\u660e\u6a21\u578b\u7684\u4f18\u52bf\u8fd8\u4e0d\u8db3\u4ee5\u8986\u76d6\u4ea4\u6613\u6210\u672c\uff0c\u4e0b\u9762\u7684\u8868\u683c\u53ea\u80fd\u4f5c\u4e3a\u53c2\u8003\uff0c\u4e0d\u5efa\u8bae\u636e\u6b64\u5b9e\u76d8\u3002</div>';
+  else html += '<div style="display:flex;flex-wrap:wrap;gap:10px;margin:6px 0">' + recs.map(function (r, i) {
+    var k = ADV_KIND[r.kind] || [r.kind, ''];
+    return '<div style="flex:1 1 230px;min-width:220px;border:1px solid var(--line,#2f3b4a);border-radius:8px;padding:10px"><div><b>' + k[0] + '</b> <span class="muted" style="font-size:12px">' + k[1] + '</span></div>' +
+      '<div style="margin:6px 0;font-size:15px">\u4e70\u5165\u540e <b>' + r.h + '</b> \u65e5\u5185\u6da8 \u2265 <b>' + pct(r.theta, 0) + '</b>\uff0c\u6982\u7387 \u2265 <b>' + pct(r.p, 0) + '</b></div>' +
+      '<div style="font-size:12.5px;line-height:1.7">\u68c0\u9a8c\u671f\u547d\u4e2d\u7387 <b>' + pct(r.hit, 1) + '</b>\uff08\u4e0d\u7b5b\u9009\u65f6 ' + pct(r.base, 1) + '\uff09<br>\u6309\u671f\u6301\u6709\uff0c\u6263\u8d39\u540e\u6bcf\u7b14\u671f\u671b <b class="' + sgn(r.net) + '">' + pct(r.net, 2) + '</b><br><span class="muted">\u5bf9\u6bd4\uff1a\u5230\u76ee\u6807\u5c31\u5356 ' + pct(r.tp, 2) + '\uff1b\u518d\u52a0 \u22125% \u6b62\u635f ' + pct(r.tpsl, 2) + '\uff08\u5747\u672a\u6263\u8d39\uff09</span><br>\u5e73\u5747\u6bcf\u5929\u5165\u9009 ' + r.perDay.toFixed(1) + ' \u53ea\u3000\u6837\u672c ' + r.n + '</div>' +
+      '<button class="small" data-adv="' + i + '" style="margin-top:6px">\u91c7\u7528\u8fd9\u7ec4\u53c2\u6570</button></div>';
+  }).join('') + '</div>';
+  // heat table for the chosen probability threshold
+  var pcs = [0.2, 0.3, 0.4, 0.5, 0.6, 0.7], ths = [0.03, 0.05, 0.08, 0.10, 0.15], hs = [1, 3, 5, 10], pj = pcs.indexOf(ADV.p); if (pj < 0) pj = 2;
+  html += '<div class="toolbar" style="margin-top:6px"><span class="muted">\u770b\u201c\u9884\u6d4b\u6982\u7387 \u2265</span>' + pcs.map(function (p) { return '<button class="small' + (p === pcs[pj] ? '' : ' ghost') + '" data-advp="' + p + '">' + Math.round(p * 100) + '%</button>'; }).join('') + '<span class="muted">\u201d\u65f6\uff0c\u5404\u7ec4\u5408\u7684\u8868\u73b0\uff08\u70b9\u683c\u5b50\u53ef\u76f4\u63a5\u91c7\u7528\uff09</span></div>';
+  html += '<div style="overflow-x:auto"><table style="margin-top:6px"><tr><th>\u4e70\u5165\u540e\u51e0\u65e5\u5185 \uff3c \u6da8\u5e45\u76ee\u6807</th>' + ths.map(function (t) { return '<th>\u2265 ' + pct(t, 0) + '</th>'; }).join('') + '</tr>' + hs.map(function (h) {
+    return '<tr><td><b>' + h + ' \u65e5\u5185</b></td>' + ths.map(function (t) {
+      var c = a.combos.filter(function (x) { return x.h === h && Math.abs(x.theta - t) < 0.001; })[0], cell = c && c.cells[pj];
+      if (!cell || cell.n < 80) return '<td class="muted" style="font-size:12px">\u6837\u672c\u592a\u5c11' + (cell ? ' (' + cell.n + ')' : '') + '</td>';
+      var bg = cell.stable ? 'rgba(230,70,70,.16)' : (cell.net > 0 ? 'rgba(230,160,40,.14)' : 'rgba(40,170,90,.14)');
+      return '<td data-advc="' + h + ',' + t + '" style="cursor:pointer;background:' + bg + '" title="\u547d\u4e2d\u7387 ' + pct(cell.hit, 1) + '\uff08\u4e0d\u7b5b\u9009 ' + pct(c.base, 1) + '\uff09\uff1b\u6309\u671f\u6301\u6709 ' + pct(cell.end, 2) + '\uff1b\u5230\u76ee\u6807\u5c31\u5356 ' + pct(cell.tp, 2) + '\uff1b\u518d\u52a0\u6b62\u635f ' + pct(cell.tpsl, 2) + '\uff08\u540e\u4e24\u9879\u672a\u6263\u8d39\uff09' + (cell.stable ? '\uff1b\u524d\u540e\u534a\u6bb5\u68c0\u9a8c\u671f\u90fd\u76c8\u5229' : '') + '">\u547d\u4e2d <b>' + pct(cell.hit, 0) + '</b> ' + (cell.stable ? '<span class="up">\u2605</span>' : '') + '<br><span class="' + sgn(cell.net) + '">\u51c0 ' + pct(cell.net, 2) + '</span><br><span class="muted" style="font-size:11px">n=' + cell.n + '\uff0c\u65e5\u5747 ' + cell.perDay.toFixed(1) + ' \u53ea</span></td>';
+    }).join('') + '</tr>';
+  }).join('') + '</table></div>' +
+    '<div class="note">\u683c\u5b50\u91cc\uff1a\u201c\u547d\u4e2d\u201d= \u68c0\u9a8c\u671f\u5185\u5b9e\u9645\u6da8\u5230\u76ee\u6807\u7684\u6bd4\u4f8b\uff1b\u201c\u51c0\u201d= \u6309\u671f\u6301\u6709\uff08\u7b2c H \u5929\u6536\u76d8\u5356\uff09\u3001\u6263\u6210\u672c\u540e\u7684\u6bcf\u7b14\u5e73\u5747\u6536\u76ca\uff08\u7ea2=\u8d5a\u3001\u7eff=\u4e8f\uff09\uff1b\u2605 = \u68c0\u9a8c\u671f\u524d\u540e\u4e24\u534a\u6bb5\u90fd\u4e3a\u6b63\uff0c\u6bd4\u8f83\u53ef\u4fe1\uff1b\u5e95\u8272\u7ea2=\u7a33\u5b9a\u76c8\u5229\uff0c\u9ec4=\u6574\u4f53\u4e3a\u6b63\u4f46\u524d\u540e\u4e0d\u7a33\uff0c\u7eff=\u4e8f\u94b1\u3002<b>\u8bfb\u8868\u8981\u70b9</b>\uff1a\u2460 \u6982\u7387\u95e8\u69db\u8d8a\u9ad8\uff0c\u547d\u4e2d\u7387\u8d8a\u9ad8\uff0c\u4f46\u5165\u9009\u53ea\u6570\u8d8a\u5c11\uff1b\u2461 \u76ee\u6807\u8d8a\u5c0f\u3001\u5929\u6570\u8d8a\u957f\uff0c\u547d\u4e2d\u7387\u865a\u9ad8\u4f46\u6bcf\u7b14\u8d5a\u5f97\u5c11\uff0c\u6240\u4ee5\u770b\u201c\u51c0\u201d\u800c\u4e0d\u662f\u53ea\u770b\u201c\u547d\u4e2d\u201d\uff1b\u2462 \u7cfb\u7edf\u662f\u5728 20\u00d76 \u4e2a\u683c\u5b50\u91cc\u6311\u6700\u597d\u7684\uff0c\u5b58\u5728\u201c\u6311\u51fa\u6765\u7684\u6700\u597d\u6210\u7ee9\u6bd4\u672a\u6765\u5b9e\u9645\u504f\u4e50\u89c2\u201d\u7684\u95ee\u9898\uff0c\u8bf7\u628a\u7ed3\u679c\u6253\u4e2a\u6298\uff0c\u5e76\u4ee5\u201c\u5386\u53f2\u6218\u7ee9\u201d\u91cc\u7684\u771f\u5b9e\u8bb0\u5f55\u4e3a\u51c6\uff1b\u2463 \u540c\u4e00\u53ea\u80a1\u7968\u8fde\u7eed\u51e0\u5929\u5165\u9009\u3001\u6301\u6709\u671f\u4e92\u76f8\u91cd\u53e0\uff0c\u771f\u6b63\u72ec\u7acb\u7684\u6837\u672c\u6bd4 n \u5c11\u5f97\u591a\uff0c\u800c\u4e14\u68c0\u9a8c\u671f\u53ea\u6709\u6700\u8fd1\u4e00\u5e74\u3001\u53ea\u7ecf\u5386\u4e86\u4e00\u79cd\u884c\u60c5\uff0c\u6362\u884c\u60c5\u540e\u8868\u73b0\u53ef\u80fd\u4e0d\u540c\uff1b\u2464 \u6982\u7387\u95e8\u69db\u8d8a\u9ad8\uff0c\u6837\u672c\u8d8a\u5c11\u3001\u8d8a\u5bb9\u6613\u88ab\u4e2a\u522b\u5927\u6da8\u7684\u80a1\u7968\u62c9\u9ad8\u5e73\u5747\u503c\uff0c\u683c\u5b50\u91cc n \u5c0f\u7684\u8bf7\u5f53\u4f5c\u53c2\u8003\u3002</div>';
+  el.innerHTML = html;
+  Array.prototype.forEach.call(el.querySelectorAll('[data-adv]'), function (b) { b.onclick = function () { var r = recs[parseInt(b.getAttribute('data-adv'), 10)]; advApply(r.h, r.theta, r.p); }; });
+  Array.prototype.forEach.call(el.querySelectorAll('[data-advc]'), function (td) { td.onclick = function () { var q = td.getAttribute('data-advc').split(','); advApply(parseInt(q[0], 10), parseFloat(q[1]), pcs[pj]); }; });
+  Array.prototype.forEach.call(el.querySelectorAll('[data-advp]'), function (b) { b.onclick = function () { ADV.p = parseFloat(b.getAttribute('data-advp')); drawAdvice(); }; });
+}
+/** Price plan for one hit: buy ceiling (do not chase a big gap-up), take-profit and stop prices, last day to sell. */
+function addWd(d, n) {
+  var s = String(d), t = new Date(+s.slice(0, 4), +s.slice(4, 6) - 1, +s.slice(6, 8));
+  while (n > 0) { t.setDate(t.getDate() + 1); if (t.getDay() !== 0 && t.getDay() !== 6) n--; }
+  return t.getFullYear() * 10000 + (t.getMonth() + 1) * 100 + t.getDate();
+}
+function sugg(h) {
+  var hold = SC.last ? SC.last.hold : 5;
+  return { hold: hold, buyDay: addWd(h.asOf, 1), lastDay: addWd(h.asOf, 1 + hold) };
+}
+function suggHtml(h) {
+  var g = sugg(h), tip = '\u6309\u201c\u7efc\u5408\u6700\u4f18\u201d\u7684\u601d\u8def\uff1a\u4e0d\u8bbe\u4e70\u5165\u4ef7\u3001\u6b62\u76c8\u4ef7\u548c\u6b62\u635f\u4ef7\uff0c\u53ea\u8bbe\u5356\u51fa\u65f6\u95f4\u3002\n\u4e70\u5165\uff1a' + fdate(g.buyDay) + ' \u5f00\u76d8\uff08\u4f60\u53ea\u80fd T+1 \u4e70\u5165\uff0c\u5386\u53f2\u68c0\u9a8c\u4e5f\u662f\u6309\u6b21\u65e5\u5f00\u76d8\u4ef7\u7b97\u7684\uff09\u3002\n\u5356\u51fa\uff1a\u6301\u6709 ' + g.hold + ' \u4e2a\u4ea4\u6613\u65e5\uff0c' + fdate(g.lastDay) + ' \u6536\u76d8\u524d\u5356\u51fa\uff08\u4e70\u5165\u5f53\u5929\u4e0d\u80fd\u5356\uff09\u3002\n\u65e5\u671f\u6309\u5de5\u4f5c\u65e5\u4f30\u7b97\uff0c\u672a\u8ba1\u5165\u8282\u5047\u65e5\uff1b\u4ee5\u4e0a\u662f\u5047\u8bbe\u4f60\u6b21\u65e5\u5f00\u76d8\u4e70\u5165\u7684\u65e5\u671f\uff0c\u665a\u4e70\u5c31\u987a\u5ef6\u3002' + (h.band != null && h.bandEnd != null ? '\n\n\u68c0\u9a8c\u671f\u91cc\u540c\u6982\u7387\u6863\uff08n=' + h.bandN + '\uff09\u6309\u8fd9\u4e2a\u529e\u6cd5\u6301\u6709\u7684\u5e73\u5747\u6536\u76ca\uff1a' + pct(h.bandEnd, 2) + '\uff08\u672a\u6263\u8d39\uff09\u3002' : '');
+  return '<div style="font-size:12.5px;line-height:1.55;white-space:nowrap" title="' + esc(tip) + '">\u4e70 <b>' + fdate(g.buyDay).slice(5) + '</b> \u5f00\u76d8<br>\u5356 <b>' + fdate(g.lastDay).slice(5) + '</b> \u6536\u76d8<br><span class="muted">\u6301\u6709 ' + g.hold + ' \u4e2a\u4ea4\u6613\u65e5</span></div>';
+}
 function drawScanVal(v) {
   var el = $('scVal'); if (!el) return;
   var b3 = v.bins.filter(function (b) { return b.p >= 0.3 && b.n >= 20; })[0];
@@ -1151,7 +1450,7 @@ function scanList() {
     var qq = SC.quotes[h.code];
     switch (k) {
       case 'code': return h.code; case 'name': return h.name; case 'chg': return h.chg; case 'p': return h.p;
-      case 'band': return h.band == null ? -1 : h.band; case 'tp': return h.band == null ? -9 : h.bandTp;
+      case 'band': return h.band == null ? -1 : h.band; case 'tp': return h.band == null || h.bandEnd == null ? -9 : h.bandEnd;
       case 'now': return qq ? qq.pct : -9; case 'gap': return qq && h.price ? qq.price / h.price - 1 : -9;
     }
     return 0;
@@ -1179,11 +1478,11 @@ function drawScanRows() {
   if (!all) { el.innerHTML = '<div class="muted">' + (SC.last && SC.last.phase === 4 ? '\u6ca1\u6709\u80a1\u7968\u7684\u9884\u6d4b\u6982\u7387\u8fbe\u5230\u6240\u8bbe\u9608\u503c\u3002\u8fd9\u901a\u5e38\u662f\u6b63\u5e38\u7684\uff1a\u5927\u6da8\u662f\u5c0f\u6982\u7387\u4e8b\u4ef6\u3002\u53ef\u4ee5\u964d\u4f4e\u201c\u6700\u4f4e\u6982\u7387\u201d\u518d\u8bd5\u3002' : '\u6682\u65e0\u3002\u626b\u63cf\u5f00\u59cb\u540e\uff0c\u53d1\u73b0\u4e00\u53ea\u5c31\u663e\u793a\u4e00\u53ea\u3002') + '</div>'; return; }
   if (!list.length) { el.innerHTML = '<div class="muted">\u6ca1\u6709\u7b26\u5408\u7b5b\u9009\u6761\u4ef6\u7684\u80a1\u7968\u3002</div>'; return; }
   var th = SC.last ? SC.last.theta : 0.05, now = Date.now(), pmax = 0; list.forEach(function (h) { if (h.p > pmax) pmax = h.p; });
-  el.innerHTML = '<div style="overflow-x:auto"><table><tr><th><input type="checkbox" id="scAll"' + (list.every(function (h) { return SC.sel[h.code]; }) ? ' checked' : '') + '></th>' + scanTh('code', '\u4ee3\u7801', 1) + scanTh('name', '\u540d\u79f0', 1) + scanTh('now', '\u5b9e\u65f6\u4ef7 / \u4eca\u65e5\u6da8\u5e45') + scanTh('gap', '\u8f83\u4fe1\u53f7\u65e5\u6536\u76d8') + scanTh('chg', '\u4fe1\u53f7\u65e5\u6da8\u5e45') + scanTh('p', '\u9884\u6d4b\u6982\u7387') + scanTh('band', '\u68c0\u9a8c\u671f\u540c\u6863\u547d\u4e2d\u7387') + scanTh('tp', '\u540c\u6863\u6b62\u76c8\u7b56\u7565\u5e73\u5747\u6536\u76ca') + '<th>\u6570\u636e\u65e5\u671f</th><th></th></tr>' + list.map(function (h) {
+  el.innerHTML = '<div style="overflow-x:auto"><table><tr><th><input type="checkbox" id="scAll"' + (list.every(function (h) { return SC.sel[h.code]; }) ? ' checked' : '') + '></th>' + scanTh('code', '\u4ee3\u7801', 1) + scanTh('name', '\u540d\u79f0', 1) + scanTh('now', '\u5b9e\u65f6\u4ef7 / \u4eca\u65e5\u6da8\u5e45') + scanTh('gap', '\u8f83\u4fe1\u53f7\u65e5\u6536\u76d8') + scanTh('chg', '\u4fe1\u53f7\u65e5\u6da8\u5e45') + scanTh('p', '\u9884\u6d4b\u6982\u7387') + scanTh('band', '\u68c0\u9a8c\u671f\u540c\u6863\u547d\u4e2d\u7387') + scanTh('tp', '\u540c\u6863\u6309\u671f\u6301\u6709\u5e73\u5747\u6536\u76ca') + '<th title="\u4e0d\u8bbe\u4e70\u5356\u4ef7\uff0c\u53ea\u8bbe\u65f6\u95f4\uff1a\u6b21\u65e5\u5f00\u76d8\u4e70\u5165\uff0c\u6301\u6709\u6ee1 H \u4e2a\u4ea4\u6613\u65e5\u540e\u6536\u76d8\u5356\u51fa\uff1b\u9f20\u6807\u60ac\u505c\u770b\u8bf4\u660e">\u4e70\u5356\u65f6\u95f4</th><th>\u6570\u636e\u65e5\u671f</th><th></th></tr>' + list.map(function (h) {
     var flag = h.limitUp ? ' <span class="warn">\u524d\u65e5\u6da8\u5e45\u22659.5%</span>' : (/ST/.test(h.name) ? ' <span class="warn">ST</span>' : '');
     var held = SC.held[h.code] ? ' <span class="st open" title="\u6a21\u62df\u8d26\u6237\u5df2\u6301\u6709 ' + SC.held[h.code] + ' \u80a1">\u5df2\u6301\u4ed3</span>' : '';
     var q = SC.quotes[h.code], gap = q && h.price ? q.price / h.price - 1 : null;
-    return '<tr' + (now - (SC.fresh[h.code] || 0) < 4000 ? ' class="hl"' : '') + '><td><input type="checkbox" data-sel="' + esc(h.code) + '"' + (SC.sel[h.code] ? ' checked' : '') + '></td><td><a href="#" data-open="' + esc(h.code) + '" style="color:' + ACC + '">' + esc(h.code) + '</a></td><td>' + esc(h.name) + flag + held + '</td><td>' + quoteTag(h) + '</td><td class="' + sgn(gap) + '">' + (gap == null ? '-' : pct(gap, 2) + ' <span class="muted">(' + fx(h.price, 2) + ')</span>') + '</td><td class="' + sgn(h.chg) + '">' + pct(h.chg) + '</td><td><b>' + pct(h.p, 1) + '</b><div style="height:3px;background:' + ACC + ';width:' + Math.round(h.p / pmax * 60) + 'px;border-radius:2px;opacity:.7"></div></td><td>' + (h.band == null ? '<span class="muted">\u65e0\u8db3\u591f\u68c0\u9a8c\u6837\u672c</span>' : pct(h.band, 1) + ' <span class="muted">(n=' + h.bandN + ')</span>') + '</td><td class="' + sgn(h.bandTs) + '">' + (h.band == null ? '-' : pct(h.bandTp, 2) + ' <span class="muted">/ \u52a0\u6b62\u635f ' + pct(h.bandTs, 2) + '</span>') + '</td><td>' + fdate(h.asOf) + '</td><td style="white-space:nowrap"><button class="small" data-buy="' + esc(h.code) + '">\u4e70\u5165</button> <button class="small ghost" data-watch="' + esc(h.code) + '">+\u81ea\u9009</button> <button class="small ghost" data-open="' + esc(h.code) + '">\u67e5\u770b</button></td></tr>';
+    return '<tr' + (now - (SC.fresh[h.code] || 0) < 4000 ? ' class="hl"' : '') + '><td><input type="checkbox" data-sel="' + esc(h.code) + '"' + (SC.sel[h.code] ? ' checked' : '') + '></td><td><a href="#" data-open="' + esc(h.code) + '" style="color:' + ACC + '">' + esc(h.code) + '</a></td><td>' + esc(h.name) + flag + held + '</td><td>' + quoteTag(h) + '</td><td class="' + sgn(gap) + '">' + (gap == null ? '-' : pct(gap, 2) + ' <span class="muted">(' + fx(h.price, 2) + ')</span>') + '</td><td class="' + sgn(h.chg) + '">' + pct(h.chg) + '</td><td><b>' + pct(h.p, 1) + '</b><div style="height:3px;background:' + ACC + ';width:' + Math.round(h.p / pmax * 60) + 'px;border-radius:2px;opacity:.7"></div></td><td>' + (h.band == null ? '<span class="muted">\u65e0\u8db3\u591f\u68c0\u9a8c\u6837\u672c</span>' : pct(h.band, 1) + ' <span class="muted">(n=' + h.bandN + ')</span>') + '</td><td class="' + sgn(h.bandEnd) + '">' + (h.band == null || h.bandEnd == null ? '-' : pct(h.bandEnd, 2)) + '</td><td>' + suggHtml(h) + '</td><td>' + fdate(h.asOf) + '</td><td style="white-space:nowrap"><button class="small" data-buy="' + esc(h.code) + '">\u4e70\u5165</button> <button class="small ghost" data-watch="' + esc(h.code) + '">+\u81ea\u9009</button> <button class="small ghost" data-open="' + esc(h.code) + '">\u67e5\u770b</button></td></tr>';
   }).join('') + '</table></div><div class="note">\u201c\u9884\u6d4b\u6982\u7387\u201d= T+1 \u5f00\u76d8\u4e70\u5165\u540e ' + (SC.last ? SC.last.hold : '') + ' \u4e2a\u4ea4\u6613\u65e5\u5185\u3001\u4efb\u4e00\u5929\u6536\u76d8\u4ef7\u8f83\u4e70\u5165\u4ef7\u6da8\u5e45 \u2265 ' + pct(th, 0) + ' \u7684\u6982\u7387\u3002\u70b9\u8868\u5934\u53ef\u6392\u5e8f\uff1b\u201c\u8f83\u4fe1\u53f7\u65e5\u6536\u76d8\u201d\u9700\u5148\u70b9\u201c\u5237\u65b0\u5b9e\u65f6\u4ef7\u201d\uff0c\u662f\u6309\u4f60<b>\u73b0\u5728</b>\u80fd\u4e70\u5230\u7684\u4ef7\u683c\u770b\u5df2\u7ecf\u9ad8\u5f00/\u56de\u843d\u4e86\u591a\u5c11\u3002\u9ad8\u4eae\u884c\u4e3a\u521a\u53d1\u73b0\u7684\u3002</div>';
   Array.prototype.forEach.call(el.querySelectorAll('[data-open]'), function (a) { a.onclick = function (e) { e.preventDefault(); openScanned(a.getAttribute('data-open')); }; });
   Array.prototype.forEach.call(el.querySelectorAll('[data-sort]'), function (t) { t.onclick = function () { var k = t.getAttribute('data-sort'); if (SC.sortKey === k) SC.sortDir = -SC.sortDir; else { SC.sortKey = k; SC.sortDir = (k === 'code' || k === 'name') ? 1 : -1; } drawScanRows(); }; });
@@ -1217,8 +1516,8 @@ function refreshScanQuotes(manual) {
 }
 function exportScanCsv() {
   var list = scanList(); if (!list.length) { toast('\u6ca1\u6709\u53ef\u5bfc\u51fa\u7684\u7ed3\u679c'); return; }
-  var rows = ['\u4ee3\u7801,\u540d\u79f0,\u4fe1\u53f7\u65e5\u6536\u76d8,\u4fe1\u53f7\u65e5\u6da8\u5e45,\u9884\u6d4b\u6982\u7387,\u68c0\u9a8c\u671f\u540c\u6863\u547d\u4e2d\u7387,\u540c\u6863\u6b62\u76c8\u7b56\u7565\u5e73\u5747\u6536\u76ca,\u6570\u636e\u65e5\u671f'];
-  list.forEach(function (h) { rows.push([h.code, h.name, h.price, (h.chg * 100).toFixed(2) + '%', (h.p * 100).toFixed(1) + '%', h.band == null ? '' : (h.band * 100).toFixed(1) + '%', h.band == null ? '' : (h.bandTp * 100).toFixed(2) + '%', h.asOf].join(',')); });
+  var rows = ['\u4ee3\u7801,\u540d\u79f0,\u4fe1\u53f7\u65e5\u6536\u76d8,\u4fe1\u53f7\u65e5\u6da8\u5e45,\u9884\u6d4b\u6982\u7387,\u68c0\u9a8c\u671f\u540c\u6863\u547d\u4e2d\u7387,\u540c\u6863\u6309\u671f\u6301\u6709\u5e73\u5747\u6536\u76ca,\u4e70\u5165\u65e5,\u5356\u51fa\u65e5,\u6301\u6709\u4ea4\u6613\u65e5,\u6570\u636e\u65e5\u671f'];
+  list.forEach(function (h) { rows.push([h.code, h.name, h.price, (h.chg * 100).toFixed(2) + '%', (h.p * 100).toFixed(1) + '%', h.band == null ? '' : (h.band * 100).toFixed(1) + '%', h.band == null || h.bandEnd == null ? '' : (h.bandEnd * 100).toFixed(2) + '%', sugg(h).buyDay, sugg(h).lastDay, sugg(h).hold, h.asOf].join(',')); });
   var a = document.createElement('a'); a.href = URL.createObjectURL(new Blob(['\ufeff' + rows.join('\n')], { type: 'text/csv;charset=utf-8' })); a.download = 'scan-' + (list[0].asOf || 'result') + '.csv'; a.click();
 }
 /** Order dialog for one or several scan hits: position size, stop-loss / take-profit, limit-at-last-price or market, queue for the next open when closed. */
@@ -1227,12 +1526,12 @@ function scanBuyDialog(list) {
   var codes = list.map(function (h) { return h.code; }).slice(0, 24);
   Promise.all([api('/api/trade/account'), api('/api/quotes?codes=' + encodeURIComponent(codes.join(',')))]).then(function (rs) {
     var a = rs[0]; TR.a = a; rs[1].forEach(function (q) { SC.quotes[q.code] = q; });
-    var th = SC.last ? SC.last.theta : 0.08;
+    var holdD = SC.last ? SC.last.hold : 5;
     var closed = a.cfg.anytime ? false : !rs[1].some(function (q) { return q.status === 'open' || q.status === 'auction'; });
     var d = document.createElement('div'); d.className = 'modal';
     d.innerHTML = '<div class="dialog" style="width:760px;max-width:96vw;max-height:90vh;overflow:auto"><h3>\u6a21\u62df\u4e70\u5165 ' + list.length + ' \u53ea\uff08' + (list.length > 1 ? '\u6279\u91cf' : esc(list[0].name)) + '\uff09</h3>' +
       '<div class="kv"><div><span>\u603b\u8d44\u4ea7</span><b>' + fm(a.equity, 0) + '</b></div><div><span>\u53ef\u7528\u8d44\u91d1</span><b>' + fm(a.available, 0) + '</b></div><div><span>\u5355\u53ea\u4ed3\u4f4d\u4e0a\u9650</span><b>' + (a.cfg.maxPosPct > 0 && a.cfg.maxPosPct < 1 ? (a.cfg.maxPosPct * 100).toFixed(0) + '%' : '\u4e0d\u9650') + '</b></div></div>' +
-      '<div class="toolbar" style="margin-top:10px"><label class="muted">\u6bcf\u53ea\u4ed3\u4f4d <input id="sbPct" size="3" value="5">% \u603b\u8d44\u4ea7</label><label class="muted">\u6b62\u635f <input id="sbSl" size="3" value="5">%</label><label class="muted">\u6b62\u76c8 <input id="sbTp" size="3" value="' + (th * 100).toFixed(0) + '">%</label><label class="muted">\u79fb\u52a8\u6b62\u76c8\u56de\u64a4 <input id="sbTr" size="3" value="">%</label>' +
+      '<div class="toolbar" style="margin-top:10px"><label class="muted">\u6bcf\u53ea\u4ed3\u4f4d <input id="sbPct" size="3" value="5">% \u603b\u8d44\u4ea7</label><label class="muted" title="\u4e70\u5165\u6210\u4ea4\u540e\uff0c\u7b2c N \u4e2a\u4ea4\u6613\u65e5 14:50 \u8d77\u81ea\u52a8\u5e02\u4ef7\u5356\u51fa\uff08\u4e70\u5165\u5f53\u5929\u7b97\u7b2c 0 \u5929\uff09\uff1b\u586b 0 \u8868\u793a\u4e0d\u81ea\u52a8\u5356">\u6301\u6709 <input id="sbHold" size="3" value="' + holdD + '"> \u4e2a\u4ea4\u6613\u65e5\u540e\u6536\u76d8\u524d\u81ea\u52a8\u5356\u51fa</label><label class="muted" title="\u53ef\u9009\uff0c\u4e0d\u586b\u5c31\u4e0d\u8bbe">\u6b62\u635f <input id="sbSl" size="3" value="">%</label><label class="muted" title="\u53ef\u9009\uff0c\u4e0d\u586b\u5c31\u4e0d\u8bbe">\u6b62\u76c8 <input id="sbTp" size="3" value="">%</label>' +
       '<select id="sbType"><option value="limit">\u9650\u4ef7\uff08\u73b0\u4ef7\uff09</option><option value="market">\u5e02\u4ef7</option></select></div>' +
       (closed ? '<div class="note" style="margin:0 0 6px"><label style="display:block"><input type="checkbox" id="sbQueue" checked style="flex:none"> \u73b0\u5728\u4f11\u5e02\uff1a<b>\u9884\u7ea6\u4e3a\u4e0b\u4e00\u4e2a\u5f00\u76d8\u7684\u59d4\u6258</b>\uff08\u5f00\u76d8\u540e\u6309 ' + 'T+1 \u5f00\u76d8\u4ef7\u9644\u8fd1\u6210\u4ea4\uff0c\u5efa\u8bae\u7528\u5e02\u4ef7\uff1b\u9650\u4ef7\u5355\u4ee5\u73b0\u4ef7\u4e3a\u4e0a\u9650\uff0c\u9ad8\u5f00\u5c31\u4e70\u4e0d\u5230\uff09\u3002\u53d6\u6d88\u52fe\u9009\u5219\u4e0b\u5355\u4f1a\u88ab\u62d2\u7edd\u3002</label></div>' : '') +
       '<div id="sbPlan"></div><div id="sbMsg" style="margin:6px 0"></div><div class="row"><button id="sbOk">\u786e\u8ba4\u4e0b\u5355</button><button class="ghost" id="sbNo">\u5173\u95ed</button></div></div>';
@@ -1246,6 +1545,7 @@ function scanBuyDialog(list) {
         var unit = /^sh68/.test(h.code) ? 1 : 100, qty = Math.floor(cap / (ref * 1.0006) / unit) * unit; if (unit === 1 && qty < 200) qty = 0;
         var bad = '';
         if (!q) bad = '\u65e0\u5b9e\u65f6\u884c\u60c5'; else if (q.limitUp > 0 && q.price >= q.limitUp - 0.001 && !closed) bad = '\u6da8\u505c\uff0c\u4e70\u4e0d\u8fdb'; else if (qty <= 0) bad = '\u4ed3\u4f4d\u4e0d\u8db3\u4e00\u624b';
+
         var amt = bad ? 0 : qty * ref; tot += amt;
         return { h: h, px: px, qty: qty, amt: amt, bad: bad };
       });
@@ -1259,11 +1559,11 @@ function scanBuyDialog(list) {
     $('sbOk').onclick = function () {
       var todo = plan.filter(function (p) { return !p.bad; }); if (!todo.length) { $('sbMsg').innerHTML = '<span class="err">\u6ca1\u6709\u53ef\u4e0b\u5355\u7684\u80a1\u7968</span>'; return; }
       $('sbOk').disabled = true; var res = [], market = $('sbType').value === 'market', queue = $('sbQueue') && $('sbQueue').checked;
-      var qs = '&slPct=' + ((parseFloat($('sbSl').value) || 0) / 100) + '&tpPct=' + ((parseFloat($('sbTp').value) || 0) / 100) + '&trailPct=' + ((parseFloat($('sbTr').value) || 0) / 100);
+      var qs = '&slPct=' + ((parseFloat($('sbSl').value) || 0) / 100) + '&tpPct=' + ((parseFloat($('sbTp').value) || 0) / 100) + '&hold=' + (parseInt($('sbHold').value, 10) || 0);
       var next = function () {
         var p = todo.shift();
         if (!p) { $('sbMsg').innerHTML = res.join('<br>'); $('sbOk').disabled = false; $('sbOk').hidden = true; $('sbNo').textContent = '\u5b8c\u6210'; loadHeld(); return; }
-        post('/api/trade/order?code=' + encodeURIComponent(p.h.code) + '&side=buy&type=' + (market ? 'market' : 'limit') + '&qty=' + p.qty + (market ? '' : '&price=' + p.px) + qs + '&src=scan&queue=' + (queue ? 1 : 0) + '&note=' + encodeURIComponent('\u626b\u63cf \u6982\u7387' + (p.h.p * 100).toFixed(0) + '%'))
+        post('/api/trade/order?code=' + encodeURIComponent(p.h.code) + '&side=buy&type=' + (market ? 'market' : 'limit') + '&qty=' + p.qty + (market ? '' : '&price=' + p.px) + qs + '&src=scan&queue=' + (queue ? 1 : 0) + '&note=' + encodeURIComponent(p.h.note || ('\u626b\u63cf \u6982\u7387' + (p.h.p * 100).toFixed(0) + '%')))
           .then(function (r) { res.push('<span class="muted">' + esc(p.h.name) + '\uff1a' + (r.filled ? '\u5df2\u6210\u4ea4 ' + r.order.qty + ' \u80a1 @' + fx(r.order.fillPrice, 2) : (r.order.queued ? '\u5df2\u9884\u7ea6\u4e0b\u4e00\u4e2a\u5f00\u76d8' : '\u5df2\u6302\u5355')) + '</span>'); next(); })
           .catch(function (e) { res.push('<span class="err">' + esc(p.h.name) + '\uff1a' + esc(e.message) + '</span>'); next(); });
       };

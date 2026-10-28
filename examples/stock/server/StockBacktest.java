@@ -88,6 +88,8 @@ class StockBacktest {
                 }
                 i = i + 1;
             }
+        } else if (strategy.equals("rules")) {
+            return StockRules.signals(s, p.gs("entry"), p.gs("exit"));
         } else if (strategy.equals("model")) {
             int H = p.gi("horizon", 5, 1, 20);
             double thr = p.gd("threshold", 0.55, 0.5, 0.9);
@@ -232,8 +234,17 @@ class StockBacktest {
     static String run(StockSeries s, String strategy, ParamBag p, int fromDate) {
         int n = s.n;
         if (!(strategy.equals("buy_hold") || strategy.equals("ma_cross") || strategy.equals("rsi") || strategy.equals("macd")
-                || strategy.equals("boll") || strategy.equals("model"))) {
+                || strategy.equals("boll") || strategy.equals("model") || strategy.equals("rules"))) {
             return StockUtil.err("BAD_STRATEGY", "unknown strategy: " + strategy);
+        }
+        if (strategy.equals("rules")) {
+            String ce = StockRules.check(s, p.gs("entry"), 1);
+            if (ce.length() == 0) {
+                ce = StockRules.check(s, p.gs("exit"), 0);
+            }
+            if (ce.length() > 0) {
+                return StockUtil.err("BAD_RULE", ce);
+            }
         }
         int[] pos = signals(s, strategy, p);
         int start = firstSignal(pos, n);
@@ -441,6 +452,14 @@ class ParamBag {
             return def;
         }
         return StockUtil.clamp(v, lo, hi);
+    }
+
+    String gs(String k) {
+        String v = m.get(k);
+        if (v == null) {
+            return "";
+        }
+        return v;
     }
 
     double getd(String k, double def) {

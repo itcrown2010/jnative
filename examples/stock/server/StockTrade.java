@@ -10,8 +10,8 @@
  *
  * Persistence: data/_trade.txt, one tab separated record per line:
  *   C key value            account setting
- *   P code name qty sellable cost sl tp trail high lastBuyDay    open position (cost = cash paid for the remaining shares, fees included)
- *   O id ts day code name side type price qty status fillPrice fee reserve source note slPct tpPct trailPct    order
+ *   P code name qty sellable cost sl tp trail high lastBuyDay [exitDay]    open position (cost = cash paid for the remaining shares, fees included)
+ *   O id ts day code name side type price qty status fillPrice fee reserve source note slPct tpPct trailPct [holdDays]    order
  *   F id orderId ts code name side price qty amount fee pnl source    fill
  *   E day equity cash marketValue    end-of-day equity point
  * @author 张晓达
@@ -38,6 +38,8 @@ class TradeOrder {
     double slPct;
     double tpPct;
     double trailPct;
+    /** Buy orders only: sell the shares at the close of the N-th trading day after the buy day (0 = no time exit). */
+    int holdDays;
 }
 
 class TradePos {
@@ -51,6 +53,8 @@ class TradePos {
     double trail;
     double high;
     int lastBuyDay;
+    /** Trading day (yyyymmdd) at whose close the position is sold; 0 = none. */
+    int exitDay;
 }
 
 class TradeFill {
@@ -93,6 +97,8 @@ class StockTrade {
     static long lastTick = 0L;
     static int loaded = 0;
     static String lastMsg = "";
+    /** Set by the HTTP route right before place(): hold days for the buy order being placed. */
+    static int pendingHold = 0;
 
     static void init() {
         positions = new ArrayList<TradePos>();
@@ -144,7 +150,7 @@ class StockTrade {
                 TradePos p = positions.get(i);
                 sb.append("P\t" + p.code + "\t" + clean(p.name) + "\t" + p.qty + "\t" + p.sellable + "\t" + StockUtil.num(p.cost, 4) + "\t"
                         + StockUtil.num(p.sl, 3) + "\t" + StockUtil.num(p.tp, 3) + "\t" + StockUtil.num(p.trail, 4) + "\t" + StockUtil.num(p.high, 3)
-                        + "\t" + p.lastBuyDay + "\n");
+                        + "\t" + p.lastBuyDay + "\t" + p.exitDay + "\n");
                 i = i + 1;
             }
             i = 0;
@@ -153,7 +159,7 @@ class StockTrade {
                 sb.append("O\t" + o.id + "\t" + o.ts + "\t" + o.day + "\t" + o.code + "\t" + clean(o.name) + "\t" + o.side + "\t" + o.type + "\t"
                         + StockUtil.num(o.price, 3) + "\t" + o.qty + "\t" + o.status + "\t" + StockUtil.num(o.fillPrice, 3) + "\t" + StockUtil.num(o.fee, 2)
                         + "\t" + StockUtil.num(o.reserve, 2) + "\t" + clean(o.source) + "\t" + clean(o.note) + "\t" + StockUtil.num(o.slPct, 4) + "\t"
-                        + StockUtil.num(o.tpPct, 4) + "\t" + StockUtil.num(o.trailPct, 4) + "\n");
+                        + StockUtil.num(o.tpPct, 4) + "\t" + StockUtil.num(o.trailPct, 4) + "\t" + o.holdDays + "\n");
                 i = i + 1;
             }
             i = 0;
@@ -248,6 +254,9 @@ class StockTrade {
             p.trail = StockUtil.parseDouble(f.get(8), 0.0);
             p.high = StockUtil.parseDouble(f.get(9), 0.0);
             p.lastBuyDay = StockUtil.parseInt(f.get(10), 0);
+            if (f.size() > 11) {
+                p.exitDay = StockUtil.parseInt(f.get(11), 0);
+            }
             if (p.qty > 0) {
                 positions.add(p);
             }
@@ -271,6 +280,9 @@ class StockTrade {
             o.slPct = StockUtil.parseDouble(f.get(16), 0.0);
             o.tpPct = StockUtil.parseDouble(f.get(17), 0.0);
             o.trailPct = StockUtil.parseDouble(f.get(18), 0.0);
+            if (f.size() > 19) {
+                o.holdDays = StockUtil.parseInt(f.get(19), 0);
+            }
             if (o.id > 0) {
                 orders.add(o);
             }
@@ -523,7 +535,49 @@ class StockTrade {
         if (s != null) {
             return s.name;
         }
-        return code;
+        return StockFeed.nameFor(code);
+    }
+
+    /** Positions, orders and fills that were recorded with the bare code as name (the quote source gave no name) get their real name. */
+    static int healNames() {
+        int changed = 0;
+        int i = 0;
+        while (i < positions.size()) {
+            TradePos p = positions.get(i);
+            if (p.name.equals(p.code)) {
+                String nm = StockFeed.nameFor(p.code);
+                if (!nm.equals(p.code)) {
+                    p.name = nm;
+                    changed = changed + 1;
+                }
+            }
+            i = i + 1;
+        }
+        i = 0;
+        while (i < orders.size()) {
+            TradeOrder o = orders.get(i);
+            if (o.name.equals(o.code)) {
+                String nm = StockFeed.nameFor(o.code);
+                if (!nm.equals(o.code)) {
+                    o.name = nm;
+                    changed = changed + 1;
+                }
+            }
+            i = i + 1;
+        }
+        i = 0;
+        while (i < fills.size()) {
+            TradeFill f = fills.get(i);
+            if (f.name.equals(f.code)) {
+                String nm = StockFeed.nameFor(f.code);
+                if (!nm.equals(f.code)) {
+                    f.name = nm;
+                    changed = changed + 1;
+                }
+            }
+            i = i + 1;
+        }
+        return changed;
     }
 
     // ------------------------------------------------------------------ placing orders
@@ -540,6 +594,8 @@ class StockTrade {
      * Returns the order JSON or an error JSON.
      */
     static String place(String rawCode, int side, int type, double price, int qty, double slPct, double tpPct, double trailPct, String source, String note, int queue) {
+        int holdD = pendingHold;
+        pendingHold = 0;
         FeedSym f = StockFeed.resolve(rawCode);
         if (f == null || tradable(f.code) == 0) {
             return StockUtil.err("BAD_CODE", "仅支持沪深北交所 A 股股票（指数、基金、债券不可交易）");
@@ -638,6 +694,9 @@ class StockTrade {
         o.slPct = slPct;
         o.tpPct = tpPct;
         o.trailPct = trailPct;
+        if (side == 1) {
+            o.holdDays = holdD;
+        }
         orders.add(o);
         trimOrders();
         if (queued == 0 && marketOpen(n) == 1) {
@@ -732,6 +791,12 @@ class StockTrade {
             if (o.trailPct > 0.0) {
                 pos.trail = o.trailPct;
             }
+            if (o.holdDays > 0) {
+                int ed = addTradingDays(today, o.holdDays);
+                if (ed > pos.exitDay) {
+                    pos.exitDay = ed;
+                }
+            }
             recordFill(o, px, amount, fee, 0.0, ts);
         } else {
             if (pos == null || pos.qty < o.qty) {
@@ -816,7 +881,7 @@ class StockTrade {
         lastTick = now;
         try {
             rollover();
-            int changed = 0;
+            int changed = healNames();
             int i = 0;
             while (i < orders.size()) {
                 TradeOrder o = orders.get(i);
@@ -843,11 +908,39 @@ class StockTrade {
         }
     }
 
+    /** The trading day that is n trading days after ymd (weekends and fixed-date holidays skipped; moving holidays are not known). */
+    static int addTradingDays(int ymd, int n) {
+        int d = ymd;
+        int left = n;
+        while (left > 0) {
+            d = StockGen.nextDay(d);
+            int w = StockGen.dayOfWeek(d);
+            if (w != 0 && w != 6 && StockGen.isHoliday(d) == 0) {
+                left = left - 1;
+            }
+        }
+        return d;
+    }
+
+    /** A time exit is due at 14:50 of the exit day (or at once if that day has passed). */
+    static int exitDue(TradePos p, int today, long hhmm) {
+        if (p.exitDay <= 0) {
+            return 0;
+        }
+        if (today > p.exitDay) {
+            return 1;
+        }
+        if (today == p.exitDay && (anytime == 1 || hhmm >= 1450L)) {
+            return 1;
+        }
+        return 0;
+    }
+
     static int hasRiskRules() {
         int i = 0;
         while (i < positions.size()) {
             TradePos p = positions.get(i);
-            if (p.sl > 0.0 || p.tp > 0.0 || p.trail > 0.0) {
+            if (p.sl > 0.0 || p.tp > 0.0 || p.trail > 0.0 || p.exitDay > 0) {
                 return 1;
             }
             i = i + 1;
@@ -911,7 +1004,7 @@ class StockTrade {
         while (i < positions.size()) {
             TradePos p = positions.get(i);
             i = i + 1;
-            if (p.sl <= 0.0 && p.tp <= 0.0 && p.trail <= 0.0) {
+            if (p.sl <= 0.0 && p.tp <= 0.0 && p.trail <= 0.0 && p.exitDay <= 0) {
                 continue;
             }
             LiveSnap n = StockLive.snap(p.code);
@@ -933,6 +1026,8 @@ class StockTrade {
                 why = "止盈";
             } else if (p.trail > 0.0 && p.high > 0.0 && n.price <= p.high * (1.0 - p.trail)) {
                 why = "移动止盈";
+            } else if (exitDue(p, (int) (StockFeed.nowCst() / 10000L), StockFeed.nowCst() % 10000L) == 1) {
+                why = "到期卖出";
             }
             if (why.length() == 0) {
                 continue;
@@ -1157,6 +1252,26 @@ class StockTrade {
         return sb.toString();
     }
 
+    /** Shares of the code bought today (all buy fills of the current day) and what they cost including fees: [qty, cost]. */
+    static double[] boughtToday(String code) {
+        double[] r = new double[2];
+        long today = StockFeed.nowCst() / 10000L;
+        int i = fills.size() - 1;
+        while (i >= 0) {
+            TradeFill x = fills.get(i);
+            if (x.ts / 10000L != today) {
+                if (x.ts / 10000L < today) {
+                    return r;
+                }
+            } else if (x.side == 1 && x.code.equals(code)) {
+                r[0] = r[0] + (double) x.qty;
+                r[1] = r[1] + x.amount + x.fee;
+            }
+            i = i - 1;
+        }
+        return r;
+    }
+
     static String accountJson() {
         StringBuilder sb = new StringBuilder();
         double mv = 0.0;
@@ -1178,8 +1293,19 @@ class StockTrade {
             }
             double v = px * (double) p.qty;
             mv = mv + v;
+            /* shares bought today have no yesterday close: their float is measured from what they cost; older shares from the previous close */
+            double[] tb = boughtToday(p.code);
+            double tq = tb[0];
+            if (tq > (double) p.qty) {
+                tq = (double) p.qty;
+            }
+            double tcost = 0.0;
+            if (tb[0] > 0.0) {
+                tcost = tb[1] * tq / tb[0];
+            }
+            dayPnl = dayPnl + (px * tq - tcost);
             if (prev > 0.0) {
-                dayPnl = dayPnl + (px - prev) * (double) p.qty;
+                dayPnl = dayPnl + (px - prev) * ((double) p.qty - tq);
             }
             double avg = 0.0;
             if (p.qty > 0) {
@@ -1194,7 +1320,7 @@ class StockTrade {
                     + StockUtil.num(v - p.cost, 2) + ",\"pnlPct\":" + StockUtil.num(p.cost > 0.0 ? (v - p.cost) / p.cost : 0.0, 5) + ",\"sl\":"
                     + StockUtil.num(p.sl, 3) + ",\"tp\":" + StockUtil.num(p.tp, 3) + ",\"trail\":" + StockUtil.num(p.trail, 4) + ",\"high\":"
                     + StockUtil.num(p.high, 3) + ",\"limitUp\":" + StockUtil.num(up, 2) + ",\"limitDown\":" + StockUtil.num(down, 2) + ",\"buyDay\":"
-                    + p.lastBuyDay + "}");
+                    + p.lastBuyDay + ",\"exitDay\":" + p.exitDay + "}");
             i = i + 1;
         }
         ps.append("]");

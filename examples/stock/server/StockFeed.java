@@ -338,6 +338,37 @@ class StockFeed {
         return (ymd / 10000) + "-" + m + "-" + d;
     }
 
+    static HashMap<String, String> nameCache;
+    static HashMap<String, String> nameFailAt;
+
+    /** Stock name for a code such as sz301205, remembered after the first lookup; returns the code itself when it cannot be found (retried after 5 minutes). */
+    static String nameFor(String code) {
+        if (nameCache == null) {
+            nameCache = new HashMap<String, String>();
+            nameFailAt = new HashMap<String, String>();
+        }
+        String hit = nameCache.get(code);
+        if (hit != null) {
+            return hit;
+        }
+        long now = System.currentTimeMillis();
+        String fl = nameFailAt.get(code);
+        if (fl != null && now - StockUtil.parseLong(fl, 0L) < 300000L) {
+            return code;
+        }
+        FeedSym f = resolve(code);
+        if (f == null) {
+            return code;
+        }
+        String nm = lookupName(f);
+        if (nm == null || nm.length() == 0 || nm.equals(code)) {
+            nameFailAt.put(code, "" + now);
+            return code;
+        }
+        nameCache.put(code, nm);
+        return nm;
+    }
+
     static String lookupName(FeedSym f) {
         try {
             String body = httpGet("https://smartbox.gtimg.cn/s3/?v=2&t=all&q=" + f.code.substring(2, 8), "https://gu.qq.com/");

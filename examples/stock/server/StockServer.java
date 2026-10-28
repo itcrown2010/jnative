@@ -60,6 +60,8 @@ public class StockServer {
         app.get("/api/scan/track", new StockRoute(28));
         app.get("/api/scan/auto", new StockRoute(29));
         app.post("/api/scan/auto/set", new StockRoute(30));
+        app.post("/api/scan/advice/start", new StockRoute(44));
+        app.get("/api/scan/advice", new StockRoute(45));
         app.get("/api/quote", new StockRoute(16));
         app.get("/api/intraday", new StockRoute(17));
         app.get("/api/quotes", new StockRoute(18));
@@ -73,6 +75,10 @@ public class StockServer {
         app.post("/api/trade/config", new StockRoute(37));
         app.post("/api/trade/risk", new StockRoute(38));
         app.get("/api/trade/equity", new StockRoute(39));
+        app.get("/api/pf/run", new StockRoute(40));
+        app.get("/api/pf/strats", new StockRoute(41));
+        app.post("/api/pf/strats/save", new StockRoute(42));
+        app.post("/api/pf/strats/delete", new StockRoute(43));
         app.staticFiles("/", publicDir);
         System.out.println("STOCK symbols=" + StockStore.all.size() + " data=" + dataDir + " public=" + publicDir);
         StockHttp.serve(app, port);
@@ -127,6 +133,54 @@ class StockRoute implements WebHandler {
         ctx.jsonString(json);
     }
 
+    void handlePf(WebContext ctx) {
+        if (kind == 41) {
+            ctx.jsonString(StockStrat.list());
+        } else if (kind == 42) {
+            reply(ctx, StockStrat.put(ctx.query("name"), ctx.query("cfg")));
+        } else if (kind == 43) {
+            reply(ctx, StockStrat.remove(ctx.query("name")));
+        } else {
+            String cs = ctx.query("codes");
+            ArrayList<String> codes = new ArrayList<String>();
+            if (cs != null) {
+                int st = 0;
+                int i = 0;
+                while (i <= cs.length()) {
+                    if (i == cs.length() || cs.charAt(i) == 44) {
+                        String c = cs.substring(st, i).trim();
+                        if (c.length() > 0) {
+                            codes.add(c);
+                        }
+                        st = i + 1;
+                    }
+                    i = i + 1;
+                }
+            }
+            String strategy = ctx.query("strategy");
+            if (strategy == null) {
+                strategy = "ma_cross";
+            }
+            ParamBag p = new ParamBag();
+            p.put("fast", ctx.query("fast"));
+            p.put("slow", ctx.query("slow"));
+            p.put("period", ctx.query("period"));
+            p.put("lo", ctx.query("lo"));
+            p.put("hi", ctx.query("hi"));
+            p.put("k", ctx.query("k"));
+            p.put("entry", ctx.query("entry"));
+            p.put("exit", ctx.query("exit"));
+            p.put("capital", ctx.query("capital"));
+            p.put("maxPos", ctx.query("maxPos"));
+            p.put("rank", ctx.query("rank"));
+            p.put("sl", ctx.query("sl"));
+            p.put("tp", ctx.query("tp"));
+            p.put("trail", ctx.query("trail"));
+            p.put("maxHold", ctx.query("maxHold"));
+            reply(ctx, StockPortfolio.run(codes, strategy, p, StockUtil.parseInt(ctx.query("from"), 0)));
+        }
+    }
+
     void handleTrade(WebContext ctx) {
         if (kind == 31) {
             ctx.jsonString(StockTrade.accountJson());
@@ -171,6 +225,10 @@ class StockRoute implements WebHandler {
             }
             if (note.length() > 80) {
                 note = note.substring(0, 80);
+            }
+            StockTrade.pendingHold = StockUtil.parseInt(ctx.query("hold"), 0);
+            if (StockTrade.pendingHold < 0 || StockTrade.pendingHold > 60) {
+                StockTrade.pendingHold = 0;
             }
             reply(ctx, StockTrade.place(ctx.query("code"), side, type, StockUtil.parseDouble(ctx.query("price"), 0.0), StockUtil.parseInt(ctx.query("qty"), 0),
                     StockUtil.clamp(StockUtil.parseDouble(ctx.query("slPct"), 0.0), 0.0, 0.5), StockUtil.clamp(StockUtil.parseDouble(ctx.query("tpPct"), 0.0), 0.0, 5.0),
@@ -282,6 +340,24 @@ class StockRoute implements WebHandler {
             ctx.jsonString(StockAuto.json());
             return;
         }
+        if (kind == 44) {
+            int aex2 = 0;
+            if (StockUtil.parseInt(ctx.query("excl"), 0) == 1) {
+                aex2 = 1;
+            }
+            String aer = StockScan.startAdvice(aex2);
+            if (aer.length() > 0) {
+                reply(ctx, StockUtil.err("BUSY", aer));
+                return;
+            }
+            ctx.jsonString(StockScan.statusJson(0));
+            return;
+        }
+        if (kind == 45) {
+            StockScan.ensureInit();
+            ctx.jsonString(StockScan.advJson);
+            return;
+        }
         if (kind == 28) {
             ctx.jsonString(StockTrack.trackJson());
             return;
@@ -375,6 +451,10 @@ class StockRoute implements WebHandler {
         }
         if (kind >= 31 && kind <= 39) {
             handleTrade(ctx);
+            return;
+        }
+        if (kind >= 40 && kind <= 43) {
+            handlePf(ctx);
             return;
         }
         if (kind == 11) {

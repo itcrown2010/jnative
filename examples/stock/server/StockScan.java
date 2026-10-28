@@ -118,7 +118,7 @@ class StockScan {
             mu = new double[NF2];
             sg = new double[NF2];
             w = new double[NF2];
-            binCut = new double[7];
+            binCut = new double[9];
             binCut[0] = 0.05;
             binCut[1] = 0.1;
             binCut[2] = 0.15;
@@ -126,13 +126,16 @@ class StockScan {
             binCut[4] = 0.3;
             binCut[5] = 0.4;
             binCut[6] = 0.5;
-            binPrec = new double[7];
-            binN = new int[7];
-            binEnd = new double[7];
-            binTp = new double[7];
-            binTs = new double[7];
-            binLoss = new int[7];
+            binCut[7] = 0.6;
+            binCut[8] = 0.7;
+            binPrec = new double[9];
+            binN = new int[9];
+            binEnd = new double[9];
+            binTp = new double[9];
+            binTs = new double[9];
+            binLoss = new int[9];
             load();
+            loadAdvice();
         }
     }
 
@@ -156,6 +159,7 @@ class StockScan {
     // ---------- control ----------
     static String start(double th, double pm, int ex, int hd) {
         ensureInit();
+        fitReset();
         if (phase >= PHASE_UNIVERSE && phase <= PHASE_SCAN) {
             return "已有一次扫描正在进行，请等它结束或先点“停止”";
         }
@@ -225,6 +229,14 @@ class StockScan {
     }
 
     static void stop() {
+        fitReset();
+        if (advMode == 1 && phase >= PHASE_UNIVERSE && phase <= PHASE_SCAN) {
+            advRestore();
+            advMode = 0;
+            phase = advPrevPhase;
+            msg = advPrevMsg;
+            return;
+        }
         if (phase >= PHASE_UNIVERSE && phase <= PHASE_SCAN) {
             phase = PHASE_DONE;
             msg = "已手动停止";
@@ -246,14 +258,23 @@ class StockScan {
             return;
         }
         try {
-            if (phase == PHASE_UNIVERSE) {
+            if (fitPending == 1) {
+                stepFit();
+            } else if (phase == PHASE_UNIVERSE) {
                 stepUniverse();
             } else if (phase == PHASE_TRAIN) {
                 stepTrain();
+            } else if (advMode == 1) {
+                stepAdvice();
             } else {
                 stepScan();
             }
         } catch (Exception ex) {
+            fitReset();
+            if (advMode == 1) {
+                advRestore();
+                advMode = 0;
+            }
             phase = PHASE_ERROR;
             msg = "内部错误，扫描已中止";
             finishedMs = System.currentTimeMillis();
@@ -470,7 +491,7 @@ class StockScan {
             return;
         }
         if (sn > 0 && standardized == 1) {
-            fitAndValidate();
+            afterTrain();
             return;
         }
         sx = new double[CAP * NF2];
@@ -802,7 +823,7 @@ class StockScan {
                 finishedMs = System.currentTimeMillis();
                 return;
             }
-            fitAndValidate();
+            afterTrain();
             return;
         }
         trainTried = trainTried + 1;
@@ -855,7 +876,8 @@ class StockScan {
         return 1;
     }
 
-    static void fitAndValidate() {
+    /** Finds the hold-out cut date and standardises the training rows in place (once). */
+    static void prepare() {
         if (cutDate == 0) {
             int mx = 0;
             int q = 0;
@@ -910,71 +932,151 @@ class StockScan {
             /* mu/sg keep the true statistics: rows are standardised in place for training, while score() standardises raw vectors on the fly */
             standardized = 1;
         }
-        /* rows are standardised in place; gradient descent below works on them directly */
-        ntr = 0;
-        int ntrPos = 0;
-        i = 0;
-        while (i < sn) {
-            if (sl[ho + i] < cutDate && inclRow(i) == 1) {
-                ntr = ntr + 1;
-                if (sr[ho + i] >= theta) {
-                    ntrPos = ntrPos + 1;
+    }
+
+    static double fitBase = 0.0;
+
+    static int fitStage = 0;
+    static int fitPending = 0;
+    static int fitIt = 0;
+    static int fitNtr = 0;
+    static double[] fitGw = null;
+    static final int FIT_ITERS = 100;
+    static final int FIT_PER_STEP = 4;
+
+    static void fitReset() {
+        fitStage = 0;
+        fitPending = 0;
+        fitIt = 0;
+    }
+
+    /** One full-batch gradient step of the logistic fit (sigmoid via a Taylor-series exp on z/64 plus six squarings, relative error ~1e-7). Allocation-free and poll-free (@NoGC), so a pass takes tens of milliseconds instead of seconds. */
+    @NoGC
+    static void gradPass(int ho, int ntr) {
+        int nf = NF2;
+        int k = 0;
+        while (k < nf) {
+            fitGw[k] = 0.0;
+            k = k + 1;
+        }
+        double gb = 0.0;
+        int i = 0;
+        int n = sn;
+        while (i < n) {
+            int o = i * nf;
+            int use = 0;
+            if (sl[ho + i] < cutDate) {
+                use = 1;
+                if (excl == 1 && sx[o] * sg[0] + mu[0] >= 0.05) {
+                    use = 0;
                 }
+            }
+            if (use == 1) {
+                double z = bias;
+                k = 0;
+                while (k < nf) {
+                    z = z + w[k] * sx[o + k];
+                    k = k + 1;
+                }
+                if (z < -30.0) {
+                    z = -30.0;
+                }
+                if (z > 30.0) {
+                    z = 30.0;
+                }
+                double ex = -z / 64.0;
+                double et = 1.0 + ex * (1.0 + ex / 2.0 * (1.0 + ex / 3.0 * (1.0 + ex / 4.0 * (1.0 + ex / 5.0 * (1.0 + ex / 6.0 * (1.0 + ex / 7.0 * (1.0 + ex / 8.0 * (1.0 + ex / 9.0 * (1.0 + ex / 10.0)))))))));
+                et = et * et;
+                et = et * et;
+                et = et * et;
+                et = et * et;
+                et = et * et;
+                et = et * et;
+                double p = 1.0 / (1.0 + et);
+                double y = 0.0;
+                if (sr[ho + i] >= theta) {
+                    y = 1.0;
+                }
+                double e = p - y;
+                k = 0;
+                while (k < nf) {
+                    fitGw[k] = fitGw[k] + e * sx[o + k];
+                    k = k + 1;
+                }
+                gb = gb + e;
             }
             i = i + 1;
         }
-        double base = (double) ntrPos / (double) ntr;
-        if (base < 0.0005) {
-            base = 0.0005;
-        }
         k = 0;
-        while (k < NF2) {
-            w[k] = 0.0;
+        while (k < nf) {
+            w[k] = w[k] - 1.0 * (fitGw[k] / (double) ntr + 0.0002 * w[k]);
             k = k + 1;
         }
-        bias = Math.log(base / (1.0 - base));
-        double[] gw = new double[NF2];
-        int it = 0;
-        while (it < 100) {
-            k = 0;
-            while (k < NF2) {
-                gw[k] = 0.0;
-                k = k + 1;
-            }
-            double gb = 0.0;
-            i = 0;
+        bias = bias - 1.0 * gb / (double) ntr;
+    }
+
+    /** Fits the logistic model for the current (hIdx, theta) on the rows whose label date is before the cut date, a few gradient passes per call so the server keeps answering; returns 1 when the fit is complete (fitNtr/fitBase hold the result). */
+    static int fitStep() {
+        int ho = hIdx * CAP;
+        if (fitStage == 0) {
+            int ntr = 0;
+            int ntrPos = 0;
+            int i = 0;
             while (i < sn) {
                 if (sl[ho + i] < cutDate && inclRow(i) == 1) {
-                    int o = i * NF2;
-                    double z = bias;
-                    k = 0;
-                    while (k < NF2) {
-                        z = z + w[k] * sx[o + k];
-                        k = k + 1;
-                    }
-                    double p = 1.0 / (1.0 + Math.exp(-StockUtil.clamp(z, -30.0, 30.0)));
-                    double y = 0.0;
+                    ntr = ntr + 1;
                     if (sr[ho + i] >= theta) {
-                        y = 1.0;
+                        ntrPos = ntrPos + 1;
                     }
-                    double e = p - y;
-                    k = 0;
-                    while (k < NF2) {
-                        gw[k] = gw[k] + e * sx[o + k];
-                        k = k + 1;
-                    }
-                    gb = gb + e;
                 }
                 i = i + 1;
             }
-            k = 0;
+            double base = (double) ntrPos / (double) ntr;
+            if (base < 0.0005) {
+                base = 0.0005;
+            }
+            int k = 0;
             while (k < NF2) {
-                w[k] = w[k] - 1.0 * (gw[k] / (double) ntr + 0.0002 * w[k]);
+                w[k] = 0.0;
                 k = k + 1;
             }
-            bias = bias - 1.0 * gb / (double) ntr;
-            it = it + 1;
+            bias = Math.log(base / (1.0 - base));
+            fitGw = new double[NF2];
+            fitNtr = ntr;
+            fitBase = base;
+            fitIt = 0;
+            fitStage = 1;
+            return 0;
         }
+        int n = 0;
+        while (n < FIT_PER_STEP && fitIt < FIT_ITERS) {
+            gradPass(ho, fitNtr);
+            fitIt = fitIt + 1;
+            n = n + 1;
+        }
+        if (fitIt >= FIT_ITERS) {
+            fitStage = 0;
+            return 1;
+        }
+        return 0;
+    }
+
+    /** Runs the pending fit of a normal scan; when it completes the model is validated and scanning begins. */
+    static void stepFit() {
+        prepare();
+        if (fitStep() == 0) {
+            return;
+        }
+        fitPending = 0;
+        fitAndValidate();
+    }
+
+    static void fitAndValidate() {
+        int ntr = fitNtr;
+        double base = fitBase;
+        int ho = hIdx * CAP;
+        int i = 0;
+        int k = 0;
         /* validation on the held-out recent sessions */
         int nte = 0;
         int nteHit = 0;
@@ -985,7 +1087,7 @@ class StockScan {
         double sumTs = 0.0;
         int offTp = (hIdx * 5 + tIdx) * CAP;
         int offTs = ((4 + hIdx) * 5 + tIdx) * CAP;
-        while (b < 7) {
+        while (b < 9) {
             binN[b] = 0;
             binPrec[b] = 0.0;
             binEnd[b] = 0.0;
@@ -994,7 +1096,7 @@ class StockScan {
             binLoss[b] = 0;
             b = b + 1;
         }
-        int[] binHit = new int[7];
+        int[] binHit = new int[9];
         regN = new double[4];
         regHit = new double[4];
         regEnd = new double[4];
@@ -1035,7 +1137,7 @@ class StockScan {
                 }
                 nte = nte + 1;
                 b = 0;
-                while (b < 7) {
+                while (b < 9) {
                     if (p >= binCut[b]) {
                         binN[b] = binN[b] + 1;
                         binEnd[b] = binEnd[b] + endR;
@@ -1076,7 +1178,7 @@ class StockScan {
                 + ",\"cutDate\":" + cutDate + ",\"baseTrain\":" + StockUtil.num(base, 5) + ",\"baseTest\":" + StockUtil.num(baseTest, 5)
                 + ",\"brierSkill\":" + StockUtil.num(skill, 4) + ",\"bins\":[");
         b = 0;
-        while (b < 7) {
+        while (b < 9) {
             if (binN[b] > 0) {
                 binPrec[b] = (double) binHit[b] / (double) binN[b];
             }
@@ -1115,6 +1217,398 @@ class StockScan {
         pos = 0;
         phase = PHASE_SCAN;
         msg = "正在扫描";
+    }
+
+    /** Called when the training rows are loaded: a normal scan fits and validates the chosen model, a parameter-advice run goes on to evaluate all pairs. */
+    static void afterTrain() {
+        prepare();
+        if (advMode == 1) {
+            advCombo = 0;
+            phase = PHASE_SCAN;
+            msg = "正在评估参数组合";
+            return;
+        }
+        fitReset();
+        fitPending = 1;
+        msg = "正在拟合模型";
+    }
+
+    // ---------- parameter advice: fit every (horizon, target) pair and measure it on the held-out sessions ----------
+    static int advMode = 0;
+    static int advCombo = 0;
+    static int advPrevPhase = 0;
+    static String advPrevMsg = "";
+    static int advPrevH = 2;
+    static int advPrevT = 2;
+    static int advPrevExcl = 0;
+    static double advPrevTheta = 0.08;
+    static int advMid = 0;
+    static int advDays = 0;
+    static long advStartMs = 0L;
+    static String advJson = "null";
+    static double ADV_COST = 0.0025;
+    static int ADV_CELLS = 6;
+    static double[] advCut;
+    static double[] aBase;
+    static int[] aTestN;
+    static int[] cN;
+    static int[] cHit;
+    static double[] cEnd;
+    static double[] cTp;
+    static double[] cTs;
+    static int[] cNa;
+    static int[] cNb;
+    static double[] cSa;
+    static double[] cSb;
+
+    static int advHas() {
+        if (advJson.length() > 4) {
+            return 1;
+        }
+        return 0;
+    }
+
+    static int hoursOf(int hi) {
+        if (hi == 0) {
+            return 1;
+        }
+        if (hi == 1) {
+            return 3;
+        }
+        if (hi == 2) {
+            return 5;
+        }
+        return 10;
+    }
+
+    static String startAdvice(int ex) {
+        ensureInit();
+        if (running() == 1) {
+            return "已有一次扫描或评估正在进行，请等它结束或先点“停止”";
+        }
+        fitReset();
+        advPrevPhase = phase;
+        advPrevMsg = msg;
+        advPrevH = hIdx;
+        advPrevT = tIdx;
+        advPrevTheta = theta;
+        advPrevExcl = excl;
+        excl = ex;
+        if (phase == PHASE_ERROR) {
+            uN = 0;
+            uDay = 0L;
+            advPrevPhase = PHASE_DONE;
+            advPrevMsg = "上次出错，请重新扫描";
+        }
+        advMode = 1;
+        advCombo = 0;
+        cN = null;
+        advStartMs = System.currentTimeMillis();
+        stopFlag = 0;
+        consecFail = 0;
+        trainTried = 0;
+        msg = "";
+        long today = StockFeed.nowCst() / 10000L;
+        if (uN > 0 && uDay == today) {
+            beginTrain();
+        } else {
+            uSym = new ArrayList<String>();
+            uName = new ArrayList<String>();
+            uN = 0;
+            uPage = 1;
+            phase = PHASE_UNIVERSE;
+            msg = "正在获取全部A股列表";
+        }
+        if (phase == PHASE_ERROR) {
+            advMode = 0;
+            advRestore();
+        }
+        return "";
+    }
+
+    static void advRestore() {
+        hIdx = advPrevH;
+        tIdx = advPrevT;
+        theta = advPrevTheta;
+        excl = advPrevExcl;
+    }
+
+    static void advBegin() {
+        advCut = new double[ADV_CELLS];
+        advCut[0] = 0.2;
+        advCut[1] = 0.3;
+        advCut[2] = 0.4;
+        advCut[3] = 0.5;
+        advCut[4] = 0.6;
+        advCut[5] = 0.7;
+        int nc = 20 * ADV_CELLS;
+        aBase = new double[20];
+        aTestN = new int[20];
+        cN = new int[nc];
+        cHit = new int[nc];
+        cEnd = new double[nc];
+        cTp = new double[nc];
+        cTs = new double[nc];
+        cNa = new int[nc];
+        cNb = new int[nc];
+        cSa = new double[nc];
+        cSb = new double[nc];
+        int[] flag = new int[10600];
+        int i = 0;
+        while (i < sn) {
+            if (sd[i] >= cutDate && inclRow(i) == 1) {
+                int di = sd[i] - cutDate;
+                if (di >= 0 && di < 10600) {
+                    flag[di] = 1;
+                }
+            }
+            i = i + 1;
+        }
+        int days = 0;
+        i = 0;
+        while (i < 10600) {
+            days = days + flag[i];
+            i = i + 1;
+        }
+        advDays = days;
+        int acc = 0;
+        advMid = cutDate;
+        i = 0;
+        while (i < 10600) {
+            acc = acc + flag[i];
+            if (acc * 2 >= days) {
+                advMid = cutDate + i;
+                i = 10600;
+            }
+            i = i + 1;
+        }
+    }
+
+    static void stepAdvice() {
+        if (advCombo == 0 && cN == null) {
+            advBegin();
+        }
+        if (advCombo >= 20) {
+            advFinish();
+            return;
+        }
+        int hi = advCombo / 5;
+        int ti = advCombo % 5;
+        hIdx = hi;
+        tIdx = ti;
+        theta = thOf(ti);
+        if (fitStep() == 0) {
+            return;
+        }
+        int ho = hi * CAP;
+        int offTp = (hi * 5 + ti) * CAP;
+        int offTs = ((4 + hi) * 5 + ti) * CAP;
+        int nte = 0;
+        int nHit = 0;
+        int i = 0;
+        while (i < sn) {
+            if (sd[i] >= cutDate && inclRow(i) == 1) {
+                int o = i * NF2;
+                double z = bias;
+                int k = 0;
+                while (k < NF2) {
+                    z = z + w[k] * sx[o + k];
+                    k = k + 1;
+                }
+                double p = 1.0 / (1.0 + Math.exp(-StockUtil.clamp(z, -30.0, 30.0)));
+                int y = 0;
+                if (sr[ho + i] >= theta) {
+                    y = 1;
+                    nHit = nHit + 1;
+                }
+                nte = nte + 1;
+                int j = 0;
+                while (j < ADV_CELLS && p >= advCut[j]) {
+                    int q = advCombo * ADV_CELLS + j;
+                    cN[q] = cN[q] + 1;
+                    cHit[q] = cHit[q] + y;
+                    cEnd[q] = cEnd[q] + se[ho + i];
+                    cTp[q] = cTp[q] + ss[offTp + i];
+                    double rs = se[ho + i];
+                    cTs[q] = cTs[q] + ss[offTs + i];
+                    if (sd[i] <= advMid) {
+                        cNa[q] = cNa[q] + 1;
+                        cSa[q] = cSa[q] + rs;
+                    } else {
+                        cNb[q] = cNb[q] + 1;
+                        cSb[q] = cSb[q] + rs;
+                    }
+                    j = j + 1;
+                }
+            }
+            i = i + 1;
+        }
+        aTestN[advCombo] = nte;
+        if (nte > 0) {
+            aBase[advCombo] = (double) nHit / (double) nte;
+        }
+        advCombo = advCombo + 1;
+        msg = "正在评估参数组合 " + advCombo + " / 20";
+    }
+
+    /** Net return of the scoring rule: buy at the next open, sell at the close of day H, minus costs. */
+    static double cellNet(int q) {
+        if (cN[q] == 0) {
+            return 0.0;
+        }
+        return cEnd[q] / (double) cN[q] - ADV_COST;
+    }
+
+    static int cellStable(int q) {
+        if (cNa[q] < 15 || cNb[q] < 15) {
+            return 0;
+        }
+        if (cSa[q] / (double) cNa[q] - ADV_COST > 0.0 && cSb[q] / (double) cNb[q] - ADV_COST > 0.0) {
+            return 1;
+        }
+        return 0;
+    }
+
+    static String cellJson(int q, int c) {
+        double n = (double) cN[q];
+        double hit = 0.0;
+        double end = 0.0;
+        double tp = 0.0;
+        double ts = 0.0;
+        if (cN[q] > 0) {
+            hit = (double) cHit[q] / n;
+            end = cEnd[q] / n;
+            tp = cTp[q] / n;
+            ts = cTs[q] / n;
+        }
+        double perDay = 0.0;
+        if (advDays > 0) {
+            perDay = n / (double) advDays;
+        }
+        return "\"p\":" + StockUtil.num(advCut[q % ADV_CELLS], 2) + ",\"n\":" + cN[q] + ",\"hit\":" + StockUtil.num(hit, 4) + ",\"end\":" + StockUtil.num(end, 5) + ",\"tp\":" + StockUtil.num(tp, 5)
+                + ",\"tpsl\":" + StockUtil.num(ts, 5) + ",\"net\":" + StockUtil.num(end - ADV_COST, 5) + ",\"netTs\":" + StockUtil.num(ts - ADV_COST, 5) + ",\"perDay\":" + StockUtil.num(perDay, 2) + ",\"stable\":" + cellStable(q);
+    }
+
+    /** Index of the best cell by net return among stable cells with enough samples, -1 if none; hMax/perDayMin/netMin/hitMode select the profile. */
+    static int pickCell(int hMax, double perDayMin, double netMin, int byHit) {
+        int best = -1;
+        double bestV = -9.0;
+        int q = 0;
+        while (q < 20 * ADV_CELLS) {
+            int c = q / ADV_CELLS;
+            if (cN[q] >= 80 && cellStable(q) == 1 && hoursOf(c / 5) <= hMax) {
+                double perDay = 0.0;
+                if (advDays > 0) {
+                    perDay = (double) cN[q] / (double) advDays;
+                }
+                double net = cellNet(q);
+                if (perDay >= perDayMin && net >= netMin) {
+                    double v = net;
+                    if (byHit == 1) {
+                        v = (double) cHit[q] / (double) cN[q];
+                    }
+                    if (v > bestV) {
+                        bestV = v;
+                        best = q;
+                    }
+                }
+            }
+            q = q + 1;
+        }
+        return best;
+    }
+
+    static void advFinish() {
+        StringBuilder sb = new StringBuilder();
+        long today = StockFeed.nowCst() / 10000L;
+        sb.append("{\"made\":" + System.currentTimeMillis() + ",\"day\":" + today + ",\"excl\":" + excl + ",\"cost\":" + StockUtil.num(ADV_COST, 4) + ",\"from\":" + cutDate + ",\"days\":" + advDays + ",\"stocks\":" + trainLoaded + ",\"combos\":[");
+        int c = 0;
+        while (c < 20) {
+            if (c > 0) {
+                sb.append(",");
+            }
+            sb.append("{\"h\":" + hoursOf(c / 5) + ",\"theta\":" + StockUtil.num(thOf(c % 5), 2) + ",\"base\":" + StockUtil.num(aBase[c], 4) + ",\"n\":" + aTestN[c] + ",\"cells\":[");
+            int j = 0;
+            while (j < ADV_CELLS) {
+                if (j > 0) {
+                    sb.append(",");
+                }
+                sb.append("{" + cellJson(c * ADV_CELLS + j, c) + "}");
+                j = j + 1;
+            }
+            sb.append("]}");
+            c = c + 1;
+        }
+        sb.append("],\"rec\":[");
+        int cnt = 0;
+        int best = pickCell(10, 0.0, 0.0, 0);
+        int[] pick = new int[4];
+        String[] kinds = new String[4];
+        pick[0] = best;
+        kinds[0] = "best";
+        double bestNet = 0.0;
+        if (best >= 0) {
+            bestNet = cellNet(best);
+        }
+        pick[1] = -1;
+        if (best >= 0) {
+            pick[1] = pickCell(10, 0.0, bestNet * 0.4, 1);
+        }
+        kinds[1] = "safe";
+        pick[2] = pickCell(3, 0.0, 0.0, 0);
+        kinds[2] = "short";
+        pick[3] = pickCell(10, 3.0, 0.0, 0);
+        kinds[3] = "many";
+        int z = 0;
+        while (z < 4) {
+            int q = pick[z];
+            int dup = 0;
+            int z0 = 0;
+            while (z0 < z) {
+                if (pick[z0] == q) {
+                    dup = 1;
+                }
+                z0 = z0 + 1;
+            }
+            if (q >= 0 && dup == 0) {
+                int cc = q / ADV_CELLS;
+                if (cnt > 0) {
+                    sb.append(",");
+                }
+                sb.append("{\"kind\":\"" + kinds[z] + "\",\"h\":" + hoursOf(cc / 5) + ",\"theta\":" + StockUtil.num(thOf(cc % 5), 2) + ",\"base\":" + StockUtil.num(aBase[cc], 4) + "," + cellJson(q, cc) + "}");
+                cnt = cnt + 1;
+            }
+            z = z + 1;
+        }
+        sb.append("]}");
+        advJson = sb.toString();
+        try {
+            File.writeString(StockStore.dataDir + "/_advice.txt", advJson);
+        } catch (Exception ex) {
+            System.out.println("STOCK_ADVICE_SAVE_WARN");
+        }
+        cN = null;
+        advRestore();
+        advMode = 0;
+        phase = advPrevPhase;
+        if (phase >= PHASE_UNIVERSE && phase <= PHASE_SCAN) {
+            phase = PHASE_DONE;
+        }
+        msg = advPrevMsg;
+    }
+
+    static void loadAdvice() {
+        try {
+            String path = StockStore.dataDir + "/_advice.txt";
+            if (Files.exists(FsPath.of(path))) {
+                String t = File.readString(path).trim();
+                if (t.length() > 10 && t.charAt(0) == '{') {
+                    advJson = t;
+                }
+            }
+        } catch (Exception ex) {
+            System.out.println("STOCK_ADVICE_LOAD_WARN");
+        }
     }
 
     static double avgEndOf(int b) {
@@ -1204,25 +1698,32 @@ class StockScan {
             double band = -1.0;
             double bandTp = 0.0;
             double bandTs = 0.0;
+            double bandEnd = 0.0;
             int bn = 0;
             int b = 0;
-            while (b < 7) {
+            while (b < 9) {
                 if (p >= binCut[b] && binN[b] >= 20) {
                     band = binPrec[b];
                     bandTp = avgOf(binTp, b);
                     bandTs = avgOf(binTs, b);
+                    bandEnd = avgEndOf(b);
                     bn = binN[b];
                 }
                 b = b + 1;
             }
             String nm = uName.get(idx);
+            double atrNow = 0.0;
+            double[] atrArr = StockIndicators.atr(s.h, s.l, s.c, s.n, 14);
+            if (StockUtil.isNan(atrArr[t]) == 0 && s.c[t] > 0.0) {
+                atrNow = atrArr[t] / s.c[t];
+            }
             String bandTxt = "null";
             if (band >= 0.0) {
                 bandTxt = StockUtil.num(band, 4);
             }
             hits.add("{\"code\":" + StockUtil.js(uSym.get(idx)) + ",\"name\":" + StockUtil.js(nm) + ",\"asOf\":" + s.date[t] + ",\"price\":" + StockUtil.num(s.c[t], 2)
-                    + ",\"chg\":" + StockUtil.num(f.x[t * StockFeatures.NF], 4) + ",\"p\":" + StockUtil.num(p, 4) + ",\"band\":" + bandTxt + ",\"bandN\":" + bn + ",\"bandTp\":" + StockUtil.num(bandTp, 5) + ",\"bandTs\":" + StockUtil.num(bandTs, 5)
-                    + ",\"limitUp\":" + (int) x[12] + "}");
+                    + ",\"chg\":" + StockUtil.num(f.x[t * StockFeatures.NF], 4) + ",\"p\":" + StockUtil.num(p, 4) + ",\"band\":" + bandTxt + ",\"bandN\":" + bn + ",\"bandTp\":" + StockUtil.num(bandTp, 5) + ",\"bandTs\":" + StockUtil.num(bandTs, 5) + ",\"bandEnd\":" + StockUtil.num(bandEnd, 5)
+                    + ",\"limitUp\":" + (int) x[12] + ",\"atr\":" + StockUtil.num(atrNow, 4) + "}");
         }
     }
 
@@ -1297,7 +1798,7 @@ class StockScan {
         sb.append("{\"source\":\"" + source + "\",\"startedAt\":" + startedMs + ",\"finishedAt\":" + finishedMs + ",\"now\":" + now + ",\"phase\":" + phase + ",\"msg\":" + StockUtil.js(msg) + ",\"runId\":" + runId + ",\"universe\":" + total + ",\"pos\":" + posOut
                 + ",\"scanned\":" + scanned + ",\"failed\":" + failed + ",\"skipped\":" + skipped + ",\"theta\":" + StockUtil.num(theta, 4) + ",\"hold\":" + hold
                 + ",\"pMin\":" + StockUtil.num(pMin, 3) + ",\"elapsed\":" + el + ",\"trainLoaded\":" + trainLoaded + ",\"trainTotal\":" + TRAIN_STOCKS
-                + ",\"market\":" + marketJson() + ",\"gate\":" + mGate + ",\"gated\":" + gated + ",\"validation\":" + validation + ",\"restored\":" + restored + ",\"hitsTotal\":" + hits.size() + ",\"marketOpen\":" + StockNotify.tradingNow() + ",\"hits\":[");
+                + ",\"market\":" + marketJson() + ",\"gate\":" + mGate + ",\"gated\":" + gated + ",\"validation\":" + validation + ",\"restored\":" + restored + ",\"hitsTotal\":" + hits.size() + ",\"adv\":{\"on\":" + advMode + ",\"done\":" + advCombo + ",\"total\":20,\"startedAt\":" + advStartMs + ",\"has\":" + advHas() + "},\"marketOpen\":" + StockNotify.tradingNow() + ",\"hits\":[");
         int i = since;
         if (i < 0) {
             i = 0;

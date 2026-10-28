@@ -75,20 +75,22 @@ class StockLive {
         if (hit != null && now - hit.fetchedAt < (long) SNAP_TTL_MS) {
             return hit;
         }
+        if (now < tencentDownUntil) {
+            return snapFallback(f, hit, now);
+        }
         String body = null;
         try {
             body = StockFeed.httpGet("https://web.ifzq.gtimg.cn/appstock/app/minute/query?code=" + f.sina, "https://gu.qq.com/");
         } catch (Exception ex) {
+            /* blocked or down (e.g. the upstream WAF answers 501): stop asking for a minute and use the Sina quote instead */
+            tencentDownUntil = now + 60000L;
             lastError = "quote request failed";
-            if (hit != null) {
-                return hit;
-            }
-            return null;
+            return snapFallback(f, hit, now);
         }
         int qi = body.indexOf("\"" + f.sina + "\":[\"");
         if (qi < 0) {
             lastError = "no quote data for " + f.code;
-            return null;
+            return snapFallback(f, hit, now);
         }
         ArrayList<String> qq = StockFeed.quoted(body.substringFrom(qi), 70);
         /* qq[0] is the symbol key, the quote fields start at qq[1] */
@@ -100,7 +102,7 @@ class StockLive {
         }
         if (q.size() < 35 || d(q, 3) <= 0.0) {
             lastError = "empty quote for " + f.code;
-            return null;
+            return snapFallback(f, hit, now);
         }
         LiveSnap n = new LiveSnap();
         n.code = f.code;
@@ -149,6 +151,156 @@ class StockLive {
         }
         n.fetchedAt = now;
         snaps.put(f.code, n);
+        return n;
+    }
+
+    static long tencentDownUntil = 0L;
+    /** A quote older than this is never served as "current" when the upstream keeps failing. */
+    static long STALE_MS = 30000L;
+
+    /** Tencent failed: take the quote from Sina (price, bid/ask, volume; no intraday ticks, PE/PB or turnover), else a recent cached one. */
+    static LiveSnap snapFallback(FeedSym f, LiveSnap hit, long now) {
+        LiveSnap n = null;
+        try {
+            n = fetchSina(f, hit, now);
+        } catch (Exception ex) {
+            lastError = "quote request failed";
+            System.out.println("STOCK_SINA_QUOTE_WARN " + ex.getMessage());
+        }
+        if (n != null) {
+            snaps.put(f.code, n);
+            return n;
+        }
+        if (hit != null && now - hit.fetchedAt < STALE_MS) {
+            return hit;
+        }
+        return null;
+    }
+
+    static ArrayList<String> splitComma(String t) {
+        ArrayList<String> out = new ArrayList<String>();
+        int st = 0;
+        int i = 0;
+        while (i <= t.length()) {
+            if (i == t.length() || t.charAt(i) == 44) {
+                out.add(t.substring(st, i));
+                st = i + 1;
+            }
+            i = i + 1;
+        }
+        return out;
+    }
+
+    static double limitRate(String code, String name) {
+        if (name != null && name.indexOf("ST") >= 0) {
+            return 0.05;
+        }
+        if (code.startsWith("sh688") || code.startsWith("sh689") || code.startsWith("sz300") || code.startsWith("sz301")) {
+            return 0.2;
+        }
+        if (code.startsWith("bj")) {
+            return 0.3;
+        }
+        return 0.1;
+    }
+
+    static LiveSnap fetchSina(FeedSym f, LiveSnap old, long now) {
+        HttpRequest req = HttpRequest.create("GET", "https://hq.sinajs.cn/list=" + f.sina);
+        req.http1Only = 1;
+        req.header("User-Agent", StockFeed.UA);
+        req.header("Referer", "https://finance.sina.com.cn/");
+        HttpResponse r = HttpClient.send(req);
+        if (r.statusCode != 200) {
+            lastError = "quote request failed";
+            return null;
+        }
+        /* the body is GBK: replace every non-ASCII byte so that it decodes cleanly (only the name field is affected) */
+        byte[] raw = r.body;
+        byte[] cp = new byte[raw.length];
+        int bi = 0;
+        while (bi < raw.length) {
+            if (raw[bi] < 0) {
+                cp[bi] = 63;
+            } else {
+                cp[bi] = raw[bi];
+            }
+            bi = bi + 1;
+        }
+        String body = Bytes.toString(cp);
+        int a = body.indexOf("=\"");
+        if (a < 0) {
+            return null;
+        }
+        int b = body.indexOf("\";", a);
+        if (b < 0) {
+            return null;
+        }
+        ArrayList<String> q = splitComma(body.substring(a + 2, b));
+        if (q.size() < 32) {
+            lastError = "empty quote for " + f.code;
+            return null;
+        }
+        double price = d(q, 3);
+        double prev = d(q, 2);
+        if (price <= 0.0 && d(q, 6) > 0.0) {
+            price = d(q, 6);
+        }
+        if (price <= 0.0 || prev <= 0.0) {
+            lastError = "empty quote for " + f.code;
+            return null;
+        }
+        LiveSnap n = new LiveSnap();
+        n.code = f.code;
+        /* the Sina name field is GBK and is not decoded here: reuse a known name */
+        n.name = f.code;
+        if (old != null && old.name != null && old.name.length() > 0) {
+            n.name = old.name;
+        } else {
+            StockSeries ss = StockStore.find(f.code);
+            if (ss != null && ss.name != null && ss.name.length() > 0) {
+                n.name = ss.name;
+            }
+        }
+        if (n.name.equals(f.code)) {
+            n.name = StockFeed.nameFor(f.code);
+        }
+        n.price = price;
+        n.prev = prev;
+        n.open = d(q, 1);
+        n.high = d(q, 4);
+        n.low = d(q, 5);
+        n.volume = d(q, 8);
+        n.amount = d(q, 9);
+        n.change = price - prev;
+        n.pct = (price - prev) / prev;
+        double rate = limitRate(f.code, n.name);
+        n.limitUp = Math.round(prev * (1.0 + rate) * 100.0) / 100.0;
+        n.limitDown = Math.round(prev * (1.0 - rate) * 100.0) / 100.0;
+        n.volRatio = 0.0;
+        n.turnover = 0.0;
+        n.pe = 0.0;
+        n.pb = 0.0;
+        n.mktCap = 0.0;
+        String ds = q.get(30);
+        String tm = q.get(31);
+        n.date = 0;
+        n.timeStamp = 0L;
+        if (ds.length() == 10) {
+            n.date = StockUtil.parseInt(ds.substring(0, 4) + ds.substring(5, 7) + ds.substring(8, 10), 0);
+        }
+        if (n.date > 0 && tm.length() == 8) {
+            n.timeStamp = (long) n.date * 1000000L + (long) StockUtil.parseInt(tm.substring(0, 2) + tm.substring(3, 5) + tm.substring(6, 8), 0);
+        }
+        n.bid = new ArrayList<String>();
+        n.ask = new ArrayList<String>();
+        int k = 0;
+        while (k < 5) {
+            n.bid.add(q.get(11 + k * 2) + "," + StockUtil.num(d(q, 10 + k * 2) / 100.0, 0));
+            n.ask.add(q.get(21 + k * 2) + "," + StockUtil.num(d(q, 20 + k * 2) / 100.0, 0));
+            k = k + 1;
+        }
+        n.rows = new ArrayList<String>();
+        n.fetchedAt = now;
         return n;
     }
 
