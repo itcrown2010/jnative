@@ -200,10 +200,11 @@ function renderChart() {
     drawChart();
   }, { passive: true });
   cv.addEventListener('touchend', function () { K.drag = null; K.pinch = null; }, { passive: true });
+  /* vertical wheel/trackpad scrolling must not zoom the chart (it scrolls the page as usual); a horizontal swipe pans the candles, zoom stays on the 60/120/250/500 buttons and touch pinch */
   cv.onwheel = function (e) {
-    if (K.per === 'T' || !curBars()) return;
-    e.preventDefault(); var N = curBars().close.length;
-    K.count = Math.max(30, Math.min(N, Math.round(K.count * (e.deltaY > 0 ? 1.15 : 0.87)))); K.end = Math.min(N, K.end || N); drawChart();
+    if (K.per === 'T' || !curBars() || Math.abs(e.deltaX) <= Math.abs(e.deltaY)) return;
+    e.preventDefault(); var N = curBars().close.length, step = Math.max(1, Math.round(K.count / 40)) * (e.deltaX > 0 ? 1 : -1);
+    K.end = Math.max(K.count, Math.min(N, (K.end || N) + step)); drawChart();
   };
   if (live) { drawQuote(); }
   if (K.per === 'D') { loadBars().then(drawChart); } else { $('kinfo').innerHTML = '<span class="muted">\u52a0\u8f7d\u4e2d\u2026</span>'; }
@@ -261,13 +262,16 @@ function refreshLive() {
   }
   return Promise.all(ps);
 }
+var sbBusy = false;
 function refreshSidebar() {
+  if (sbBusy) return;
   var codes = state.symbols.filter(function (x) { return x.source === 'sina' && (x.watch || x.code === state.code); }).map(function (x) { return x.code; });
   if (!codes.length) return;
-  api('/api/quotes?codes=' + encodeURIComponent(codes.join(','))).then(function (list) {
+  sbBusy = true;
+  loadSideHeld().then(function () { return api('/api/quotes?codes=' + encodeURIComponent(codes.join(','))); }).then(function (list) {
     list.forEach(function (q) { state.symbols.forEach(function (x) { if (x.code === q.code) { x.close = q.price; x.chg = q.pct; } }); });
-    drawSymbols();
-  }).catch(function () {});
+    sbBusy = false; drawSymbols();
+  }).catch(function () { sbBusy = false; });
 }
 function mIdx(hm) { var t = Math.floor(hm / 100) * 60 + hm % 100; return t <= 690 ? t - 570 : t - 780 + 120; }
 function drawT() {
@@ -1097,16 +1101,28 @@ function drawDd(cv, ds, dd) {
 }
 
 /* ---------------- Shell: symbols, tabs, import ---------------- */
+function loadSideHeld() {
+  return api('/api/trade/account').then(function (a) {
+    var m = {}; (a.positions || []).forEach(function (p) { m[p.code] = { qty: p.qty, pct: p.pnlPct }; }); state.held = m;
+  }).catch(function () {});
+}
 function loadSymbols() {
-  return api('/api/symbols').then(function (list) { state.symbols = list; drawSymbols(); });
+  return Promise.all([api('/api/symbols'), loadSideHeld()]).then(function (r) { state.symbols = r[0]; drawSymbols(); });
 }
 function drawSymbols() {
   var q = $('search').value.trim().toLowerCase(), el = $('symList');
   el.innerHTML = '';
-  state.symbols.forEach(function (s) {
-    if (q && (s.code + s.name).toLowerCase().indexOf(q) < 0) return;
+  var held = state.held || {};
+  /* the list is the watchlist (held stocks are added automatically); typing in the box searches every local stock */
+  var shown = state.symbols.filter(function (s) { return q ? (s.code + s.name).toLowerCase().indexOf(q) >= 0 : !!s.watch; });
+  shown.sort(function (a, b) { return (held[b.code] ? 1 : 0) - (held[a.code] ? 1 : 0); });
+  if (!shown.length) {
+    el.innerHTML = '<div class="muted" style="padding:14px 12px;line-height:1.7">' + (q ? '\u6ca1\u6709\u5339\u914d\u7684\u80a1\u7968\uff0c\u53ef\u70b9\u53f3\u4e0a\u89d2\u201c\u6dfb\u52a0A\u80a1\u201d\u3002' : '\u81ea\u9009\u80a1\u4e3a\u7a7a\u3002\u6a21\u62df\u4ea4\u6613\u91cc\u6301\u6709\u7684\u80a1\u7968\u4f1a\u81ea\u52a8\u52a0\u5165\u8fd9\u91cc\uff1b\u4e5f\u53ef\u4ee5\u641c\u7d22\u540e\u70b9 \u2606 \u52a0\u5165\u3002') + '</div>';
+    return;
+  }
+  shown.forEach(function (s) {
     var d = document.createElement('div'); d.className = 'sym' + (s.code === state.code ? ' on' : '');
-    d.innerHTML = '<span class="star' + (s.watch ? ' on' : '') + '" title="\u81ea\u9009">' + (s.watch ? '\u2605' : '\u2606') + '</span><div class="nm"><div>' + esc(s.name || s.code) + '</div><div class="cd">' + esc(s.code) + (s.source === 'demo' ? '<span class="src">\u6a21\u62df</span>' : (s.source === 'sina' ? '<span class="src live">\u884c\u60c5</span>' : '<span class="src">CSV</span>')) + '</div></div>' +
+    d.innerHTML = '<span class="star' + (s.watch ? ' on' : '') + '" title="\u81ea\u9009">' + (s.watch ? '\u2605' : '\u2606') + '</span><div class="nm"><div>' + esc(s.name || s.code) + '</div><div class="cd">' + esc(s.code) + (s.source === 'demo' ? '<span class="src">\u6a21\u62df</span>' : (s.source === 'sina' ? '<span class="src live">\u884c\u60c5</span>' : '<span class="src">CSV</span>')) + '</div>' + (held[s.code] ? '<div class="cd" style="color:' + (held[s.code].pct >= 0 ? UP : DOWN) + '">\u6301\u4ed3 ' + held[s.code].qty + ' \u80a1 ' + (held[s.code].pct >= 0 ? '+' : '') + (held[s.code].pct * 100).toFixed(1) + '%</div>' : '') + '</div>' +
       '<div class="px"><div>' + fx(s.close, 2) + '</div><div class="' + sgn(s.chg) + '" style="font-size:12px">' + pct(s.chg) + '</div></div>';
     d.onclick = function (e) {
       if (e.target.className.indexOf('star') === 0) { post('/api/watch/' + (s.watch ? 'remove' : 'add') + '?code=' + encodeURIComponent(s.code)).then(function () { loadSymbols(); if (state.tab === 'watch') refreshWatch(); }); return; }
@@ -1614,15 +1630,18 @@ function init() {
     if (hp.ind) K.ind = hp.ind;
     if (hp.per) K.per = hp.per;
     if (hp.pper) state.pper = hp.pper;
-    if (state.symbols.length) selectSymbol(hp.code || state.symbols[0].code, hp.tab || 'chart');
+    if (state.symbols.length) selectSymbol(hp.code || (state.symbols.filter(function (x) { return x.watch; })[0] || state.symbols[0]).code, hp.tab || 'chart');
     if (hp.run && state.tab === 'backtest') { if (hp.run === 'all') { runCompare(); } else { $('btStrat').value = hp.run; $('btStrat').onchange(); runBacktest(); } }
+    refreshSidebar();
     loadAlerts(false);
     setInterval(function () { loadAlerts(state.tab === 'watch'); }, 120000);
     setInterval(function () { if (isTrading() && !document.hidden && state.tab === 'scan' && SC.hits.length && SC.autoQ) refreshScanQuotes(false); }, 20000);
     loadEvents(false);
     setInterval(function () { loadEvents(state.tab === 'watch'); }, 20000);
     setInterval(function () { if (isTrading() && !document.hidden && state.tab === 'chart') refreshLive(); }, 5000);
-    setInterval(function () { if (isTrading() && !document.hidden) { if (state.tab === 'watch') refreshWatch(); else refreshSidebar(); } }, 15000);
+    setInterval(function () { if (isTrading() && !document.hidden) refreshSidebar(); }, 3000);
+    setInterval(function () { if (isTrading() && !document.hidden && state.tab === 'watch') refreshWatch(); }, 15000);
+    document.addEventListener('visibilitychange', function () { if (!document.hidden) refreshSidebar(); });
   }).catch(function (e) { $('titleBar').innerHTML = '<span class="err">\u65e0\u6cd5\u8fde\u63a5\u670d\u52a1\u5668\uff1a' + esc(e.message) + '</span>'; });
 }
 init();

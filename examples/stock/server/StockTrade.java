@@ -538,6 +538,38 @@ class StockTrade {
         return StockFeed.nameFor(code);
     }
 
+    static long lastWatchSync = 0L;
+
+    /** Every held stock is kept on the watchlist: missing history is fetched (at most 2 stocks per call, retried after a minute) and the code is added. */
+    static void syncWatch(long now) {
+        if (lastWatchSync != 0L && now - lastWatchSync < 60000L) {
+            return;
+        }
+        int fetched = 0;
+        int missing = 0;
+        int i = 0;
+        while (i < positions.size()) {
+            String code = positions.get(i).code;
+            i = i + 1;
+            if (StockApi.inWatch(code) == 1) {
+                continue;
+            }
+            if (StockStore.find(code) == null && fetched < 2) {
+                fetched = fetched + 1;
+                StockFeed.addJson(code, StockFeed.DEFAULT_BEG);
+            }
+            if (StockStore.find(code) != null) {
+                StockApi.watchAdd(code);
+            } else {
+                missing = missing + 1;
+            }
+        }
+        lastWatchSync = now;
+        if (missing > 0 && fetched >= 2) {
+            lastWatchSync = now - 50000L;
+        }
+    }
+
     /** Positions, orders and fills that were recorded with the bare code as name (the quote source gave no name) get their real name. */
     static int healNames() {
         int changed = 0;
@@ -882,6 +914,7 @@ class StockTrade {
         try {
             rollover();
             int changed = healNames();
+            syncWatch(now);
             int i = 0;
             while (i < orders.size()) {
                 TradeOrder o = orders.get(i);

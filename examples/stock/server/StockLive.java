@@ -204,8 +204,9 @@ class StockLive {
         return 0.1;
     }
 
-    static LiveSnap fetchSina(FeedSym f, LiveSnap old, long now) {
-        HttpRequest req = HttpRequest.create("GET", "https://hq.sinajs.cn/list=" + f.sina);
+    /** One Sina request for one or several comma-separated symbols; null on failure. */
+    static String sinaText(String list) {
+        HttpRequest req = HttpRequest.create("GET", "https://hq.sinajs.cn/list=" + list);
         req.http1Only = 1;
         req.header("User-Agent", StockFeed.UA);
         req.header("Referer", "https://finance.sina.com.cn/");
@@ -226,7 +227,70 @@ class StockLive {
             }
             bi = bi + 1;
         }
-        String body = Bytes.toString(cp);
+        return Bytes.toString(cp);
+    }
+
+    static LiveSnap fetchSina(FeedSym f, LiveSnap old, long now) {
+        String body = sinaText(f.sina);
+        if (body == null) {
+            return null;
+        }
+        return parseSina(f, body, old, now);
+    }
+
+    /** While Tencent is blocked, refreshes every stale quote of the comma-separated codes with a single Sina request, so a polled list costs one round trip. */
+    static void prefetchSina(String codes, long now) {
+        if (now >= tencentDownUntil) {
+            return;
+        }
+        ArrayList<FeedSym> need = new ArrayList<FeedSym>();
+        StringBuilder list = new StringBuilder();
+        int st = 0;
+        int i = 0;
+        while (i <= codes.length()) {
+            if (i == codes.length() || codes.charAt(i) == 44) {
+                FeedSym f = StockFeed.resolve(codes.substring(st, i).trim());
+                st = i + 1;
+                if (f != null && need.size() < 24) {
+                    LiveSnap hit = snaps.get(f.code);
+                    if (hit == null || now - hit.fetchedAt >= (long) SNAP_TTL_MS) {
+                        if (need.size() > 0) {
+                            list.append(",");
+                        }
+                        list.append(f.sina);
+                        need.add(f);
+                    }
+                }
+            }
+            i = i + 1;
+        }
+        if (need.size() < 2) {
+            return;
+        }
+        try {
+            String body = sinaText(list.toString());
+            if (body == null) {
+                return;
+            }
+            int k = 0;
+            while (k < need.size()) {
+                FeedSym f = need.get(k);
+                k = k + 1;
+                int at = body.indexOf("hq_str_" + f.sina + "=\"");
+                if (at < 0) {
+                    continue;
+                }
+                LiveSnap n = parseSina(f, body.substringFrom(at), snaps.get(f.code), now);
+                if (n != null) {
+                    snaps.put(f.code, n);
+                }
+            }
+        } catch (Exception ex) {
+            System.out.println("STOCK_SINA_BATCH_WARN " + ex.getMessage());
+        }
+    }
+
+    static LiveSnap parseSina(FeedSym f, String body, LiveSnap old, long now) {
         int a = body.indexOf("=\"");
         if (a < 0) {
             return null;
@@ -430,6 +494,7 @@ class StockLive {
         int cnt = 0;
         int st = 0;
         int i = 0;
+        prefetchSina(codes, System.currentTimeMillis());
         while (i <= codes.length()) {
             if (i == codes.length() || codes.charAt(i) == 44) {
                 String c = codes.substring(st, i).trim();

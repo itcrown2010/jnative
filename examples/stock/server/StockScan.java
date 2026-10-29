@@ -1230,6 +1230,8 @@ class StockScan {
         }
         fitReset();
         fitPending = 1;
+        /* when the training rows are already in memory a re-scan arrives here still carrying the previous run's DONE phase */
+        phase = PHASE_TRAIN;
         msg = "正在拟合模型";
     }
 
