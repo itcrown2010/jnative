@@ -1234,7 +1234,7 @@ function renderScan() {
     '<div class="card"><h3>这些概率靠不靠谱？（模型在没参与训练的最近约 250 个交易日上的检验）</h3><div id="scVal"><div class="muted">首次扫描会先训练模型，之后显示。</div></div></div>' +
     '<div class="card"><h3>历史战绩：每次扫描的结果，隔天自动核对真实涨跌 <button class="small ghost" id="trRef">刷新</button></h3><div id="scTrack"><div class="loading">加载中…</div></div></div>' +
     '<div class="card"><details><summary style="cursor:pointer;font-size:16px;font-weight:600">请务必看清（使用前必读）</summary><div class="note" style="font-size:13px;line-height:1.7;margin-top:8px">' +
-    '① 这不是“保证大涨”的名单。模型是用约 300 只股票、近 4 年日线训练的统计模型，只给出“相对基准更高”的概率；上方检验表是它在训练外时期的真实命中率，请以此为准，不要看概率数字本身。<br>' +
+    '① 这不是“保证大涨”的名单。模型是用约 880 只固定抽样股票（全市场每 5 只取 1 只）、近 4 年日线训练的统计模型，只给出“相对基准更高”的概率；上方检验表是它在训练外时期的真实命中率，请以此为准，不要看概率数字本身。<br>' +
     '② 模型的优势主要来自“近期波动大”“前一天已大涨”等规律，这类股票涨得多，跌得也多——请看检验表里“持有期末亏损≥5% 占比”和“持有到期平均收益”。<br>' +
     '③ 买入价取的是历史上真实的 T+1 开盘价（已含高开）；但如果 T+1 开盘就涨停，你实际买不到；也没有计入佣金、印花税、滑点。“任一天最高收盘”只是上限，你需要自己决定何时卖，持有到期的收益更接近现实。<br>' +
     '④ 数据来自新浪公开接口，仅供个人研究与学习，不构成任何投资建议。</div></details></div>';
@@ -1416,7 +1416,7 @@ function drawAdvice() {
       return '<td data-advc="' + h + ',' + t + '" style="cursor:pointer;background:' + bg + '" title="命中率 ' + pct(cell.hit, 1) + '（不筛选 ' + pct(c.base, 1) + '）；按期持有 ' + pct(cell.end, 2) + '；到目标就卖 ' + pct(cell.tp, 2) + '；再加止损 ' + pct(cell.tpsl, 2) + '（后两项未扣费）' + (cell.stable ? '；前后半段检验期都盈利' : '') + '">命中 <b>' + pct(cell.hit, 0) + '</b> ' + (cell.stable ? '<span class="up">★</span>' : '') + '<br><span class="' + sgn(cell.net) + '">净 ' + pct(cell.net, 2) + '</span><br><span class="muted" style="font-size:11px">n=' + cell.n + '，日均 ' + cell.perDay.toFixed(1) + ' 只</span></td>';
     }).join('') + '</tr>';
   }).join('') + '</table></div>' +
-    '<div class="note">格子里：“命中”= 检验期内实际涨到目标的比例；“净”= 按期持有（第 H 天收盘卖）、扣成本后的每笔平均收益（红=赚、绿=亏）；★ = 检验期前后两半段都为正，比较可信；底色红=稳定盈利，黄=整体为正但前后不稳，绿=亏钱。<b>读表要点</b>：① 概率门槛越高，命中率越高，但入选只数越少；② 目标越小、天数越长，命中率虚高但每笔赚得少，所以看“净”而不是只看“命中”；③ 系统是在 20×6 个格子里挑最好的，存在“挑出来的最好成绩比未来实际偏乐观”的问题，请把结果打个折，并以“历史战绩”里的真实记录为准；④ 同一只股票连续几天入选、持有期互相重叠，真正独立的样本比 n 少得多，而且检验期只有最近一年、只经历了一种行情，换行情后表现可能不同；⑤ 概率门槛越高，样本越少、越容易被个别大涨的股票拉高平均值，格子里 n 小的请当作参考。</div>';
+    '<div class="note">格子里：“命中”= 检验期内实际涨到目标的比例；“净”= 按期持有（第 H 天收盘卖）、扣成本后的每笔平均收益（红=赚、绿=亏）；★ = 检验期前后两半段都为正，比较可信；底色红=稳定盈利，黄=整体为正但前后不稳，绿=亏钱。<b>读表要点</b>：① 概率门槛越高，命中率越高，但入选只数越少；② 目标越小、天数越长，命中率虚高但每笔赚得少，所以看“净”而不是只看“命中”；③ 系统是在 20×6 个格子里挑最好的，存在“挑出来的最好成绩比未来实际偏乐观”的问题，请把结果打个折，并以“历史战绩”里的真实记录为准；④ 同一只股票连续几天入选、持有期互相重叠，真正独立的样本比 n 少得多，而且检验期只有最近一年、只经历了一种行情，换行情后表现可能不同；⑤ 概率门槛越高，样本越少、越容易被个别大涨的股票拉高平均值，格子里 n 小的请当作参考；⑥ 评估用的是约 880 只固定抽样的股票（每天都是同一批），换一批抽样股票同一格的“净”仍可能差 2～3 个百分点（实测 8%/70% 那格 +5.1% 对 +2.7%），而且检验期只有最近一年，只看大方向，不要在两个相近的格子之间纠结。</div>';
   el.innerHTML = html;
   Array.prototype.forEach.call(el.querySelectorAll('[data-adv]'), function (b) { b.onclick = function () { var r = recs[parseInt(b.getAttribute('data-adv'), 10)]; advApply(r.h, r.theta, r.p); }; });
   Array.prototype.forEach.call(el.querySelectorAll('[data-advc]'), function (td) { td.onclick = function () { var q = td.getAttribute('data-advc').split(','); advApply(parseInt(q[0], 10), parseFloat(q[1]), pcs[pj]); }; });

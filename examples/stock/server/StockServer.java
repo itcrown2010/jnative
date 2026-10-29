@@ -308,6 +308,7 @@ class StockRoute implements WebHandler {
                 return;
             }
             StockScan.mGate = StockUtil.parseInt(ctx.query("mg"), 0);
+            StockScan.setSeed(StockUtil.parseInt(ctx.query("seed"), StockScan.trainSeed));
             String er = StockScan.start(th, pm, ex, hd);
             if (er.length() > 0) {
                 reply(ctx, StockUtil.err("BUSY", er));
@@ -345,6 +346,7 @@ class StockRoute implements WebHandler {
             if (StockUtil.parseInt(ctx.query("excl"), 0) == 1) {
                 aex2 = 1;
             }
+            StockScan.setSeed(StockUtil.parseInt(ctx.query("seed"), StockScan.trainSeed));
             String aer = StockScan.startAdvice(aex2);
             if (aer.length() > 0) {
                 reply(ctx, StockUtil.err("BUSY", aer));

@@ -15,8 +15,11 @@ import jnative.http.*;
  */
 class StockScan {
     static int NF2 = 16;
-    static int TRAIN_STOCKS = 300;
-    static int CAP = 300000;
+    static int TRAIN_STOCKS = 1500;
+    /** Rows kept in memory: a fixed fifth of the market (about 880 stocks, one code in five) with every signal day, roughly 0.85 million rows. */
+    static int CAP = 1000000;
+    static int SAMPLE_STRIDE = 1;
+    static int trainTotalN = 0;
     static int PHASE_IDLE = 0;
     static int PHASE_UNIVERSE = 1;
     static int PHASE_TRAIN = 2;
@@ -87,12 +90,17 @@ class StockScan {
     static double baseTp = 0.0;
     static double baseTs = 0.0;
     static int tIdx = 2;
-    static double[] ss;
+    /** take-profit / stop-loss returns scaled by 1e6 (int keeps the 40 per-row series at 4 bytes each) */
+    static int[] ss;
     static int[] binLoss;
     static double baseEnd = 0.0;
     static int[] sd;
     static int sn = 0;
     static int trainTried = 0;
+    static int trainPos = 0;
+    /** Training stocks are the ones whose 6-digit code is congruent to trainSeed mod TRAIN_MOD: the same stocks every day (the old every-Nth-of-the-list pick shifted whenever a stock was listed or delisted). */
+    static int TRAIN_MOD = 5;
+    static int trainSeed = 0;
     static int trainLoaded = 0;
     static int trainStride = 1;
     static int cutDate = 0;
@@ -213,6 +221,7 @@ class StockScan {
         startedMs = System.currentTimeMillis();
         finishedMs = 0L;
         trainTried = 0;
+        trainPos = 0;
         msg = "";
         long today = StockFeed.nowCst() / 10000L;
         if (uN > 0 && uDay == today) {
@@ -497,14 +506,26 @@ class StockScan {
         sx = new double[CAP * NF2];
         sr = new double[4 * CAP];
         se = new double[4 * CAP];
-        ss = new double[40 * CAP];
+        ss = new int[40 * CAP];
         sl = new int[4 * CAP];
         sd = new int[CAP];
         sm = new int[CAP];
         sn = 0;
         trainTried = 0;
+        trainPos = 0;
         trainLoaded = 0;
         standardized = 0;
+        trainTotalN = 0;
+        int tq = 0;
+        while (tq < uN) {
+            if (uTrade[tq] > 0.0 && inTrainSet(tq) == 1) {
+                trainTotalN = trainTotalN + 1;
+            }
+            tq = tq + 1;
+        }
+        if (trainTotalN < 1) {
+            trainTotalN = 1;
+        }
         trainStride = uN / TRAIN_STOCKS;
         if (trainStride < 1) {
             trainStride = 1;
@@ -789,8 +810,8 @@ class StockScan {
                             }
                             k2 = k2 + 1;
                         }
-                        ss[(hi * 5 + ti) * CAP + sn] = tp;
-                        ss[((4 + hi) * 5 + ti) * CAP + sn] = ts;
+                        ss[(hi * 5 + ti) * CAP + sn] = (int) Math.round(tp * 1000000.0);
+                        ss[((4 + hi) * 5 + ti) * CAP + sn] = (int) Math.round(ts * 1000000.0);
                         ti = ti + 1;
                     }
                     sr[hi * CAP + sn] = mx;
@@ -804,12 +825,41 @@ class StockScan {
                     sn = sn + 1;
                 }
             }
-            t = t + 1;
+            t = t + SAMPLE_STRIDE;
+        }
+    }
+
+    static int inTrainSet(int idx) {
+        String sym = uSym.get(idx);
+        if (sym.length() != 8) {
+            return 0;
+        }
+        if (StockUtil.parseInt(sym.substring(2, 8), 0) % TRAIN_MOD == trainSeed) {
+            return 1;
+        }
+        return 0;
+    }
+
+    /** Test hook: another seed means another fixed stock sample, so the training rows must be loaded again. */
+    static void setSeed(int seed) {
+        int sd0 = seed % TRAIN_MOD;
+        if (sd0 < 0) {
+            sd0 = 0;
+        }
+        if (sd0 != trainSeed && running() == 0) {
+            trainSeed = sd0;
+            sn = 0;
+            standardized = 0;
+            cutDate = 0;
         }
     }
 
     static void stepTrain() {
-        int idx = trainTried * trainStride;
+        int idx = trainPos;
+        while (idx < uN && inTrainSet(idx) == 0) {
+            idx = idx + 1;
+        }
+        trainPos = idx + 1;
         if (trainLoaded >= TRAIN_STOCKS || idx >= uN || sn >= CAP - 1100) {
             if (sn < 20000) {
                 phase = PHASE_ERROR;
@@ -848,7 +898,7 @@ class StockScan {
                 finishedMs = System.currentTimeMillis();
             }
         }
-        msg = "正在加载训练样本：" + trainLoaded + "/" + TRAIN_STOCKS + " 只，累计 " + sn + " 个样本";
+        msg = "正在加载训练样本：" + trainLoaded + "/" + trainTotalN + " 只，累计 " + sn + " 个样本";
     }
 
     // ---------- model ----------
@@ -944,7 +994,14 @@ class StockScan {
     static final int FIT_ITERS = 100;
     static final int FIT_PER_STEP = 4;
 
+    static int advEval = 0;
+    static int advI = 0;
+    static int advNte = 0;
+    static int advNHit = 0;
+
     static void fitReset() {
+        advEval = 0;
+        advI = 0;
         fitStage = 0;
         fitPending = 0;
         fitIt = 0;
@@ -1049,7 +1106,14 @@ class StockScan {
             return 0;
         }
         int n = 0;
-        while (n < FIT_PER_STEP && fitIt < FIT_ITERS) {
+        int per = 800000 / (sn + 1);
+        if (per < 1) {
+            per = 1;
+        }
+        if (per > FIT_PER_STEP) {
+            per = FIT_PER_STEP;
+        }
+        while (n < per && fitIt < FIT_ITERS) {
             gradPass(ho, fitNtr);
             fitIt = fitIt + 1;
             n = n + 1;
@@ -1121,8 +1185,8 @@ class StockScan {
                 }
                 double endR = se[ho + i];
                 sumEnd = sumEnd + endR;
-                double rTp = ss[offTp + i];
-                double rTs = ss[offTs + i];
+                double rTp = (double) ss[offTp + i] / 1000000.0;
+                double rTs = (double) ss[offTs + i] / 1000000.0;
                 sumTp = sumTp + rTp;
                 sumTs = sumTs + rTs;
                 brier = brier + (p - y) * (p - y);
@@ -1309,6 +1373,7 @@ class StockScan {
         stopFlag = 0;
         consecFail = 0;
         trainTried = 0;
+        trainPos = 0;
         msg = "";
         long today = StockFeed.nowCst() / 10000L;
         if (uN > 0 && uDay == today) {
@@ -1399,16 +1464,23 @@ class StockScan {
         hIdx = hi;
         tIdx = ti;
         theta = thOf(ti);
-        if (fitStep() == 0) {
-            return;
+        if (advEval == 0) {
+            if (fitStep() == 0) {
+                return;
+            }
+            advEval = 1;
+            advI = 0;
+            advNte = 0;
+            advNHit = 0;
         }
         int ho = hi * CAP;
         int offTp = (hi * 5 + ti) * CAP;
         int offTs = ((4 + hi) * 5 + ti) * CAP;
-        int nte = 0;
-        int nHit = 0;
-        int i = 0;
-        while (i < sn) {
+        int nte = advNte;
+        int nHit = advNHit;
+        int i = advI;
+        int stop = i + 150000;
+        while (i < sn && i < stop) {
             if (sd[i] >= cutDate && inclRow(i) == 1) {
                 int o = i * NF2;
                 double z = bias;
@@ -1430,9 +1502,9 @@ class StockScan {
                     cN[q] = cN[q] + 1;
                     cHit[q] = cHit[q] + y;
                     cEnd[q] = cEnd[q] + se[ho + i];
-                    cTp[q] = cTp[q] + ss[offTp + i];
+                    cTp[q] = cTp[q] + (double) ss[offTp + i] / 1000000.0;
                     double rs = se[ho + i];
-                    cTs[q] = cTs[q] + ss[offTs + i];
+                    cTs[q] = cTs[q] + (double) ss[offTs + i] / 1000000.0;
                     if (sd[i] <= advMid) {
                         cNa[q] = cNa[q] + 1;
                         cSa[q] = cSa[q] + rs;
@@ -1445,6 +1517,14 @@ class StockScan {
             }
             i = i + 1;
         }
+        if (i < sn) {
+            advI = i;
+            advNte = nte;
+            advNHit = nHit;
+            return;
+        }
+        advEval = 0;
+        advI = 0;
         aTestN[advCombo] = nte;
         if (nte > 0) {
             aBase[advCombo] = (double) nHit / (double) nte;
@@ -1799,7 +1879,7 @@ class StockScan {
         StringBuilder sb = new StringBuilder();
         sb.append("{\"source\":\"" + source + "\",\"startedAt\":" + startedMs + ",\"finishedAt\":" + finishedMs + ",\"now\":" + now + ",\"phase\":" + phase + ",\"msg\":" + StockUtil.js(msg) + ",\"runId\":" + runId + ",\"universe\":" + total + ",\"pos\":" + posOut
                 + ",\"scanned\":" + scanned + ",\"failed\":" + failed + ",\"skipped\":" + skipped + ",\"theta\":" + StockUtil.num(theta, 4) + ",\"hold\":" + hold
-                + ",\"pMin\":" + StockUtil.num(pMin, 3) + ",\"elapsed\":" + el + ",\"trainLoaded\":" + trainLoaded + ",\"trainTotal\":" + TRAIN_STOCKS
+                + ",\"pMin\":" + StockUtil.num(pMin, 3) + ",\"elapsed\":" + el + ",\"trainLoaded\":" + trainLoaded + ",\"trainTotal\":" + trainTotalN
                 + ",\"market\":" + marketJson() + ",\"gate\":" + mGate + ",\"gated\":" + gated + ",\"validation\":" + validation + ",\"restored\":" + restored + ",\"hitsTotal\":" + hits.size() + ",\"adv\":{\"on\":" + advMode + ",\"done\":" + advCombo + ",\"total\":20,\"startedAt\":" + advStartMs + ",\"has\":" + advHas() + "},\"marketOpen\":" + StockNotify.tradingNow() + ",\"hits\":[");
         int i = since;
         if (i < 0) {
